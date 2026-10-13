@@ -106,6 +106,9 @@ Transactions"; DirectNG "DCdisable"):
 | duplicate messages "This payment has already been made, please contact the business" / "This payment has already been paid. Please contact customer service." | published rule | API: `200`, `error_code` `0`, the first message, and the original's `transaction_result`; no second transaction |
 | DCdisable is not a universal idempotency key for JSON calls                               | vendor correspondence | applied on create, to every `txn_type`, and on the payment page; no other route |
 
+The idempotency inspector records the `DCdisable` value exactly as the client sent it, under a key name carrying its
+scope (`DCdisable debit`, `DCdisable verify 5`, `DCdisable reversal`, …), so a 254-character value is kept whole.
+
 The duplicate answer is a simulator decision: no shape is published, and Tranzila's only published duplicate answer
 (Dtran, legacy CGI) is "the original response" plus a flag, so a client that retried after a timeout gets the
 transaction it already made.
@@ -218,8 +221,8 @@ There is no top-level amount; the request schema has no amount field (published 
 | `cancel`             | "Cancels a `debit` or `credit` transaction"; example carries no card, expiry or items                       | cancels a `debit`, `force` or `credit` in full; not after a `credit`; card fields not required                                  |
 
 A follow-on (`force`, `reversal`, `credit`, `cancel`) takes the original's currency; a different `txn_currency_code` on
-it is refused `400` `20004`, before any rule below that answers `200`, because a schema-class refusal precedes the
-application errors.
+it is refused `400` `20004`, before the `DCdisable` length check (`22103`), the `DCdisable` duplicate answer and any rule
+below that answers `200`, because a schema-class refusal precedes the application errors.
 
 Reference rules (`20112`, `21100`, `21101`, `22100`, `22101`, `23001`, `23002` are published codes; which condition
 answers which is a simulator decision unless the code's own text says it):
