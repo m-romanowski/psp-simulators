@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Start a payment')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section
+        class="panel"
+        th:if="${wizard != null and wizard.panel.name() == 'THE_PAYMENT_EXISTS_NOW'}"
+      >
+        <h2>This payment exists now</h2>
+        <div class="body">
+          <p>
+            <span th:text="${wizard.provider}"></span> gave it the id
+            <span class="id" th:text="${wizard.startedObjectId}"></span>, and the audit trail
+            records it as started from this screen rather than by a call from a client
+            application.
+          </p>
+          <p class="note" th:if="${wizard.chosenWay != null}"
+            th:text="${wizard.chosenWay.whatItLeavesBehind}"></p>
+          <ul class="choices">
+            <li>
+              <a
+                th:href="@{/ui/objects(provider=${wizard.provider},testRunId=${wizard.testRunId},providerObjectId=${wizard.startedObjectId})}"
+                >Look this payment up on the Payments screen</a
+              >
+            </li>
+            <li>
+              <a
+                th:href="@{/ui/audit(provider=${wizard.provider},testRunId=${wizard.testRunId})}"
+                >Read what the audit trail recorded</a
+              >
+            </li>
+            <li>
+              <a
+                th:href="@{/ui/objects/new(provider=${wizard.provider},testRunId=${wizard.testRunId},accountId=${wizard.accountId})}"
+                >Start another payment</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${wizard != null and wizard.panel.name() == 'NO_ACCOUNT_IS_CONFIGURED'}"
+      >
+        <h2>Configure an account before you start a payment</h2>
+        <div class="body">
+          <div class="caution" th:text="${wizard.whatToDoWithNoAccount()}"></div>
+          <ul class="choices">
+            <li>
+              <a
+                th:href="@{/ui/configuration/account(provider=${wizard.provider},testRunId=${wizard.testRunId})}"
+                >Configure an account for this provider and test run</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${wizard != null and wizard.panel.name() == 'WHICH_KIND_OF_PAYMENT'}"
+      >
+        <h2>Step 1 of 2 &mdash; what kind of payment is this?</h2>
+        <div class="body">
+          <p>
+            What you pick now decides the shape of everything after it, so pick by what each choice
+            leaves you holding. Every choice says that under it, along with where a payer finishes
+            it and the wire value it sends.
+          </p>
+          <details>
+            <summary>What this wizard starts, and whose field names it asks for</summary>
+            <p class="note">
+              This wizard starts a payment the same way a client application would, on the account
+              you pick below, and asks you for nothing that account already holds. Every field it
+              asks for is one
+              <span class="id" th:text="${wizard.provider}"></span> itself declares, named the way
+              that provider names it, so nothing you fill in here is this simulator's invention.
+            </p>
+          </details>
+
+          <form class="form" method="get" th:action="@{/ui/objects/new}">
+            <input type="hidden" name="provider" th:value="${wizard.provider}" />
+            <input type="hidden" name="testRunId" th:value="${wizard.testRunId}" />
+            <div>
+              <label for="accountId">the account this payment is started on</label>
+              <select id="accountId" name="accountId">
+                <option
+                  th:each="known : ${wizard.accountsThisRunConfigures}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == wizard.accountId}"
+                ></option>
+              </select>
+            </div>
+            <div class="wide choice" th:each="way : ${wizard.ways}">
+              <label th:for="${way.name}">
+                <input
+                  type="radio"
+                  th:id="${way.name}"
+                  name="startedAs"
+                  th:value="${way.name}"
+                  th:checked="${way.chosen}"
+                />
+                <span th:text="${way.label}"></span>
+              </label>
+              <details>
+                <summary>
+                  What this one leaves you holding, where a payer finishes it, and the wire value it
+                  sends
+                </summary>
+                <p class="note wrap" th:text="${way.whatItLeavesBehind}"></p>
+                <p class="note wrap" th:text="${way.whereThePayerFinishesIt}"></p>
+                <p class="note wrap">
+                  This choice is sent as
+                  <span class="id" th:text="${way.name}"></span>, which is how
+                  <span class="id" th:text="${wizard.provider}"></span> spells it on its own wire.
+                </p>
+              </details>
+            </div>
+            <div class="actions">
+              <button type="submit">Next: what this payment says</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${wizard != null and wizard.panel.name() == 'WHAT_THIS_PAYMENT_SAYS'}"
+      >
+        <h2>Step 2 of 2 &mdash; what this payment says</h2>
+        <div class="body">
+          <p>
+            You are starting
+            <span th:text="${wizard.chosenWay.label}"></span>
+            on the account
+            <span class="id" th:text="${wizard.accountId}"></span>.
+          </p>
+          <p class="note wrap" th:text="${wizard.chosenWay.whatItLeavesBehind}"></p>
+          <p class="note wrap" th:text="${wizard.chosenWay.whereThePayerFinishesIt}"></p>
+          <p>
+            <a
+              th:href="@{/ui/objects/new(provider=${wizard.provider},testRunId=${wizard.testRunId},accountId=${wizard.accountId})}"
+              >Pick a different kind of payment</a
+            >
+          </p>
+
+          <div class="caution" th:if="${wizard.noCallbackTargetIsConfigured()}">
+            <span th:text="${wizard.whatToDoWithNoCallbackTarget()}"></span>
+          </div>
+
+          <form class="form" method="post" th:action="@{/ui/objects/start(provider=${wizard.provider},testRunId=${wizard.testRunId})}">
+            <input type="hidden" name="accountId" th:value="${wizard.accountId}" />
+            <input type="hidden" name="startedAs" th:value="${wizard.chosenWay.name}" />
+            <div th:each="field : ${wizard.fields}">
+              <label th:for="${field.key}">
+                <span th:text="${field.label}"></span>
+                <span th:if="${field.required}" class="tag fact">required</span>
+              </label>
+              <input
+                th:if="${field.isTypedIn()}"
+                th:id="${field.key}"
+                type="text"
+                th:name="${field.theParameterItArrivesUnder()}"
+                th:value="${field.value}"
+                th:placeholder="${field.example}"
+                th:list="${field.itSuggestsTheOffersBesideItWithoutImposingThem()} ? ${field.theSuggestionsOnIt()} : null"
+              />
+              <datalist
+                th:if="${field.itSuggestsTheOffersBesideItWithoutImposingThem()}"
+                th:id="${field.theSuggestionsOnIt()}"
+              >
+                <option
+                  th:each="choice : ${field.choices}"
+                  th:value="${choice.value}"
+                  th:label="${choice.label}"
+                ></option>
+              </datalist>
+              <select
+                th:unless="${field.isTypedIn()}"
+                th:id="${field.key}"
+                th:name="${field.theParameterItArrivesUnder()}"
+              >
+                <option value="" th:text="${field.required} ? 'choose one' : 'send nothing'"></option>
+                <option
+                  th:each="choice : ${field.choices}"
+                  th:value="${choice.value}"
+                  th:text="${choice.label}"
+                  th:selected="${choice.chosen}"
+                ></option>
+              </select>
+              <span class="note wrap" th:text="${field.whatItIsFor}"></span>
+              <div th:if="${field.itSuggestsTheOffersBesideItWithoutImposingThem()}">
+                <dl class="pairs">
+                  <th:block th:each="choice : ${field.choices}">
+                    <dt class="id" th:text="${choice.value}"></dt>
+                    <dd class="wrap" th:text="${choice.label}"></dd>
+                  </th:block>
+                </dl>
+                <span
+                  class="note wrap"
+                  th:text="${field.whyTheseAreSuggestedAndTheBoxStillTakesAnother()}"
+                ></span>
+              </div>
+              <span
+                class="empty"
+                th:if="${field.thisRunHasProducedNoneOfThese()}"
+                th:text="${field.whatHasToHappenBeforeThisRunSuggestsOne()}"
+              ></span>
+              <span
+                class="empty"
+                th:if="${field.thisSimulatorIsTheOneThatConsumesTheValue and wizard.noCallbackTargetIsConfigured()}"
+                >This test run configures no callback target, so this list is empty. Add one on the
+                Configuration screen.</span
+              >
+            </div>
+            <div class="actions">
+              <button type="submit">Start this payment</button>
+            </div>
+          </form>
+
+          <div class="scroll" th:unless="${#lists.isEmpty(wizard.filledIn)}">
+            <h3>What the simulator fills in for you, and where it takes it from</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>field</th>
+                  <th>where the value comes from</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="supplied : ${wizard.filledIn}">
+                  <td class="id" th:text="${supplied.key}"></td>
+                  <td class="wrap" th:text="${supplied.why}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details>
+            <summary>The wire values this step sends, and the key each field is recorded under</summary>
+            <p class="note wrap">
+              The way of starting is sent as
+              <span class="id" th:text="${wizard.chosenWay.name}"></span>, and every field above is
+              sent under the key beside its name here. Those keys are what the audit trail records
+              and what a scenario rule is matched on, so this is the list to read a trail against.
+            </p>
+            <dl class="pairs">
+              <th:block th:each="field : ${wizard.fields}">
+                <dt th:text="${field.label}"></dt>
+                <dd class="id" th:text="${field.key}"></dd>
+              </th:block>
+            </dl>
+          </details>
+
+          <details>
+            <summary>What the route does that this wizard does not, and how the payment is recorded</summary>
+            <p class="note">
+              This wizard hands the payment to the same operation a client application reaches on
+              <span class="id" th:text="${wizard.provider}"></span>'s own route, and that operation
+              refuses it exactly as it would refuse a call that arrived there. What the wizard does
+              not do is travel that route: the checks the route itself makes on a client's credential
+              and signature are not made on a payment an operator started, and the table above says
+              what the simulator sent in their place. The payment is recorded as started from this
+              screen, and that is the origin the Payments screen and the audit trail report, so a
+              payment you clicked into existence is never reported as one a client sent.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

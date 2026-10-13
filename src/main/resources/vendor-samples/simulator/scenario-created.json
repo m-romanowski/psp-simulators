@@ -1,0 +1,12 @@
+{
+  "scenarioId": "scn_123",
+  "testRunId": "e2e-run-123",
+  "provider": "stripe",
+  "priority": 100,
+  "operation": null,
+  "story": null,
+  "keyedOn": null,
+  "whenState": null,
+  "thenState": null,
+  "createdAt": "2026-09-07T12:00:00Z"
+}

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Payments')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel">
+        <h2>Payments of this test run</h2>
+        <div class="body">
+          <form class="filters" method="get" th:action="@{/ui/objects}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${testRunId}" />
+            <div>
+              <label for="providerObjectId">id the provider answered with</label>
+              <input
+                id="providerObjectId"
+                type="text"
+                name="providerObjectId"
+                th:value="${providerObjectId}"
+              />
+            </div>
+            <button type="submit" class="secondary">Look up</button>
+          </form>
+          <p>
+            <a
+              th:href="@{/ui/objects/new(provider=${provider},testRunId=${testRunId})}"
+              >Start a payment from this screen, without a client application</a
+            >
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${object != null and object.session != null and completion != null}"
+      >
+        <h2 th:if="${completion.offersAPayerStep()}">
+          What a payer has still to finish on this one
+        </h2>
+        <h2 th:unless="${completion.offersAPayerStep()}">
+          The page this payment's payer was sent to
+        </h2>
+        <div class="body">
+          <p class="note" th:unless="${completion.offersAPayerStep()}">
+            This provider leaves no payer step on this object now, and says further down what it
+            has in place of one. What stands below is the page as it was started, and not a step
+            anyone is still waiting for.
+          </p>
+          <dl class="pairs">
+            <dt>provider account</dt>
+            <dd class="id" th:text="${object.session.account}"></dd>
+            <dt>the party it is for</dt>
+            <dd>
+              <span
+                class="id"
+                th:if="${object.session.aPartyIsNamed}"
+                th:text="${object.session.party}"
+              ></span>
+              <span
+                class="note"
+                th:unless="${object.session.aPartyIsNamed}"
+                th:text="${object.session.party}"
+              ></span>
+            </dd>
+            <dt>the operation it was started for</dt>
+            <dd class="id" th:text="${object.session.operation}"></dd>
+            <dt>created</dt>
+            <dd th:text="${object.session.createdAt}"></dd>
+            <dt>expires</dt>
+            <dd>
+              <span
+                th:if="${object.session.itExpiresAtAKnownTime}"
+                class="tag"
+                th:classappend="${object.session.itsDeadlineHasPassed} ? 'fact'"
+                th:text="${object.session.expires}"
+              ></span>
+              <span
+                th:unless="${object.session.itExpiresAtAKnownTime}"
+                class="note"
+                th:text="${object.session.expires}"
+              ></span>
+            </dd>
+          </dl>
+          <p class="note" th:unless="${object.session.aPartyIsNamed}">
+            The party above is what this provider publishes in place of one, in its own words.
+          </p>
+          <p class="note" th:unless="${object.session.itExpiresAtAKnownTime}">
+            The expiry above is what this provider publishes in place of a deadline, in its own
+            words, so nothing here expires this object.
+          </p>
+          <p class="note" th:if="${object.session.itsDeadlineHasPassed}">
+            This object's deadline has passed against the clock of this test run. A deadline that
+            has passed is not the same fact as one that has not, and the provider status beside it
+            is what this provider reports for the object now.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>What this object is</h2>
+        <div class="body">
+          <p>
+            <span class="tag" th:text="${object.kind.asThisProviderNamesIt}"></span>
+          </p>
+          <p class="note" th:text="${object.kind.whatItIsInItsOwnWords}"></p>
+          <dl class="pairs">
+            <dt>id the provider answered with</dt>
+            <dd class="id" th:text="${object.providerObjectId}"></dd>
+            <dt th:if="${object.wasAddressedByALaterIdentifier()}">addressed by</dt>
+            <dd
+              class="id"
+              th:if="${object.wasAddressedByALaterIdentifier()}"
+              th:text="${object.addressedBy}"
+            ></dd>
+            <dt th:if="${object.answersToMoreThanOneIdentifier()}">also answers to</dt>
+            <dd class="id" th:if="${object.answersToMoreThanOneIdentifier()}">
+              <a
+                th:each="member : ${object.answersTo}"
+                th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${member})}"
+                th:text="${member}"
+              ></a>
+            </dd>
+            <dt>provider status</dt>
+            <dd class="id" th:text="${object.nativeStatus}"></dd>
+            <dt>normalized status</dt>
+            <dd><span th:replace="~{fragments :: status(${object.normalizedStatus})}"></span></dd>
+            <dt>amount</dt>
+            <dd class="id" th:text="${object.amount} ?: 'none recorded'"></dd>
+            <dt>currency</dt>
+            <dd class="id" th:text="${object.currency} ?: 'none recorded'"></dd>
+            <dt>created by</dt>
+            <dd th:text="${object.origin}"></dd>
+            <dt>last changed</dt>
+            <dd th:text="${object.updatedAt}"></dd>
+          </dl>
+          <details>
+            <summary>Why two status words stand side by side</summary>
+            <p class="note">
+              The provider's own word for this state and the simulator's normalized word stand side
+              by side; they are not two names for one vocabulary.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>What can still be done to it</h2>
+        <div class="body">
+          <p>
+            <span class="tag" th:classappend="${object.capturable} ? 'fact'"
+              >capturable: <span th:text="${object.capturable} ? 'yes' : 'no'"></span
+            ></span>
+            <span class="tag" th:classappend="${object.refundable} ? 'fact'"
+              >refundable: <span th:text="${object.refundable} ? 'yes' : 'no'"></span
+            ></span>
+            <span class="tag" th:classappend="${stillMoves.somethingStillMovesIt()} ? 'fact'"
+              >a step still moves it:
+              <span th:text="${stillMoves.somethingStillMovesIt()} ? 'yes' : 'no'"></span
+            ></span>
+          </p>
+          <details>
+            <summary>Where these three answers come from, and what is reachable nowhere</summary>
+            <p class="note">
+              Capturable and refundable are the provider's answer and not arithmetic over the list
+              below: a provider can hold money the sums call available and still refuse to move it.
+              Both are answers about this object alone, and a provider may report an object at a
+              status its own next operation belongs to another object for: what this one is tied to
+              is listed further down.
+            </p>
+            <p class="note">
+              A step still moves it counts the three things this screen can do that change this
+              payment: an operation this provider offers on it, a follow-up this provider names on
+              it, and the payer's own step where one is still to be taken. Sending a callback is
+              none of them, because a callback reports this payment to the merchant and moves
+              nothing, so it is offered whatever this answer says.
+            </p>
+            <p class="note">
+              Capture, cancel and refund, wherever this provider offers them, are that provider's
+              own operations, run below the screen exactly as its own route runs them; the panel
+              underneath says which of the three it offers and what it publishes in place of the
+              ones it does not. Forcing a status and triggering a reconciliation response are
+              reachable nowhere: no control-API route, no provider route and no service of this
+              simulator performs either, so this screen does not offer them either.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>What a tester can do to it from here</h2>
+        <div class="body">
+          <p class="empty" th:if="${stillMoves.nothingStillMovesIt()}">
+            Nothing this provider offers applies to this payment in the state it is in, and no
+            payer step is left on it either. An action that no longer applies is not offered,
+            rather than offered and refused. An operation this payment does not admit may belong
+            to an object it is tied to, which is listed further down, and a callback about this
+            payment can still be sent from the panel below.
+          </p>
+          <p class="empty" th:if="${stillMoves.onlyThePayerStepStillMovesIt()}">
+            No operation and no follow-up this provider offers applies to this payment yet, because
+            its payer has not finished with it. Take the payer's own step below: what the payer does
+            there is what decides which operations this payment admits next.
+          </p>
+          <div th:each="act : ${object.offered}" class="caution">
+            <form class="form" method="post" th:action="@{/ui/objects/act(provider=${provider},testRunId=${testRunId})}">
+              <input type="hidden" name="providerObjectId" th:value="${object.providerObjectId}" />
+              <input type="hidden" name="action" th:value="${act.action}" />
+              <div th:if="${act.takesAnAmount}">
+                <label th:for="'amount-' + ${act.action}">amount</label>
+                <input
+                  th:id="'amount-' + ${act.action}"
+                  type="text"
+                  name="amount"
+                  th:value="${act.amountDrawnFrom(typed)}"
+                />
+              </div>
+              <div class="actions">
+                <span
+                  class="confirmGroup"
+                  th:classappend="${act.undoesMoneyAlreadyTakenOrHeld} ? 'danger'">
+                  <input th:id="'confirm-' + ${act.action}" type="checkbox" name="confirm"
+                    value="yes" />
+                  <label th:for="'confirm-' + ${act.action}">confirm</label>
+                </span>
+                <button
+                  type="submit"
+                  th:classappend="${act.undoesMoneyAlreadyTakenOrHeld} ? 'danger'">
+                  Ask <span th:text="${provider}"></span> to <span th:text="${act.asked}"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+          <div th:each="next : ${followUps}" class="caution">
+            <form class="form" method="post" th:action="@{/ui/objects/follow-up(provider=${provider},testRunId=${testRunId})}">
+              <input type="hidden" name="providerObjectId" th:value="${object.providerObjectId}" />
+              <input type="hidden" name="followUp" th:value="${next.name}" />
+              <p class="note" th:text="${next.whatItMoves}"></p>
+              <div class="actions">
+                <span class="confirmGroup">
+                  <input th:id="'confirm-follow-up-' + ${next.name}" type="checkbox" name="confirm"
+                    value="yes" />
+                  <label th:for="'confirm-follow-up-' + ${next.name}">confirm</label>
+                </span>
+                <button type="submit">
+                  Ask <span th:text="${provider}"></span> to <span th:text="${next.label}"></span>
+                </button>
+              </div>
+            </form>
+          </div>
+          <details th:unless="${#lists.isEmpty(object.offered)}">
+            <summary>What an action here is, and the one way it differs from the route</summary>
+            <p class="note">
+              The amount is filled in from the balance above and can be changed. An action here
+              calls the same application service the provider's own route calls, with the same rules
+              and the same refusals, so a capture this screen takes is a capture that route would
+              have taken. It is not a status this screen wrote. Scenario matching is the same with
+              one exception, because an action here is not an HTTP request to the provider and
+              carries no provider request headers: a rule narrowing on a header cannot fire from
+              this screen, and every such rule this test run holds is named below.
+            </p>
+          </details>
+          <div th:if="${!#lists.isEmpty(object.unreachable)}" class="body">
+            <h3>Rules no action on this screen can fire</h3>
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>rule</th>
+                    <th>header it narrows on</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="rule : ${object.unreachable}">
+                    <td class="id" th:text="${rule.scenarioId}"></td>
+                    <td class="id" th:text="${#strings.listJoin(rule.headers, ', ')}"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <details>
+              <summary>Why an action here passes these rules over</summary>
+              <p class="note">
+                These rules narrow on a request header. The provider's own route matches them
+                against the headers a client sent; an action taken here sends none, so these rules
+                are passed over and the next rule that matches decides instead. To exercise one,
+                call the provider's route with the header it names.
+              </p>
+            </details>
+          </div>
+          <div th:each="absent : ${object.unoffered}" class="body">
+            <p class="note">
+              This provider offers no way to <span th:text="${absent.asked}"></span>:
+              <span th:text="${absent.whatThisProviderHasInstead}"></span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object != null and completion != null}">
+        <h2>Take the payer's own step on this payment</h2>
+        <div class="body">
+          <p class="note" th:unless="${completion.offersAPayerStep()}"
+            th:text="${completion.whatThisProviderHasInstead}"></p>
+          <div class="caution" th:if="${completion.offersAPayerStep()}">
+            <form class="form" method="post" th:action="@{/ui/objects/complete(provider=${provider},testRunId=${testRunId})}">
+              <input type="hidden" name="providerObjectId" th:value="${object.providerObjectId}" />
+              <div class="wide choice" th:each="met : ${completion.outcomes}">
+                <label th:for="'outcome-' + ${met.outcome}">
+                  <input
+                    type="radio"
+                    th:id="'outcome-' + ${met.outcome}"
+                    name="outcome"
+                    th:value="${met.outcome}"
+                    th:checked="${met.chosen}"
+                  />
+                  <span th:text="${met.asATesterReadsIt}"></span>
+                  <span class="id" th:text="${met.outcome}"></span>
+                  <span class="tag" th:if="${met.namesACard and completion.namesACard()}"
+                    >names the card they used</span>
+                </label>
+              </div>
+              <p class="note" th:unless="${completion.namesACard()}"
+                th:text="${completion.whatThePayerPaysWithInstead}"></p>
+              <div th:if="${completion.namesACard()}">
+                <label for="card">the card the payer used</label>
+                <select id="card" name="card">
+                  <option value="">the payer named no card</option>
+                  <option
+                    th:each="offered : ${completion.cards}"
+                    th:value="${offered.alias}"
+                    th:text="${offered.label} + ' (' + ${offered.alias} + ')'"
+                    th:selected="${offered.chosen}"
+                  ></option>
+                </select>
+              </div>
+              <div class="actions">
+                <span class="confirmGroup">
+                  <input id="confirm-complete" type="checkbox" name="confirm" value="yes" />
+                  <label for="confirm-complete">confirm</label>
+                </span>
+                <button type="submit">Take this payer step</button>
+              </div>
+            </form>
+          </div>
+          <p class="note wrap" th:each="absent : ${completion.unoffered}">
+            <span
+              th:text="'This provider offers no payer step where the payer '
+                + ${absent.whatThePayerDid} + ' (' + ${absent.outcome} + '):'"
+            ></span>
+            <span th:text="${absent.whatItHasInstead}"></span>
+          </p>
+          <details th:if="${completion.offersAPayerStep()}">
+            <summary th:if="${completion.namesACard()}"
+              >What this payer step runs, and which cards are offered</summary>
+            <summary th:unless="${completion.namesACard()}">What this payer step runs</summary>
+            <p class="note">
+              This runs the payer's own step on this object, the same one
+              <code th:text="'POST /__simulator/' + ${provider} + '/hosted/{id}/complete'"></code>
+              runs. In <span class="id" th:text="${provider}"></span>'s own words:
+              <span th:text="${completion.whatTakingOneDoes}"></span>.
+              <span th:if="${completion.namesACard()}"
+                >Only a payer who paid leaves a card behind, so a card picked beside any other
+                outcome is refused rather than dropped. The cards offered are the ones this
+                provider publishes for a test run plus the payment-method fixtures this run has
+                seeded, and nothing here shows a card number.</span
+              >
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>Send a callback about this payment now</h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/objects/webhook(provider=${provider},testRunId=${testRunId})}">
+            <input type="hidden" name="providerObjectId" th:value="${object.providerObjectId}" />
+            <div>
+              <label for="eventType">event type</label>
+              <input
+                id="eventType"
+                type="text"
+                name="eventType"
+                th:value="${typed.valueOf(T(dev.marcinromanowski.pspsim.ui.DeliveryForm).THE_EVENT_TYPE_A_SEND_NAMES)}"
+              />
+            </div>
+            <div class="actions">
+              <span class="confirmGroup">
+                <input id="confirm-webhook" type="checkbox" name="confirm" value="yes" />
+                <label for="confirm-webhook">confirm</label>
+              </span>
+              <button type="submit">Send a callback about this payment</button>
+            </div>
+          </form>
+          <details>
+            <summary>What this schedules, and where a replay lives instead</summary>
+            <p class="note">
+              This schedules the callback that
+              <code th:text="'POST /__simulator/' + ${provider} + '/webhooks'"></code> schedules,
+              with no delay, so it is attempted before this page comes back. A provider that names
+              no callback event ignores the event type. Replaying one under the event id it already
+              carries is the Webhooks screen's retry; replaying under a new id is the control API's,
+              and is not on either screen.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>Balances derived from the operation list</h2>
+        <div class="body">
+          <p class="empty" th:unless="${object.balances}">
+            No balance is reported, because an amount in the operation list is not a number this
+            simulator can add up. The list below is the authoritative record.
+          </p>
+          <dl class="pairs" th:if="${object.balances}">
+            <dt>captured</dt>
+            <dd class="id" th:text="${object.balances.captured}"></dd>
+            <dt>refunded</dt>
+            <dd class="id" th:text="${object.balances.refunded}"></dd>
+            <dt>still capturable</dt>
+            <dd class="id" th:text="${object.balances.capturableRemainder}"></dd>
+            <dt>still refundable</dt>
+            <dd class="id" th:text="${object.balances.refundableRemainder}"></dd>
+            <dt>a capture would be taken</dt>
+            <dd th:text="${object.capturesAccepted} ? 'yes' : 'no'"></dd>
+            <dt>a refund would be returned</dt>
+            <dd th:text="${object.refundsAccepted} ? 'yes' : 'no'"></dd>
+          </dl>
+          <p class="empty" th:if="${object.holdsMoneyNoCaptureCanTake}">
+            Whatever is still capturable above is money this object holds and has not captured. It
+            is not money the next call can take: this provider refuses a capture on this object as
+            it now stands, so no capture is offered here.
+          </p>
+          <p class="empty" th:if="${object.holdsMoneyNoRefundCanReturn}">
+            Whatever is still refundable above is money this object took and has not returned. It
+            is not money the next call can return: this provider refuses a refund on this object as
+            it now stands, so no refund is offered here.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>Operations, in the order they happened</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(object.operations)}">
+            No operation has moved money on this object.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(object.operations)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>kind</th>
+                  <th>amount</th>
+                  <th>closes the authorization</th>
+                  <th>the object it created</th>
+                  <th>provider status</th>
+                  <th>normalized status</th>
+                  <th>at</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="operation : ${object.operations}">
+                  <td th:text="${operation.sequence}"></td>
+                  <td th:text="${operation.kind}"></td>
+                  <td class="id" th:text="${operation.amount}"></td>
+                  <td th:text="${operation.closesTheAuthorizationAsThisScreenReadsIt()}"></td>
+                  <td class="id">
+                    <a
+                      th:if="${operation.createdObjectId}"
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${operation.createdObjectId})}"
+                      th:text="${operation.createdObjectId}"
+                    ></a>
+                    <span th:unless="${operation.createdObjectId}">it created no object</span>
+                  </td>
+                  <td class="id" th:text="${operation.nativeStatus}"></td>
+                  <td><span th:replace="~{fragments :: status(${operation.normalizedStatus})}"></span></td>
+                  <td class="stamp" th:text="${operation.at}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>Objects this one is tied to</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(named)}">
+            This provider names no other object against this one.
+          </p>
+          <dl class="pairs" th:unless="${#lists.isEmpty(named)}">
+            <th:block th:each="related : ${named}">
+              <dt th:text="${related.field}"></dt>
+              <dd class="id">
+                <a
+                  th:if="${related.namesAnObjectThisRunHolds()}"
+                  th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${related.id})}"
+                  th:text="${related.id}"
+                ></a>
+                <span th:unless="${related.namesAnObjectThisRunHolds()}" th:text="${related.id}"
+                ></span>
+                <span
+                  class="tag"
+                  th:if="${related.namesAnObjectThisRunHolds()}"
+                  th:text="${related.nativeStatus}"
+                ></span>
+                <span
+                  th:if="${related.namesAnObjectThisRunHolds()}"
+                  th:replace="~{fragments :: status(${related.normalizedStatus})}"
+                ></span>
+              </dd>
+            </th:block>
+          </dl>
+          <details th:unless="${#lists.isEmpty(named)}">
+            <summary>Which of these open and which are only a value</summary>
+            <p class="note">
+              A row opens as a link when this test run holds an object of this provider under that
+              identifier, and the status beside it is that object's own. The rest are values this
+              provider names on this object and not objects to look up: an account, a card's brand
+              or last four digits, a deadline it publishes. Nothing here is a link to a lookup that
+              would answer that nothing is there.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${object}">
+        <h2>Where else this object appears</h2>
+        <div class="body">
+          <ul class="choices">
+            <li>
+              <a
+                th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},providerObjectId=${object.providerObjectId})}"
+                >Every exchange this object was named in</a
+              >
+            </li>
+            <li>
+              <a
+                th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${object.providerObjectId})}"
+                >This payment on a timeline</a
+              >
+            </li>
+            <li>
+              <a
+                th:href="@{/ui/repro-bundle(provider=${provider},testRunId=${testRunId},key=${object.providerObjectId})}"
+                >This payment as a reproduction bundle</a
+              >
+            </li>
+            <li>
+              <a th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId})}"
+                >The callback queue of this test run</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${listing}">
+        <h2>What this test run holds, newest first</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(listing.rows)}">
+            This test run holds no object of this provider. That is an empty run and not a failed
+            read.
+          </p>
+          <p class="rowsHeld" th:unless="${#lists.isEmpty(listing.rows)}">
+            <span th:text="${#lists.size(listing.rows)}"></span> on this page, newest first
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(listing.rows)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>what it is</th>
+                  <th>id the provider answered with</th>
+                  <th>provider status</th>
+                  <th>normalized status</th>
+                  <th>amount</th>
+                  <th>currency</th>
+                  <th>created by</th>
+                  <th>last changed</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${listing.rows}">
+                  <td>
+                    <span class="tag" th:text="${row.kind.asThisProviderNamesIt}"></span>
+                  </td>
+                  <td class="id">
+                    <a
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="id" th:text="${row.nativeStatus}"></td>
+                  <td><span th:replace="~{fragments :: status(${row.normalizedStatus})}"></span></td>
+                  <td class="id" th:text="${row.amount} ?: 'none recorded'"></td>
+                  <td class="id" th:text="${row.currency} ?: 'none recorded'"></td>
+                  <td>
+                    <span class="tag" th:classappend="${row.placedByATester} ? 'fact'" th:text="${row.origin}"
+                    ></span>
+                  </td>
+                  <td class="stamp" th:text="${row.updatedAt}"></td>
+                  <td class="rowActions">
+                    <a
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Trace</a
+                    >
+                    <a
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      >Exchanges</a
+                    >
+                    <a
+                      th:href="@{/ui/repro-bundle(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Bundle</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p th:if="${listing.nextCursor}">
+            <a
+              th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},after=${listing.nextCursor},limit=${limit})}"
+              >The next page, carrying on after this one's last object</a
+            >
+          </p>
+          <details>
+            <summary>
+              What this list holds, how it is ordered, and where "what it is" comes from
+            </summary>
+            <p class="note">
+              What it is, on every row, is this provider's own word for that kind of object, handed
+              over by the provider module and not chosen here: this simulator holds no list of
+              payment methods or payment shapes to pick from, so a provider added tomorrow names
+              its own kinds and nothing here has to learn them. A payment's own screen prints that
+              word again with the provider's sentence about what one of them is.
+            </p>
+            <p class="note">
+              This list holds every object of this provider in this test run, newest first. Audit
+              rows and callbacks on the other screens link straight into one of them.
+            </p>
+            <p class="note" th:unless="${listing.nextCursor}">
+              This page is shorter than its page size, so it is the end of the list as it stands.
+            </p>
+            <p class="note">
+              Created by says whether an object was made by provider API traffic, by control-API
+              seeding or by a manual UI action. The order is the order the objects arrived in, read
+              from a column that never moves, and not from either timestamp: a pinned clock stamps
+              every object of a test run with the same time, and last changed moves under a reader
+              whenever an operation touches an object they have already paged past.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${listing}">
+        <h2>Hosted sessions: the objects a payer finishes</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(listing.theObjectsAPayerFinishes())}">
+            This provider keeps no object of this test run that a payer finishes on a page the
+            provider hosts. Which providers keep one at all is this provider's own declaration and
+            not a filter of this screen.
+          </p>
+          <p class="rowsHeld" th:unless="${#lists.isEmpty(listing.theObjectsAPayerFinishes())}">
+            <span th:text="${#lists.size(listing.theObjectsAPayerFinishes())}"></span> on this page,
+            newest first
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(listing.theObjectsAPayerFinishes())}">
+            <table>
+              <thead>
+                <tr>
+                  <th>id the provider answered with</th>
+                  <th>what it is</th>
+                  <th>provider account</th>
+                  <th>the party it is for</th>
+                  <th>the operation it was started for</th>
+                  <th>amount</th>
+                  <th>currency</th>
+                  <th>created</th>
+                  <th>expires</th>
+                  <th>provider status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${listing.theObjectsAPayerFinishes()}">
+                  <td class="id">
+                    <a
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td>
+                    <span class="tag" th:text="${row.kind.asThisProviderNamesIt}"></span>
+                  </td>
+                  <td class="id" th:text="${row.session.account}"></td>
+                  <td>
+                    <span
+                      class="id"
+                      th:if="${row.session.aPartyIsNamed}"
+                      th:text="${row.session.party}"
+                    ></span>
+                    <span
+                      class="note"
+                      th:unless="${row.session.aPartyIsNamed}"
+                      th:text="${row.session.party}"
+                    ></span>
+                  </td>
+                  <td class="id" th:text="${row.session.operation}"></td>
+                  <td class="id" th:text="${row.amount} ?: 'none recorded'"></td>
+                  <td class="id" th:text="${row.currency} ?: 'none recorded'"></td>
+                  <td class="stamp" th:text="${row.session.createdAt}"></td>
+                  <td>
+                    <span
+                      th:if="${row.session.itExpiresAtAKnownTime}"
+                      class="tag"
+                      th:classappend="${row.session.itsDeadlineHasPassed} ? 'fact'"
+                      th:text="${row.session.expires}"
+                    ></span>
+                    <details th:unless="${row.session.itExpiresAtAKnownTime}">
+                      <summary>no deadline published</summary>
+                      <span class="note" th:text="${row.session.expires}"></span>
+                    </details>
+                  </td>
+                  <td class="id" th:text="${row.nativeStatus}"></td>
+                  <td class="rowActions">
+                    <a
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Trace</a
+                    >
+                    <a
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      >Exchanges</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details th:unless="${#lists.isEmpty(listing.theObjectsAPayerFinishes())}">
+            <summary>What a blank cell would have meant, and what "expires" is measured against</summary>
+            <p class="note">
+              A provider that names no party on the object it keeps waiting says so here in its own
+              words, and so does a provider that publishes no deadline for one: neither cell is left
+              blank and neither carries a value this simulator invented. Expires is marked passed
+              against the clock of this test run and not against the wall, so advancing that clock
+              on the Configuration screen is what moves a session past its deadline.
+            </p>
+            <p class="note">
+              Created is this simulator's own bookkeeping: none of the three providers that keep
+              such an object publishes a creation timestamp on it, so it is when this run made the
+              row and not a field a client would read back from the provider.
+            </p>
+          </details>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

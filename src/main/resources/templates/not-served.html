@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('This request was not served')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <section class="panel">
+        <h2>This request was not served</h2>
+        <div class="body">
+          <p class="note wrap">
+            <span th:text="${'The simulator answered ' + status + ' to '}">It answered</span>
+            <span class="id" th:text="${path}"></span>
+            <span th:text="${', which it calls '}">, which it calls</span>
+            <span class="id" th:text="${error}"></span>
+            <span>. What it could not do is below, in its own words.</span>
+          </p>
+          <div
+            class="refusal"
+            th:if="${message != null and !#strings.isEmpty(message)}"
+            th:text="${message}"
+          ></div>
+          <p class="empty" th:if="${message == null or #strings.isEmpty(message)}">
+            This answer carries no sentence of its own, which is a gap in this simulator and not
+            something you did. The audit trail of the test run you were in records what reached it.
+          </p>
+          <details th:if="${causes != null and !#lists.isEmpty(causes)}">
+            <summary>What this simulator was doing when it stopped</summary>
+            <p class="note wrap">
+              Each line below is the reason for the one above it, in its own words. One of them
+              names the file this simulator was reading and the line and column inside it, and the
+              last of them is the thing that went wrong.
+            </p>
+            <p class="note wrap" th:each="cause : ${causes}" th:text="${cause}"></p>
+          </details>
+          <p class="note wrap" th:if="${aTemplateNamesTheLine}">
+            A screen contributed as one html file under
+            <span class="id">src/main/resources/templates/extensions</span> is rendered by the same
+            engine as every other screen, so a sentence above naming a file and a line in it is that
+            engine reading that file, and a page of this simulator reads the model its screen handed
+            it and nothing else.
+          </p>
+          <ul class="choices">
+            <li>
+              <a th:href="@{${theRunItWasIn}}" th:if="${theRunItWasIn}"
+                >Back to the test run you were looking at</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,56 @@
+{
+  "authorization-approved": {
+    "evidence": "published example",
+    "excerpt": true,
+    "note": "keeps desc, action and rc of the fifteen-element published response, in its published order",
+    "source": "https://developer-test.azericard.com/en",
+    "reference": "azericard.md, Status and Decision Mapping",
+    "body": "authorization-approved.xml"
+  },
+  "authorization-content-type": {
+    "evidence": "live probe",
+    "probed": "2026-09-10",
+    "excerpt": true,
+    "note": "the Content-Type of the answer to TRTYPE=21, which the published example does not show",
+    "source": "https://testmpi.3dsecure.az/cgi-bin/cgi_link",
+    "reference": "azericard.md, Status and Decision Mapping",
+    "headers": {
+      "Content-Type": "text/html"
+    }
+  },
+  "refused-p-sign": {
+    "evidence": "live probe",
+    "probed": "2026-09-10",
+    "excerpt": true,
+    "note": "keeps action, rc and desc of the elements the answer returned",
+    "source": "https://testmpi.3dsecure.az/cgi-bin/cgi_link",
+    "reference": "azericard.md, Error and Fault Scenarios",
+    "status": 200,
+    "body": "refused-p-sign.xml"
+  },
+  "missing-terminal": {
+    "evidence": "live probe",
+    "probed": "2026-09-10",
+    "excerpt": true,
+    "note": "the vendor publishes no markup for this page, so the body is its text, one sentence per line",
+    "source": "https://testmpi.3dsecure.az/cgi-bin/cgi_link",
+    "reference": "azericard.md, Error and Fault Scenarios",
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/html"
+    },
+    "body": "missing-terminal.txt"
+  },
+  "status-inquiry-refused": {
+    "evidence": "live probe",
+    "probed": "2026-09-10",
+    "excerpt": true,
+    "note": "the signature the answer returned is shortened",
+    "source": "https://testmpi.3dsecure.az/cgi-bin/cgi_link",
+    "reference": "azericard.md, Transaction Status",
+    "headers": {
+      "Content-Type": "application/json; charset=UTF-8"
+    },
+    "body": "status-inquiry-refused.json"
+  }
+}

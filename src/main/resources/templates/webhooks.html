@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Webhooks')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${queue}">
+        <h2>Delivery queue</h2>
+        <div class="body">
+          <div class="counts">
+            <div>
+              <div class="n" th:text="${queue.pending}"></div>
+              <div class="k">pending</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.due}"></div>
+              <div class="k">due now</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.delivered}"></div>
+              <div class="k">delivered</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.dropped}"></div>
+              <div class="k">dropped</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.exhausted}"></div>
+              <div class="k">out of attempts</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.undeliverable}"></div>
+              <div class="k">not sendable</div>
+            </div>
+            <div>
+              <div class="n" th:text="${queue.awaitingCall}"></div>
+              <div class="k">awaiting a separate call</div>
+            </div>
+          </div>
+          <form method="post" th:action="@{/ui/webhooks/deliver-due(provider=${provider},testRunId=${testRunId})}">
+            <button type="submit">
+              Attempt every delivery this test run's clock has made due
+            </button>
+          </form>
+          <p class="note">
+            This sends real HTTP to the merchant endpoints below. Nothing falls due on a pinned
+            clock until the clock is moved.
+          </p>
+        </div>
+      </section>
+
+
+      <section class="panel" th:if="${queue}">
+        <h2>Compose an event</h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/webhooks/send(provider=${provider},testRunId=${testRunId})}">
+            <div>
+              <label for="providerObjectId">id the provider answered with</label>
+              <input
+                id="providerObjectId"
+                type="text"
+                name="providerObjectId"
+                th:value="${queue.composer.providerObjectId}"
+              />
+            </div>
+            <div>
+              <label for="composed-eventType">event type</label>
+              <input
+                id="composed-eventType"
+                type="text"
+                name="eventType"
+                th:value="${queue.composer.eventType}"
+              />
+            </div>
+            <div>
+              <label for="delayMs">attempt it after, in milliseconds of this run's clock</label>
+              <input id="delayMs" type="text" name="delayMs" th:value="${queue.composer.delayMs}" />
+            </div>
+            <div>
+              <label for="reuseEventId">under an event id this run already carries</label>
+              <select id="reuseEventId" name="reuseEventId">
+                <option value="">a new event id</option>
+                <option
+                  th:each="replayable : ${queue.composer.eventIds}"
+                  th:value="${replayable.eventId}"
+                  th:text="${replayable.eventId}"
+                  th:selected="${replayable.chosen}"
+                ></option>
+              </select>
+            </div>
+            <div class="actions">
+              <button type="submit">Send this event</button>
+            </div>
+          </form>
+            <div th:replace="~{fragments :: whatThatIdNames(${theObjectsAnIdNames})}"></div>
+          <details>
+            <summary>What this schedules, when it is attempted, and why no address is asked for</summary>
+            <p class="note">
+              This schedules the callback that
+              <code th:text="'POST /__simulator/' + ${provider} + '/webhooks'"></code> schedules. An
+              empty delay attempts it before this page comes back; a delay holds it until this test
+              run's clock reaches that many milliseconds from now, and nothing falls due on a pinned
+              clock until the clock is moved. Choosing an event id this run already carries replays
+              that event rather than drawing a new one. The event type is the provider's own, and a
+              provider that names no callback event, or none by that name, refuses this in its own
+              words. The address is not asked for here: the provider draws it from the object, and
+              the run's configured targets are the only addresses it may draw.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <div th:replace="~{fragments :: personalData}"></div>
+
+      <section class="panel" th:if="${queue}">
+        <h2>Deliveries, newest first</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(queue.rows)}">
+            This test run has queued no callback.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(queue.rows)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>event</th>
+                  <th>type</th>
+                  <th>id the provider answered with</th>
+                  <th>merchant</th>
+                  <th>target</th>
+                  <th>state</th>
+                  <th>attempts</th>
+                  <th>next attempt</th>
+                  <th>queued</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody th:each="row : ${queue.rows}">
+                <tr th:classappend="${row.open} ? 'open'">
+                  <td class="id" th:text="${row.eventId}"></td>
+                  <td th:text="${row.eventType}"></td>
+                  <td class="id">
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="id" th:text="${row.merchantId}"></td>
+                  <td class="wrap" th:text="${row.targetUrl} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td>
+                    <span th:replace="~{fragments :: status(${row.state})}"></span>
+                    <span th:if="${row.due}" class="tag fact">due</span>
+                    <span th:if="${row.acknowledgementOwed}" class="tag fact">awaiting a call</span>
+                    <span th:if="${row.shapedBy}" class="tag">shaped by a rule</span>
+                  </td>
+                  <td th:text="${row.attemptsMade} + ' of ' + ${row.attemptCap}"></td>
+                  <td class="stamp" th:text="${row.nextAttemptAt}"></td>
+                  <td class="stamp" th:text="${row.createdAt}"></td>
+                  <td>
+                    <a
+                      th:unless="${row.open}"
+                      th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId},open=${row.deliveryId})}"
+                      >open</a
+                    >
+                    <a
+                      th:if="${row.open}"
+                      th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId})}"
+                      >close</a
+                    >
+                  </td>
+                  <td>
+                    <a
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${row.eventId})}"
+                      >Trace</a
+                    >
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      >Payment</a
+                    >
+                  </td>
+                </tr>
+                <tr th:if="${row.open}" class="open">
+                  <td colspan="11">
+                    <dl class="pairs">
+                      <dt>delivery id</dt>
+                      <dd class="id" th:text="${row.deliveryId}"></dd>
+                      <dt>content type</dt>
+                      <dd class="id" th:text="${row.contentType}"></dd>
+                      <dt th:if="${row.shapedBy}">shaped by</dt>
+                      <dd th:if="${row.shapedBy}" class="id" th:text="${row.shapedBy}"></dd>
+                    </dl>
+                    <p class="note" th:if="${row.notSentBecause}">
+                      Nothing reached the merchant on this delivery's last due time, and no
+                      attempt was made:
+                      <span th:text="${row.notSentBecause}"></span>.
+                    </p>
+                    <p class="note" th:if="${row.dropped}">
+                      A scenario rule dropped this delivery, so the merchant was never sent it and
+                      no attempt was ever made. Attempting it here sends the merchant what that
+                      rule withheld.
+                    </p>
+                    <p class="note" th:unless="${row.canBeAttempted}"
+                      th:text="${T(dev.marcinromanowski.pspsim.kernel.webhook.DeliveryHasNoTargetException).IT_CANNOT_BE_ATTEMPTED}"></p>
+                    <form th:if="${row.canBeAttempted}" class="rowForm" method="post" th:action="@{/ui/webhooks/retry(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="deliveryId" th:value="${row.deliveryId}" />
+                      <label th:if="${row.offersAnotherTarget()}" th:for="'targetUrl-' + ${row.deliveryId}"
+                        >post this one attempt to</label
+                      >
+                      <select
+                        th:if="${row.offersAnotherTarget()}"
+                        th:id="'targetUrl-' + ${row.deliveryId}"
+                        name="targetUrl"
+                      >
+                        <option value="" th:text="${row.targetUrl}"></option>
+                        <option
+                          th:each="target : ${row.otherTargets}"
+                          th:value="${target.url}"
+                          th:text="${target.url} + ' (account ' + ${target.accountId} + ')'"
+                        ></option>
+                      </select>
+                      <button type="submit">Attempt this delivery now</button>
+                    </form>
+                    <p class="note" th:if="${row.canBeAttempted}">
+                      An attempt made here reuses this event id and adds a row to the ledger below.
+                      Replaying an event under a new id, and scheduling one for later, are on the
+                      composer above. Holding a delivery back, duplicating it and dropping it are
+                      scenario rules, written on the Scenarios screen.
+                    </p>
+                    <p class="note" th:if="${row.offersAnotherTarget()}">
+                      The targets offered are the callback targets this test run configures, and
+                      no other address can be asked for from this screen or from the control API.
+                      Choosing one retargets that single attempt; the delivery stays scheduled for
+                      the address it was scheduled for, and the ledger below names where each
+                      attempt went.
+                    </p>
+                    <h3>Attempt ledger</h3>
+                    <p class="empty" th:if="${#lists.isEmpty(row.attempts)}">
+                      This delivery has not been attempted.
+                    </p>
+                    <div class="scroll" th:unless="${#lists.isEmpty(row.attempts)}">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>attempt</th>
+                            <th>at</th>
+                            <th>posted to</th>
+                            <th>verdict</th>
+                            <th>HTTP status</th>
+                            <th>transport failure</th>
+                            <th>what the merchant answered</th>
+                          </tr>
+                        </thead>
+                        <tbody th:each="attempt : ${row.attempts}">
+                          <tr>
+                            <td th:text="${attempt.number}"></td>
+                            <td class="stamp" th:text="${attempt.attemptedAt}"></td>
+                            <td class="wrap">
+                              <span th:text="${attempt.targetUrl}"></span>
+                              <span th:if="${attempt.wentElsewhere}" class="tag"
+                                >not the target it was scheduled for</span
+                              >
+                            </td>
+                            <td>
+                              <span th:replace="~{fragments :: status(${attempt.verdict})}"></span>
+                            </td>
+                            <td th:text="${attempt.httpStatus}"></td>
+                            <td th:text="${attempt.transportFailure}"></td>
+                            <td class="wrap id" th:text="${attempt.responsePreview}"></td>
+                          </tr>
+                          <tr>
+                            <td colspan="7">
+                              <div
+                                th:if="${attempt.theWireWasRecorded}"
+                                th:replace="~{fragments :: fields('Headers this attempt put on the wire', ${attempt.sentHeaders})}"
+                              ></div>
+                              <p
+                                class="empty"
+                                th:unless="${attempt.theWireWasRecorded}"
+                                th:text="${T(dev.marcinromanowski.pspsim.ui.DeliveryScreen).AN_ATTEMPT_OLDER_THAN_THIS_LEDGER_RECORDED_NO_WIRE}"
+                              ></p>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="note"
+                      th:text="${T(dev.marcinromanowski.pspsim.ui.DeliveryScreen).AN_ATTEMPT_NAMES_THE_TARGET_IT_WENT_TO}"></p>
+                    <p class="note"
+                      th:text="${T(dev.marcinromanowski.pspsim.ui.DeliveryScreen).AN_ATTEMPT_CARRIES_THE_HEADERS_IT_WAS_SIGNED_WITH}"></p>
+                    <p>
+                      <a
+                        th:unless="${queue.valuesShown}"
+                        th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId},open=${row.deliveryId},values='show')}"
+                        >Show the values of this payload</a
+                      >
+                      <a
+                        th:if="${queue.valuesShown}"
+                        th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId},open=${row.deliveryId})}"
+                        >Hide the values again</a
+                      >
+                    </p>
+                    <div th:replace="~{fragments :: fields('Headers stored with this delivery', ${row.headers})}"></div>
+                    <div th:replace="~{fragments :: fields('Payload', ${row.body})}"></div>
+                    <p class="note">
+                      The headers above are the ones stored with this delivery. They are what a
+                      provider that renders nothing per attempt sends every time, and they are
+                      not what a provider that signs each attempt afresh sent: that provider's
+                      headers are on each attempt of the ledger above, under the moment that
+                      attempt was made.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

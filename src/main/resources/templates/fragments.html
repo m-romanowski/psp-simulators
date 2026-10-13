@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:fragment="head(title)">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title th:text="'PSP simulator · ' + ${title}">PSP simulator</title>
+    <link rel="stylesheet" th:href="@{/ui.css}" />
+    <script th:src="@{/webjars/htmx.org/4.0.0/dist/htmx.min.js}" defer></script>
+  </head>
+
+  <body>
+    <div class="shell" th:fragment="bar">
+      <header class="topbar">
+        <a class="skip" href="#screen">Skip the navigation</a>
+
+        <h1><a th:href="@{/(provider=${provider},testRunId=${testRunId})}">PSP simulator</a></h1>
+
+        <form
+          class="selection"
+          method="get"
+          th:action="@{${path}}"
+          th:attr="hx-get=@{${path}}"
+          hx-target="body"
+          hx-select="body"
+          hx-swap="outerHTML"
+          hx-push-url="true"
+          hx-trigger="submit, change"
+        >
+          <div th:unless="${theScreenIsOneProvidersOwn}">
+            <label for="provider">provider</label>
+            <select id="provider" name="provider">
+              <option
+                th:unless="${provider != null and #lists.contains(providers, provider)}"
+                value=""
+                selected
+              >choose a provider</option>
+              <option
+                th:each="known : ${providers}"
+                th:value="${known}"
+                th:text="${known}"
+                th:selected="${known == provider}"
+              ></option>
+            </select>
+          </div>
+          <div th:if="${theScreenIsOneProvidersOwn}">
+            <span class="note">provider</span>
+            <span class="id" th:text="${provider}"></span>
+            <a
+              th:href="@{/ui/objects(testRunId=${testRunId})}"
+              th:title="'only ' + ${provider} + ' has this screen, so no other provider is on offer'
+                + ' here; the choice is on the Payments screen, where this link goes, for the test'
+                + ' run you are looking at'"
+              >choose another provider</a
+            >
+          </div>
+          <div>
+            <label for="testRunId">test run</label>
+            <input
+              id="testRunId"
+              type="text"
+              name="testRunId"
+              th:value="${testRunId}"
+              placeholder="default"
+            />
+          </div>
+          <button type="submit" class="secondary">Switch</button>
+        </form>
+      </header>
+
+      <nav class="rail" aria-label="Screens of this simulator">
+        <ul>
+          <li th:each="group : ${rail}">
+            <span class="groupName" th:text="${group.name}"></span>
+            <ul class="items">
+              <li th:each="destination : ${group.items}">
+                <a
+                  th:if="${destination.theSelectionTravelsWithIt}"
+                  th:href="@{${destination.path}(provider=${provider},testRunId=${testRunId})}"
+                  th:attr="aria-current=${screen == destination.screen} ? 'page' : null"
+                  th:title="${destination.label}"
+                  th:text="${destination.label}"
+                ></a>
+                <a
+                  th:unless="${destination.theSelectionTravelsWithIt}"
+                  th:href="@{${destination.path}}"
+                  th:title="${destination.label}"
+                  th:text="${destination.label}"
+                ></a>
+              </li>
+            </ul>
+          </li>
+        </ul>
+        <span id="screen" tabindex="-1"></span>
+      </nav>
+    </div>
+
+    <div th:fragment="refusal" th:if="${refusal}" class="refusal" th:text="${refusal}"></div>
+
+    <div th:fragment="done" th:if="${done}" class="done" role="status" th:text="${done}"></div>
+
+    <label th:fragment="fieldLabel(field)" th:for="${field.key}">
+      <span th:text="${field.label}"></span>
+      <span th:if="${field.required}" class="tag fact">required</span>
+      <span th:if="${field.secret}" class="tag">secret</span>
+      <span th:if="${field.refused}" class="tag fact">refused</span>
+    </label>
+
+    <details th:fragment="whatItIsFor(field)">
+      <summary>what this is for</summary>
+      <span class="note wrap" th:text="${field.whatItIsFor}"></span>
+    </details>
+
+    <p th:fragment="whatAFormRequires(required, has, secrets)" class="note">
+      <span
+        th:text="${required} + ' of the ' + ${has} + ' fields below are required and say so.'"
+      ></span>
+      <span>A field with no badge may be left empty.</span>
+      <span th:if="${secrets}"
+        >A field marked a secret is stored and never read back onto a screen, onto a redirect or
+        into a refusal message.</span
+      >
+    </p>
+
+    <span
+      th:fragment="status(badge)"
+      th:if="${badge}"
+      class="tag"
+      th:classappend="${badge.tone.cssClass()}"
+      th:text="${badge.text}"
+    ></span>
+
+    <section class="panel" th:fragment="choose" th:if="${choose}">
+      <h2>Choose a provider</h2>
+      <div class="body">
+        <p class="note">
+          This screen shows one provider at a time, and this request named none. The simulator
+          picks no provider for you: which one you are looking at is a thing you decide and see,
+          not a thing that falls out of the order the modules happen to load in.
+        </p>
+        <ul class="choices">
+          <li th:each="known : ${choose}">
+            <a
+              th:href="@{${path}(provider=${known},testRunId=${testRunId})}"
+              th:text="${known}"
+            ></a>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section
+      class="panel"
+      th:fragment="reservedRun"
+      th:if="${theReservedRun != null and theReservedRun.readingIt}"
+    >
+      <h2>The namespace of a failed resolution</h2>
+      <div class="body">
+        <p class="note" th:text="${theReservedRun.whyTheseRequestsAreHere}"></p>
+        <p class="note" th:text="${theReservedRun.whatLandsARequestHereIntroduces}"></p>
+        <ul class="note">
+          <li th:each="landed : ${theReservedRun.whatLandsARequestHere}" th:text="${landed}"></li>
+        </ul>
+        <p class="note" th:text="${theReservedRun.whatTheRuleOnARowSays}"></p>
+        <p class="note" th:text="${theReservedRun.whatATesterChangesAboutThem}"></p>
+        <p th:text="${theReservedRun.howATesterReadsARunAgain}"></p>
+        <p>
+          <a
+            th:href="@{${theReservedRun.theOtherReader}(provider=${provider},testRunId=${theReservedRun.itsId})}"
+            th:text="${theReservedRun.theOtherReadersLabel}"
+          ></a>
+        </p>
+      </div>
+    </section>
+
+    <p
+      th:fragment="theRunNothingResolved"
+      th:if="${theReservedRun != null and not theReservedRun.readingIt}"
+    >
+      <a th:href="@{${path}(provider=${provider},testRunId=${theReservedRun.itsId})}"
+        >Requests whose assignment failed</a
+      >
+    </p>
+
+    <div th:fragment="fields(title, fields)" class="scroll">
+      <h3 th:text="${title}"></h3>
+      <p class="empty" th:if="${#lists.isEmpty(fields)}">No field was recorded here.</p>
+      <table th:unless="${#lists.isEmpty(fields)}">
+        <thead>
+          <tr>
+            <th>field</th>
+            <th>sent</th>
+            <th>value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="field : ${fields}">
+            <td class="id" th:text="${field.name}"></td>
+            <td th:text="${field.occurrences}"></td>
+            <td class="wrap">
+              <span
+                th:if="${field.visibility.name() == 'REDACTED_ON_WRITE'}"
+                class="redacted"
+                >redacted before it was stored</span
+              >
+              <span th:if="${field.visibility.name() == 'WITHHELD'}" class="withheld"
+                >hidden until asked for</span
+              >
+              <span
+                th:if="${field.visibility.name() == 'SHOWN'}"
+                th:each="value : ${field.values}"
+                class="id"
+                th:text="${value}"
+              ></span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div
+      th:fragment="whatThatIdNames(objects)"
+      th:if="${objects != null and !#lists.isEmpty(objects)}"
+    >
+      <p class="note">What that id names, in this provider's own words:</p>
+      <p class="note wrap" th:each="object : ${objects}" th:text="${object}"></p>
+    </div>
+
+    <div th:fragment="personalData" class="caution">
+      A sanitized trail is not an anonymous one. The simulator redacts card numbers, tokens and
+      credentials where it stores them, and it does not redact a payer's name, phone number or
+      email address. Values stay off this page until you ask for them, one exchange at a time.
+    </div>
+  </body>
+</html>

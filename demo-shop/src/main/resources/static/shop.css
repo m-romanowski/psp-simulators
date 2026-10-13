@@ -1,0 +1,133 @@
+:root {
+  --ink: #1d232a;
+  --muted: #5b6672;
+  --paper: #ffffff;
+  --panel: #f3f5f7;
+  --line: #d6dbe0;
+  --accent: #2458c6;
+  --good: #1f7a3a;
+  --bad: #b3261e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.5;
+}
+
+header.bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+header.bar a.brand {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+main.page {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+@media (max-width: 800px) {
+  main.page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+aside.story {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-wrap: anywhere;
+}
+
+aside.story ol {
+  padding-left: 1.25rem;
+}
+
+aside.story li.done {
+  color: var(--muted);
+}
+
+aside.story li.next {
+  font-weight: 600;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.status.CAPTURED {
+  color: var(--good);
+}
+
+.status.CAPTURE_REFUSED {
+  color: var(--bad);
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button.quiet {
+  background: transparent;
+  color: var(--accent);
+}
+
+code {
+  overflow-wrap: anywhere;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td,
+th {
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}

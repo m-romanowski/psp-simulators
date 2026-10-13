@@ -1,0 +1,8 @@
+package dev.marcinromanowski.pspsim.kernel.spi;
+
+public enum WhereAFieldsValuesComeFrom {
+  WHATEVER_THE_TESTER_TYPES,
+  THE_VALUES_THE_PROVIDER_DECLARES,
+  THE_CALLBACK_TARGETS_THIS_RUN_CONFIGURES,
+  THE_VALUES_THIS_TEST_RUN_HAS_ALREADY_PRODUCED
+}

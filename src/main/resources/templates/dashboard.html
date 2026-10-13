@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Dashboard')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>This test run</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>active test run</dt>
+            <dd class="id" th:text="${dashboard.testRunId}"></dd>
+            <dt>this run's clock reads</dt>
+            <dd class="id" th:text="${dashboard.now}"></dd>
+            <dt>providers this simulator serves</dt>
+            <dd th:text="${dashboard.totals.answering} + ' of ' + ${dashboard.totals.providers} + ' answer calls in this test run'"></dd>
+          </dl>
+          <h3>Test runs this simulator has registered</h3>
+          <form class="filters" method="get" th:action="@{/ui/dashboard}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${dashboard.testRunId}" />
+            <div>
+              <label for="runMatch">test run name contains</label>
+              <input
+                id="runMatch"
+                type="text"
+                name="runMatch"
+                th:value="${dashboard.runs.match}"
+                placeholder="wizard"
+              />
+            </div>
+            <button type="submit" class="secondary">Narrow this list</button>
+          </form>
+          <p class="rowsHeld" th:text="${dashboard.runs.whatItHolds}"></p>
+          <p class="empty" th:if="${#lists.isEmpty(dashboard.runs.groups)}">
+            No test run this simulator knows carries that. Clear the field above to read them all.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(dashboard.runs.groups)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>test run</th>
+                  <th>last touched, on its own clock</th>
+                  <th>rows in the trail</th>
+                  <th>forget it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <th:block th:each="group : ${dashboard.runs.groups}">
+                  <tr>
+                    <th colspan="4" th:text="${group.heading}"></th>
+                  </tr>
+                  <tr th:each="run : ${group.runs}">
+                    <td class="id">
+                      <a
+                        th:href="@{/ui/dashboard(provider=${provider},testRunId=${run.testRunId},runMatch=${dashboard.runs.match})}"
+                        th:text="${run.testRunId}"
+                      ></a>
+                      <span th:if="${run.active}" class="tag fact">active</span>
+                    </td>
+                    <td class="stamp" th:if="${run.lastTouchedAt}" th:text="${run.lastTouchedAt}"></td>
+                    <td th:unless="${run.lastTouchedAt}">
+                      <span class="empty">the trail holds nothing of it</span>
+                    </td>
+                    <td th:text="${run.auditRows}"></td>
+                    <td class="rowActions" th:classappend="${run.forgettable()} ? '' : 'wrap'">
+                      <form class="confirm" method="post" th:action="@{/ui/dashboard/forget(provider=${provider},testRunId=${dashboard.testRunId})}"
+                        th:if="${run.forgettable()}">
+                        <input type="hidden" name="runMatch" th:value="${dashboard.runs.match}" />
+                        <input type="hidden" name="forgetTestRunId" th:value="${run.testRunId}" />
+                        <input th:id="'confirm-' + ${run.testRunId}" type="checkbox"
+                          name="confirm" value="yes" />
+                        <label th:for="'confirm-' + ${run.testRunId}">confirm</label>
+                        <button type="submit">Forget this test run for good</button>
+                      </form>
+                      <span class="empty" th:unless="${run.forgettable()}"
+                        th:text="${run.whyItCannotBeForgotten}"></span>
+                    </td>
+                  </tr>
+                </th:block>
+              </tbody>
+            </table>
+          </div>
+          <h3>Start another test run</h3>
+          <form class="form" method="post" th:action="@{/ui/dashboard/test-run(provider=${provider},testRunId=${dashboard.testRunId})}">
+            <div>
+              <label for="newTestRunId">new test run</label>
+              <input
+                id="newTestRunId"
+                type="text"
+                name="newTestRunId"
+                placeholder="manual-tester-2026-09-12"
+              />
+            </div>
+            <div class="actions">
+              <button type="submit">Name it and configure an account</button>
+            </div>
+          </form>
+
+          <h3>Empty this test run</h3>
+          <form class="confirm" method="post" th:action="@{/ui/dashboard/reset(provider=${provider},testRunId=${dashboard.testRunId})}">
+            <input type="hidden" name="runMatch" th:value="${dashboard.runs.match}" />
+            <button type="submit">
+              Reset this test run in every provider
+            </button>
+          </form>
+          <p class="note">
+            Reset clears the objects, scenarios, callback jobs and audit rows of this test run in
+            every provider and leaves every other test run untouched. Accounts and pinned clocks
+            are configuration, not state, and survive it.
+          </p>
+          <p>
+            <a th:href="@{/ui/scenarios(provider=${provider},testRunId=${dashboard.testRunId})}"
+              >Create a scenario</a
+            >
+            <a
+              th:href="@{/ui/payment-methods(provider=${provider},testRunId=${dashboard.testRunId})}"
+              >Seed a payment method</a
+            >
+            <a th:href="@{/ui/audit(provider=${provider},testRunId=${dashboard.testRunId})}"
+              >Open audit</a
+            >
+          </p>
+          <details>
+            <summary>
+              Why this screen sums every provider, and what registers a test run
+            </summary>
+            <p class="note">
+              This is the one screen that is not about a single provider. Every count below is a sum
+              over every provider this simulator serves, taken in the simulator's own words, and the
+              per-provider screens are a click away in each row.
+            </p>
+            <p class="note">
+              A run is registered when a configuration call, a pinned clock or a scenario rule names
+              it. A run that nothing has registered is still reachable by typing its name, and the
+              run a request that names none belongs to is always listed. Naming a new run here
+              carries you to the account form rather than registering the name on its own, so a run
+              comes into existence because a configuration named it and an abandoned form leaves
+              nothing behind.
+            </p>
+            <p class="note">
+              A run is touched by everything the audit trail records of it: every call a client
+              made to a provider, and every configuration, scenario and screen action a tester
+              took. A run is therefore touched from the configuration that registered it, and the
+              count above is the trail's rows and not the provider API traffic the panel below
+              counts. The order is the order the trail recorded those rows in, which stays true
+              however a run's clock is pinned, and the stamp is the newest row's time on that
+              run's own clock, so a run pinned to last year reads last year.
+            </p>
+            <p class="note">
+              Forgetting a run empties it in every provider, drops its registration and records
+              what it did against the run you are reading rather than the one it emptied, so the
+              forgotten run leaves no row behind. It is refused for the run being read and for the
+              run a request that names none belongs to, and neither offers the button at all.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>Provider availability in this test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(dashboard.providers)}">
+            This simulator has no provider module, so there is nothing to summarise.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(dashboard.providers)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>provider</th>
+                  <th>answers calls</th>
+                  <th>accounts</th>
+                  <th>callback targets</th>
+                  <th>operations</th>
+                  <th>scenarios</th>
+                  <th>pending</th>
+                  <th>due</th>
+                  <th>refused</th>
+                  <th>out of attempts</th>
+                  <th>awaiting a call</th>
+                  <th>last exchange</th>
+                  <th>screens</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="module : ${dashboard.providers}">
+                  <td class="id" th:text="${module.provider}"></td>
+                  <td>
+                    <span th:if="${module.answersCallsInThisRun}" class="tag fact">yes</span>
+                    <span th:unless="${module.answersCallsInThisRun}" class="tag"
+                      >no account is configured</span
+                    >
+                  </td>
+                  <td th:text="${module.accounts}"></td>
+                  <td th:text="${module.webhookTargets}"></td>
+                  <td th:text="${module.operations}"></td>
+                  <td th:text="${module.scenarios}"></td>
+                  <td th:text="${module.pending}"></td>
+                  <td class="stamp" th:text="${module.due}"></td>
+                  <td th:text="${module.failing}"></td>
+                  <td th:text="${module.exhausted}"></td>
+                  <td th:text="${module.awaitingCall}"></td>
+                  <td class="stamp" th:text="${module.lastCallAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui(provider=${module.provider},testRunId=${dashboard.testRunId})}"
+                      >This test run</a
+                    >
+                    <a
+                      th:href="@{/ui/objects(provider=${module.provider},testRunId=${dashboard.testRunId})}"
+                      >Payments</a
+                    >
+                    <a
+                      th:href="@{/ui/webhooks(provider=${module.provider},testRunId=${dashboard.testRunId})}"
+                      >Webhooks</a
+                    >
+                    <a
+                      th:href="@{/ui/audit(provider=${module.provider},testRunId=${dashboard.testRunId})}"
+                      >Audit</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What "answers calls" means, and what "due" is measured against</summary>
+            <p class="note">
+              A provider answers calls in this test run when the test run configures an account for
+              it; without one every request it receives is refused for its credentials before any
+              scenario is consulted. Due is measured against this test run's own clock.
+            </p>
+          </details>
+          <div class="counts">
+            <div>
+              <div class="n" th:text="${dashboard.totals.scenarios}"></div>
+              <div class="k">scenario rules</div>
+            </div>
+            <div>
+              <div class="n" th:text="${dashboard.totals.pending}"></div>
+              <div class="k">pending callbacks</div>
+            </div>
+            <div>
+              <div class="n" th:text="${dashboard.totals.due}"></div>
+              <div class="k">due now</div>
+            </div>
+            <div>
+              <div class="n" th:text="${dashboard.totals.failing}"></div>
+              <div class="k">already refused</div>
+            </div>
+            <div>
+              <div class="n" th:text="${dashboard.totals.exhausted}"></div>
+              <div class="k">out of attempts</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>Recent traffic, in both directions</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(dashboard.traffic)}">
+            No provider of this test run has answered a call or attempted a callback yet.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(dashboard.traffic)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>when</th>
+                  <th>provider</th>
+                  <th>direction</th>
+                  <th>outcome</th>
+                  <th>method</th>
+                  <th>path</th>
+                  <th>status</th>
+                  <th>id the provider answered with</th>
+                  <th>scenario</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="call : ${dashboard.traffic}">
+                  <td class="stamp" th:text="${call.createdAt}"></td>
+                  <td class="id" th:text="${call.provider}"></td>
+                  <td th:text="${call.direction}"></td>
+                  <td th:text="${call.outcome}"></td>
+                  <td th:text="${call.method}"></td>
+                  <td class="wrap" th:text="${call.path} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td th:text="${call.httpStatus}"></td>
+                  <td class="id">
+                    <a
+                      th:if="${call.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${call.provider},testRunId=${dashboard.testRunId},providerObjectId=${call.providerObjectId})}"
+                      th:text="${call.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="id" th:text="${call.scenarioId}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${call.provider},testRunId=${dashboard.testRunId},auditId=${call.auditId},open=${call.auditId})}"
+                      >This exchange</a
+                    >
+                    <a
+                      th:if="${call.providerObjectId}"
+                      th:href="@{/ui/timeline(provider=${call.provider},testRunId=${dashboard.testRunId},key=${call.providerObjectId})}"
+                      >Trace</a
+                    >
+                    <a
+                      th:if="${call.providerObjectId}"
+                      th:href="@{/ui/audit(provider=${call.provider},testRunId=${dashboard.testRunId},providerObjectId=${call.providerObjectId})}"
+                      >Exchanges</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>How many exchanges this reads, and why both directions are here</summary>
+            <p class="note">
+              The newest
+              <span th:text="${dashboard.exchangesRead}"></span>
+              calls a client made to each provider are read, the newest
+              <span th:text="${dashboard.exchangesRead}"></span>
+              callback attempts that provider made to a merchant are read beside them, and the
+              newest
+              <span th:text="${dashboard.exchangesRead}"></span>
+              of them all are shown, so an older exchange is reached from Audit and not from here.
+              Every row links to the one exchange it is, by the audit id that exchange was recorded
+              under, so a row that touched no object is opened by that link too.
+              Callback attempts the simulator made to a merchant are listed beside the calls a
+              client made to a provider, because hiding one direction would hide the half of a flow
+              that failed. The panel below this one lists the callbacks a merchant has already
+              refused; an attempt still waiting on another try is here and not there.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>Callbacks and webhooks a merchant has already refused</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(dashboard.failing)}">
+            No callback of this test run has been refused by any provider's merchant.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(dashboard.failing)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>provider</th>
+                  <th>event</th>
+                  <th>type</th>
+                  <th>id the provider answered with</th>
+                  <th>target</th>
+                  <th>state</th>
+                  <th>attempts</th>
+                  <th>next attempt</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refused : ${dashboard.failing}">
+                  <td class="id" th:text="${refused.provider}"></td>
+                  <td class="id" th:text="${refused.delivery.eventId}"></td>
+                  <td th:text="${refused.delivery.eventType}"></td>
+                  <td class="id">
+                    <a
+                      th:if="${refused.delivery.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${refused.provider},testRunId=${dashboard.testRunId},providerObjectId=${refused.delivery.providerObjectId})}"
+                      th:text="${refused.delivery.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="wrap" th:text="${refused.delivery.targetUrl} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td><span th:replace="~{fragments :: status(${refused.delivery.state})}"></span></td>
+                  <td
+                    th:text="${refused.delivery.attemptsMade} + ' of ' + ${refused.delivery.attemptCap}"
+                  ></td>
+                  <td class="stamp" th:text="${refused.delivery.nextAttemptAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/webhooks(provider=${refused.provider},testRunId=${dashboard.testRunId},open=${refused.delivery.deliveryId})}"
+                      >Delivery</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>Scenario rules active in this test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(dashboard.scenarios)}">
+            No scenario rule is written for any provider of this test run, so every request is
+            answered by the provider's own behaviour.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(dashboard.scenarios)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>provider</th>
+                  <th>scenario</th>
+                  <th>priority</th>
+                  <th>specificity</th>
+                  <th>operation</th>
+                  <th>story</th>
+                  <th>keyed on</th>
+                  <th>when state</th>
+                  <th>then state</th>
+                  <th>written</th>
+                  <th>matches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="rule : ${dashboard.scenarios}">
+                  <td class="id" th:text="${rule.provider}"></td>
+                  <td class="id" th:text="${rule.scenario.scenarioId}"></td>
+                  <td th:text="${rule.scenario.priority}"></td>
+                  <td th:text="${rule.scenario.specificity}"></td>
+                  <td th:text="${rule.scenario.operation} ?: 'any'"></td>
+                  <td th:text="${rule.scenario.story}"></td>
+                  <td th:text="${rule.scenario.keyedOn}"></td>
+                  <td th:text="${rule.scenario.whenState}"></td>
+                  <td th:text="${rule.scenario.thenState}"></td>
+                  <td class="stamp" th:text="${rule.scenario.createdAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${rule.provider},testRunId=${dashboard.testRunId},scenarioId=${rule.scenario.scenarioId})}"
+                      >the calls it decided</a
+                    >
+                    <a
+                      th:href="@{/ui/scenarios(provider=${rule.provider},testRunId=${dashboard.testRunId},open=${rule.scenario.scenarioId})}"
+                      >the rule</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>How a rule's operation is spelled here</summary>
+            <p class="note">
+              The operation of a rule is spelled as its own provider spells it on the wire. This
+              screen prints that name and does not read it, so no provider's vocabulary is a list
+              this screen knows.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${dashboard}">
+        <h2>Not on this screen</h2>
+        <div class="body">
+          <details>
+            <summary>Four sums a dashboard is asked for, and why none of them is a zero</summary>
+            <p class="note">
+              These are required of a dashboard and are absent rather than empty. None of them is a
+              zero.
+            </p>
+            <dl class="pairs">
+              <dt>pending hosted sessions</dt>
+              <dd class="wrap" th:text="${dashboard.whyItSumsNoHostedSession}"></dd>
+              <dt>pending captures and refunds</dt>
+              <dd>
+                The read this panel was waiting for now exists: the Payments screen lists what a
+                test run holds, and <code>READY_FOR_CAPTURE</code>, an open authorization and a
+                refundable balance are all carried by <code>ProviderObjectState</code>. The panel is
+                not built rather than unbuildable, and it is absent here so that a count nobody has
+                written is never read as a zero.
+              </dd>
+              <dt>open the live sessions queue</dt>
+              <dd class="wrap" th:text="${dashboard.whyItOpensNoLiveSessionsQueue}"></dd>
+              <dt>a count of the payment methods a run holds</dt>
+              <dd class="wrap" th:text="${dashboard.whyItSumsNoPaymentMethod}"></dd>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

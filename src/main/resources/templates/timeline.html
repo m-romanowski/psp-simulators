@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Timeline')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${timeline}">
+        <h2>Trace one payment</h2>
+        <div class="body">
+          <form class="filters" method="get" th:action="@{/ui/timeline}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${testRunId}" />
+            <div>
+              <label for="key">any id you hold</label>
+              <input id="key" type="text" name="key" th:value="${timeline.key}" size="40" />
+            </div>
+            <button type="submit" class="secondary">Trace</button>
+            <a th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId})}">Clear</a>
+          </form>
+            <div th:replace="~{fragments :: whatThatIdNames(${theObjectsAnIdNames})}"></div>
+          <details>
+            <summary>Which ids a timeline stands on</summary>
+            <p class="note">
+              A timeline stands on one id. Type the id a tester holds: an id the provider
+              answered with, a field one of this run's objects names another object by, a callback
+              event id, or a value sent under one of the keys this provider compares repeats
+              against.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline} and ${timeline.unresolved}">
+        <h2>No payment to trace under that key</h2>
+        <div class="body">
+          <p class="empty" th:text="${timeline.unresolved}"></p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline} and not ${#lists.isEmpty(timeline.candidates)}">
+        <h2>That key does not pick out one payment</h2>
+        <div class="body">
+          <p class="note">
+            More than one object of this test run names that value, so this key does not pick out
+            one payment. Open the one you meant.
+          </p>
+          <ul class="choices">
+            <li th:each="candidate : ${timeline.candidates}">
+              <a
+                th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${candidate.providerObjectId})}"
+                th:text="${candidate.providerObjectId}"
+              ></a>
+              <span th:text="' named by ' + ${candidate.field}"></span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline} and ${timeline.namesAnObject()}">
+        <h2>What this timeline stands on</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>provider</dt>
+            <dd th:text="${timeline.provider}"></dd>
+            <dt>test run</dt>
+            <dd class="id" th:text="${timeline.testRunId}"></dd>
+            <dt>id the provider answered with</dt>
+            <dd class="id">
+              <a
+                th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${timeline.providerObjectId})}"
+                th:text="${timeline.providerObjectId}"
+              ></a>
+            </dd>
+            <dt>found by</dt>
+            <dd th:text="${timeline.foundBy}"></dd>
+            <dt th:if="${timeline.answersToMoreThanOneIdentifier()}">also answers to</dt>
+            <dd class="id" th:if="${timeline.answersToMoreThanOneIdentifier()}">
+              <a
+                th:each="member : ${timeline.answersTo}"
+                th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${member})}"
+                th:text="${member}"
+              ></a>
+            </dd>
+            <dt>provider-native status</dt>
+            <dd th:text="${timeline.nativeStatus} ?: 'this simulator holds no object of this provider under that id'"></dd>
+            <dt>normalized status</dt>
+            <dd><span th:replace="~{fragments :: status(${timeline.normalizedStatus})}"></span></dd>
+          </dl>
+          <div class="scroll" th:unless="${#maps.isEmpty(timeline.relatedObjects)}">
+            <h3>Objects this one names</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>field</th>
+                  <th>value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="related : ${timeline.relatedObjects}">
+                  <td class="id" th:text="${related.key}"></td>
+                  <td class="id">
+                    <a
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${related.value})}"
+                      th:text="${related.value}"
+                    ></a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div th:replace="~{fragments :: personalData}"></div>
+
+      <section class="panel" th:if="${timeline} and ${timeline.namesAnObject()}">
+        <h2>Timeline, in the order the trail recorded it</h2>
+        <div class="body">
+          <p class="refusal" th:if="${timeline.truncated}" th:text="${timeline.truncated}"></p>
+          <p class="empty" th:if="${#lists.isEmpty(timeline.entries)}">
+            No row of this test run's trail names this object. An object placed by a fixture and
+            never called reads this way.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(timeline.entries)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>what happened</th>
+                  <th>surface</th>
+                  <th>method</th>
+                  <th>path or target</th>
+                  <th>status</th>
+                  <th>outcome</th>
+                  <th>what it refused</th>
+                  <th>scenario</th>
+                  <th>attempt</th>
+                  <th>clock</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody th:each="entry : ${timeline.entries}">
+                <tr th:classappend="${entry.open} ? 'open'">
+                  <td th:text="${entry.place}"></td>
+                  <td th:text="${entry.kind}"></td>
+                  <td th:text="${entry.surface}"></td>
+                  <td th:text="${entry.method}"></td>
+                  <td class="wrap" th:text="${entry.path} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td th:text="${entry.status}"></td>
+                  <td>
+                    <span th:replace="~{fragments :: status(${entry.outcome})}"></span>
+                  </td>
+                  <td class="wrap" th:text="${entry.refused}"></td>
+                  <td class="id" th:text="${entry.scenarioId}"></td>
+                  <td th:text="${entry.attempt}"></td>
+                  <td class="stamp" th:text="${entry.at}"></td>
+                  <td>
+                    <a
+                      th:unless="${entry.open}"
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${timeline.key},open=${entry.auditId})}"
+                      >open</a
+                    >
+                    <a
+                      th:if="${entry.open}"
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${timeline.key})}"
+                      >close</a
+                    >
+                  </td>
+                </tr>
+                <tr th:if="${entry.lostResponse}">
+                  <td colspan="12"><p class="caution" th:text="${entry.lostResponse}"></p></td>
+                </tr>
+                <tr th:if="${entry.pairedByPosition}">
+                  <td colspan="12"><p class="note" th:text="${entry.pairedByPosition}"></p></td>
+                </tr>
+                <tr th:if="${entry.open}" class="open">
+                  <td colspan="12">
+                    <dl class="pairs">
+                      <dt>audit id</dt>
+                      <dd class="id" th:text="${entry.auditId}"></dd>
+                    </dl>
+                    <p>
+                      <a
+                        th:if="${!timeline.valuesShown}"
+                        th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${timeline.key},open=${entry.auditId},values='show')}"
+                        >Show the values of this exchange</a
+                      >
+                      <a
+                        th:if="${timeline.valuesShown}"
+                        th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${timeline.key},open=${entry.auditId})}"
+                        >Hide the values again</a
+                      >
+                    </p>
+                    <div th:replace="~{fragments :: fields('Headers', ${entry.headers})}"></div>
+                    <div th:replace="~{fragments :: fields('Body', ${entry.body})}"></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline} and ${timeline.namesAnObject()}">
+        <h2>Money this object moved</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(timeline.transitions)}">
+            No operation has moved money on this object.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(timeline.transitions)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>operation</th>
+                  <th>amount</th>
+                  <th>provider-native status</th>
+                  <th>normalized status</th>
+                  <th>object it created</th>
+                  <th>clock</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="moved : ${timeline.transitions}">
+                  <td th:text="${moved.sequence}"></td>
+                  <td th:text="${moved.kind}"></td>
+                  <td th:text="${moved.amount}"></td>
+                  <td th:text="${moved.nativeStatus}"></td>
+                  <td><span th:replace="~{fragments :: status(${moved.normalizedStatus})}"></span></td>
+                  <td class="id">
+                    <a
+                      th:if="${moved.createdObjectId}"
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${moved.createdObjectId})}"
+                      th:text="${moved.createdObjectId}"
+                    ></a>
+                  </td>
+                  <td class="stamp" th:text="${moved.at}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why this is a ledger and not events of the timeline above</summary>
+            <p class="note">
+              A provider object carries the status it holds now and the operations that moved its
+              money, and no row per status change, so the changes below are the object's ledger in
+              its own order and not events of the timeline above. The call that caused each one is
+              on the timeline.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline} and ${timeline.namesAnObject()}">
+        <h2>Callbacks this object owns</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(timeline.callbacks)}">
+            This provider scheduled no callback for this object.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(timeline.callbacks)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>delivery</th>
+                  <th>event id</th>
+                  <th>event type</th>
+                  <th>state</th>
+                  <th>attempts made</th>
+                  <th>attempt cap</th>
+                  <th>next attempt</th>
+                  <th>shaped by</th>
+                  <th>not sent because</th>
+                  <th>target</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="callback : ${timeline.callbacks}">
+                  <td class="id">
+                    <a
+                      th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId},open=${callback.deliveryId})}"
+                      th:text="${callback.deliveryId}"
+                    ></a>
+                  </td>
+                  <td class="id" th:text="${callback.eventId}"></td>
+                  <td th:text="${callback.eventType}"></td>
+                  <td><span th:replace="~{fragments :: status(${callback.state})}"></span></td>
+                  <td th:text="${callback.attemptsMade}"></td>
+                  <td th:text="${callback.attemptCap}"></td>
+                  <td th:text="${callback.nextAttemptAt} ?: 'none is scheduled'"></td>
+                  <td class="id" th:text="${callback.shapedBy}"></td>
+                  <td class="wrap" th:text="${callback.notSentBecause}"></td>
+                  <td class="wrap" th:text="${callback.targetUrl} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why the moment a callback was queued is not on the timeline</summary>
+            <p class="note">
+              This simulator writes a trail row when a callback is attempted, withheld by a rule or
+              refused by the provider, and none when one is queued, so the moment a callback was
+              scheduled has no place on the timeline above. The callbacks below are this object's,
+              in the order the queue holds them.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${timeline}">
+        <h2>What this timeline cannot show</h2>
+        <div class="body">
+          <details>
+            <summary>What this provider's contract, and this build, have no such thing of</summary>
+            <h3>Because this provider's contract has no such thing</h3>
+            <p class="empty" th:if="${#lists.isEmpty(timeline.theProviderHasNoSuchThing)}">
+              This provider carries every fact this simulator knows how to correlate on.
+            </p>
+            <div class="scroll" th:unless="${#lists.isEmpty(timeline.theProviderHasNoSuchThing)}">
+              <table>
+                <thead>
+                  <tr>
+                    <th>what</th>
+                    <th>what this provider has instead, in its own words</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="absent : ${timeline.theProviderHasNoSuchThing}">
+                    <td class="id" th:text="${absent.what}"></td>
+                    <td class="wrap" th:text="${absent.why}"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <h3>Because this simulator records no such event</h3>
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>what</th>
+                    <th>why it is not on the timeline</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="absent : ${timeline.thisBuildRecordsNoSuchThing}">
+                    <td class="id" th:text="${absent.what}"></td>
+                    <td class="wrap" th:text="${absent.why}"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

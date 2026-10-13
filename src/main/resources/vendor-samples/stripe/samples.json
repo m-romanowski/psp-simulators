@@ -1,0 +1,53 @@
+{
+  "payment-intent-requires-capture": {
+    "evidence": "published rule",
+    "note": "the PaymentIntent will transition to the succeeded status (or requires_capture, if capture_method is set to manual)",
+    "source": "https://docs.stripe.com/payments/paymentintents/lifecycle",
+    "reference": "stripe.md, Status Mapping",
+    "rules": {
+      "status": "requires_capture"
+    }
+  },
+  "card-declined-insufficient-funds": {
+    "evidence": "published rule",
+    "source": "https://docs.stripe.com/declines/codes",
+    "reference": "stripe.md, Required Error Shape",
+    "rules": {
+      "httpStatus": "402",
+      "error.type": "card_error",
+      "error.code": "card_declined",
+      "error.decline_code": "insufficient_funds"
+    }
+  },
+  "no-api-key": {
+    "evidence": "live probe",
+    "probed": "2026-09-28",
+    "note": "curl -i -X POST with no credentials",
+    "source": "https://api.stripe.com/v1/payment_intents",
+    "reference": "stripe.md, Authentication and Transport",
+    "status": 401,
+    "headers": {
+      "content-type": "application/json",
+      "www-authenticate": "Basic realm=\"Stripe\""
+    },
+    "body": "no-api-key.json"
+  },
+  "idempotent-replay": {
+    "evidence": "published rule",
+    "note": "Subsequent requests with the same key return the same result, and a replay carries Idempotent-Replayed: true",
+    "source": "https://docs.stripe.com/api/idempotent_requests",
+    "reference": "stripe.md, Idempotency",
+    "rules": {
+      "Idempotent-Replayed": "true",
+      "sameKeySameResult": "true"
+    }
+  },
+  "webhook-signature": {
+    "evidence": "published example",
+    "source": "https://docs.stripe.com/webhooks",
+    "reference": "stripe.md, Webhooks",
+    "headers": {
+      "Stripe-Signature": "t=1492774577,v1=5257a869...,v0=6ffbb59b..."
+    }
+  }
+}

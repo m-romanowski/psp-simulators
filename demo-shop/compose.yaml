@@ -1,0 +1,64 @@
+name: pspsim-demo-shop
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_DB: pspsim
+      POSTGRES_USER: pspsim
+      POSTGRES_PASSWORD: pspsim
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pspsim -d pspsim"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  simulator:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      SIMULATOR_BIND_ADDRESS: 0.0.0.0
+      SIMULATOR_PUBLIC_BASE_URL: http://localhost:8082
+      SIMULATOR_DB_URL: jdbc:postgresql://postgres:5432/pspsim
+      SIMULATOR_DB_USERNAME: pspsim
+      SIMULATOR_DB_PASSWORD: pspsim
+    ports:
+      - "127.0.0.1:8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+  shop:
+    build:
+      context: .
+    environment:
+      SHOP_BIND_ADDRESS: 0.0.0.0
+      SHOP_SIMULATOR_API_URL: http://simulator:8080
+      SHOP_SIMULATOR_BROWSER_URL: http://localhost:8082
+      SHOP_CALLBACK_BASE_URL: http://shop:8081
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      simulator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8081 && printf 'GET / HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q ' 200 '"
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 10s

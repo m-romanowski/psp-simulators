@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PSP simulator · API</title>
+    <link rel="stylesheet" href="/webjars/swagger-ui/5.32.15/swagger-ui.css" />
+    <link rel="stylesheet" href="/ui.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <h1>PSP simulator</h1>
+      <nav>
+        <a href="/ui">This test run</a>
+        <a class="here" href="/openapi/index.html">API</a>
+      </nav>
+    </header>
+    <main>
+      <div id="the-api"></div>
+    </main>
+    <script src="/webjars/swagger-ui/5.32.15/swagger-ui-bundle.js"></script>
+    <script src="/webjars/swagger-ui/5.32.15/swagger-ui-standalone-preset.js"></script>
+    <script>
+      fetch('index.json')
+        .then(function (answered) { return answered.json(); })
+        .then(function (documents) {
+          window.ui = SwaggerUIBundle({
+            urls: documents,
+            dom_id: '#the-api',
+            deepLinking: true,
+            tryItOutEnabled: true,
+            validatorUrl: null,
+            presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+            layout: 'StandaloneLayout'
+          });
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,90 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider azericard",
+    "version": "0.1.0",
+    "description": "Provider azericard answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/azericard.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/azericard/payer": {
+      "post": {
+        "operationId": "payerPage",
+        "description": "provider azericard answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/azericard.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider azericard answers, specified in doc/azericard.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider azericard reads this body in its own wire format, specified in doc/azericard.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/cgi-bin/cgi_link": {
+      "post": {
+        "operationId": "cgiLink",
+        "description": "provider azericard answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/azericard.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider azericard answers, specified in doc/azericard.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider azericard reads this body in its own wire format, specified in doc/azericard.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/token/cgi_link": {
+      "post": {
+        "operationId": "tokenLink",
+        "description": "provider azericard answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/azericard.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider azericard answers, specified in doc/azericard.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider azericard reads this body in its own wire format, specified in doc/azericard.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    }
+  }
+}

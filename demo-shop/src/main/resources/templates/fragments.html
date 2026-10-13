@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' · Demo shop'">Demo shop</title>
+    <link rel="stylesheet" th:href="@{/shop.css}">
+    <script th:src="@{/webjars/htmx.org/4.0.0/dist/htmx.min.js}" defer></script>
+</head>
+<body>
+<header th:fragment="bar" class="bar">
+    <a class="brand" th:href="@{/}">Demo shop</a>
+    <span>a shop that takes payments through Stripe, which here is the PSP simulator</span>
+</header>
+
+<aside th:fragment="story(run, order)" class="story" aria-label="The story being played">
+    <h2 th:text="${run.story().title()}">A story</h2>
+    <p th:text="${run.story().whatHappens()}">What happens.</p>
+    <p>Test run <code th:text="${run.testRunId()}">shop-1</code></p>
+
+    <h3>What the story told the simulator</h3>
+    <ul>
+        <li>
+            A Stripe account keyed by a secret key of this run alone, its webhooks aimed at this shop and signed,
+            and the clock pinned to <code th:text="${run.clockPinnedTo()}">2026-09-15T10:00:00Z</code>.
+            <a id="see-it-configured" target="psp-sim" th:href="${screens.configuration(run.testRunId())}">See it configured</a>
+        </li>
+        <li>
+            A saved Visa ending 4242, <code th:text="${run.savedCard()}">pm_1</code>, the card checkout pays with.
+            <a id="see-the-saved-card" target="psp-sim" th:href="${screens.savedCards(run.testRunId())}">See the saved card</a>
+        </li>
+        <li th:if="${run.captureRefusalRule().isPresent()}">
+            A scenario rule <code data-testid="capture-refusal-rule" th:text="${run.captureRefusalRule().get()}">scn_1</code>: every capture of this run
+            is refused as <code th:text="${run.story().theReasonTheCaptureIsRefusedFor().get()}">expired_card</code>.
+            <a id="see-the-rule" target="psp-sim" th:href="${screens.rules(run.testRunId())}">See the rule</a>
+        </li>
+    </ul>
+
+    <h3>Steps</h3>
+    <ol>
+        <li th:class="${run.bought()} ? 'done' : 'next'">
+            Buy the espresso machine: open the product, go to checkout and pay with the saved card. The shop creates
+            a PaymentIntent with <code>capture_method=manual</code> and confirms it, so the money is held, not taken.
+            <span th:unless="${run.bought()}" class="links">
+                <a id="story-go-to-the-product" th:href="@{/runs/{id}/product(id=${run.testRunId()})}">Go to the product</a>
+            </span>
+        </li>
+        <li th:class="${run.captureAnswered()} ? 'done' : (${run.bought()} ? 'next' : '')">
+            Capture the order on the order page.
+            <span th:if="${run.story().theReasonTheCaptureIsRefusedFor().isPresent()}">
+                Expect Stripe to refuse it as
+                <code th:text="${run.story().theReasonTheCaptureIsRefusedFor().get()}">expired_card</code>, and the
+                simulator's trail to name the rule that decided it.
+            </span>
+            <span th:unless="${run.story().theReasonTheCaptureIsRefusedFor().isPresent()}">
+                Expect Stripe to accept it.
+            </span>
+        </li>
+        <li th:if="${run.story().endsWithAWebhook()}"
+            th:class="${run.toldByStripe()} ? 'done' : (${run.captureAnswered()} ? 'next' : '')">
+            Let Stripe tell the shop. The simulator sends a Stripe event only when asked to, so the story asks it,
+            through the control API, to send <code>payment_intent.succeeded</code>. It arrives signed at the shop's
+            webhook endpoint, which verifies the signature and lists it on the order page.
+            <form th:if="${run.captureAnswered() and !run.stripeAskedToReport()}" method="post"
+                  th:action="@{/runs/{id}/stripe-reports-the-finished-payment(id=${run.testRunId()})}">
+                <button id="send-the-event" type="submit">Send payment_intent.succeeded</button>
+            </form>
+            <span th:if="${run.awaitsStripe()}" data-testid="event-awaited">
+                Asked. The simulator delivers it on its own time, and this page shows it when it arrives.
+            </span>
+        </li>
+    </ol>
+
+    <div th:if="${order != null}">
+        <h3>Where to look in the simulator</h3>
+        <p class="links">
+            <a id="look-at-the-payment" target="psp-sim" th:href="${screens.payment(run.testRunId(), order.paymentIntentId())}">The payment</a>
+            <a id="look-at-its-timeline" target="psp-sim" th:href="${screens.timeline(run.testRunId(), order.paymentIntentId())}">Its timeline</a>
+            <a id="look-at-its-trail" target="psp-sim" th:href="${screens.trailOf(run.testRunId(), order.paymentIntentId())}">Its trail</a>
+            <a id="look-at-its-webhooks" target="psp-sim" th:href="${screens.webhooks(run.testRunId(), order.paymentIntentId())}">Its webhooks</a>
+            <a id="look-at-the-whole-trail" target="psp-sim" th:href="${screens.trail(run.testRunId())}">The whole run's trail</a>
+        </p>
+    </div>
+
+    <div id="story-ending" role="status">
+        <p th:if="${run.ended()}" data-testid="story-ended">
+            <strong>The story has ended.</strong> Its test run stays in the simulator so it can be read; the home
+            page's Tidy up removes it.
+        </p>
+    </div>
+</aside>
+<main th:fragment="run-gone" id="order-live" class="page">
+    <section>
+        <h1>Your order</h1>
+        <p data-testid="run-gone">
+            This story's run has been tidied up, so the shop no longer keeps it and this page stops asking.
+            <a id="gone-back-to-the-stories" th:href="@{/}">Back to the stories</a>
+        </p>
+    </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,382 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider autra",
+    "version": "0.1.0",
+    "description": "Provider autra answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/autra.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/tokenize/sessions/{hostedCardSessionId}": {
+      "get": {
+        "operationId": "open",
+        "parameters": [
+          {
+            "name": "hostedCardSessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "hostedCardSessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/acquiring/card-sessions": {
+      "post": {
+        "operationId": "cardSession",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/payments": {
+      "get": {
+        "operationId": "payments",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "sale",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/payments/initialize": {
+      "post": {
+        "operationId": "initialize",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/payments/pre-authorization": {
+      "post": {
+        "operationId": "preAuthorization",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/payments/{paymentId}": {
+      "get": {
+        "operationId": "payment",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/acquiring/payments/{paymentId}/capture": {
+      "post": {
+        "operationId": "capture",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/payments/{paymentId}/void": {
+      "post": {
+        "operationId": "voidPayment",
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/pix/checkout": {
+      "post": {
+        "operationId": "pixCheckout",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/acquiring/pix/initialize": {
+      "post": {
+        "operationId": "pixInitialize",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/oauth/token": {
+      "post": {
+        "operationId": "token",
+        "description": "provider autra answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/autra.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider autra answers, specified in doc/autra.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider autra reads this body in its own wire format, specified in doc/autra.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    }
+  }
+}

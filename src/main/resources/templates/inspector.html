@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Retries')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${inspector}">
+        <h2>What this provider compares a repeat against</h2>
+        <div
+          class="body"
+          th:with="whatARepeatDoes=${#sets.toSet(inspector.mechanisms.![roleMeans])},
+                   whereItIsSent=${#sets.toSet(inspector.mechanisms.![carriedIn])},
+                   whileItIsHeld=${#sets.toSet(inspector.mechanisms.![whileItIsHeld])}"
+        >
+          <div class="scroll" th:unless="${#lists.isEmpty(inspector.mechanisms)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>key</th>
+                  <th>role</th>
+                  <th>held before the operation</th>
+                  <th>compared against</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="key : ${inspector.mechanisms}">
+                  <td class="id" th:text="${key.name}"></td>
+                  <td th:text="${key.role}"></td>
+                  <td>
+                    <span class="tag fact" th:if="${key.canBeHeld}">claimed before the operation runs</span>
+                    <span class="tag" th:unless="${key.canBeHeld}">never held</span>
+                  </td>
+                  <td class="wrap" th:text="${key.scopedBy}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details th:unless="${#lists.isEmpty(inspector.mechanisms)}">
+            <summary>What a repeat under each key does, where it is sent, and what holding it means</summary>
+            <div th:each="means : ${whatARepeatDoes}">
+              <p>
+                <span
+                  th:each="key : ${inspector.mechanisms}"
+                  th:if="${key.roleMeans == means}"
+                  class="id"
+                  th:text="${key.name}"
+                ></span>
+              </p>
+              <p class="note" th:text="${means}"></p>
+            </div>
+            <div th:each="sent : ${whereItIsSent}">
+              <p>
+                <span
+                  th:each="key : ${inspector.mechanisms}"
+                  th:if="${key.carriedIn == sent}"
+                  class="id"
+                  th:text="${key.name}"
+                ></span>
+              </p>
+              <p class="note" th:text="${sent}"></p>
+            </div>
+            <div th:each="held : ${whileItIsHeld}">
+              <p>
+                <span
+                  th:each="key : ${inspector.mechanisms}"
+                  th:if="${key.whileItIsHeld == held}"
+                  class="id"
+                  th:text="${key.name}"
+                ></span>
+              </p>
+              <p class="note" th:text="${held}"></p>
+            </div>
+          </details>
+
+          <div class="scroll" th:unless="${#lists.isEmpty(inspector.absences)}">
+            <h3>What this provider has none of, in its own words</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>role</th>
+                  <th>what a repeat would do</th>
+                  <th>what this provider has instead</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="absent : ${inspector.absences}">
+                  <td th:text="${absent.role}"></td>
+                  <td class="wrap" th:text="${absent.roleMeans}"></td>
+                  <td class="wrap" th:text="${absent.instead}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details>
+            <summary>Why the two kinds of key are never in one list</summary>
+            <p class="note">
+              A key whose repeat returns the original response and a key whose repeat is refused are
+              opposite behaviours, and this screen never puts them in one list. The simulator owns
+              what each role means; the provider owns which of its own fields fills the role and what
+              it compares a repeat against. This screen shows exactly what
+              <code
+                th:text="'GET /__simulator/' + ${inspector.provider} + '/idempotency'"
+              ></code>
+              returns and offers exactly what that control API can do.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${inspector}">
+        <h2>Requests this test run sent under one of those keys</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(inspector.rows)}"
+            th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).NOTHING_HAS_BEEN_SENT_UNDER_A_KEY}"></p>
+
+          <div class="scroll" th:each="row : ${inspector.rows}">
+            <h3>
+              <span class="id" th:text="${row.keyName}"></span>
+              <span class="id" th:text="${row.keyValue}"></span>
+              <span class="tag fact" th:text="${row.role}"></span>
+            </h3>
+            <p class="note" th:text="${row.roleMeans}"></p>
+            <table>
+              <tbody>
+                <tr>
+                  <th>account</th>
+                  <td class="id" th:text="${row.accountId}"></td>
+                </tr>
+                <tr>
+                  <th>operation</th>
+                  <td th:text="${row.operation}"></td>
+                </tr>
+                <tr>
+                  <th>request fingerprint</th>
+                  <td class="id" th:text="${row.requestFingerprint}"></td>
+                </tr>
+                <tr>
+                  <th>first request</th>
+                  <td class="stamp" th:text="${row.firstRequestAt}"></td>
+                </tr>
+                <tr>
+                  <th>replay timestamps</th>
+                  <td>
+                    <span class="empty" th:unless="${row.wasReplayed()}"
+                      >this key replayed nothing</span
+                    >
+                    <span th:each="at : ${row.replayTimestamps}" class="id" th:text="${at}"></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>state changed</th>
+                  <td th:text="${row.stateChanged} ? 'yes' : 'no'"></td>
+                </tr>
+                <tr>
+                  <th>original response</th>
+                  <td class="wrap">
+                    <span class="empty" th:unless="${row.aRequestClaimedThisKey()}"
+                      th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).NO_REQUEST_UNDER_THIS_KEY_CLAIMED_IT}"
+                    ></span>
+                    <span th:if="${row.aRequestClaimedThisKey()}">
+                      <span th:if="${row.firstRequest().carriesAResponse()}">
+                        <span class="id" th:text="${row.firstRequest().status}"></span>
+                        <span class="id" th:text="${row.firstRequest().contentType}"></span>
+                        <span th:text="${row.firstRequest().body}"></span>
+                      </span>
+                      <span class="empty" th:unless="${row.firstRequest().carriesAResponse()}"
+                        th:text="${T(dev.marcinromanowski.pspsim.kernel.idempotency.KeyedRequest).NOTHING_WAS_ANSWERED}"
+                      ></span>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>replay response</th>
+                  <td class="wrap">
+                    <span class="empty" th:if="${#lists.isEmpty(row.replayResponses())}"
+                      th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).NO_REPLAY_WAS_ANSWERED_UNDER_THIS_KEY}"
+                    ></span>
+                    <span th:each="replay : ${row.replayResponses()}">
+                      <span class="id" th:text="${replay.sequence}"></span>
+                      <span class="id" th:text="${replay.at}"></span>
+                      <span class="id" th:text="${replay.status}"></span>
+                      <span class="id" th:text="${replay.contentType}"></span>
+                      <span th:text="${replay.body}"></span>
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <th>objects this key reached</th>
+                  <td class="wrap">
+                    <span class="empty" th:unless="${row.reachedAnObject()}"
+                      th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).THIS_KEY_REACHED_NO_OBJECT}"
+                    ></span>
+                    <span th:if="${row.reachedAnObject()}">
+                      <span class="id" th:text="${row.providerObjectId}"></span>
+                      <span class="empty" th:unless="${row.linksToAnything()}"
+                        th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).NO_OBJECT_OF_THIS_RUN_LINKS_TO_IT}"
+                      ></span>
+                      <span th:each="named : ${row.objectsItNames}">
+                        <span th:text="${'it names by ' + named.field}"></span>
+                        <span class="id" th:text="${named.providerObjectId}"></span>
+                      </span>
+                      <span th:each="naming : ${row.objectsThatNameIt}">
+                        <span th:text="${'named by ' + naming.field + ' from'}"></span>
+                        <span class="id" th:text="${naming.providerObjectId}"></span>
+                      </span>
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>at</th>
+                  <th>verdict</th>
+                  <th>what that means</th>
+                  <th>response</th>
+                  <th>changed state</th>
+                  <th>timeout</th>
+                  <th>conflict</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="request : ${row.requests}">
+                  <td th:text="${request.sequence}"></td>
+                  <td class="stamp" th:text="${request.at}"></td>
+                  <td>
+                    <span class="tag" th:text="${request.verdict}"></span>
+                  </td>
+                  <td class="wrap" th:text="${request.verdictMeans}"></td>
+                  <td class="wrap">
+                    <span th:if="${request.carriesAResponse()}">
+                      <span class="id" th:text="${request.status}"></span>
+                      <span class="id" th:text="${request.contentType}"></span>
+                      <span th:text="${request.body}"></span>
+                    </span>
+                    <span class="empty" th:unless="${request.carriesAResponse()}"
+                      >this simulator recorded no response for this request</span
+                    >
+                  </td>
+                  <td th:text="${request.stateChanged} ? 'yes' : 'no'"></td>
+                  <td class="wrap">
+                    <span th:if="${request.namesAFault()}" th:text="${request.timeout}"></span>
+                    <span class="empty" th:unless="${request.namesAFault()}"
+                      >no transport fault landed on this request</span
+                    >
+                  </td>
+                  <td class="wrap">
+                    <span th:if="${request.namesAConflict()}"
+                      th:text="${request.conflictReason}"></span>
+                    <span class="empty" th:unless="${request.namesAConflict()}">none</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p th:if="${inspector.nextCursor}">
+            <a
+              th:href="@{/ui/idempotency(provider=${inspector.provider},testRunId=${inspector.testRunId},after=${inspector.nextCursor})}"
+              >Older exchanges</a
+            >
+          </p>
+
+          <details>
+            <summary>Why nothing on this screen can be rewritten</summary>
+            <p class="note">
+              This screen changes nothing. A response a true idempotent replay has already
+              established cannot be rewritten here, because the control API this screen stands on
+              offers no way to rewrite one: a tester steers the next answer by writing a scenario for
+              a request that has not been made yet.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

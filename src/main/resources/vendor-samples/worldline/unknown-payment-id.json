@@ -1,0 +1,15 @@
+{
+  "errorId": "4dac7acb-70c1-4917-80cd-068833fd8da5",
+  "errors": [
+    {
+      "errorCode": "50001130",
+      "category": "DIRECT_PLATFORM_ERROR",
+      "code": "1002",
+      "httpStatusCode": 404,
+      "id": "UNKNOWN_PAYMENT_ID",
+      "message": "UNKNOWN_PAYMENT_ID",
+      "propertyName": "paymentId",
+      "retriable": false
+    }
+  ]
+}

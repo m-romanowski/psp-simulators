@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Read back')}">
+    <meta name="tab" content="Read back" />
+    <meta name="group" content="daily-work" />
+    <meta name="order" content="16" />
+  </head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${objects != null}">
+        <h2>What a merchant's own app can ask autra about a payment</h2>
+        <div class="body">
+          <p class="wrap">
+            Autra publishes two read-only addresses on its acquiring surface. One answers a single
+            payment and the timeline of everything that has happened to it,
+            <span class="id">GET /v1/acquiring/payments/{paymentId}</span>. The other lists the
+            payments of one establishment in a window of dates, newest first,
+            <span class="id">GET /v1/acquiring/payments</span>. Neither calls the acquirer and
+            neither changes anything, so reading a payment here as many times as you like leaves
+            the test run exactly as it was.
+          </p>
+          <p class="note wrap">
+            This screen shows the state those two routes answer from, for every card payment of
+            this test run at once: it reads what this simulator stored rather than asking autra's
+            own addresses, so there is nothing to fill in here. To ask those two addresses
+            themselves, with the query a merchant's own app sends and the refusal autra answers a
+            bad one with, open the Look a payment up screen: it performs the two reads autra
+            declares and prints what each one answered, under the names autra answered them
+            under. The identifiers below are the ones autra draws, and a merchant's own app sends
+            them back verbatim.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${objects != null}">
+        <h2>Pre-authorizations still open</h2>
+        <div class="body"
+          th:with="held=${objects.?[object.relatedObjects.get('type') == 'PREAUTH'
+            and object.relatedObjects.get('voidRetryable') == 'true']}">
+          <p class="note wrap">
+            This is what autra publishes the listing address for: finding the reservations a
+            merchant is still holding, so a void can release the cardholder's limit instead of
+            waiting for a daily routine. Autra's own example of that query is
+            <span class="id">?status=ACCEPTED&amp;type=PREAUTH</span>, and this simulator answers
+            <span class="id">ACCEPTED</span> to a pre-authorization, so that query is the one that
+            selects these here too. A sale answers the same word, which is why the query names
+            <span class="id">type</span> as well.
+          </p>
+          <p class="empty" th:if="${#lists.isEmpty(held)}">
+            This test run is holding no open pre-authorization. A reservation appears here from the
+            moment autra takes it until a capture or a void closes it.
+          </p>
+          <ul class="choices" th:unless="${#lists.isEmpty(held)}">
+            <li th:each="row : ${held}">
+              <a
+                th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+              >
+                <span class="id" th:text="${row.providerObjectId}"></span>
+                <span th:text="${row.object.amount != null ? row.object.amount.value : ''}"></span>
+                <span th:text="${row.object.currency}"></span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${objects != null}">
+        <h2 th:if="${theWholeRunWasRead}">The card payments of this test run, newest first</h2>
+        <h2 th:unless="${theWholeRunWasRead}">
+          The card payments this screen reached in this test run, newest first
+        </h2>
+        <div class="body"
+          th:with="paid=${objects.?[object.relatedObjects.get('type') != null]}">
+          <p class="empty" th:if="${#lists.isEmpty(paid) and theWholeRunWasRead}">
+            This test run holds no card payment of this provider. That is an empty run and not a
+            failed read: a Pix and a hosted card page of the same run are on their own screens and
+            a listing of autra's payments answers neither.
+          </p>
+          <div class="caution" th:unless="${theWholeRunWasRead}">
+            <span
+              th:text="'This screen read ' + ${#lists.size(objects)} + ' object(s) of this test'
+                + ' run and that read did not reach the end of the run, so what stands below is'
+                + ' the payments that read reached and not every payment this run holds.'"
+            ></span>
+            <span
+              >Reset the test run, or look a payment up by its id on the Payments screen, where a
+              read is paged.</span
+            >
+          </div>
+          <div th:each="row : ${paid}">
+            <h3 class="id" th:text="${row.providerObjectId}"></h3>
+            <p>
+              <span class="tag" th:text="${row.object.kind.asThisProviderNamesIt}"></span>
+              <span class="tag fact" th:text="${row.object.relatedObjects.get('type')}"></span>
+            </p>
+            <dl class="pairs">
+              <dt>
+                <span>the identifier autra drew for this payment</span>
+                <span class="tag">paymentID</span>
+              </dt>
+              <dd class="id wrap" th:text="${row.providerObjectId}"></dd>
+              <dt>
+                <span>what autra calls this one</span>
+                <span class="tag">type</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('type')}"></dd>
+              <dt>
+                <span>status</span>
+                <span class="tag">status</span>
+              </dt>
+              <dd>
+                <span class="note">as autra reports it</span>
+                <span class="id" th:text="${row.object.nativeStatus}"></span>
+                <span class="note">as this simulator normalizes it</span>
+                <span th:replace="~{fragments :: status(${row.normalizedStatus})}"></span>
+              </dd>
+              <dt>
+                <span>is it worth calling void now</span>
+                <span class="tag">voidRetryable</span>
+              </dt>
+              <dd class="id"
+                th:text="${row.object.relatedObjects.get('voidRetryable')}"></dd>
+              <dt>
+                <span>amount</span>
+                <span class="tag">amount</span>
+                <span class="tag">currency</span>
+              </dt>
+              <dd class="id">
+                <span th:text="${row.object.amount != null ? row.object.amount.value : ''}">
+                </span>
+                <span th:text="${row.object.currency}"></span>
+              </dd>
+              <dt>
+                <span>how much of it has been given back</span>
+                <span class="tag">refundedAmount</span>
+              </dt>
+              <dd class="id"
+                th:text="${row.object.relatedObjects.get('refundedAmount')}"></dd>
+              <dt>
+                <span>the establishment this payment belongs to</span>
+                <span class="tag">documentId</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('documentId')}"></dd>
+              <dt>
+                <span>how many instalments it was split into</span>
+                <span class="tag">installments</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('installments')}"></dd>
+              <dt>
+                <span>the card product it was charged on</span>
+                <span class="tag">transactionType</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('transactionType')}"></dd>
+              <dt>
+                <span>whether a card or a token was sent</span>
+                <span class="tag">transactionMethod</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('transactionMethod')}"></dd>
+              <dt>
+                <span>the code the issuer authorized it with</span>
+                <span class="tag">authorizationCode</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('authorizationCode')}"></dd>
+              <dt>
+                <span>what to reconcile the financial cycle webhook by</span>
+                <span class="tag">rrn</span>
+              </dt>
+              <dd class="id" th:text="${row.object.relatedObjects.get('rrn')}"></dd>
+              <dt th:if="${row.object.relatedObjects.containsKey('trackingNumber')}">
+                <span>the acquirer's own transaction identifier</span>
+                <span class="tag">trackingNumber</span>
+              </dt>
+              <dd th:if="${row.object.relatedObjects.containsKey('trackingNumber')}" class="id"
+                th:text="${row.object.relatedObjects.get('trackingNumber')}"></dd>
+              <dt th:unless="${row.object.relatedObjects.containsKey('trackingNumber')}">
+                <span>the acquirer's own transaction identifier</span>
+                <span class="tag">trackingNumber</span>
+              </dt>
+              <dd th:unless="${row.object.relatedObjects.containsKey('trackingNumber')}"
+                class="wrap">
+                This acquirer named none, so autra answers this payment without the member at all
+                rather than with an empty one.
+              </dd>
+              <dt th:if="${row.object.relatedObjects.containsKey('orderId')}">
+                <span>the merchant's own order reference</span>
+                <span class="tag">orderId</span>
+              </dt>
+              <dd th:if="${row.object.relatedObjects.containsKey('orderId')}" class="id"
+                th:text="${row.object.relatedObjects.get('orderId')}"></dd>
+              <dt>
+                <span>when autra took this payment, which is what a date window matches on</span>
+                <span class="tag">createdAt</span>
+              </dt>
+              <dd>
+                <span class="id" th:text="${row.object.relatedObjects.get('createdAt')}"></span>
+                <span
+                  th:text="${inWords.howFarFromNow(row.object.relatedObjects.get('createdAt'))}"
+                ></span>
+              </dd>
+              <dt>
+                <span>when this payment last changed</span>
+                <span class="tag">updatedAt</span>
+              </dt>
+              <dd>
+                <span class="id" th:text="${row.object.updatedAt}"></span>
+                <span th:text="${inWords.howFarFromNow(row.object.updatedAt)}"></span>
+              </dd>
+            </dl>
+            <p class="note wrap">
+              <span th:text="'What one of these is, in the words of ' + ${provider} + ':'"></span>
+              <span th:text="${row.object.kind.whatItIsInItsOwnWords}"></span>
+            </p>
+            <p class="note">The timeline autra answers under <span class="id">events</span>:</p>
+            <ul class="choices"
+              th:with="steps=${row.object.relatedObjects.?[key.startsWith('events.')]}">
+              <li th:each="step : ${steps}">
+                <span class="id wrap" th:text="${step.value}"></span>
+              </li>
+              <li th:if="${#maps.isEmpty(steps)}" class="wrap">
+                This payment was stored before this simulator kept a timeline, so autra answers it
+                with an empty events array. Nothing was lost: no step of it was ever recorded.
+              </li>
+            </ul>
+            <p class="note wrap">
+              Of the properties the single read publishes, this payment answers one with nothing:
+              <span class="id">maskedCard</span>, which autra declares a bare string with no
+              description, example, format or pattern anywhere, and which this simulator cannot
+              answer because it keeps no card number on a payment at all.
+              <span class="id">brandReferenceId</span> belongs to the first sale of a recurring
+              series and real autra would leave it out of this payment too, because a sale asking
+              for a series is refused here and no payment of this simulator is one.
+              <span class="id">errors</span> is not a row of its own above: it collects the
+              refusals of the steps below, and they are printed on the steps they happened on.
+            </p>
+            <ul class="choices">
+              <li>
+                <a
+                  th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                  >Read everything this simulator holds about this payment</a
+                >
+              </li>
+              <li>
+                <a
+                  th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                  >Read the calls that made it, as a client sent them</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

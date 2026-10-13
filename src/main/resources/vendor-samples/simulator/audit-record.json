@@ -1,0 +1,21 @@
+{
+  "auditId": "aud_123",
+  "testRunId": "e2e-run-123",
+  "resolutionRule": "ACCOUNT_CREDENTIALS",
+  "provider": "stripe",
+  "accountId": "merchant-1",
+  "direction": "INBOUND_REQUEST",
+  "origin": "PROVIDER_API",
+  "outcome": "SUCCESS",
+  "method": "POST",
+  "path": "/v1/payment_intents",
+  "status": 200,
+  "providerObjectId": "pi_sim_123",
+  "refusal": null,
+  "scenarioId": "scn_123",
+  "attempt": 1,
+  "createdAt": "2026-09-07T12:00:00Z",
+  "sanitizedHeaders": {},
+  "sanitizedBody": {},
+  "delivered": null
+}

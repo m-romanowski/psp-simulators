@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Correlation')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <div th:replace="~{fragments :: reservedRun}"></div>
+
+      <section class="panel" th:if="${correlation}">
+        <h2>Why each request was assigned where it was</h2>
+        <div class="body">
+          <p th:replace="~{fragments :: theRunNothingResolved}"></p>
+          <p class="empty" th:if="${correlation.empty}" th:text="${correlation.empty}"></p>
+          <p class="note" th:if="${correlation.truncated}" th:text="${correlation.truncated}"></p>
+          <div class="scroll" th:if="${not #lists.isEmpty(correlation.rows)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>method</th>
+                  <th>the URL the caller asked for</th>
+                  <th>rule</th>
+                  <th>test run</th>
+                  <th>scenario</th>
+                  <th>id the provider answered with</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  th:each="row : ${correlation.rows}"
+                  th:classappend="${row.open} ? 'open' : (${row.ambiguous} ? 'ambiguous' : '')"
+                >
+                  <td th:text="${row.place}"></td>
+                  <td th:text="${row.method}"></td>
+                  <td class="id" th:text="${row.path}"></td>
+                  <td th:text="${row.rule} ?: 'none recorded'"></td>
+                  <td class="id" th:text="${row.testRunId}"></td>
+                  <td class="id" th:text="${row.scenarioId} ?: '-'"></td>
+                  <td class="id" th:text="${row.providerObjectId} ?: '-'"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/correlation(provider=${provider},testRunId=${correlation.testRunId},open=${row.auditId},values=${values})}"
+                      >Explain</a
+                    >
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${row.testRunId},key=${row.providerObjectId})}"
+                      >Trace</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What this list holds and in what order</summary>
+            <p class="note">
+              Every provider-compatible request this namespace holds, in the order the store kept
+              them. Open one to read what assigned it.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${correlation} and ${correlation.explanation}">
+        <h2>What assigned this request</h2>
+        <div class="body" th:with="explained=${correlation.explanation}">
+          <p class="note" th:text="${explained.ruleMeans}"></p>
+          <p class="note" th:if="${explained.unanswered}" th:text="${explained.unanswered}"></p>
+          <p
+            class="note"
+            th:if="${explained.answerPairedByPosition}"
+            th:text="${explained.answerPairedByPosition}"
+          ></p>
+
+          <dl class="pairs">
+            <th:block th:each="fact : ${explained.facts}">
+              <dt th:text="${fact.what}"></dt>
+              <dd>
+                <span class="id" th:text="${fact.value}"></span>
+                <span
+                  class="note"
+                  th:if="${not fact.recorded()}"
+                  th:text="' (not recorded against this request; read from ' + ${fact.reconstructedFrom} + ')'"
+                ></span>
+              </dd>
+            </th:block>
+          </dl>
+
+          <h3 th:if="${not #lists.isEmpty(explained.namedObjects)}">
+            Objects of this run carrying that field
+          </h3>
+          <ul class="choices" th:if="${not #lists.isEmpty(explained.namedObjects)}">
+            <li th:each="named : ${explained.namedObjects}">
+              <a
+                th:href="@{/ui/objects(provider=${provider},testRunId=${correlation.testRunId},providerObjectId=${named.providerObjectId})}"
+                th:text="${named.providerObjectId}"
+              ></a>
+              <span th:text="' carries ' + ${named.field}"></span>
+            </li>
+          </ul>
+
+          <h3 th:if="${not #lists.isEmpty(explained.candidates.runs)}">
+            Test runs holding a binding for this provider now
+          </h3>
+          <ul class="choices" th:if="${not #lists.isEmpty(explained.candidates.runs)}">
+            <li th:each="candidate : ${explained.candidates.runs}">
+              <a
+                th:href="@{/ui/correlation(provider=${provider},testRunId=${candidate.testRunId})}"
+                th:text="${candidate.testRunId}"
+              ></a>
+              <span th:text="' holds ' + ${candidate.holds}"></span>
+            </li>
+          </ul>
+          <p
+            class="note"
+            th:if="${explained.candidates.truncated}"
+            th:text="${explained.candidates.notShown} + ' more runs of this provider are not listed. ' + ${explained.candidates.truncated}"
+          ></p>
+
+          <h3>The fields this request carried</h3>
+          <details>
+            <summary>Why a field that did not match reads like one never compared</summary>
+            <p class="note">
+              This simulator stores the fields a request carried and never the comparison it made
+              against them, so a field that was compared and did not match cannot be told from one
+              that was never compared.
+            </p>
+          </details>
+          <p class="note">
+            <a
+              th:if="${not correlation.valuesShown}"
+              th:href="@{/ui/correlation(provider=${provider},testRunId=${correlation.testRunId},open=${explained.auditId},values='show')}"
+              >Show the values</a
+            >
+            <a
+              th:if="${correlation.valuesShown}"
+              th:href="@{/ui/correlation(provider=${provider},testRunId=${correlation.testRunId},open=${explained.auditId})}"
+              >Hide the values</a
+            >
+          </p>
+          <div th:replace="~{fragments :: fields('Headers', ${explained.headers})}"></div>
+          <div th:replace="~{fragments :: fields('Body', ${explained.body})}"></div>
+
+          <details th:if="${not #lists.isEmpty(explained.theProviderHasNoSuchThing)}">
+            <summary>What this provider's contract has no notion of</summary>
+            <dl class="pairs">
+              <th:block th:each="absent : ${explained.theProviderHasNoSuchThing}">
+                <dt th:text="${absent.what}"></dt>
+                <dd th:text="${absent.why}"></dd>
+              </th:block>
+            </dl>
+          </details>
+
+          <details>
+            <summary>What this simulator records no such thing about</summary>
+            <dl class="pairs">
+              <th:block th:each="absent : ${explained.thisBuildRecordsNoSuchThing}">
+                <dt th:text="${absent.what}"></dt>
+                <dd th:text="${absent.why}"></dd>
+              </th:block>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

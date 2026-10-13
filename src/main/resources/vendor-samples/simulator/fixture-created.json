@@ -1,0 +1,24 @@
+{
+  "fixtureId": "fx_123",
+  "provider": "stripe",
+  "testRunId": "e2e-run-123",
+  "merchantId": "merchant-1",
+  "ownerId": "customer-123",
+  "type": "card",
+  "alias": "visa-success",
+  "card": {
+    "brand": "visa",
+    "last4": "1111",
+    "expMonth": 12,
+    "expYear": 2030,
+    "funding": "credit"
+  },
+  "providerObjects": {
+    "customerId": "cus_sim_123",
+    "paymentMethodId": "pm_sim_123",
+    "paymentId": "pi_sim_123",
+    "token": "tok_sim_123"
+  },
+  "defaultScenario": "success",
+  "createdAt": "2026-09-07T12:00:00Z"
+}

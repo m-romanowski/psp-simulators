@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Scenarios')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${submitted.nothingWasWritten()}">
+        <h2 th:text="${submitted.whatWasNotWritten()}"></h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not write it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${submitted.refusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note" th:text="${submitted.whatToDoNext()}"></p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2 th:text="${T(dev.marcinromanowski.pspsim.ui.WhatTheScenariosScreenCameBackWith).THE_FLOW_FORM_IS_HEADED}"></h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/scenarios/preset(provider=${provider},testRunId=${testRunId})}">
+            <div>
+              <label for="preset">ready-made flow <code>preset</code></label>
+              <select id="preset" name="preset">
+                <option
+                  th:each="offered : ${presets}"
+                  th:value="${offered.preset}"
+                  th:text="${offered.inTheChooser()}"
+                  th:selected="${submitted.itIsTheFlow(offered.preset)}"
+                ></option>
+              </select>
+            </div>
+            <div>
+              <label for="presetPriority">priority</label>
+              <input
+                id="presetPriority"
+                type="text"
+                name="priority"
+                th:value="${submitted.thePriorityTheFlowWasAskedWith}"
+                placeholder="0"
+              />
+            </div>
+            <div class="actions">
+              <button type="submit" class="secondary">Show the rules this preset expands into</button>
+            </div>
+          </form>
+          <details>
+            <summary>What each ready-made flow writes for this provider</summary>
+            <p class="note">
+              Every rule below is read off the rules this provider expands that flow into, one line
+              per rule, so each line says what that rule does here and not what the flow's name
+              suggests. A flow writes all of its rules at once and they wait for the calls they
+              narrow on, so this is a list and not an order to follow: which of them your run meets
+              is decided by the calls your run makes. A rule that is a step of a story says which
+              story, what that story is kept per, and the states it is taken at and leaves. A flow
+              this provider cannot express carries the provider's own words for what is missing.
+            </p>
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ready-made flow</th>
+                    <th>the rules it writes, in no particular order</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr th:each="offered : ${presets}">
+                    <td class="id" th:text="${offered.preset}"></td>
+                    <td class="wrap">
+                      <ul th:if="${!#lists.isEmpty(offered.whatItDoes)}">
+                        <li th:each="rule : ${offered.whatItDoes}" th:text="${rule}"></li>
+                      </ul>
+                      <span th:if="${offered.whyThisProviderCannotExpressIt}">
+                        provider <span class="id" th:text="${provider}"></span> cannot express this
+                        flow:
+                        <span th:text="${offered.whyThisProviderCannotExpressIt}"></span>
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details>
+            <summary>What a preset writes, and why this form writes nothing on its own</summary>
+            <p class="note">
+              A preset writes the rules of a whole flow at once, including the steps of a story, and
+              which rules those are is the provider's own answer. This form writes nothing on its
+              own: it shows the rules first, and writes them only when the same preset is expanded
+              again with confirm ticked. A preset this provider cannot express is refused above in
+              the provider's own words rather than written as something weaker.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${preview}">
+        <h2>The rules this preset expands into, not yet written</h2>
+        <div class="body">
+          <p class="caution">
+            Nothing has been written. These are the rules
+            <span class="id" th:text="${preview.preset}"></span> expands into for provider
+            <span class="id" th:text="${preview.provider}"></span>, in the order they would be
+            written. Another provider expands the same preset over its own operations, or refuses
+            it, so read them here before writing them.
+          </p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>priority</th>
+                  <th>operation</th>
+                  <th>action</th>
+                  <th>story</th>
+                  <th>keyed on</th>
+                  <th>when state</th>
+                  <th>then state</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="rule : ${preview.rules}">
+                  <td th:text="${rule.priority}"></td>
+                  <td th:text="${rule.operation} ?: 'any'"></td>
+                  <td>
+                    <span class="tag" th:text="${rule.action}"></span>
+                    <span
+                      th:if="${rule.providerCode}"
+                      class="id"
+                      th:text="${rule.providerCode}"
+                    ></span>
+                    <span th:if="${rule.fault}" class="tag fact" th:text="${rule.fault}"></span>
+                    <span th:if="${rule.httpStatus}" th:text="${rule.httpStatus}"></span>
+                    <span th:if="${rule.delayMs}" th:text="${rule.delayMs} + ' ms'"></span>
+                    <span
+                      th:if="${rule.settlesAfterMs}"
+                      th:text="'settles after ' + ${rule.settlesAfterMs} + ' ms'"
+                    ></span>
+                  </td>
+                  <td th:text="${rule.story}"></td>
+                  <td th:text="${rule.keyedOn}"></td>
+                  <td th:text="${rule.story == null ? '' : (rule.whenState ?: 'any state')}"></td>
+                  <td th:text="${rule.thenState}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <form class="form" method="post" th:action="@{/ui/scenarios/preset(provider=${provider},testRunId=${testRunId})}">
+            <input type="hidden" name="preset" th:value="${preview.preset}" />
+            <input type="hidden" name="priority" th:value="${preview.priority}" />
+            <div class="actions">
+              <span class="confirmGroup">
+                <input id="confirm-preset" type="checkbox" name="confirm" value="yes" />
+                <label for="confirm-preset">confirm</label>
+              </span>
+              <button type="submit">Write these rules</button>
+            </div>
+          </form>
+          <h3>The same rules as JSON</h3>
+          <textarea class="document" readonly rows="16" th:text="${preview.document}"></textarea>
+          <details>
+            <summary>What this document is for, and what it refuses to carry</summary>
+            <p class="note">
+              This is what the rules above are, as a document. Copy it to keep the flow beside a
+              test, and paste it back below to write the same rules into this run or another one. A
+              narrowing on a request header is refused rather than carried, because a header value is
+              supplied verbatim by whoever wrote the rule and is the one part of a rule that can
+              hold a credential.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2 th:text="${T(dev.marcinromanowski.pspsim.ui.WhatTheScenariosScreenCameBackWith).THE_HAND_WRITTEN_FORM_IS_HEADED}"></h2>
+        <div class="body">
+          <p class="note">
+            A ready-made flow above writes the rules of a whole flow at once. This writes exactly
+            one rule, from every field the scenario grammar has, and each field names beside it
+            the property the control API and a refusal call it.
+          </p>
+          <details th:attr="open=${submitted.theHandWrittenRuleFormIsTheOneToCorrect()} ? 'open' : null">
+            <summary>Show the fields of one rule</summary>
+            <form class="form" method="post" th:action="@{/ui/scenarios/write(provider=${provider},testRunId=${testRunId})}">
+              <div>
+                <label for="operation">operation</label>
+                <select id="operation" name="operation">
+                  <option value="" th:selected="${form.operation == null}">any operation</option>
+                  <option
+                    th:each="known : ${rules.vocabulary.operations}"
+                    th:value="${known}"
+                    th:text="${known}"
+                    th:selected="${known == form.operation}"
+                  ></option>
+                </select>
+              </div>
+              <div>
+                <label for="priority">priority</label>
+                <input
+                  id="priority"
+                  type="text"
+                  name="priority"
+                  th:value="${form.priority}"
+                  placeholder="0"
+                />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.merchantId')}">
+                <label for="merchantId">merchant <code>match.merchantId</code></label>
+                <input id="merchantId" type="text" name="merchantId" th:value="${form.merchantId}" />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.orderId')}">
+                <label for="orderId">order reference <code>match.orderId</code></label>
+                <input id="orderId" type="text" name="orderId" th:value="${form.orderId}" />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.providerObjectId')}">
+                <label for="providerObjectId">id the provider answered with <code>match.providerObjectId</code></label>
+                <input
+                  id="providerObjectId"
+                  type="text"
+                  name="providerObjectId"
+                  th:value="${form.providerObjectId}"
+                />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.customerId')}">
+                <label for="customerId">customer <code>match.customerId</code></label>
+                <input id="customerId" type="text" name="customerId" th:value="${form.customerId}" />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.paymentMethodId')}">
+                <label for="paymentMethodId">payment method <code>match.paymentMethodId</code></label>
+                <input
+                  id="paymentMethodId"
+                  type="text"
+                  name="paymentMethodId"
+                  th:value="${form.paymentMethodId}"
+                />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.amount')}">
+                <label for="amount">amount <code>match.amount</code></label>
+                <input
+                  id="amount"
+                  type="text"
+                  name="amount"
+                  th:value="${form.amount}"
+                  placeholder="10.00"
+                />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.currency')}">
+                <label for="currency">currency <code>match.currency</code></label>
+                <input id="currency" type="text" name="currency" th:value="${form.currency}" />
+              </div>
+              <div th:if="${rules.vocabulary.carries('match.eventType')}">
+                <label for="eventType">callback event type <code>match.eventType</code></label>
+                <input
+                  id="eventType"
+                  type="text"
+                  name="eventType"
+                  th:value="${form.eventType}"
+                  placeholder="payment_intent.succeeded"
+                />
+              </div>
+              <div>
+                <label for="headerName">request header, name <code>match.header, name</code></label>
+                <input id="headerName" type="text" name="headerName" th:value="${form.headerName}" />
+              </div>
+              <div>
+                <label for="headerValue">request header, value <code>match.header, value</code></label>
+                <input
+                  id="headerValue"
+                  type="text"
+                  name="headerValue"
+                  th:value="${form.headerValue}"
+                />
+              </div>
+              <div>
+                <label for="story">story</label>
+                <input id="story" type="text" name="story" th:value="${form.story}" />
+              </div>
+              <div>
+                <label for="keyedOn">what the story stands on <code>keyedOn</code></label>
+                <select id="keyedOn" name="keyedOn">
+                  <option value="" th:selected="${form.keyedOn == null}">
+                    the flow of one call, by default
+                  </option>
+                  <option
+                    th:each="known : ${rules.vocabulary.keyings}"
+                    th:value="${known}"
+                    th:text="${known}"
+                    th:selected="${known == form.keyedOn}"
+                  ></option>
+                </select>
+              </div>
+              <div>
+                <label for="whenState">only while the story is in <code>whenState</code></label>
+                <input
+                  id="whenState"
+                  type="text"
+                  name="whenState"
+                  th:value="${form.whenState}"
+                  placeholder="Started"
+                />
+              </div>
+              <div>
+                <label for="thenState">and leave the story in <code>thenState</code></label>
+                <input id="thenState" type="text" name="thenState" th:value="${form.thenState}" />
+              </div>
+              <div>
+                <label for="actionType">what it answers with <code>action.type</code></label>
+                <select id="actionType" name="actionType">
+                  <option value="" th:selected="${form.actionType == null}">choose one</option>
+                  <option
+                    th:each="known : ${rules.vocabulary.actionTypes}"
+                    th:value="${known}"
+                    th:text="${known}"
+                    th:selected="${known == form.actionType}"
+                  ></option>
+                </select>
+              </div>
+              <div>
+                <label for="providerCode">this provider's failure code <code>action.providerCode</code></label>
+                <input
+                  id="providerCode"
+                  type="text"
+                  name="providerCode"
+                  th:value="${form.providerCode}"
+                />
+              </div>
+              <div>
+                <label for="fault">transport fault <code>action.fault</code></label>
+                <select id="fault" name="fault">
+                  <option value="" th:selected="${form.fault == null}">none</option>
+                  <option
+                    th:each="known : ${rules.vocabulary.faults}"
+                    th:value="${known}"
+                    th:text="${known}"
+                    th:selected="${known == form.fault}"
+                  ></option>
+                </select>
+              </div>
+              <div>
+                <label for="httpStatus">HTTP status <code>action.httpStatus</code></label>
+                <input
+                  id="httpStatus"
+                  type="text"
+                  name="httpStatus"
+                  th:value="${form.httpStatus}"
+                  placeholder="502"
+                />
+              </div>
+              <div>
+                <label for="delayMs">hold the answer back, in milliseconds <code>action.delayMs</code></label>
+                <input
+                  id="delayMs"
+                  type="text"
+                  name="delayMs"
+                  th:value="${form.delayMs}"
+                  placeholder="1000"
+                />
+              </div>
+              <div>
+                <label for="settlesAfterMs">settle after, in milliseconds <code>action.settlesAfterMs</code></label>
+                <input
+                  id="settlesAfterMs"
+                  type="text"
+                  name="settlesAfterMs"
+                  th:value="${form.settlesAfterMs}"
+                  placeholder="5000"
+                />
+              </div>
+              <div class="actions">
+                <button type="submit">Write this rule</button>
+              </div>
+            </form>
+            <details>
+              <summary>What an empty field narrows, and how a story's steps fire</summary>
+              <p class="note">
+                A field left empty narrows nothing. A rule that names no operation is consulted for
+                every call of this provider, and one that names a story is a step of it: it fires only
+                while that story stands in <code>whenState</code>, and leaves it in
+                <code>thenState</code>. A step that names no <code>whenState</code> fires whatever
+                state the story stands in, and one that names no <code>thenState</code> moves it
+                nowhere.
+              </p>
+            </details>
+            <details th:unless="${#lists.isEmpty(rules.vocabulary.factsThisProviderNeverCarries)}">
+              <summary>The fields this provider never carries, and what it has instead</summary>
+              <p class="note">
+                This provider carries fewer facts than the scenario model can match on, and the fields
+                it never carries are not offered above:
+              </p>
+              <dl class="pairs">
+                <th:block th:each="fact : ${rules.vocabulary.factsThisProviderNeverCarries}">
+                  <dt class="id" th:text="${fact.property}"></dt>
+                  <dd class="wrap" th:text="${fact.instead}"></dd>
+                </th:block>
+              </dl>
+            </details>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2 th:text="${T(dev.marcinromanowski.pspsim.ui.WhatTheScenariosScreenCameBackWith).THE_DOCUMENT_FORM_IS_HEADED}"></h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/scenarios/import(provider=${provider},testRunId=${testRunId})}">
+            <div class="wide">
+              <label for="document">document</label>
+              <textarea
+                id="document"
+                class="document"
+                name="document"
+                rows="10"
+                placeholder="the JSON a preview produced"
+                th:text="${submitted.document}"
+              ></textarea>
+            </div>
+            <div class="actions">
+              <button type="submit">Write the rules this document carries</button>
+            </div>
+          </form>
+          <details>
+            <summary>Which run and provider these rules land in, and how many sets you end with</summary>
+            <p class="note">
+              The rules go into the test run this screen is on, whichever run the document was
+              produced for, and into this provider only: a document that names another provider is
+              refused, because the same preset expands into different operations for each. The rules
+              are written all at once or not at all, and they are new rules rather than the ones the
+              document was produced from, so writing the same document twice leaves two sets.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2>Rules, in the order the engine consults them</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(rules.rules)}">
+            No scenario rule is written for this provider and test run, so every request is answered
+            by the provider's own behaviour.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(rules.rules)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>scenario</th>
+                  <th>priority</th>
+                  <th>how narrow</th>
+                  <th>written order</th>
+                  <th>operation</th>
+                  <th>action</th>
+                  <th>narrows on</th>
+                  <th>story</th>
+                  <th>keyed on</th>
+                  <th>when state</th>
+                  <th>then state</th>
+                  <th>written</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody th:each="row : ${rules.rules}">
+                <tr th:classappend="${row.open} ? 'open'">
+                  <td class="id" th:text="${row.scenarioId}"></td>
+                  <td th:text="${row.priority}"></td>
+                  <td th:text="${row.specificity}"></td>
+                  <td th:text="${row.arrival}"></td>
+                  <td th:text="${row.operation} ?: 'any'"></td>
+                  <td>
+                    <span class="tag" th:text="${row.action}"></span>
+                    <span
+                      th:if="${row.providerCode}"
+                      class="id"
+                      th:text="${row.providerCode}"
+                    ></span>
+                    <span th:if="${row.fault}" class="tag fact" th:text="${row.fault}"></span>
+                    <span th:if="${row.httpStatus}" th:text="${row.httpStatus}"></span>
+                    <span th:if="${row.delayMs}" th:text="${row.delayMs} + ' ms'"></span>
+                    <span
+                      th:if="${row.settlesAfterMs}"
+                      th:text="'settles after ' + ${row.settlesAfterMs} + ' ms'"
+                    ></span>
+                  </td>
+                  <td
+                    class="wrap id"
+                    th:text="${#lists.isEmpty(row.narrows) ? 'every request' : #strings.listJoin(row.narrows, ', ')}"
+                  ></td>
+                  <td th:text="${row.story}"></td>
+                  <td th:text="${row.keyedOn}"></td>
+                  <td th:text="${row.story == null ? '' : (row.whenState ?: 'any state')}"></td>
+                  <td th:text="${row.thenState}"></td>
+                  <td class="stamp" th:text="${row.createdAt}"></td>
+                  <td>
+                    <a
+                      th:unless="${row.open}"
+                      th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId},open=${row.scenarioId})}"
+                      >open</a
+                    >
+                    <a
+                      th:if="${row.open}"
+                      th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId})}"
+                      >close</a
+                    >
+                  </td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},scenarioId=${row.scenarioId})}"
+                      >the calls it decided</a
+                    >
+                    <a
+                      th:href="@{/ui/scenarios/diff(provider=${provider},testRunId=${testRunId},left=${row.scenarioId})}"
+                      >compare</a
+                    >
+                  </td>
+                </tr>
+                <tr th:if="${row.open}" class="open">
+                  <td colspan="14">
+                    <p class="note" th:if="${row.answeredWithoutTheOperation}">
+                      This rule answers in place of the operation, so a call it decides runs no
+                      operation and writes no provider state. The rows below are records of the
+                      request, not effects of it.
+                    </p>
+                    <p>
+                      <a
+                        th:unless="${rules.valuesShown}"
+                        th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId},open=${row.scenarioId},values='show')}"
+                        >Show the values this rule matches on</a
+                      >
+                      <a
+                        th:if="${rules.valuesShown}"
+                        th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId},open=${row.scenarioId})}"
+                        >Hide the values again</a
+                      >
+                    </p>
+                    <div th:replace="~{fragments :: fields('Match conditions', ${row.match})}"></div>
+                    <h3>The calls this rule decided</h3>
+                    <p class="empty" th:if="${#lists.isEmpty(row.decided.calls)}">
+                      This rule has decided no call of this test run.
+                    </p>
+                    <div class="scroll" th:unless="${#lists.isEmpty(row.decided.calls)}">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>at</th>
+                            <th>direction</th>
+                            <th>method</th>
+                            <th>path</th>
+                            <th>status</th>
+                            <th>outcome</th>
+                            <th>id the provider answered with</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr th:each="call : ${row.decided.calls}">
+                            <td class="stamp" th:text="${call.at}"></td>
+                            <td th:text="${call.direction}"></td>
+                            <td th:text="${call.method}"></td>
+                            <td class="wrap" th:text="${call.path} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                            <td th:text="${call.httpStatus}"></td>
+                            <td th:text="${call.outcome}"></td>
+                            <td class="id">
+                              <a
+                                th:if="${call.providerObjectId}"
+                                th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${call.providerObjectId})}"
+                                th:text="${call.providerObjectId}"
+                              ></a>
+                            </td>
+                            <td>
+                              <a
+                                th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},scenarioId=${row.scenarioId},open=${call.auditId})}"
+                                >the exchange</a
+                              >
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="note" th:unless="${row.decided.everyCallItDecided}">
+                      This rule has decided more calls than one page holds. These are the newest of
+                      the page the trail answered with; the trail is read oldest first and pages
+                      forward only, so Audit filtered on this scenario is where the rest are.
+                    </p>
+                    <form class="confirm" method="post" th:action="@{/ui/scenarios/delete(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="scenarioId" th:value="${row.scenarioId}" />
+                      <button type="submit">Delete this rule</button>
+                    </form>
+                    <p class="note">
+                      Deleting is how a rule stops applying: the simulator holds no disabled state
+                      for a rule, and a deleted rule cannot be brought back. The audit rows above
+                      keep naming it. If it was a step of a story, the state that story reached is
+                      held per key and outlives the step that moved it there; resetting the test run
+                      clears both.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>How the engine breaks a tie, and why the values are not printed here</summary>
+            <p class="note">
+              The engine consults the rules a request matches and takes the highest priority, then
+              the most specific, then the newest. A rule narrowed by a story state counts one more
+              towards how narrow it is than the same rule without one. Written order is a column
+              rather than a timestamp because a pinned clock gives every rule written in one moment
+              the same
+              <code>written</code> time.
+            </p>
+            <p class="note">
+              A rule's match conditions are values a reader typed, and they stay off this page until
+              that reader opens one rule and asks for them. The field names and how many values each
+              carries are always here.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2>Stories keyed on the whole test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(rules.storiesKeyedOnTheTestRun)}">
+            No story of this test run stands on the test run itself.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(rules.storiesKeyedOnTheTestRun)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>story</th>
+                  <th>state it stands in</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="instance : ${rules.storiesKeyedOnTheTestRun}">
+                  <td class="id" th:text="${instance.story}"></td>
+                  <td th:text="${instance.state}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why a story keyed on the flow is not listed here</summary>
+            <p class="note">
+              A story keyed on <code>FLOW</code> stands on one instance per flow the provider
+              resolved, under keys only the provider can produce, so this screen cannot list them. A
+              story no request has moved yet stands in <code>Started</code> and is held nowhere until
+              it moves.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${rules}">
+        <h2>Not on this screen</h2>
+        <div class="body">
+          <details>
+            <summary>Five things the Scenarios screen is asked for, and why each is absent</summary>
+            <p class="note">
+              These are asked of the Scenarios screen and are absent rather than empty, because the
+              scenario model cannot express them today.
+            </p>
+            <dl class="pairs">
+              <dt>edit a rule</dt>
+              <dd>
+                A written rule is not rewritten anywhere in this simulator. Rewriting one as a delete
+                and a fresh write would hand it a new scenario id and a new arrival, which would break
+                the audit rows that name the old id and could change which rule wins a tie. Delete it
+                and write the rule you meant.
+              </dd>
+              <dt>disable a rule</dt>
+              <dd>
+                A rule is written or absent; nothing holds a disabled rule that could be brought back.
+              </dd>
+              <dt>a delayed terminal state</dt>
+              <dd>
+                No action writes a normalized status: a status is derived from the native status and
+                the operation list. A call answered one way and then another is written as a story of
+                two steps, and a delay is the transport fault <code>DELAYED_RESPONSE</code>, which
+                holds an already-rendered response rather than moving an object later.
+              </dd>
+              <dt>a webhook or callback delivery plan</dt>
+              <dd>
+                A scenario action can hold back, repeat or drop one delivery, and never reorders the
+                queue. Which events are sent, the address they go to and the retry policy come from
+                the webhook control route and are shown on Webhooks.
+              </dd>
+              <dt>the newest calls a rule decided</dt>
+              <dd>
+                The audit trail is read oldest first and pages forward only, so a rule that decided
+                more calls than one page holds shows the newest of that page and not the newest of
+                the trail.
+              </dd>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

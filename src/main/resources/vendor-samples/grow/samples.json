@@ -1,0 +1,58 @@
+{
+  "create-payment-process-approved": {
+    "evidence": "published example",
+    "source": "https://developers.grow.business/reference/delayed-payment-response",
+    "reference": "grow.md, Create Hosted Payment Process",
+    "body": "create-payment-process-approved.json"
+  },
+  "every-answer-is-http-200": {
+    "evidence": "published rule",
+    "note": "every answer, error responses included, is HTTP 200: each saved Success and Error response of the collection carries 200 OK",
+    "source": "https://documenter.gw.postman.com/api/collections/7312873/UVeGrRaX",
+    "reference": "grow.md, Authentication and Transport",
+    "rules": {
+      "httpStatus": "200"
+    }
+  },
+  "create-payment-process-unknown-business": {
+    "evidence": "live probe",
+    "probed": "2026-09-15",
+    "source": "https://sandbox.meshulam.co.il/api/light/server/1.0/createPaymentProcess",
+    "reference": "grow.md, Invalid Credentials",
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/html; charset=UTF-8"
+    },
+    "body": "create-payment-process-unknown-business.json"
+  },
+  "token-charge-declined": {
+    "evidence": "published example",
+    "source": "https://developers.grow.business/reference/token",
+    "reference": "grow.md, Declines",
+    "body": "token-charge-declined.json"
+  },
+  "unacknowledged-update-resends": {
+    "evidence": "published rule",
+    "note": "Grow will resend the server update up to 5 additional times",
+    "source": "https://developers.grow.business/reference/approve-transaction",
+    "reference": "grow.md, Approve Transaction Callback",
+    "rules": {
+      "additionalTimes": "5"
+    }
+  },
+  "server-update-retry-schedule": {
+    "evidence": "published rule",
+    "note": "1-3 times after 10 minutes, 4-5 times after 20 minutes, 6 times after 30 minutes",
+    "source": "https://developers.grow.business/reference/server-response-1",
+    "reference": "grow.md, Approve Transaction Callback",
+    "rules": {
+      "attempts": "6"
+    }
+  },
+  "unsigned-callback": {
+    "evidence": "published example",
+    "note": "the published callback carries no signature",
+    "source": "https://developers.grow.business/reference/server-to-server-callback",
+    "reference": "grow.md, Merchant Callback Contract"
+  }
+}

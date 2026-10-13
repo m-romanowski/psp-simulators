@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: demo-shop
+
+server:
+  address: ${SHOP_BIND_ADDRESS:127.0.0.1}
+  port: ${SHOP_PORT:8081}
+  servlet:
+    session:
+      tracking-modes: cookie
+
+shop:
+  simulator-api-url: ${SHOP_SIMULATOR_API_URL:http://127.0.0.1:8080}
+  simulator-browser-url: ${SHOP_SIMULATOR_BROWSER_URL:http://localhost:8080}
+  callback-base-url: ${SHOP_CALLBACK_BASE_URL:http://127.0.0.1:8081}
+  simulator-connect-timeout: ${SHOP_SIMULATOR_CONNECT_TIMEOUT:2s}
+  simulator-read-timeout: ${SHOP_SIMULATOR_READ_TIMEOUT:10s}

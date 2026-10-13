@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Your order')}"></head>
+<body>
+<header th:replace="~{fragments :: bar}"></header>
+<main th:fragment="live" id="order-live" class="page" hx-swap="outerMorph"
+      th:hx-get="${run.awaitsStripe()} ? @{/runs/{id}/order/live(id=${run.testRunId()})} : null"
+      th:hx-trigger="${run.awaitsStripe()} ? 'every 2s' : null">
+    <section>
+        <h1>Your order</h1>
+        <p th:unless="${order != null}">
+            Nothing has been bought in this run yet.
+            <a id="order-go-to-the-product" th:href="@{/runs/{id}/product(id=${run.testRunId()})}">Go to the product</a>
+        </p>
+        <div th:if="${order != null}">
+            <section id="order-news" class="card" aria-live="polite">
+                <p>
+                    Order <code th:text="${order.orderId()}">order-1</code>,
+                    <span th:text="${order.product().name()}">a thing</span>,
+                    <span th:text="${order.product().price()}">1.00 USD</span>,
+                    PaymentIntent <code th:text="${order.paymentIntentId()}">pi_1</code>
+                </p>
+                <p class="status" th:classappend="${order.status().name()}" th:text="${order.status().words()}"
+                   data-testid="order-status">Paid, awaiting capture</p>
+                <p th:if="${order.refusal().isPresent()}" data-testid="capture-refusal">
+                    Stripe refused the capture: <code th:text="${order.refusal().get()}">expired_card</code>
+                </p>
+                <h2>Webhooks the shop has received</h2>
+                <p th:if="${run.received().isEmpty()}">None yet.</p>
+                <table th:unless="${run.received().isEmpty()}" data-testid="webhooks-received">
+                    <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Type</th>
+                        <th>About</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="event : ${run.received()}">
+                        <td><code th:text="${event.eventId()}">evt_1</code></td>
+                        <td th:text="${event.type()}">payment_intent.succeeded</td>
+                        <td><code th:text="${event.objectId()}">pi_1</code></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </section>
+            <form th:if="${order.awaitsCapture()}" method="post"
+                  th:action="@{/runs/{id}/order/capture(id=${run.testRunId()})}">
+                <button id="capture" type="submit" th:text="'Capture ' + ${order.product().price()}">Capture</button>
+            </form>
+        </div>
+    </section>
+    <aside th:replace="~{fragments :: story(${run}, ${order})}"></aside>
+</main>
+</body>
+</html>

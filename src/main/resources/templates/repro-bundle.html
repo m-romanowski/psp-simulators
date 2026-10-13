@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Reproduction bundle')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${providers != null and provider != null}">
+        <h2>Package one payment</h2>
+        <div class="body">
+          <form class="filters" method="get" th:action="@{/ui/repro-bundle}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${testRunId}" />
+            <div>
+              <label for="key">id the provider answered with</label>
+              <input id="key" name="key" th:value="${key}" placeholder="the payment that went wrong" />
+            </div>
+            <button type="submit" class="secondary">Package it</button>
+          </form>
+            <div th:replace="~{fragments :: whatThatIdNames(${theObjectsAnIdNames})}"></div>
+          <details>
+            <summary>Which id this asks for, and where to turn another id into it</summary>
+            <p class="note">
+              A reproduction bundle is about one payment. Type the id the provider answered with, or
+              any id that payment has answered to. The Timeline screen turns a callback event id, a
+              field one object names another by, or an idempotency key into the id this asks for.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:unless="${#lists.isEmpty(captureRefusals)}">
+        <h2>This run cannot be packaged whole</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not carry it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${captureRefusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why nothing partial is offered instead</summary>
+            <p class="note">
+              Nothing partial is offered instead. A bundle whose setup is missing one of the rules
+              the run decides by would reproduce a different bug.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${contents}">
+        <h2>What this bundle carries, and which of it can be replayed</h2>
+        <div
+          class="body"
+          th:with="whyWritten=${#sets.toSet(contents.replayable.![why])},
+                   whyRead=${#sets.toSet(contents.readable.![why])}"
+        >
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>an import writes this</th>
+                  <th>carried</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="content : ${contents.replayable}">
+                  <td class="id" th:text="${content.content}"></td>
+                  <td th:text="${content.carried}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>no import writes this</th>
+                  <th>carried</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="content : ${contents.readable}">
+                  <td class="id" th:text="${content.content}"></td>
+                  <td th:text="${content.carried}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What each of those two lists means, and what an import never writes back</summary>
+            <div th:each="why : ${whyWritten}">
+              <p>
+                <span
+                  th:each="content : ${contents.replayable}"
+                  th:if="${content.why == why}"
+                  class="id"
+                  th:text="${content.content}"
+                ></span>
+              </p>
+              <p class="note" th:text="${why}"></p>
+            </div>
+            <div th:each="why : ${whyRead}">
+              <p>
+                <span
+                  th:each="content : ${contents.readable}"
+                  th:if="${content.why == why}"
+                  class="id"
+                  th:text="${content.content}"
+                ></span>
+              </p>
+              <p class="note" th:text="${why}"></p>
+            </div>
+            <p class="note" th:text="${T(dev.marcinromanowski.pspsim.ui.ReproductionScreen).THE_EVIDENCE_IS_READ_AND_NEVER_WRITTEN}"></p>
+            <p class="note" th:text="${T(dev.marcinromanowski.pspsim.ui.ReproductionScreen).A_SIGNATURE_TRAVELS_AS_EVIDENCE}"></p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:unless="${#lists.isEmpty(refusals)}">
+        <h2>This bundle was not taken back</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not apply it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${refusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why a refusal prints no value</summary>
+            <p class="note">
+              A refusal names the property and never the value beside it, so a bundle refused over a
+              provider-native id the run already gave away does not print that id here.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${report}">
+        <h2 th:if="${report.applied}">What this import created, updated and skipped</h2>
+        <h2 th:unless="${report.applied}">What an import would create, update and skip</h2>
+        <div class="body">
+          <p class="note">
+            <span th:text="${report.setup.testRunId}"></span> of provider
+            <span th:text="${report.setup.provider}"></span>:
+            <span th:text="${report.setup.created}"></span> created,
+            <span th:text="${report.setup.updated}"></span> updated,
+            <span th:text="${report.setup.skipped}"></span> skipped.
+          </p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>kind</th>
+                  <th>name</th>
+                  <th>verdict</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="entry : ${report.setup.entries}">
+                  <td th:text="${entry.kind}"></td>
+                  <td class="id" th:text="${entry.name}"></td>
+                  <td th:text="${entry.verdict}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>this import wrote</th>
+                  <th>this import only read</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="wrap" id="written" th:text="${#strings.listJoin(report.theContentsItWrote, ', ')}"></td>
+                  <td class="wrap" id="only-read" th:text="${#strings.listJoin(report.theContentsItOnlyRead, ', ')}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note" th:if="${report.providerNativeIdsPreserved}" id="ids-preserved">
+            Provider-native ids were preserved: every instrument this import seeded carries the id
+            the bundle carried for it.
+          </p>
+          <p class="note" th:unless="${report.providerNativeIdsPreserved}" id="ids-remapped">
+            Provider-native ids were remapped under
+            <span th:text="${#strings.listJoin(report.theProviderNativeIdKeysItRemapped, ', ')}"></span>,
+            so an instrument this import seeded answers to an id the bundle does not carry.
+          </p>
+          <details>
+            <summary>What this import never wrote back</summary>
+            <p class="note" th:text="${T(dev.marcinromanowski.pspsim.ui.ReproductionScreen).THE_EVIDENCE_IS_READ_AND_NEVER_WRITTEN}"></p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${document}">
+        <h2>This payment as a bundle</h2>
+        <div class="body">
+          <textarea class="document" readonly rows="18" th:text="${document}"></textarea>
+          <details>
+            <summary>What is in this document, and what is deliberately not</summary>
+            <p class="note">
+              Copy it into a bug report. It carries the run's setup, which an import writes back, and
+              the evidence of this one payment, which no import writes: the trail rows of every
+              exchange this simulator served for it with the sanitized headers and body of each, the
+              callbacks with their attempts, the effective simulator clock and the object's state and
+              ledger.
+            </p>
+            <p class="note">
+              No value this provider declares secret is in it, and each account names the secret
+              fields it leaves out. An import is given those separately in the box below.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${providers != null and provider != null}">
+        <h2>Take a bundle back</h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/repro-bundle/import(provider=${provider},testRunId=${testRunId})}">
+            <input type="hidden" name="key" th:value="${key}" />
+            <div>
+              <label for="into">into test run</label>
+              <input id="into" name="into" th:value="${into}" placeholder="this run" />
+            </div>
+            <div class="wide">
+              <label for="document-in">document</label>
+              <textarea
+                id="document-in"
+                class="document"
+                name="document"
+                rows="10"
+                placeholder="the JSON the box above produced"
+              ></textarea>
+            </div>
+            <div class="wide">
+              <label for="secrets">secrets, one accountId.field=value per line<span
+                  th:if="${theSecretsBoxTakesABlockOfManyLines}"
+                >, and a key this provider takes as a block of many lines may run on over the
+                  lines under it, as far as the line that block ends with</span></label>
+              <textarea id="secrets" class="document" name="secrets" rows="4"></textarea>
+            </div>
+            <div class="wide">
+              <label for="remap">remap provider-native ids, one carried=here per line</label>
+              <textarea id="remap" class="document" name="remap" rows="4"></textarea>
+            </div>
+            <div class="actions">
+              <span class="confirmGroup">
+                <input id="dryRun" type="checkbox" name="dryRun" value="on" />
+                <label for="dryRun">report only, write nothing</label>
+              </span>
+              <button type="submit">Take this bundle back</button>
+            </div>
+          </form>
+          <details>
+            <summary>What an import preserves, what it reads only, and what a dry run differs in</summary>
+            <p class="note" th:text="${T(dev.marcinromanowski.pspsim.ui.ReproductionScreen).IDS_ARE_PRESERVED_UNLESS_A_REMAPPING_IS_TYPED}"></p>
+            <p class="note" th:text="${T(dev.marcinromanowski.pspsim.ui.ReproductionScreen).THE_EVIDENCE_IS_READ_AND_NEVER_WRITTEN}"></p>
+            <p class="note">
+              A dry run and a real import answer the same report, and differ only in whether it was
+              applied. The evidence half is read by neither, so a bundle taken back leaves the target
+              run holding the setup and no trail row, no callback and no payment of the run it came
+              from.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

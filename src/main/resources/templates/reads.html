@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Look a payment up')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section
+        class="panel"
+        th:if="${read != null and read.panel.name() == 'THIS_PROVIDER_PUBLISHES_NO_READ'}"
+      >
+        <h2>This provider answers no question a tester asks with identifiers of their own</h2>
+        <div class="body">
+          <p class="wrap" th:text="${read.whatThisProviderPublishesInstead}"></p>
+          <ul class="choices">
+            <li>
+              <a
+                th:href="@{/ui/objects(provider=${read.provider},testRunId=${read.testRunId})}"
+                >Read what this test run holds on the Payments screen</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${read != null and read.panel.name() == 'NO_ACCOUNT_IS_CONFIGURED'}"
+      >
+        <h2>Configure an account before you ask this provider anything</h2>
+        <div class="body">
+          <div class="caution" th:text="${read.whatToDoWithNoAccount()}"></div>
+          <ul class="choices">
+            <li>
+              <a
+                th:href="@{/ui/configuration/account(provider=${read.provider},testRunId=${read.testRunId})}"
+                >Configure an account for this provider and test run</a
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${read != null and read.answer != null}">
+        <h2 th:if="${read.answer.refusal != null}">This provider would not answer</h2>
+        <h2 th:if="${read.answer.itFoundNothing()}">It holds nothing under what you asked with</h2>
+        <h2 th:unless="${read.answer.refusal != null or read.answer.itFoundNothing()}">
+          This is what it answered
+        </h2>
+        <div class="body">
+          <div class="caution" th:if="${read.answer.refusal != null}">
+            <span class="wrap" th:text="${read.answer.refusal}"></span>
+          </div>
+          <p class="empty wrap" th:if="${read.answer.itFoundNothing()}"
+            th:text="${read.answer.whatItMeansThatNothingWasFound}"></p>
+          <p class="note wrap" th:if="${read.answer.decidedBy != null}">
+            A scenario rule of this test run was matched on this call, and the rule that decided it
+            is <span class="id" th:text="${read.answer.decidedBy}"></span>.
+          </p>
+          <div th:each="row : ${read.answer.rows}">
+            <h3 class="id" th:if="${row.providerObjectId != null}" th:text="${row.providerObjectId}"></h3>
+            <dl th:replace="~{this :: theFactsUnderThem(${row.facts}, ${read.provider})}"></dl>
+            <ul class="choices" th:if="${row.providerObjectId != null}">
+              <li>
+                <a
+                  th:href="@{/ui/objects(provider=${read.provider},testRunId=${read.testRunId},providerObjectId=${row.providerObjectId})}"
+                  >Read everything this simulator holds about this one on the Payments screen</a
+                >
+              </li>
+              <li>
+                <a
+                  th:href="@{/ui/audit(provider=${read.provider},testRunId=${read.testRunId},providerObjectId=${row.providerObjectId})}"
+                  >Read the calls that made it, as a client sent them</a
+                >
+              </li>
+            </ul>
+          </div>
+          <div th:unless="${read.answer.whatItAnsweredAboutTheQuery.isEmpty()}">
+            <h3>What it answered about the question you asked</h3>
+            <dl
+              th:replace="~{this :: theFactsUnderThem(${read.answer.whatItAnsweredAboutTheQuery}, ${read.provider})}"
+            ></dl>
+          </div>
+          <p class="note wrap" th:text="${read.whatAReadMoves()}"></p>
+          <p class="note wrap" th:text="${read.whatAskingThisQuestionAgainMoves()}"></p>
+        </div>
+      </section>
+
+      <div th:remove="all">
+        <dl class="pairs" th:fragment="theFactsUnderThem(facts, provider)">
+          <th:block th:each="fact : ${facts}">
+            <dt
+              class="id"
+              th:if="${fact.theProviderNamedIt}"
+              th:text="${fact.asTheProviderNamesIt}"
+            ></dt>
+            <dt
+              th:unless="${fact.theProviderNamedIt}"
+              th:text="${fact.asTheProviderNamesIt}"
+            ></dt>
+            <dd class="id wrap" th:if="${fact.value != null}" th:text="${fact.value}"></dd>
+            <dd class="note wrap" th:if="${fact.whatItAnsweredInsteadOfAValue != null}">
+              <span class="id" th:text="${provider}"></span>
+              <span th:text="${fact.whatItAnsweredInsteadOfAValue}"></span>
+            </dd>
+            <dd th:unless="${fact.under.isEmpty()}">
+              <dl th:replace="~{this :: theFactsUnderThem(${fact.under}, ${provider})}"></dl>
+            </dd>
+          </th:block>
+        </dl>
+      </div>
+
+      <section class="panel" th:if="${read != null and read.panel.name() == 'WHICH_QUESTION'}">
+        <h2>Step 1 of 2 &mdash; which question do you want answered?</h2>
+        <div class="body">
+          <p class="wrap" th:text="${read.whatAReadMoves()}"></p>
+          <details>
+            <summary>What these questions are, and whose field names they ask for</summary>
+            <p class="note wrap">
+              Every question here is one
+              <span class="id" th:text="${read.provider}"></span> itself publishes as a read on its
+              own contract, asked through the same operation a client application reaches, and
+              every value it asks you for is named the way that provider names it. What this screen
+              does not do is travel that provider's route: the checks that route makes on a
+              client's credential and signature are not made on a read an operator asked for.
+            </p>
+          </details>
+
+          <form class="form" method="get" th:action="@{/ui/reads}">
+            <input type="hidden" name="provider" th:value="${read.provider}" />
+            <input type="hidden" name="testRunId" th:value="${read.testRunId}" />
+            <div>
+              <label for="accountId">the account this question is asked on</label>
+              <select id="accountId" name="accountId">
+                <option
+                  th:each="known : ${read.accountsThisRunConfigures}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == read.accountId}"
+                ></option>
+              </select>
+            </div>
+            <div class="wide choice" th:each="question : ${read.questions}">
+              <label th:for="${question.name}">
+                <input
+                  type="radio"
+                  th:id="${question.name}"
+                  name="readNamed"
+                  th:value="${question.name}"
+                  th:checked="${question.chosen}"
+                />
+                <span th:text="${question.label}"></span>
+              </label>
+              <details>
+                <summary>
+                  Which question this one answers, whether it can be answered with nothing at
+                  all, and the operation it is asked through
+                </summary>
+                <p class="note wrap" th:text="${question.theQuestionItAnswers}"></p>
+                <p class="note wrap">
+                  <span th:text="${question.theLeadInToWhatAnEmptyAnswerWouldMean}"></span>
+                  <span class="wrap" th:text="${question.whatAnEmptyAnswerWouldMean}"></span>
+                </p>
+                <p class="note wrap">
+                  This question is asked through
+                  <span class="id" th:text="${question.name}"></span>, which is how
+                  <span class="id" th:text="${read.provider}"></span> names it on its own contract.
+                </p>
+              </details>
+            </div>
+            <div class="actions">
+              <button type="submit">Next: what this question asks for</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section
+        class="panel"
+        th:if="${read != null and read.panel.name() == 'WHAT_THIS_READ_ASKS_FOR'}"
+      >
+        <h2>Step 2 of 2 &mdash; what this question asks for</h2>
+        <div class="body">
+          <p>
+            You are asking
+            <span th:text="${read.chosenQuestion.label}"></span>
+            on the account
+            <span class="id" th:text="${read.accountId}"></span>.
+          </p>
+          <p class="note wrap" th:text="${read.chosenQuestion.theQuestionItAnswers}"></p>
+          <p class="note wrap" th:text="${read.whatAskingThisQuestionAgainMoves()}"></p>
+          <p class="note wrap">
+            <span th:text="${read.chosenQuestion.theLeadInToWhatAnEmptyAnswerWouldMean}"></span>
+            <span class="wrap" th:text="${read.chosenQuestion.whatAnEmptyAnswerWouldMean}"></span>
+          </p>
+          <p>
+            <a
+              th:href="@{/ui/reads(provider=${read.provider},testRunId=${read.testRunId},accountId=${read.accountId})}"
+              >Ask a different question</a
+            >
+          </p>
+
+          <form class="form" method="get" th:action="@{/ui/reads/ask}">
+            <input type="hidden" name="provider" th:value="${read.provider}" />
+            <input type="hidden" name="testRunId" th:value="${read.testRunId}" />
+            <input type="hidden" name="accountId" th:value="${read.accountId}" />
+            <input type="hidden" name="readNamed" th:value="${read.chosenQuestion.name}" />
+            <div th:each="field : ${read.fields}">
+              <label th:for="${field.key}">
+                <span th:text="${field.label}"></span>
+                <span th:if="${field.required}" class="tag fact">required</span>
+              </label>
+              <input
+                th:if="${field.isTypedIn()}"
+                th:id="${field.key}"
+                type="text"
+                th:name="${field.theParameterItArrivesUnder()}"
+                th:value="${field.value}"
+                th:placeholder="${field.example}"
+                th:list="${field.itSuggestsTheOffersBesideItWithoutImposingThem()} ? ${field.theSuggestionsOnIt()} : null"
+              />
+              <datalist
+                th:if="${field.itSuggestsTheOffersBesideItWithoutImposingThem()}"
+                th:id="${field.theSuggestionsOnIt()}"
+              >
+                <option
+                  th:each="choice : ${field.choices}"
+                  th:value="${choice.value}"
+                  th:label="${choice.label}"
+                ></option>
+              </datalist>
+              <span class="note wrap" th:text="${field.whatItIsFor}"></span>
+              <div th:if="${field.itSuggestsTheOffersBesideItWithoutImposingThem()}">
+                <dl class="pairs">
+                  <th:block th:each="choice : ${field.choices}">
+                    <dt class="id" th:text="${choice.value}"></dt>
+                    <dd class="wrap" th:text="${choice.label}"></dd>
+                  </th:block>
+                </dl>
+                <span
+                  class="note wrap"
+                  th:text="${field.whyTheseAreSuggestedAndTheBoxStillTakesAnother()}"
+                ></span>
+              </div>
+              <span
+                class="empty"
+                th:if="${field.thisRunHasProducedNoneOfThese()}"
+                th:text="${field.whatHasToHappenBeforeThisRunSuggestsOne()}"
+              ></span>
+            </div>
+            <div class="actions">
+              <button type="submit">Ask this question</button>
+            </div>
+          </form>
+
+          <div class="scroll" th:unless="${#lists.isEmpty(read.filledIn)}">
+
+            <h3>What the simulator fills in for you, and where it takes it from</h3>
+
+            <table>
+
+              <thead>
+
+                <tr>
+
+                  <th>field</th>
+
+                  <th>where the value comes from</th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                <tr th:each="supplied : ${read.filledIn}">
+
+                  <td class="id" th:text="${supplied.key}"></td>
+
+                  <td class="wrap" th:text="${supplied.why}"></td>
+
+                </tr>
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+          <details>
+            <summary>The values this question sends, and the key each one is sent under</summary>
+            <p class="note wrap" th:if="${read.aRuleOfThisRunCouldDecideIt}">
+              Every value above is sent under the key beside its name here, which is what the
+              provider reads it as and what a scenario rule of this test run is matched on.
+            </p>
+            <p class="note wrap" th:unless="${read.aRuleOfThisRunCouldDecideIt}">
+              Every value above is sent under the key beside its name here, which is what the
+              provider reads it as. No scenario rule of this test run is matched on this question:
+              this provider publishes it outside the operations a rule may name, so a rule cannot
+              decide, delay or refuse it, and what comes back is what the provider itself answers.
+            </p>
+            <dl class="pairs">
+              <th:block th:each="field : ${read.fields}">
+                <dt th:text="${field.label}"></dt>
+                <dd class="id" th:text="${field.key}"></dd>
+              </th:block>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

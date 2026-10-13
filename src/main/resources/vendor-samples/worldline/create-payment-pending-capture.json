@@ -1,0 +1,28 @@
+{
+  "creationOutput": {},
+  "payment": {
+    "id": "3066019730_0",
+    "status": "PENDING_CAPTURE",
+    "statusOutput": {
+      "statusCategory": "PENDING_MERCHANT",
+      "statusCode": 5,
+      "isCancellable": true,
+      "isAuthorized": true,
+      "isRefundable": false
+    },
+    "paymentOutput": {
+      "amountOfMoney": {
+        "amount": 5000,
+        "currencyCode": "PLN"
+      },
+      "paymentMethod": "card",
+      "cardPaymentMethodSpecificOutput": {
+        "card": {
+          "cardNumber": "************1111",
+          "expiryDate": "1230"
+        },
+        "token": "token_123"
+      }
+    }
+  }
+}

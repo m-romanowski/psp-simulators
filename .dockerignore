@@ -1,0 +1,12 @@
+.git
+.gradle
+.claude
+.idea
+.vscode
+**/build
+**/.gradle
+**/*.log
+e2e-example
+browser-e2e
+demo-shop
+doc

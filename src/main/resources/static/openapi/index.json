@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Simulator control API",
+    "url": "control.json"
+  },
+  {
+    "name": "Provider autra",
+    "url": "autra.json"
+  },
+  {
+    "name": "Provider azericard",
+    "url": "azericard.json"
+  },
+  {
+    "name": "Provider grow",
+    "url": "grow.json"
+  },
+  {
+    "name": "Provider stripe",
+    "url": "stripe.json"
+  },
+  {
+    "name": "Provider worldline",
+    "url": "worldline.json"
+  }
+]

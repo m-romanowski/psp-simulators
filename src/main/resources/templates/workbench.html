@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('This test run')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>This test run</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>test run</dt>
+            <dd class="id" th:text="${workbench.testRunId}"></dd>
+            <dt>provider</dt>
+            <dd class="id" th:text="${workbench.provider}"></dd>
+            <dt>providers this simulator serves</dt>
+            <dd class="id" th:text="${#strings.listJoin(workbench.providers, ', ')}"></dd>
+          </dl>
+          <p>
+            <a th:href="@{/ui/dashboard(provider=${provider},testRunId=${testRunId})}"
+              >Read every provider of this run at once on the Dashboard</a
+            >
+          </p>
+          <details>
+            <summary>
+              What belongs to this test run, and why this screen is one provider at a time
+            </summary>
+            <p class="note">
+              Every fixture, scenario, object, audit row and callback job on these screens belongs
+              to this test run and to no other. A request that names no test run belongs to
+              <code>default</code>; a request whose test run could not be resolved belongs to
+              <code>UNKNOWN</code>, and neither is listed anywhere, so type the name to reach it.
+            </p>
+            <p class="note">
+              This screen is one provider at a time, by design. What is worth reading across
+              every provider at once is on the Dashboard.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <div class="caution" th:if="${workbench}" th:text="${secrecy}"></div>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Accounts this test run configures</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(workbench.accounts)}">
+            Provider <span class="id" th:text="${workbench.provider}"></span> has no account in this
+            test run, so no call of its contract can be authenticated.
+            <a th:href="@{/ui/configuration/account(provider=${provider},testRunId=${testRunId})}"
+              >Configure an account</a
+            >.
+          </p>
+          <div class="scroll" th:each="account : ${workbench.accounts}">
+            <h3>account <span class="id" th:text="${account.accountId}"></span></h3>
+            <p class="empty" th:unless="${account.heldByTheProvider}">
+              This test run names this account and provider
+              <span class="id" th:text="${workbench.provider}"></span> holds no configuration under
+              it, so nothing of its own is summarised here.
+            </p>
+            <table th:if="${account.heldByTheProvider}">
+              <thead>
+                <tr>
+                  <th>field</th>
+                  <th>values held</th>
+                  <th>value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="field : ${account.configuration}">
+                  <td class="id" th:text="${field.name}"></td>
+                  <td th:text="${field.occurrences}"></td>
+                  <td class="wrap">
+                    <span
+                      th:if="${field.visibility.name() == 'SHOWN'}"
+                      th:each="value : ${field.values}"
+                      class="id"
+                      th:text="${value}"
+                    ></span>
+                    <span th:unless="${field.visibility.name() == 'SHOWN'}" class="redacted"
+                      >named and never printed: provider
+                      <span class="id" th:text="${workbench.provider}"></span> does not declare this
+                      field shown in plain</span
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p th:unless="${#lists.isEmpty(workbench.accounts)}">
+            <a th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId})}"
+              >Open the configuration of this test run</a
+            >
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Where a client application dials this run</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <tbody>
+                <tr>
+                  <th>simulator public base URL</th>
+                  <td class="id" th:text="${workbench.addresses.publicBaseUrl}"></td>
+                </tr>
+                <tr>
+                  <th>base URL of provider <span th:text="${workbench.provider}"></span></th>
+                  <td class="id" th:text="${workbench.addresses.providerBaseUrl}"></td>
+                </tr>
+                <tr>
+                  <th>test-run header</th>
+                  <td class="id" th:text="${workbench.addresses.testRunHeader}"></td>
+                </tr>
+                <tr>
+                  <th>how a request names its account</th>
+                  <td class="wrap" th:text="${workbench.addresses.howARequestNamesItsAccount}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="empty" th:if="${#lists.isEmpty(workbench.addresses.routeAliases)}">
+            This test run answers on no URL of its own.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(workbench.addresses.routeAliases)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>the URL your application calls</th>
+                  <th>the route it reaches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="alias : ${workbench.addresses.routeAliases}">
+                  <td class="wrap id" th:text="${alias.from}"></td>
+                  <td class="wrap id" th:text="${alias.to}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <a th:href="@{/ui/pairing(provider=${provider},testRunId=${testRunId})}"
+              >Copy the whole config snippet on the Connect my app screen</a
+            >
+          </p>
+          <details>
+            <summary>Why every provider answers on one host, and what an alias adds</summary>
+            <p class="note">
+              Every provider of this simulator answers on the one host above; what differs between
+              them is the path their contract is published on. A run also answers on any URL bound
+              to it as a route alias, above.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Operations provider <span th:text="${workbench.provider}"></span> exposes</h2>
+        <div
+          class="body"
+          th:with="theStoryKeys=${#sets.toSet(workbench.operations.![storiesKeyedOn])}"
+        >
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>operation</th>
+                  <th>facts it carries</th>
+                  <th>reports a processing state</th>
+                  <th>its flow key may be replaced</th>
+                  <th>rules of this run naming it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="operation : ${workbench.operations}">
+                  <td class="id" th:text="${operation.name}"></td>
+                  <td class="wrap" th:text="${#strings.listJoin(operation.carries, ', ')}"></td>
+                  <td>
+                    <span
+                      class="tag"
+                      th:classappend="${operation.reportsAProcessingState} ? 'fact'"
+                      th:text="${operation.reportsAProcessingState} ? 'yes' : 'no'"
+                    ></span>
+                  </td>
+                  <td>
+                    <span
+                      class="tag"
+                      th:classappend="${operation.itsFlowKeyMayBeReplaced} ? 'fact'"
+                      th:text="${operation.itsFlowKeyMayBeReplaced} ? 'yes' : 'no'"
+                    ></span>
+                  </td>
+                  <td>
+                    <a
+                      th:if="${operation.anyRuleOfThisRunNamesIt()}"
+                      th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId})}"
+                      th:text="${operation.rulesOfThisRunNamingIt}"
+                    ></a>
+                    <span
+                      th:unless="${operation.anyRuleOfThisRunNamesIt()}"
+                      class="withheld"
+                      th:text="${operation.rulesOfThisRunNamingIt}"
+                    ></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>
+              What a story about each of these operations is keyed on, and what a zero in the last
+              column does not mean
+            </summary>
+            <p class="note" th:text="${noExercisedTick}"></p>
+            <div th:each="key : ${theStoryKeys}">
+              <p>
+                <span
+                  th:each="operation : ${workbench.operations}"
+                  th:if="${operation.storiesKeyedOn == key}"
+                  class="id"
+                  th:text="${operation.name}"
+                ></span>
+              </p>
+              <p class="note" th:text="${key}"></p>
+            </div>
+            <p class="note">
+              <span class="n" th:text="${workbench.rulesOfThisRunNamingNoOperation}"></span>
+              rule(s) of this test run name no operation at all, and each of them can decide a call
+              to any operation above, so a zero in the last column does not mean a call of that
+              operation is answered by this provider's own behaviour.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>The newest objects of this test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${workbench.objects.whyItListsNone}"
+            th:text="${workbench.objects.whyItListsNone}"></p>
+          <p
+            class="empty"
+            th:if="${workbench.objects.whyItListsNone == null and #lists.isEmpty(workbench.objects.newest)}"
+          >
+            This test run holds no object of provider
+            <span class="id" th:text="${workbench.provider}"></span> yet.
+            <a th:href="@{/ui/objects/new(provider=${provider},testRunId=${testRunId})}"
+              >Start a payment</a
+            >.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(workbench.objects.newest)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>id the provider answered with</th>
+                  <th>native status</th>
+                  <th>normalized status</th>
+                  <th>amount</th>
+                  <th>currency</th>
+                  <th>origin</th>
+                  <th>last changed</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${workbench.objects.newest}">
+                  <td class="id">
+                    <a
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td th:text="${row.nativeStatus}"></td>
+                  <td><span th:replace="~{fragments :: status(${row.normalizedStatus})}"></span></td>
+                  <td class="id" th:text="${row.amount} ?: 'none recorded'"></td>
+                  <td class="id" th:text="${row.currency} ?: 'none recorded'"></td>
+                  <td>
+                    <span
+                      class="tag"
+                      th:classappend="${row.placedByATester} ? 'fact'"
+                      th:text="${row.origin}"
+                    ></span>
+                  </td>
+                  <td class="stamp" th:text="${row.updatedAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Trace</a
+                    >
+                    <a
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      >Exchanges</a
+                    >
+                    <a
+                      th:href="@{/ui/repro-bundle(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Bundle</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note" th:if="${workbench.objects.moreThanTheseExist}">
+            This test run holds objects older than the ones above.
+          </p>
+          <p>
+            <a th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId})}"
+              >Open every object of this test run</a
+            >
+          </p>
+          <details>
+            <summary>Why this is the newest few and never a count, and where the sessions are</summary>
+            <p class="note">
+              Current here means the newest
+              <span class="n" th:text="${newestObjectsShown}"></span> objects this provider holds
+              for this test run, read newest first from the same paged read the Payments screen and
+              the control API answer from. It is a summary and never a total: no count of this run's
+              objects is printed here, because a count taken from one short page would be a count of
+              the page.
+            </p>
+            <p class="note" th:text="${workbench.whereTheHostedSessionsAre}"></p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Callback and webhook queue</h2>
+        <div class="body">
+          <div class="counts">
+            <div>
+              <div class="n" th:text="${workbench.queue.pending}"></div>
+              <div class="k">pending</div>
+            </div>
+            <div>
+              <div class="n" th:text="${workbench.queue.due}"></div>
+              <div class="k">due now</div>
+            </div>
+            <div>
+              <div class="n" th:text="${workbench.queue.delivered}"></div>
+              <div class="k">delivered</div>
+            </div>
+            <div>
+              <div class="n" th:text="${workbench.queue.exhausted}"></div>
+              <div class="k">out of attempts</div>
+            </div>
+            <div>
+              <div class="n" th:text="${workbench.queue.awaitingCall}"></div>
+              <div class="k">awaiting a separate call</div>
+            </div>
+          </div>
+          <p>
+            <a
+              th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId})}"
+              >Open the delivery queue</a
+            >
+          </p>
+          <details>
+            <summary>What "due now" is measured against</summary>
+            <p class="note">
+              Due is measured against this test run's own clock. A run whose clock is pinned sees
+              nothing fall due until the clock is moved.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Callbacks a merchant has already refused</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(workbench.queue.failing)}">
+            No callback of this test run has been refused.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(workbench.queue.failing)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>event</th>
+                  <th>type</th>
+                  <th>id the provider answered with</th>
+                  <th>target</th>
+                  <th>state</th>
+                  <th>attempts</th>
+                  <th>next attempt</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${workbench.queue.failing}">
+                  <td class="id" th:text="${row.eventId}"></td>
+                  <td th:text="${row.eventType}"></td>
+                  <td class="id">
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="wrap" th:text="${row.targetUrl} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td>
+                    <span th:replace="~{fragments :: status(${row.state})}"></span>
+                  </td>
+                  <td th:text="${row.attemptsMade} + ' of ' + ${row.attemptCap}"></td>
+                  <td class="stamp" th:text="${row.nextAttemptAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/webhooks(provider=${provider},testRunId=${testRunId},open=${row.deliveryId})}"
+                      >Delivery</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Scenario rules active in this test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(workbench.scenarios)}">
+            No scenario rule is written for this provider and test run, so every request is answered
+            by the provider's own behaviour.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(workbench.scenarios)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>scenario</th>
+                  <th>priority</th>
+                  <th>specificity</th>
+                  <th>operation</th>
+                  <th>story</th>
+                  <th>keyed on</th>
+                  <th>when state</th>
+                  <th>then state</th>
+                  <th>written</th>
+                  <th>matches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="rule : ${workbench.scenarios}">
+                  <td class="id" th:text="${rule.scenarioId}"></td>
+                  <td th:text="${rule.priority}"></td>
+                  <td th:text="${rule.specificity}"></td>
+                  <td th:text="${rule.operation} ?: 'any'"></td>
+                  <td th:text="${rule.story}"></td>
+                  <td th:text="${rule.keyedOn}"></td>
+                  <td th:text="${rule.whenState}"></td>
+                  <td th:text="${rule.thenState}"></td>
+                  <td class="stamp" th:text="${rule.createdAt}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},scenarioId=${rule.scenarioId})}"
+                      >the calls it decided</a
+                    >
+                    <a
+                      th:href="@{/ui/scenarios/diff(provider=${provider},testRunId=${testRunId},left=${rule.scenarioId})}"
+                      >compare</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${workbench}">
+        <h2>Not on this screen yet</h2>
+        <div class="body">
+          <details>
+            <summary>Four panels this screen is asked for, and where each one is instead</summary>
+            <p class="note">
+              These panels are required of this screen and are absent rather than empty. Each entry
+              says whether anything behind this screen could answer it today, and where what it
+              would read is already shown.
+            </p>
+            <dl class="pairs">
+              <dt>recent provider API traffic</dt>
+              <dd>
+                This screen is one provider at a time and the newest exchanges are worth reading
+                across all of them at once, so they are on the Dashboard.
+              </dd>
+              <dt>pending captures and refunds</dt>
+              <dd>
+                The newest objects of this run are listed above with the status each one is in, and
+                the Payments screen lists every one of them. What is absent is a count of the
+                objects still awaiting a capture or a refund: this screen reads one short page of
+                them, and a count taken from that page would be a count of the page.
+              </dd>
+              <dt>seeded payment methods</dt>
+              <dd class="wrap" th:text="${workbench.whyItListsNoPaymentMethod}"></dd>
+              <dt>permissive-auth modes</dt>
+              <dd>
+                No setting turns one on or off, so there is no mode for this screen to report.
+              </dd>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

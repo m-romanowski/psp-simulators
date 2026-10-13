@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Pix')}">
+    <meta name="tab" content="Pix" />
+    <meta name="group" content="daily-work" />
+    <meta name="order" content="15" />
+  </head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${objects != null}">
+        <h2>Hand out a Pix payload</h2>
+        <div class="body">
+          <p>
+            A Pix is a Brazilian instant transfer. The payer copies a line of text &mdash; the
+            payload a bank app draws as a QR code &mdash; into their own bank app and pays from
+            there, so there is no page to send them to and no card anywhere in it. Autra answers
+            this call with that payload, which it names
+            <span class="id">qrCode</span>, and with the moment it stops working, which it names
+            <span class="id">expiresAt</span>. This screen prints the payload as text and draws no
+            picture of it.
+          </p>
+          <p class="note wrap">
+            Autra publishes no way to ask it how a Pix is going &mdash; &quot;Sem endpoint
+            p&uacute;blico de status&quot;, no public status endpoint &mdash; so what moves a Pix
+            here is the payer step further down this screen, and what tells a merchant about it is
+            the callback autra sends.
+          </p>
+          <div class="caution" th:if="${#lists.isEmpty(accounts)}">
+            This test run configures no autra account, and a Pix is collected for a merchant. Add
+            one on the Configuration screen before you start one here.
+          </div>
+          <form class="form" method="post" th:action="@{/ui/objects/start(provider=${provider},testRunId=${testRunId})}"
+            th:unless="${#lists.isEmpty(accounts)}">
+            <input type="hidden" name="startedAs" value="POST /v1/acquiring/pix/checkout" />
+            <input type="hidden" name="returnTo" value="/ui/x/autra/pix" />
+            <div>
+              <label for="accountId">the merchant this Pix is collected for</label>
+              <select id="accountId" name="accountId">
+                <option th:each="known : ${accounts}" th:value="${known}" th:text="${known}">
+                </option>
+              </select>
+            </div>
+            <div>
+              <label for="amount">
+                <span>amount to collect</span>
+                <span class="tag fact">required</span>
+              </label>
+              <input id="amount" type="text" name="field.amount" placeholder="99.90"
+                th:value="${typed.valueOf('amount')}" />
+              <span class="note wrap">
+                Autra publishes no minimum, no maximum and no limit on decimal places for a Pix,
+                and types this as a number in units of the currency and never in cents.
+              </span>
+            </div>
+            <div>
+              <label for="currency">
+                <span>currency</span>
+                <span class="tag fact">required</span>
+              </label>
+              <input id="currency" type="text" name="field.currency" placeholder="BRL"
+                th:value="${typed.valueOf('currency')}" />
+              <span class="note wrap">
+                Autra types this as a plain string and never as an enumeration, writes BRL in every
+                example and instructs &quot;Use BRL&quot; in prose.
+              </span>
+            </div>
+            <div>
+              <label for="description"><span>what the payer sees in their bank app</span></label>
+              <input id="description" type="text" name="field.description"
+                placeholder="Pedido #1234" th:value="${typed.valueOf('description')}" />
+              <span class="note wrap">
+                Autra publishes this as optional and says where it shows up: &quot;Aparece no app do
+                banco do pagador&quot; &mdash; it appears in the payer's bank app.
+              </span>
+            </div>
+            <div>
+              <label for="orderId"><span>the merchant's own order reference</span></label>
+              <input id="orderId" type="text" name="field.orderId" placeholder="pedido-abc-123"
+                th:value="${typed.valueOf('orderId')}" />
+              <span class="note wrap">
+                Autra denies this is an idempotency key for a Pix &mdash; &quot;a API n&atilde;o
+                bloqueia 2 Pix com mesmo orderId hoje&quot;, the API does not stop two Pix sharing
+                one orderId today &mdash; so two checkouts under one reference produce two payloads
+                here, because that is what autra does.
+              </span>
+            </div>
+            <div class="actions">
+              <button type="submit">Hand out a Pix payload</button>
+            </div>
+          </form>
+          <details>
+            <summary>What this screen sends, and what it does not travel through</summary>
+            <p class="note wrap">
+              This form starts a Pix the same way a client application would, on the account picked
+              above, and sends the way of starting as
+              <span class="id">POST /v1/acquiring/pix/checkout</span>, which is how autra spells it
+              on its own wire. The documentId and the acquiring session token autra requires are
+              filled in from the account, and the checks autra's own route makes on a client's
+              credential are not made on a Pix an operator started: the audit trail records it as
+              started from this screen and never as one a client sent.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${objects != null}">
+        <h2 th:if="${theWholeRunWasRead}">The Pix of this test run</h2>
+        <h2 th:unless="${theWholeRunWasRead}">The Pix this screen reached in this test run</h2>
+        <div class="body"
+          th:with="pix=${objects.?[object.relatedObjects.containsKey('qrCode')]}">
+          <p class="empty" th:if="${#lists.isEmpty(pix) and theWholeRunWasRead}">
+            This test run holds no Pix of this provider. That is an empty run and not a failed read:
+            a hold, a sale and a hosted card page of the same run are on the Payments screen and
+            not here.
+          </p>
+          <div class="caution" th:unless="${theWholeRunWasRead}">
+            <span
+              th:text="'This screen read ' + ${#lists.size(objects)} + ' object(s) of this test run'
+                + ' and that read did not reach the end of the run, so what stands below is the'
+                + ' Pix that read reached and not every Pix this run holds.'"
+            ></span>
+            <span
+              >Reset the test run, or look a Pix up by its id on the Payments screen, where a read
+              is paged.</span
+            >
+          </div>
+          <div th:each="row : ${pix}">
+            <h3 class="id" th:text="${row.providerObjectId}"></h3>
+            <p>
+              <span class="tag" th:text="${row.object.kind.asThisProviderNamesIt}"></span>
+            </p>
+            <dl class="pairs">
+              <dt>status</dt>
+              <dd>
+                <span class="note">as autra reports it</span>
+                <span class="id" th:text="${row.object.nativeStatus}"></span>
+                <span class="note">as this simulator normalizes it</span>
+                <span th:replace="~{fragments :: status(${row.normalizedStatus})}"></span>
+              </dd>
+              <dt>amount</dt>
+              <dd class="id">
+                <span th:text="${row.object.amount != null ? row.object.amount.value : ''}">
+                </span>
+                <span th:text="${row.object.currency}"></span>
+              </dd>
+              <dt th:if="${row.payerStep.offersAPayerStep()}">
+                <span>when the payload stops working</span>
+                <span class="tag">expiresAt</span>
+              </dt>
+              <dd th:if="${row.payerStep.offersAPayerStep()}">
+                <span class="id" th:text="${row.object.relatedObjects.get('expiresAt')}"></span>
+                <span
+                  th:text="${inWords.howFarFromNow(row.object.relatedObjects.get('expiresAt'))}"
+                ></span>
+              </dd>
+              <dt th:unless="${row.payerStep.offersAPayerStep()}">
+                <span>the moment this payload was set to stop working at</span>
+                <span class="tag">expiresAt</span>
+              </dt>
+              <dd th:unless="${row.payerStep.offersAPayerStep()}">
+                <span class="id" th:text="${row.object.relatedObjects.get('expiresAt')}"></span>
+                <span class="wrap"
+                  >This Pix takes no payer any more, so the payload stopped working whether or not
+                  that moment has passed.</span
+                >
+              </dd>
+              <dt th:if="${row.object.relatedObjects.containsKey('description')}">
+                <span>what the payer sees in their bank app</span>
+                <span class="tag">description</span>
+              </dt>
+              <dd th:if="${row.object.relatedObjects.containsKey('description')}" class="wrap"
+                th:text="${row.object.relatedObjects.get('description')}"></dd>
+              <dt th:if="${row.object.relatedObjects.containsKey('orderId')}">
+                <span>the merchant's own order reference</span>
+                <span class="tag">orderId</span>
+              </dt>
+              <dd th:if="${row.object.relatedObjects.containsKey('orderId')}" class="id"
+                th:text="${row.object.relatedObjects.get('orderId')}"></dd>
+            </dl>
+            <p class="note wrap">
+              <span th:text="'What one of these is, in the words of ' + ${provider} + ':'"></span>
+              <span th:text="${row.object.kind.whatItIsInItsOwnWords}"></span>
+            </p>
+            <p class="note">
+              The copy-and-paste payload a payer pastes into their bank app, as autra answered it:
+            </p>
+            <p class="id wrap" th:text="${row.object.relatedObjects.get('qrCode')}"></p>
+            <div th:if="${row.payerStep.offersAPayerStep()}" class="caution">
+              <form class="form" method="post" th:action="@{/ui/objects/complete(provider=${provider},testRunId=${testRunId})}">
+                <input type="hidden" name="providerObjectId" th:value="${row.providerObjectId}" />
+                <input type="hidden" name="returnTo" value="/ui/x/autra/pix" />
+                <p class="note wrap" th:text="${row.payerStep.theCautionBeforeTakingOne()}"></p>
+                <p class="note wrap" th:unless="${row.payerStep.namesACard()}"
+                  th:text="${row.payerStep.whatThePayerPaysWithInstead}"></p>
+                <div class="wide choice" th:each="met : ${row.payerStep.outcomes}">
+                  <label th:for="${row.providerObjectId} + '-' + ${met.outcome}">
+                    <input
+                      type="radio"
+                      th:id="${row.providerObjectId} + '-' + ${met.outcome}"
+                      name="outcome"
+                      th:value="${met.outcome}"
+                      th:checked="${met.chosen}"
+                    />
+                    <span th:text="${met.asATesterReadsIt}"></span>
+                    <span class="id" th:text="${met.outcome}"></span>
+                  </label>
+                </div>
+                <div class="actions">
+                  <span class="confirmGroup">
+                    <input th:id="'confirm-payer-' + ${row.providerObjectId}" type="checkbox"
+                      name="confirm" value="yes" />
+                    <label th:for="'confirm-payer-' + ${row.providerObjectId}">confirm</label>
+                  </span>
+                  <button type="submit">Stand in for the payer's bank app</button>
+                </div>
+              </form>
+            </div>
+            <p class="note wrap" th:unless="${row.payerStep.offersAPayerStep()}"
+              th:text="${row.payerStep.whatThisProviderHasInstead}"></p>
+            <p class="note wrap" th:each="absent : ${row.payerStep.unoffered}">
+              <span
+                th:text="'Autra offers no payer step on this one where the payer '
+                  + ${absent.whatThePayerDid} + ' (' + ${absent.outcome} + '):'"
+              ></span>
+              <span th:text="${absent.whatItHasInstead}"></span>
+            </p>
+            <div th:each="next : ${row.followUps}" class="caution">
+              <form class="form" method="post" th:action="@{/ui/objects/follow-up(provider=${provider},testRunId=${testRunId})}">
+                <input type="hidden" name="providerObjectId" th:value="${row.providerObjectId}" />
+                <input type="hidden" name="followUp" th:value="${next.name}" />
+                <input type="hidden" name="returnTo" value="/ui/x/autra/pix" />
+                <p class="note" th:text="${next.whatItMoves}"></p>
+                <div class="actions">
+                  <span class="confirmGroup">
+                    <input th:id="'confirm-' + ${row.providerObjectId} + '-' + ${next.name}"
+                      type="checkbox" name="confirm" value="yes" />
+                    <label th:for="'confirm-' + ${row.providerObjectId} + '-' + ${next.name}"
+                      >confirm</label>
+                  </span>
+                  <button type="submit">
+                    Ask autra to <span th:text="${next.label}"></span>
+                  </button>
+                </div>
+              </form>
+            </div>
+            <p class="note wrap" th:if="${#lists.isEmpty(row.followUps)}">
+              Autra offers no follow-up of its own on this one now: it publishes settle on an
+              AUTHORIZED Pix alone, so one still waiting for its payer, one already settled and one
+              past its expiresAt each have none.
+            </p>
+            <ul class="choices">
+              <li>
+                <a
+                  th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                  >Read everything this simulator holds about this Pix</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

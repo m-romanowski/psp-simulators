@@ -1,0 +1,30 @@
+# Gradle
+.gradle/
+build/
+**/.kotlin/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Java
+*.class
+out/
+bin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+
+# Local runtime
+*.log
+
+# Local tooling state: agent settings, transcripts and hooks belong to a machine, not
+# to the repository.
+.claude/

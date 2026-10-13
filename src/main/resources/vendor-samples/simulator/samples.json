@@ -1,0 +1,25 @@
+{
+  "scenario-created": {
+    "evidence": "simulator contract",
+    "note": "this simulator's own control API, which no vendor publishes",
+    "source": "doc/README.md",
+    "reference": "README.md, Common Simulator Control API",
+    "status": 201,
+    "body": "scenario-created.json"
+  },
+  "fixture-created": {
+    "evidence": "simulator contract",
+    "note": "this simulator's own control API, which no vendor publishes",
+    "source": "doc/README.md",
+    "reference": "README.md, Common Simulator Control API",
+    "status": 201,
+    "body": "fixture-created.json"
+  },
+  "audit-record": {
+    "evidence": "simulator contract",
+    "note": "this simulator's own control API, which no vendor publishes",
+    "source": "doc/README.md",
+    "reference": "README.md, Common Simulator Control API",
+    "body": "audit-record.json"
+  }
+}

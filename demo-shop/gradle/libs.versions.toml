@@ -1,0 +1,13 @@
+[versions]
+springBoot = "4.1.1"
+stripe = "33.4.2"
+htmx = "4.0.0"
+playwright = "1.63.0"
+
+[libraries]
+stripe-java = { module = "com.stripe:stripe-java", version.ref = "stripe" }
+htmx = { module = "org.webjars.npm:htmx.org", version.ref = "htmx" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
+
+[plugins]
+springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }

@@ -1,0 +1,53 @@
+{
+  "create-payment-pending-capture": {
+    "evidence": "published example",
+    "note": "the schema example of createPaymentResponse",
+    "source": "https://payment.preprod.direct.worldline-solutions.com/v1/public-contract-definition.yaml",
+    "reference": "worldline.md, Create Payment With Stored Token",
+    "status": 201,
+    "body": "create-payment-pending-capture.json"
+  },
+  "capture-response": {
+    "evidence": "published example",
+    "note": "the schema example of captureResponse.id",
+    "source": "https://payment.preprod.direct.worldline-solutions.com/v1/public-contract-definition.yaml",
+    "reference": "worldline.md, Payment Identifiers and the Operation List",
+    "body": "capture-response.json"
+  },
+  "payment-id-grammar": {
+    "evidence": "published rule",
+    "note": "a separate, unique payment.id for every CreatePayment request and every maintenance operation, which implements the formula PAYID_PAYIDSUB",
+    "source": "https://docs.direct.worldline-solutions.com/en/integration/api-developer-guide/transaction-feedback",
+    "reference": "worldline.md, Payment Identifiers and the Operation List",
+    "rules": {
+      "formula": "PAYID_PAYIDSUB"
+    }
+  },
+  "access-to-merchant-not-allowed": {
+    "evidence": "published rule",
+    "note": "a credential or account mismatch is 403 with errors.id ACCESS_TO_MERCHANT_NOT_ALLOWED, and no errorCode is published for it",
+    "source": "https://docs.direct.worldline-solutions.com/en/integration/api-developer-guide/api-troubleshooting",
+    "reference": "worldline.md, Authentication and Transport",
+    "rules": {
+      "httpStatus": "403",
+      "errors.id": "ACCESS_TO_MERCHANT_NOT_ALLOWED"
+    }
+  },
+  "unknown-payment-id": {
+    "evidence": "published example",
+    "source": "https://docs.direct.worldline-solutions.com/en/integration/api-developer-guide/api-troubleshooting",
+    "reference": "worldline.md, Error Shape",
+    "status": 404,
+    "body": "unknown-payment-id.json"
+  },
+  "idempotent-replay": {
+    "evidence": "published rule",
+    "note": "a completed request is answered with the same outcome as the original, and the answer carries the timestamp header",
+    "source": "https://docs.direct.worldline-solutions.com/en/integration/api-developer-guide/idempotent-requests",
+    "reference": "worldline.md, Idempotency",
+    "rules": {
+      "sameOutcomeAsTheOriginal": "true",
+      "replayHeader": "X-GCS-Idempotence-Request-Timestamp"
+    }
+  }
+}

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <body>
+    <div th:fragment="form(side, from, copy, why, provider, testRunId)">
+      <h3 th:text="'A copy of ' + ${from}"></h3>
+      <p class="caution" th:if="${why}" th:text="${why}"></p>
+      <form class="filters" method="post" th:action="@{/ui/scenarios/diff/copy(provider=${provider},testRunId=${testRunId})}" th:if="${copy}">
+        <input type="hidden" name="copiedFrom" th:value="${from}" />
+        <div>
+          <label th:for="${side} + '-priority'">priority</label>
+          <input
+            th:id="${side} + '-priority'"
+            type="text"
+            name="priority"
+            th:value="${copy.priority}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-operation'">match.operation</label>
+          <input
+            th:id="${side} + '-operation'"
+            type="text"
+            name="operation"
+            th:value="${copy.operation}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-merchantId'">match.merchantId</label>
+          <input
+            th:id="${side} + '-merchantId'"
+            type="text"
+            name="merchantId"
+            th:value="${copy.merchantId}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-orderId'">match.orderId</label>
+          <input
+            th:id="${side} + '-orderId'"
+            type="text"
+            name="orderId"
+            th:value="${copy.orderId}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-providerObjectId'">id the provider answered with <code>match.providerObjectId</code></label>
+          <input
+            th:id="${side} + '-providerObjectId'"
+            type="text"
+            name="providerObjectId"
+            th:value="${copy.providerObjectId}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-customerId'">match.customerId</label>
+          <input
+            th:id="${side} + '-customerId'"
+            type="text"
+            name="customerId"
+            th:value="${copy.customerId}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-paymentMethodId'">match.paymentMethodId</label>
+          <input
+            th:id="${side} + '-paymentMethodId'"
+            type="text"
+            name="paymentMethodId"
+            th:value="${copy.paymentMethodId}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-amount'">match.amount</label>
+          <input th:id="${side} + '-amount'" type="text" name="amount" th:value="${copy.amount}" />
+        </div>
+        <div>
+          <label th:for="${side} + '-currency'">match.currency</label>
+          <input
+            th:id="${side} + '-currency'"
+            type="text"
+            name="currency"
+            th:value="${copy.currency}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-eventType'">match.eventType</label>
+          <input
+            th:id="${side} + '-eventType'"
+            type="text"
+            name="eventType"
+            th:value="${copy.eventType}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-story'">story</label>
+          <input th:id="${side} + '-story'" type="text" name="story" th:value="${copy.story}" />
+        </div>
+        <div>
+          <label th:for="${side} + '-keyedOn'">keyedOn</label>
+          <input
+            th:id="${side} + '-keyedOn'"
+            type="text"
+            name="keyedOn"
+            th:value="${copy.keyedOn}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-whenState'">whenState</label>
+          <input
+            th:id="${side} + '-whenState'"
+            type="text"
+            name="whenState"
+            th:value="${copy.whenState}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-thenState'">thenState</label>
+          <input
+            th:id="${side} + '-thenState'"
+            type="text"
+            name="thenState"
+            th:value="${copy.thenState}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-actionType'">action.type</label>
+          <input
+            th:id="${side} + '-actionType'"
+            type="text"
+            name="actionType"
+            th:value="${copy.actionType}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-providerCode'">action.providerCode</label>
+          <input
+            th:id="${side} + '-providerCode'"
+            type="text"
+            name="providerCode"
+            th:value="${copy.providerCode}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-fault'">action.fault</label>
+          <input th:id="${side} + '-fault'" type="text" name="fault" th:value="${copy.fault}" />
+        </div>
+        <div>
+          <label th:for="${side} + '-httpStatus'">action.httpStatus</label>
+          <input
+            th:id="${side} + '-httpStatus'"
+            type="text"
+            name="httpStatus"
+            th:value="${copy.httpStatus}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-delayMs'">action.delayMs</label>
+          <input
+            th:id="${side} + '-delayMs'"
+            type="text"
+            name="delayMs"
+            th:value="${copy.delayMs}"
+          />
+        </div>
+        <div>
+          <label th:for="${side} + '-settlesAfterMs'">action.settlesAfterMs</label>
+          <input
+            th:id="${side} + '-settlesAfterMs'"
+            type="text"
+            name="settlesAfterMs"
+            th:value="${copy.settlesAfterMs}"
+          />
+        </div>
+        <button type="submit" th:text="'Write this copy of ' + ${from}"></button>
+      </form>
+    </div>
+  </body>
+</html>

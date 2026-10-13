@@ -1,0 +1,518 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider stripe",
+    "version": "0.1.0",
+    "description": "Provider stripe answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/stripe.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/v1/charges/{chargeId}": {
+      "get": {
+        "operationId": "retrieveCharge",
+        "parameters": [
+          {
+            "name": "chargeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/customers": {
+      "post": {
+        "operationId": "createCustomer",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/customers/{customerId}": {
+      "delete": {
+        "operationId": "deleteCustomer",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "retrieveCustomer",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "updateCustomer",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/customers/{customerId}/payment_methods": {
+      "get": {
+        "operationId": "listCustomerPaymentMethods",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ephemeral_keys": {
+      "post": {
+        "operationId": "createEphemeralKey",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/payment_intents": {
+      "post": {
+        "operationId": "createPaymentIntent",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/payment_intents/{intentId}": {
+      "get": {
+        "operationId": "retrievePaymentIntent",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment_intents/{intentId}/cancel": {
+      "post": {
+        "operationId": "cancelPaymentIntent",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/payment_intents/{intentId}/capture": {
+      "post": {
+        "operationId": "capturePaymentIntent",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/payment_intents/{intentId}/confirm": {
+      "post": {
+        "operationId": "confirmPaymentIntent",
+        "parameters": [
+          {
+            "name": "intentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/payment_methods": {
+      "get": {
+        "operationId": "listPaymentMethods",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment_methods/{paymentMethodId}": {
+      "get": {
+        "operationId": "retrievePaymentMethod",
+        "parameters": [
+          {
+            "name": "paymentMethodId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payment_methods/{paymentMethodId}/detach": {
+      "post": {
+        "operationId": "detachPaymentMethod",
+        "parameters": [
+          {
+            "name": "paymentMethodId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/refunds": {
+      "post": {
+        "operationId": "createRefund",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/setup_intents": {
+      "post": {
+        "operationId": "createSetupIntent",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/setup_intents/{setupIntentId}/confirm": {
+      "post": {
+        "operationId": "confirmSetupIntent",
+        "parameters": [
+          {
+            "name": "setupIntentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    }
+  }
+}

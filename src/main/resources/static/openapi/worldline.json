@@ -1,0 +1,271 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider worldline",
+    "version": "0.1.0",
+    "description": "Provider worldline answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/worldline.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/hostedtokenization/tokenization/form/{hostedTokenizationId}": {
+      "get": {
+        "operationId": "open",
+        "parameters": [
+          {
+            "name": "hostedTokenizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "hostedTokenizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/{merchantId}/hostedtokenizations": {
+      "post": {
+        "operationId": "createHostedTokenization",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider worldline reads this body in its own wire format, specified in doc/worldline.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v2/{merchantId}/hostedtokenizations/{hostedTokenizationId}": {
+      "get": {
+        "operationId": "getHostedTokenization",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "hostedTokenizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/{merchantId}/payments": {
+      "post": {
+        "operationId": "createPayment",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider worldline reads this body in its own wire format, specified in doc/worldline.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v2/{merchantId}/payments/{paymentId}/cancel": {
+      "post": {
+        "operationId": "cancelPayment",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider worldline reads this body in its own wire format, specified in doc/worldline.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v2/{merchantId}/payments/{paymentId}/capture": {
+      "post": {
+        "operationId": "capturePayment",
+        "parameters": [
+          {
+            "name": "merchantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider worldline answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/worldline.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider worldline answers, specified in doc/worldline.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider worldline reads this body in its own wire format, specified in doc/worldline.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Compare scenarios')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:unless="${#lists.isEmpty(refusals)}">
+        <h2>This copy was not written</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not write it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${refusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            Nothing was written, and the rule the copy was taken from is untouched. Correct the
+            property named here and write the copy again.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${diff}">
+        <h2>Choose two rules of this test run</h2>
+        <div class="body">
+          <form class="filters" method="get" th:action="@{/ui/scenarios/diff}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${testRunId}" />
+            <div>
+              <label for="left">this one</label>
+              <select id="left" name="left">
+                <option value="">choose a rule</option>
+                <option
+                  th:each="choice : ${diff.choices}"
+                  th:value="${choice.scenarioId}"
+                  th:text="${choice.scenarioId} + ' · ' + (${choice.operation} ?: 'any operation') + ' · ' + ${choice.action} + (${choice.story} == null ? '' : ' · ' + ${choice.story})"
+                  th:selected="${choice.scenarioId == diff.left}"
+                ></option>
+              </select>
+            </div>
+            <div>
+              <label for="right">that one</label>
+              <select id="right" name="right">
+                <option value="">choose a rule</option>
+                <option
+                  th:each="choice : ${diff.choicesOnTheRight}"
+                  th:value="${choice.scenarioId}"
+                  th:text="${choice.scenarioId} + ' · ' + (${choice.operation} ?: 'any operation') + ' · ' + ${choice.action} + (${choice.story} == null ? '' : ' · ' + ${choice.story})"
+                  th:selected="${choice.scenarioId == diff.right}"
+                ></option>
+              </select>
+            </div>
+            <div>
+              <label for="rightProvider">that one's provider</label>
+              <input
+                id="rightProvider"
+                type="text"
+                name="rightProvider"
+                th:value="${diff.rightProvider}"
+                placeholder="this provider"
+              />
+            </div>
+            <div>
+              <label for="rightTestRunId">that one's test run</label>
+              <input
+                id="rightTestRunId"
+                type="text"
+                name="rightTestRunId"
+                th:value="${diff.rightTestRunId}"
+                placeholder="this test run"
+              />
+            </div>
+            <button type="submit" class="secondary">Compare them</button>
+          </form>
+          <p class="empty" th:if="${#lists.isEmpty(diff.choices)}">
+            No scenario rule is written for this provider and test run, so there is nothing to
+            compare. Write two rules on Scenarios and come back.
+          </p>
+          <p class="note" th:if="${nothingWasCompared}" th:text="${nothingWasCompared}"></p>
+          <details>
+            <summary>Which runs and providers the right-hand side may name</summary>
+            <p class="note">
+              The right-hand side may name another test run of this provider: name it, press Compare
+              them, and the right-hand list holds that run's rules. It may not name another provider:
+              two rules of different providers are refused rather than compared, and the refusal says
+              why.
+            </p>
+          </details>
+          <p
+            class="empty"
+            th:if="${#lists.isEmpty(diff.choicesOnTheRight) and not #lists.isEmpty(diff.choices)}"
+          >
+            The test run named on the right holds no rule of this provider, so there is nothing to
+            choose on that side.
+          </p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${diff != null and diff.compared}">
+        <h2>What these two rules say</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>side</th>
+                  <th>scenario</th>
+                  <th>provider</th>
+                  <th>test run</th>
+                  <th>priority</th>
+                  <th>specificity</th>
+                  <th>arrival</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>this one</td>
+                  <td class="id leftScenario" th:text="${diff.onTheLeft.scenarioId}"></td>
+                  <td th:text="${diff.onTheLeft.provider}"></td>
+                  <td th:text="${diff.onTheLeft.testRunId}"></td>
+                  <td th:text="${diff.onTheLeft.priority}"></td>
+                  <td th:text="${diff.onTheLeft.specificity}"></td>
+                  <td th:text="${diff.onTheLeft.arrival}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${diff.onTheLeft.provider},testRunId=${diff.onTheLeft.testRunId},scenarioId=${diff.onTheLeft.scenarioId})}"
+                      >the calls it decided</a
+                    >
+                  </td>
+                </tr>
+                <tr>
+                  <td>that one</td>
+                  <td class="id rightScenario" th:text="${diff.onTheRight.scenarioId}"></td>
+                  <td th:text="${diff.onTheRight.provider}"></td>
+                  <td th:text="${diff.onTheRight.testRunId}"></td>
+                  <td th:text="${diff.onTheRight.priority}"></td>
+                  <td th:text="${diff.onTheRight.specificity}"></td>
+                  <td th:text="${diff.onTheRight.arrival}"></td>
+                  <td>
+                    <a
+                      th:href="@{/ui/audit(provider=${diff.onTheRight.provider},testRunId=${diff.onTheRight.testRunId},scenarioId=${diff.onTheRight.scenarioId})}"
+                      >the calls it decided</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Where specificity and arrival come from</summary>
+            <p class="note">
+              Specificity is counted from the facts a rule narrows on and arrival is the column the
+              store gave it, so neither is a field either rule was written with. They are here
+              because they decide which of two matching rules the engine takes.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${diff != null and diff.compared}">
+        <h2>The fields that differ</h2>
+        <div class="body">
+          <p
+            class="empty"
+            th:if="${diff.whenNothingDiffers}"
+            th:text="${diff.whenNothingDiffers}"
+          ></p>
+          <div class="scroll" th:unless="${#lists.isEmpty(diff.differences)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>this one says</th>
+                  <th>that one says</th>
+                  <th>in this provider's own words</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="difference : ${diff.differences}">
+                  <td class="id property" th:text="${difference.property}"></td>
+                  <td class="onTheLeft">
+                    <span th:unless="${difference.onTheLeft.named}" class="withheld"
+                      >names none</span
+                    >
+                    <span th:if="${difference.onTheLeft.withheld}" class="redacted"
+                      >withheld</span
+                    >
+                    <span
+                      th:if="${difference.onTheLeft.value}"
+                      class="id"
+                      th:text="${difference.onTheLeft.value}"
+                    ></span>
+                  </td>
+                  <td class="onTheRight">
+                    <span th:unless="${difference.onTheRight.named}" class="withheld"
+                      >names none</span
+                    >
+                    <span th:if="${difference.onTheRight.withheld}" class="redacted"
+                      >withheld</span
+                    >
+                    <span
+                      th:if="${difference.onTheRight.value}"
+                      class="id"
+                      th:text="${difference.onTheRight.value}"
+                    ></span>
+                  </td>
+                  <td class="wrap providerWords" th:text="${difference.inTheProvidersWords}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What a header value withholds here</summary>
+            <p class="note" th:text="${diff.theHeaderValueItWithholds}"></p>
+          </details>
+          <h3>The fields both sides say alike</h3>
+          <p class="note wrap" th:text="${#strings.listJoin(diff.thePropertiesBothSidesSayAlike, ', ')}"></p>
+          <p
+            class="caution wrap"
+            th:if="${diff.whatAPropertySaidAlikeOnItsNameDoesNotCompare}"
+            th:text="'Compared by name alone: '
+              + ${#strings.listJoin(diff.thePropertiesSaidAlikeOnTheirNameAlone, ', ')}
+              + ' — ' + ${diff.whatAPropertySaidAlikeOnItsNameDoesNotCompare}"
+          ></p>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${diff != null and diff.compared}">
+        <h2>Copy one of them and change only what differs</h2>
+        <div class="body">
+          <details>
+            <summary>What writing a copy leaves behind</summary>
+            <p class="note" th:text="${diff.aCopyIsANewRule}"></p>
+          </details>
+          <div
+            th:replace="~{scenario-copy :: form('left', ${diff.onTheLeft.scenarioId}, ${diff.copyOfTheLeft}, ${diff.whyTheLeftIsNotOfferedAsACopy}, ${provider}, ${testRunId})}"
+          ></div>
+          <div
+            th:replace="~{scenario-copy :: form('right', ${diff.onTheRight.scenarioId}, ${diff.copyOfTheRight}, ${diff.whyTheRightIsNotOfferedAsACopy}, ${provider}, ${testRunId})}"
+          ></div>
+          <details>
+            <summary>What each box already holds, and what an emptied one means</summary>
+            <p class="note">
+              Every box holds what the rule it was copied from says, so change the one thing that
+              differs and leave the rest alone. A box emptied narrows nothing. The copy is written
+              through the same admission as any other rule, so a provider that cannot perform what
+              you changed refuses it and writes nothing.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${diff != null and diff.compared}">
+        <h2>What this comparison cannot compare</h2>
+        <div class="body">
+          <details>
+            <summary>The dimensions no field of a scenario holds</summary>
+            <p class="note">
+              These are dimensions of a scenario's behaviour that no field of a scenario holds. They
+              are named here rather than left out, because a comparison that quietly skipped one
+              would read as two rules agreeing about it.
+            </p>
+            <dl class="pairs">
+              <th:block th:each="absent : ${diff.theDimensionsItCannotCompare}">
+                <dt class="wrap" th:text="${absent.dimension}"></dt>
+                <dd class="wrap" th:text="${absent.reason}"></dd>
+              </th:block>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

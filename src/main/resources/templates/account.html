@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Configure an account')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${account}">
+        <h2>Configure an account for this provider and test run</h2>
+        <div class="body">
+          <details>
+            <summary>Whose field names these are, and what naming an account again does</summary>
+            <p class="note">
+              The fields below are
+              <span class="id" th:text="${account.provider}"></span>'s own, in
+              <span class="id" th:text="${account.provider}"></span>'s own names, and this screen
+              asked the provider what an account of it would need rather than holding a list of its
+              own. A value left empty is not sent, so the provider answers with whatever it publishes
+              as the default for that field, and a field the provider requires is refused by name.
+            </p>
+            <p class="note">
+              Naming an account that this test run already configures replaces that account whole.
+              Naming one it does not adds it and leaves the others exactly as they are, so a second
+              account costs nothing of the first and no secret of the first is retyped here.
+            </p>
+          </details>
+          <p class="empty" th:if="${#lists.isEmpty(account.accountsAlreadyConfigured)}">
+            This test run configures no account for this provider yet. The run comes into existence
+            because this configuration names it, so abandoning this form registers nothing.
+          </p>
+          <p th:unless="${#lists.isEmpty(account.accountsAlreadyConfigured)}">
+            Already configured here:
+            <span
+              th:each="known : ${account.accountsAlreadyConfigured}"
+              class="id"
+              th:text="${known}"
+            ></span>
+          </p>
+
+          <div class="caution" th:if="${account.secretsMustBeRetyped}">
+            The secret fields below came back empty. The simulator never hands a stored secret back
+            to a screen, to a redirect or to a refusal message, so a refused form cannot repeat
+            one: retype them. Everything that is not a secret kept what you typed.
+          </div>
+
+          <p
+            th:replace="~{fragments :: whatAFormRequires(${account.fieldsThisFormRequires()},
+              ${account.fieldsThisFormHas()}, ${account.asksForASecret()})}"
+          ></p>
+
+          <form class="form" method="post" th:action="@{/ui/configuration/account(provider=${account.provider},testRunId=${account.testRunId})}">
+            <div>
+              <label
+                th:replace="~{fragments :: fieldLabel(${account.accountIdentity()})}"
+              ></label>
+              <input
+                id="accountId"
+                type="text"
+                name="accountId"
+                th:value="${account.accountId}"
+                th:placeholder="${account.accountIdentity().theHintTheBoxShows()}"
+              />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${account.accountIdentity()})}"
+              ></details>
+            </div>
+            <div th:each="field : ${account.fields}">
+              <label th:replace="~{fragments :: fieldLabel(${field})}"></label>
+              <input th:if="${field.isTypedIn()}" th:id="${field.key}" type="text" th:name="${field.theParameterItArrivesUnder()}" th:value="${field.value}" th:placeholder="${field.theHintTheBoxShows()}" />
+              <textarea
+                th:if="${field.isABlockOfManyLines()}"
+                th:id="${field.key}"
+                rows="8"
+                th:name="${field.theParameterItArrivesUnder()}"
+                th:text="${field.value}"
+                th:placeholder="${field.theHintTheBoxShows()}"
+              ></textarea>
+              <span th:if="${field.isASpanOfTime()}" class="spanOfTime">
+                <input th:id="${field.key}" type="text" inputmode="numeric" th:name="${field.theParameterItArrivesUnder()}" th:value="${field.value}" th:placeholder="${field.theHintTheBoxShows()}" />
+                <select
+                  th:id="${field.theUnitParameterItArrivesUnder()}"
+                  th:name="${field.theUnitParameterItArrivesUnder()}"
+                  th:attr="aria-label=${field.theUnitItIsCountedIn()}"
+                >
+                  <option
+                    th:each="unit : ${field.units}"
+                    th:value="${unit.value}"
+                    th:text="${unit.whatItMeans}"
+                    th:selected="${unit.chosen}"
+                  ></option>
+                </select>
+              </span>
+              <select
+                th:if="${field.isPickedFromAList()}"
+                th:id="${field.key}"
+                th:name="${field.theParameterItArrivesUnder()}"
+              >
+                <option
+                  value=""
+                  th:text="${field.required} ? 'choose one' : 'send nothing'"
+                ></option>
+                <option
+                  th:each="choice : ${field.choices}"
+                  th:value="${choice.value}"
+                  th:text="${choice.whatItMeans}"
+                  th:selected="${choice.chosen}"
+                ></option>
+              </select>
+              <span th:if="${field.mustBeRetyped}" class="redacted">retype this secret</span>
+              <details th:replace="~{fragments :: whatItIsFor(${field})}"></details>
+            </div>
+            <div class="wide">
+              <label th:replace="~{fragments :: fieldLabel(${account.callbackTarget()})}"></label>
+              <input
+                id="callbackUrl"
+                type="text"
+                name="callbackUrl"
+                th:value="${account.callbackUrl}"
+                th:placeholder="${account.callbackTarget().theHintTheBoxShows()}"
+              />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${account.callbackTarget()})}"
+              ></details>
+            </div>
+            <p class="empty" th:if="${#lists.isEmpty(account.callbackTargetsAlreadyConfigured)}">
+              This test run configures no callback target for this provider yet.
+            </p>
+            <p th:unless="${#lists.isEmpty(account.callbackTargetsAlreadyConfigured)}">
+              Callback targets already configured here:
+              <span
+                th:each="known : ${account.callbackTargetsAlreadyConfigured}"
+                class="id"
+                th:text="${known}"
+              ></span>
+            </p>
+            <div class="actions">
+              <button type="submit">Configure this account</button>
+            </div>
+          </form>
+
+          <details>
+            <summary>What this form calls</summary>
+            <p class="note">
+              This form calls the same application service
+              <code th:text="'PUT /__simulator/' + ${account.provider} + '/config'"></code> calls,
+              in the same order and with the same refusals, so a configuration this screen takes is
+              a configuration that call would have taken.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

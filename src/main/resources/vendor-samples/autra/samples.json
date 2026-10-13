@@ -1,0 +1,45 @@
+{
+  "oauth-token-ok": {
+    "evidence": "published example",
+    "note": "the example named OK",
+    "source": "https://autra.readme.io/reference/post_v1-oauth-token",
+    "reference": "autra.md, OAuth",
+    "body": "oauth-token-ok.json"
+  },
+  "oauth-invalid-client-secret": {
+    "evidence": "published rule",
+    "note": "the error table names the text, and the envelope is one string under error",
+    "source": "https://autra.readme.io/reference/post_v1-oauth-token",
+    "reference": "autra.md, OAuth",
+    "rules": {
+      "httpStatus": "400",
+      "error": "invalid clientSecret"
+    }
+  },
+  "sale-approved": {
+    "evidence": "published example",
+    "note": "the example named Aprovado",
+    "source": "https://autra.readme.io/reference/post_v1-acquiring-payments",
+    "reference": "autra.md, Direct Sale With Tokenized Card",
+    "body": "sale-approved.json"
+  },
+  "sale-declined": {
+    "evidence": "published example",
+    "note": "the example named Recusado",
+    "source": "https://autra.readme.io/reference/post_v1-acquiring-payments",
+    "reference": "autra.md, Direct Sale With Tokenized Card",
+    "status": 200,
+    "body": "sale-declined.json"
+  },
+  "acquiring-webhook-headers": {
+    "evidence": "published rule",
+    "note": "the headers every acquiring webhook carries",
+    "source": "https://autra.readme.io/reference/outbound-webhooks",
+    "reference": "autra.md, Acquiring Webhooks",
+    "rules": {
+      "Content-Type": "application/json",
+      "User-Agent": "Autra-Webhooks/1.0",
+      "X-Autra-Signature": "sha256=<hex lowercase>"
+    }
+  }
+}

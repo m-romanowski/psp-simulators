@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Stories')}"></head>
+<body>
+<header th:replace="~{fragments :: bar}"></header>
+<main class="page">
+    <section>
+        <h1>Play a story</h1>
+        <p>
+            Each story opens a test run of its own in the simulator, sets it up through the control API, and then
+            walks you through buying <span th:text="${product.name()}">a thing</span> for
+            <span th:text="${product.price()}">1.00 USD</span> in this shop. Every page of the story links into the
+            simulator's own screens for that run, in a second window.
+        </p>
+        <div class="card" th:each="story : ${stories}">
+            <h2 th:text="${story.title()}">A story</h2>
+            <p th:text="${story.whatHappens()}">What happens.</p>
+            <form method="post" th:action="@{/stories/{slug}(slug=${story.slug()})}">
+                <button type="submit" th:text="'Play ' + ${story.title()}">Play</button>
+            </form>
+        </div>
+    </section>
+    <aside class="story" aria-label="Runs kept for inspection">
+        <h2>Runs kept for inspection</h2>
+        <div th:if="${leftBehind != null and !leftBehind.isEmpty()}" role="alert" data-testid="left-behind">
+            <p>Tidy up could not tidy these runs, so they stay listed and the next Tidy up tries them again:</p>
+            <ul>
+                <li th:each="run : ${leftBehind}">
+                    <code th:text="${run.testRunId()}">shop-1</code>: <span th:text="${run.why()}">why</span>
+                </li>
+            </ul>
+        </div>
+        <p th:if="${runs.isEmpty()}">None. A story's run is kept here after it ends, so it can be read in the
+            simulator.</p>
+        <table th:unless="${runs.isEmpty()}">
+            <thead>
+            <tr>
+                <th>Test run</th>
+                <th>Story</th>
+                <th>Where it stands</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="run : ${runs}">
+                <td>
+                    <a th:href="@{/runs/{id}/{page}(id=${run.testRunId()},page=${run.bought()} ? 'order' : 'product')}"
+                       th:text="${run.testRunId()}">shop-1</a>
+                </td>
+                <td th:text="${run.story().title()}">A story</td>
+                <td>
+                    <span th:text="${run.order().isPresent()} ? ${run.order().get().status().words()} : 'Not bought yet'">
+                        Not bought yet</span>
+                    <a target="psp-sim" th:href="${screens.trail(run.testRunId())}">trail</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <form th:unless="${runs.isEmpty()}" method="post" th:action="@{/tidy-up}">
+            <p>Tidy up resets every kept run in the simulator and removes its account.</p>
+            <button type="submit" class="quiet">Tidy up</button>
+        </form>
+    </aside>
+</main>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Audit')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+      <div th:replace="~{fragments :: reservedRun}"></div>
+
+      <section class="panel">
+        <h2>Filter the trail</h2>
+        <div class="body">
+          <form class="filters" method="get" th:action="@{/ui/audit}">
+            <input type="hidden" name="provider" th:value="${provider}" />
+            <input type="hidden" name="testRunId" th:value="${testRunId}" />
+            <div>
+              <label for="auditId">audit id of one exchange</label>
+              <input id="auditId" type="text" name="auditId" th:value="${filters.auditId}" />
+            </div>
+            <div>
+              <label for="accountId">account</label>
+              <input id="accountId" type="text" name="accountId" th:value="${filters.accountId}" />
+            </div>
+            <div>
+              <label for="origin">surface</label>
+              <select id="origin" name="origin">
+                <option value="" th:selected="${filters.origin == null}">any</option>
+                <option
+                  th:each="known : ${filters.origins}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == filters.origin}"
+                ></option>
+              </select>
+            </div>
+            <div>
+              <label for="direction">direction</label>
+              <select id="direction" name="direction">
+                <option value="" th:selected="${filters.direction == null}">any</option>
+                <option
+                  th:each="known : ${filters.directions}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == filters.direction}"
+                ></option>
+              </select>
+            </div>
+            <div>
+              <label for="method">method</label>
+              <input id="method" type="text" name="method" th:value="${filters.method}" />
+            </div>
+            <div>
+              <label for="status">HTTP status</label>
+              <input id="status" type="text" name="status" th:value="${filters.status}" />
+            </div>
+            <div>
+              <label for="providerObjectId">id the provider answered with</label>
+              <input
+                id="providerObjectId"
+                type="text"
+                name="providerObjectId"
+                th:value="${filters.providerObjectId}"
+              />
+            </div>
+            <div>
+              <label for="scenarioId">scenario id</label>
+              <input id="scenarioId" type="text" name="scenarioId" th:value="${filters.scenarioId}" />
+            </div>
+            <div>
+              <label for="from">from, inclusive</label>
+              <input id="from" type="text" name="from" th:value="${filters.from}" placeholder="2026-09-07T12:00:00Z" />
+            </div>
+            <div>
+              <label for="until">until, exclusive</label>
+              <input id="until" type="text" name="until" th:value="${filters.until}" placeholder="2026-09-07T13:00:00Z" />
+            </div>
+            <div>
+              <label for="limit">page size</label>
+              <input id="limit" type="text" name="limit" th:value="${filters.limit}" placeholder="100" />
+            </div>
+            <button type="submit" class="secondary">Apply</button>
+            <a th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId})}">Clear</a>
+          </form>
+          <p th:replace="~{fragments :: theRunNothingResolved}"></p>
+            <div th:replace="~{fragments :: whatThatIdNames(${theObjectsAnIdNames})}"></div>
+          <details>
+            <summary>
+              What the account filter matches, and why there is no order id and no customer
+            </summary>
+            <p class="note">
+              The account is the identity a tester configured, such as
+              <code>merchant-1</code>, and never a credential: the fields that authenticate an
+              account stay redacted where they are stored, and the trail carries the identity beside
+              them. A row names one where the simulator knew which account acted — a provider
+              exchange whose credentials matched exactly one account of this run, a callback posted
+              to that account's target, a payment a tester started as it — and names none on an
+              exchange whose credentials matched no account or several, and on a row written before
+              the trail carried the column at all. Order id and customer are still not offered. The
+              stored row has no column for either: an order id is each provider's own name for the
+              object this trail already filters by as
+              <code>the id the provider answered with</code>, and the
+              providers of this build do not agree that they have a customer at all, so a core
+              column for either would answer nothing and look like an empty trail.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <div th:replace="~{fragments :: personalData}"></div>
+
+      <section class="panel" th:if="${page}">
+        <h2>Exchanges, oldest first</h2>
+        <div class="body">
+          <p class="refusal" th:if="${page.theExchangeNoRowAnswersTo}">
+            No exchange of this provider and test run was recorded under the audit id
+            <span th:text="${page.theExchangeNoRowAnswersTo}"></span>. Nothing else narrows this
+            page and no cursor was carried into it, so that is the whole trail's answer: either no
+            row was ever written here under that id, or the trail was reset since the link to it
+            was written. Clear the audit id to read this run's whole trail.
+          </p>
+          <p class="refusal" th:if="${page.theAccountNoRowNames}">
+            No row of this test run names the account
+            <span th:text="${page.theAccountNoRowNames}"></span>. Nothing else narrows this page and
+            no cursor was carried into it. Either nothing has acted as that account in this run, or
+            what did is older than the column: a row written before the trail carried an account
+            names none, and no account filter reaches it. Clear the account to read the run's whole
+            trail.
+          </p>
+          <p
+            class="empty"
+            th:if="${#lists.isEmpty(page.rows) and page.theAccountNoRowNames == null
+              and page.theExchangeNoRowAnswersTo == null}"
+          >
+            No exchange of this test run matches. A test run that has never been written to and one
+            that was reset read the same way here.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(page.rows)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>at</th>
+                  <th>account</th>
+                  <th>surface</th>
+                  <th>direction</th>
+                  <th>method</th>
+                  <th>path or target</th>
+                  <th>status</th>
+                  <th>outcome</th>
+                  <th>id the provider answered with</th>
+                  <th>what it refused</th>
+                  <th>scenario</th>
+                  <th>attempt</th>
+                  <th>routed by</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody th:each="row : ${page.rows}">
+                <tr th:classappend="${row.open} ? 'open'">
+                  <td class="stamp" th:text="${row.createdAt}"></td>
+                  <td class="id" th:text="${row.accountId}"></td>
+                  <td th:text="${row.origin}"></td>
+                  <td th:text="${row.direction}"></td>
+                  <td th:text="${row.method}"></td>
+                  <td class="wrap" th:text="${row.path} ?: ${T(dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery).HAS_NO_TARGET}"></td>
+                  <td th:text="${row.status}"></td>
+                  <td>
+                    <span th:replace="~{fragments :: status(${row.outcome})}"></span>
+                  </td>
+                  <td class="id">
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/objects(provider=${provider},testRunId=${testRunId},providerObjectId=${row.providerObjectId})}"
+                      th:text="${row.providerObjectId}"
+                    ></a>
+                  </td>
+                  <td class="wrap" th:text="${row.refused}"></td>
+                  <td class="id" th:text="${row.scenarioId}"></td>
+                  <td th:text="${row.attempt}"></td>
+                  <td th:text="${row.resolutionRule}"></td>
+                  <td>
+                    <a
+                      th:unless="${row.open}"
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},auditId=${filters.auditId},accountId=${filters.accountId},origin=${filters.origin},direction=${filters.direction},method=${filters.method},status=${filters.status},providerObjectId=${filters.providerObjectId},scenarioId=${filters.scenarioId},from=${filters.from},until=${filters.until},limit=${filters.limit},after=${after},open=${row.auditId})}"
+                      >open</a
+                    >
+                    <a
+                      th:if="${row.open}"
+                      th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},auditId=${filters.auditId},accountId=${filters.accountId},origin=${filters.origin},direction=${filters.direction},method=${filters.method},status=${filters.status},providerObjectId=${filters.providerObjectId},scenarioId=${filters.scenarioId},from=${filters.from},until=${filters.until},limit=${filters.limit},after=${after})}"
+                      >close</a
+                    >
+                  </td>
+                  <td>
+                    <a
+                      th:if="${row.providerObjectId}"
+                      th:href="@{/ui/timeline(provider=${provider},testRunId=${testRunId},key=${row.providerObjectId})}"
+                      >Trace</a
+                    >
+                  </td>
+                </tr>
+                <tr th:if="${row.open}" class="open">
+                  <td colspan="15">
+                    <dl class="pairs">
+                      <dt>audit id</dt>
+                      <dd class="id" th:text="${row.auditId}"></dd>
+                      <dt>test run</dt>
+                      <dd class="id" th:text="${row.testRunId}"></dd>
+                      <dt th:if="${row.refused}">what it refused</dt>
+                      <dd class="wrap" th:if="${row.refused}" th:text="${row.refused}"></dd>
+                    </dl>
+                    <div th:if="${row.damage}">
+                      <h3>What was put on the wire</h3>
+                      <dl class="pairs">
+                        <dt>transport fault</dt>
+                        <dd th:text="${row.damage.transportFault} ?: 'none'"></dd>
+                        <dt>fault placement</dt>
+                        <dd th:text="${row.damage.faultPlacement} ?: 'none'"></dd>
+                        <dt>declared content length</dt>
+                        <dd th:text="${row.damage.declaredContentLength}"></dd>
+                        <dt>body bytes written</dt>
+                        <dd th:text="${row.damage.writtenBodyBytes}"></dd>
+                        <dt>held for, milliseconds</dt>
+                        <dd th:text="${row.damage.heldForMillis}"></dd>
+                      </dl>
+                    </div>
+                    <p>
+                      <a
+                        th:if="${!page.valuesShown}"
+                        th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},auditId=${filters.auditId},accountId=${filters.accountId},origin=${filters.origin},direction=${filters.direction},method=${filters.method},status=${filters.status},providerObjectId=${filters.providerObjectId},scenarioId=${filters.scenarioId},from=${filters.from},until=${filters.until},limit=${filters.limit},after=${after},open=${row.auditId},values='show')}"
+                        >Show the values of this exchange</a
+                      >
+                      <a
+                        th:if="${page.valuesShown}"
+                        th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},auditId=${filters.auditId},accountId=${filters.accountId},origin=${filters.origin},direction=${filters.direction},method=${filters.method},status=${filters.status},providerObjectId=${filters.providerObjectId},scenarioId=${filters.scenarioId},from=${filters.from},until=${filters.until},limit=${filters.limit},after=${after},open=${row.auditId})}"
+                        >Hide the values again</a
+                      >
+                    </p>
+                    <div th:replace="~{fragments :: fields('Headers', ${row.headers})}"></div>
+                    <div th:replace="~{fragments :: fields('Body', ${row.body})}"></div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note" th:if="${page.nextCursor}">
+            <a
+              th:href="@{/ui/audit(provider=${provider},testRunId=${testRunId},auditId=${filters.auditId},accountId=${filters.accountId},origin=${filters.origin},direction=${filters.direction},method=${filters.method},status=${filters.status},providerObjectId=${filters.providerObjectId},scenarioId=${filters.scenarioId},from=${filters.from},until=${filters.until},limit=${filters.limit},after=${page.nextCursor})}"
+              >Next page</a
+            >
+          </p>
+          <details th:unless="${page.nextCursor}">
+            <summary>Whether this is the end of the trail</summary>
+            <p class="note">
+              This page is shorter than its page size, so it is the end of the trail as it stands.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

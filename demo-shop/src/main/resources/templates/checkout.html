@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments :: head('Checkout')}"></head>
+<body>
+<header th:replace="~{fragments :: bar}"></header>
+<main class="page">
+    <section>
+        <h1>Checkout</h1>
+        <div class="card">
+            <p><strong th:text="${product.name()}">A thing</strong>, <span th:text="${product.price()}">1.00 USD</span></p>
+            <p>Paid with your saved Visa ending 4242.</p>
+            <form th:unless="${order != null}" method="post"
+                  th:action="@{/runs/{id}/checkout(id=${run.testRunId()})}">
+                <button type="submit" th:text="'Pay ' + ${product.price()}">Pay</button>
+            </form>
+            <p th:if="${order != null}">
+                Paid already. <a th:href="@{/runs/{id}/order(id=${run.testRunId()})}">See the order</a>
+            </p>
+        </div>
+    </section>
+    <aside th:replace="~{fragments :: story(${run}, ${order})}"></aside>
+</main>
+</body>
+</html>

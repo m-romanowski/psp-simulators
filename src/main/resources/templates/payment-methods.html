@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Payment methods')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${methods}">
+        <h2>Payment methods seeded for this provider and test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(methods.rows)}">
+            This test run has seeded no payment method for this provider yet.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(methods.rows)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>alias</th>
+                  <th>type</th>
+                  <th>owner</th>
+                  <th>account</th>
+                  <th>card</th>
+                  <th>provider-native ids</th>
+                  <th>default scenario</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${methods.rows}">
+                  <td>
+                    <span class="id" th:text="${row.fixtureAlias}"></span>
+                    <span class="id" th:text="${row.fixtureId}"></span>
+                  </td>
+                  <td th:text="${row.type}"></td>
+                  <td class="id" th:text="${row.ownerId}"></td>
+                  <td class="id" th:text="${row.merchantId}"></td>
+                  <td>
+                    <span th:if="${row.describesACard()}">
+                      <span th:text="${row.brand}"></span>
+                      <span class="id" th:text="${row.maskedCard}"></span>
+                      <span th:text="${row.expiry}"></span>
+                      <span class="tag" th:text="${row.funding}"></span>
+                    </span>
+                    <span th:unless="${row.describesACard()}" class="empty"
+                      >this type describes no card</span
+                    >
+                  </td>
+                  <td>
+                    <span class="empty" th:if="${#lists.isEmpty(row.providerIds)}"
+                      >this provider reads none</span
+                    >
+                    <div th:each="native : ${row.providerIds}">
+                      <span th:text="${native.key}"></span>
+                      <span class="id" th:text="${native.value}"></span>
+                      <span th:if="${native.namesAnObjectTheProviderHolds()}"
+                        class="tag" th:text="${native.nativeStatus}"></span>
+                      <span th:replace="~{fragments :: status(${native.normalizedStatus})}"></span>
+                      <span th:unless="${native.namesAnObjectTheProviderHolds()}"
+                        class="empty">this provider holds no object under that id yet</span>
+                    </div>
+                  </td>
+                  <td>
+                    <a
+                      class="id"
+                      th:if="${row.namesAScenario() and not row.namesARuleThisRunNoLongerHolds()}"
+                      th:href="@{/ui/scenarios(provider=${provider},testRunId=${testRunId},open=${row.defaultScenario})}"
+                      th:text="${row.defaultScenario}"
+                    ></a>
+                    <span
+                      class="id"
+                      th:if="${row.namesAScenario() and row.namesARuleThisRunNoLongerHolds()}"
+                      th:text="${row.defaultScenario}"
+                    ></span>
+                    <span class="empty" th:unless="${row.namesAScenario()}">none</span>
+                    <span th:if="${row.namesARuleThisRunNoLongerHolds()}" class="empty"
+                      th:text="${methods.theRefusalOfARuleThisRunNoLongerHolds}"></span>
+                  </td>
+                  <td class="rowActions">
+                    <form class="confirm" method="post"
+                      th:action="@{/ui/payment-methods/remove(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="fixtureId" th:value="${row.fixtureId}" />
+                      <input th:id="'confirm-' + ${row.fixtureId}" type="checkbox"
+                        name="confirm" value="yes" />
+                      <label th:for="'confirm-' + ${row.fixtureId}">confirm</label>
+                      <button type="submit">Remove this fixture for good</button>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What a fixture owns, what the provider owns, and where this list comes from</summary>
+            <p class="note">
+              A seeded payment method is a fixture: the simulator owns its identity, its owner, its
+              alias and the card facts, and the provider owns the ids it is driven by. Beside each
+              provider-native id this screen prints what the provider holds under it right now, so an
+              owner id shared by several fixtures names one object on every row that carries it, and
+              a method a client has detached over the provider's own route reads as ended here
+              without leaving the list. This screen
+              shows exactly what
+              <code
+                th:text="'GET /__simulator/' + ${methods.provider} + '/fixtures/payment-methods'"
+              ></code>
+              returns and offers exactly what that control API can do, so a screen never becomes a
+              second source of truth about what a test run holds.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${form}">
+        <h2>Seed a payment method</h2>
+        <div class="body">
+          <div class="caution">
+            This form asks for the last four digits, the brand, the expiry and the funding, and for
+            no card number and no verification code. The simulator stores neither anywhere, so a
+            seeded card has neither to leak, and a decline is chosen by a scenario rule rather than
+            by a card number.
+          </div>
+
+          <p
+            th:replace="~{fragments :: whatAFormRequires(${form.fieldsThisFormRequires()},
+              ${form.fieldsThisFormHas()}, false)}"
+          ></p>
+
+          <form class="form" method="post" th:action="@{/ui/payment-methods/seed(provider=${form.provider},testRunId=${form.testRunId})}">
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('merchantId')})}"></label>
+              <input id="merchantId" type="text" name="merchantId" th:value="${form.merchantId}"
+                placeholder="merchant-1" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('merchantId')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('ownerId')})}"></label>
+              <input id="ownerId" type="text" name="ownerId" th:value="${form.ownerId}"
+                placeholder="customer-123" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('ownerId')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('type')})}"></label>
+              <select id="type" name="type">
+                <option
+                  th:each="known : ${form.typesItAccepts}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == form.type}"
+                ></option>
+              </select>
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('type')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('alias')})}"></label>
+              <input id="alias" type="text" name="alias" th:value="${form.fixtureAlias}"
+                placeholder="visa-success" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('alias')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('brand')})}"></label>
+              <input id="brand" type="text" name="brand" th:value="${form.brand}"
+                placeholder="visa" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('brand')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('last4')})}"></label>
+              <input id="last4" type="text" name="last4" th:value="${form.last4}"
+                placeholder="1111" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('last4')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('expMonth')})}"></label>
+              <input id="expMonth" type="text" name="expMonth" th:value="${form.expMonth}"
+                placeholder="12" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('expMonth')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('expYear')})}"></label>
+              <input id="expYear" type="text" name="expYear" th:value="${form.expYear}"
+                placeholder="2030" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('expYear')})}"
+              ></details>
+            </div>
+            <div>
+              <label th:replace="~{fragments :: fieldLabel(${form.fieldNamed('funding')})}"></label>
+              <input id="funding" type="text" name="funding" th:value="${form.funding}"
+                placeholder="credit" />
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('funding')})}"
+              ></details>
+            </div>
+            <div th:each="field : ${form.providerIds}">
+              <label th:replace="~{fragments :: fieldLabel(${field})}"></label>
+              <input th:id="${field.key}" type="text" th:name="'providerId.' + ${field.key}"
+                th:value="${field.value}" th:placeholder="${field.theHintTheBoxShows}" />
+              <details th:replace="~{fragments :: whatItIsFor(${field})}"></details>
+            </div>
+            <div>
+              <label
+                th:replace="~{fragments :: fieldLabel(${form.fieldNamed('defaultScenario')})}"
+              ></label>
+              <select id="defaultScenario" name="defaultScenario">
+                <option value="">no scenario</option>
+                <option
+                  th:each="known : ${form.scenariosAlreadyWritten}"
+                  th:value="${known}"
+                  th:text="${known}"
+                  th:selected="${known == form.defaultScenario}"
+                ></option>
+              </select>
+              <details
+                th:replace="~{fragments :: whatItIsFor(${form.fieldNamed('defaultScenario')})}"
+              ></details>
+            </div>
+            <div class="actions">
+              <button type="submit">Seed this payment method</button>
+            </div>
+          </form>
+
+          <p class="note" th:if="${form.readsNoProviderNativeId()}">
+            This provider reads no provider-native payment-method id at all, so a fixture seeded
+            here carries the card facts and the scenario it names and nothing a request can be
+            driven by. The provider says why below.
+          </p>
+
+          <p class="empty" th:if="${#lists.isEmpty(form.scenariosAlreadyWritten)}">
+            This test run has written no scenario rule yet, so there is no scenario for a fixture to
+            name. A fixture names a rule this run already holds and writes none of its own: write
+            one on the Scenarios screen first, matching on the provider-native id this fixture will
+            carry.
+          </p>
+
+          <div class="scroll" th:unless="${#lists.isEmpty(form.keysItRefuses)}">
+            <h3>What this provider refuses, in its own words</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>providerIds key</th>
+                  <th>what this provider has instead</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refused : ${form.keysItRefuses}">
+                  <td class="id" th:text="${refused.key}"></td>
+                  <td class="wrap" th:text="${refused.instead}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <details>
+            <summary>What this form calls</summary>
+            <p class="note">
+              This form calls the same application service
+              <code
+                th:text="'POST /__simulator/' + ${form.provider} + '/fixtures/payment-methods'"
+              ></code>
+              calls, in the same order and with the same refusals, so a fixture this screen seeds is
+              a fixture that call would have seeded.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

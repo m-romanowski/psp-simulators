@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Connect my app')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <div class="caution" th:if="${pairing}" th:text="${secrecy}"></div>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>Where this simulator is</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <tbody>
+                <tr>
+                  <th>simulator public base URL</th>
+                  <td class="id" th:text="${pairing.publicBaseUrl}"></td>
+                </tr>
+                <tr>
+                  <th>base URL of provider <span th:text="${pairing.provider}"></span></th>
+                  <td class="id" th:text="${pairing.providerBaseUrl}"></td>
+                </tr>
+                <tr>
+                  <th>test run</th>
+                  <td class="id" th:text="${pairing.testRunId}"></td>
+                </tr>
+                <tr>
+                  <th>test-run header</th>
+                  <td class="id" th:text="${pairing.testRunHeader}"></td>
+                </tr>
+                <tr>
+                  <th>how a request names its account</th>
+                  <td class="wrap" th:text="${pairing.howARequestNamesItsAccount}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why a provider's base URL is this one host and a path</summary>
+            <p class="note">
+              Every provider of this simulator answers on the one host above. What differs between
+              them is the path their contract is published on, so the base URL of a provider is that
+              host and that path and never a host of its own. An application that must keep calling
+              an address of its own reaches this simulator through a route alias instead, below.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>Config snippet per account</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(pairing.snippets)}">
+            This provider has no account in this test run, so there is nothing to pair against.
+            <a th:href="@{/ui/configuration/account(provider=${provider},testRunId=${testRunId})}"
+              >Configure an account</a
+            >.
+          </p>
+          <div class="scroll" th:each="snippet : ${pairing.snippets}">
+            <h3>
+              account <span class="id" th:text="${snippet.accountId}"></span>
+            </h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>setting</th>
+                  <th>value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="setting : ${snippet.settings}">
+                  <td class="id" th:text="${setting.name}"></td>
+                  <td class="wrap">
+                    <span
+                      th:if="${setting.shown.name() == 'VALUE'}"
+                      class="id"
+                      th:text="${setting.value}"
+                    ></span>
+                    <span th:if="${setting.shown.name() == 'WITHHELD_AS_SECRET'}" class="redacted">
+                      set this yourself from
+                      <span class="id" th:text="${setting.fromField}"></span>; provider
+                      <span class="id" th:text="${pairing.provider}"></span> declares that field
+                      secret and this simulator prints no secret anywhere
+                    </span>
+                    <span
+                      th:if="${setting.shown.name() == 'WITHHELD_AS_UNDECLARED'}"
+                      class="withheld"
+                    >
+                      withheld: <span class="id" th:text="${setting.fromField}"></span> is not a
+                      field provider <span class="id" th:text="${pairing.provider}"></span>
+                      declares, and an undeclared field is never printed in plain
+                    </span>
+                    <span th:if="${setting.shown.name() == 'NOT_CONFIGURED'}" class="withheld">
+                      <span class="id" th:text="${setting.fromField}"></span> is not configured on
+                      this account
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Whose names these settings are, and which values are printed</summary>
+            <p class="note">
+              These are the settings provider <span class="id" th:text="${pairing.provider}"></span>
+              declares an application needs. The names are the provider's own. A value is printed
+              only where the provider declares that field is not secret; everything else is named and
+              left for you to fill in from your own record.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>Where this test run's callbacks go</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(pairing.callbackTargets)}">
+            No account of this test run has a callback target, so nothing this provider sends
+            leaves the simulator.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(pairing.callbackTargets)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>account</th>
+                  <th>callback URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="target : ${pairing.callbackTargets}">
+                  <td class="id" th:text="${target.accountId}"></td>
+                  <td class="wrap id" th:text="${target.url}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>The URLs this test run answers on</h2>
+        <div class="body">
+          <p>
+            Bind <span class="id" th:text="${pairing.suggestedRouteAliasTarget}"></span> and the
+            path beneath it as the target of the URL your application calls.
+          </p>
+          <p class="empty" th:if="${#lists.isEmpty(pairing.routeAliases)}">
+            This test run answers on no URL of its own.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(pairing.routeAliases)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>the URL your application calls</th>
+                  <th>the route it reaches</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="alias : ${pairing.routeAliases}">
+                  <td class="wrap id" th:text="${alias.from}"></td>
+                  <td class="wrap id" th:text="${alias.to}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            <a th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId})}"
+              >Bind or release a URL on the Configuration screen</a
+            >
+          </p>
+          <details>
+            <summary>What a route alias binds</summary>
+            <p class="note">
+              A route alias binds one absolute URL your application already calls to one route of
+              this simulator, for this provider and this test run. It names a URL and never a card.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>Pairing payload</h2>
+        <div class="body">
+          <p class="wrap id" th:text="${pairing.qrPayload}"></p>
+          <details>
+            <summary>Why this is a URL and not a code to scan</summary>
+            <p class="note">
+              One URL, and nothing else. It carries this simulator's public base, this provider and
+              this test run, so a phone that reads it opens this same screen on the phone. It is
+              printed rather than drawn as a code: this build carries no encoder it could prove
+              correct, and a symbol nothing can decode back is a picture rather than a payload.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${pairing}">
+        <h2>Did my application's traffic arrive?</h2>
+        <div class="body">
+          <p>
+            <a th:href="${pairing.arrivingTraffic}"
+              >Show this test run's requests that arrived on a provider route</a
+            >
+          </p>
+          <details>
+            <summary>Why this screen counts nothing itself</summary>
+            <p class="note">
+              The trail already answers this, filed under the origin a provider-API request is
+              recorded with, and this screen sends you there rather than counting the same rows a
+              second time beside it.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

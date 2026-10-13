@@ -1,0 +1,334 @@
+name: gate
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  JAVA_DISTRIBUTION: temurin
+  JAVA_VERSION: '25'
+  GRADLE_FLAGS: --console=plain -Dorg.gradle.java.installations.auto-download=false
+
+jobs:
+  shape:
+    name: shape - spotless, comments, exception names, conflicts, migrations, browser validation, task descriptions, sonar suppressions, build logic
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GATE_TASKS: spotlessCheck verifyNoComments verifyNoMergeConflicts verifyMigrationNumbers verifyCaughtExceptionNames verifyNoBrowserValidation verifyEveryFormSendsWhatItCarries verifyTaskDescriptions verifySonarSuppressions :build-logic:test
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Prove every task in the local check runs somewhere in this workflow
+        env:
+          GRADLE_FLAGS: ${{ env.GRADLE_FLAGS }}
+        run: .github/scripts/ci-gate-covers-check.sh .github/workflows/gate.yml ./gradlew
+      - name: Run the source-shape gates and the tests of the build's own gate logic
+        run: ./gradlew ${{ env.GATE_TASKS }} ${{ env.GRADLE_FLAGS }}
+
+  static:
+    name: static - compile, checkstyle, openapi, clickable capabilities, payer page addresses and policies, trail withholding, exclusion budget
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GATE_TASKS: checkstyleMain checkstyleTest verifyOpenApi verifyClickableCapabilities verifyNoPayerUrlOnAScreen verifyNoPayerUrlAmongRelatedObjects verifyEveryPayerPageDeclaresWhatItMayLoad verifyEveryProviderWithholdsWhatItAnswers verifyExclusionBudget
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Run the static gates
+        run: ./gradlew ${{ env.GATE_TASKS }} ${{ env.GRADLE_FLAGS }}
+      - name: Name every checkstyle violation in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py .
+      - name: Keep the checkstyle reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: checkstyle-reports
+          path: build/reports/checkstyle
+          retention-days: 14
+          if-no-files-found: ignore
+
+  tests:
+    name: tests - every suite including the docker-tagged ones, plus jacoco
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GATE_TASKS: test jacocoTestReport jacocoTestCoverageVerification
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Report the Docker the docker-tagged tests will use
+        run: docker version
+      - name: Run every test, including the docker-tagged ones, and verify coverage
+        run: ./gradlew ${{ env.GATE_TASKS }} ${{ env.GRADLE_FLAGS }} --no-build-cache
+      - name: Name every failed test in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py .
+      - name: Keep the test results and the coverage reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-and-jacoco-reports
+          path: |
+            build/test-results/test
+            build/reports/tests
+            build/reports/jacoco
+          retention-days: 14
+          if-no-files-found: warn
+
+  mutation:
+    name: mutation - pitest and the scope it claims to measure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GATE_TASKS: pitest verifyMutationScope
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Run the mutation gate
+        run: ./gradlew ${{ env.GATE_TASKS }} ${{ env.GRADLE_FLAGS }}
+      - name: Name every surviving and uncovered mutant in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py .
+      - name: Keep the pitest reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pitest-reports
+          path: |
+            build/reports/pitest
+            build/reports/pitest-retry
+          retention-days: 14
+          if-no-files-found: warn
+
+  e2e:
+    name: e2e - the e2e-example build, black box over the boot jar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Report the Docker the suite's PostgreSQL container will use
+        run: docker version
+      - name: Build the simulator's boot jar
+        run: ./gradlew bootJar ${{ env.GRADLE_FLAGS }}
+      - name: Point the example suite at that jar and run it
+        working-directory: e2e-example
+        run: |
+          jar="$(find "$GITHUB_WORKSPACE/build/libs" -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -print -quit)"
+          test -n "$jar" || { echo "::error::bootJar produced no runnable jar"; exit 1; }
+          echo "driving $jar"
+          ./gradlew test ${{ env.GRADLE_FLAGS }} "-Dsimulator.jar=$jar"
+      - name: Name every failed scenario in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py e2e-example
+      - name: Keep the example suite's results and the simulator's own log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-example-reports
+          path: |
+            e2e-example/build/test-results/test
+            e2e-example/build/reports/tests
+            build/libs/e2e-example-simulator.log
+          retention-days: 14
+          if-no-files-found: warn
+
+  browser:
+    name: browser - the journeys and the layout, through a real Chromium
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Report the Docker the suite's PostgreSQL container will use
+        run: docker version
+      - name: Restore the browser Playwright would otherwise download
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('browser-e2e/gradle/libs.versions.toml') }}
+      - name: Install the headless Chromium and the system libraries it links against
+        working-directory: browser-e2e
+        run: ./gradlew installTheBrowserThisSuiteDrives ${{ env.GRADLE_FLAGS }} -PwithSystemDeps
+      - name: Build the simulator's boot jar
+        run: ./gradlew bootJar ${{ env.GRADLE_FLAGS }}
+      - name: Point the browser suite at that jar and run it
+        working-directory: browser-e2e
+        run: |
+          jar="$(find "$GITHUB_WORKSPACE/build/libs" -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -print -quit)"
+          test -n "$jar" || { echo "::error::bootJar produced no runnable jar"; exit 1; }
+          echo "driving $jar"
+          ./gradlew test ${{ env.GRADLE_FLAGS }} "-Dsimulator.jar=$jar"
+      - name: Name every failed journey in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py browser-e2e
+      - name: Keep the journey results and the simulator's own log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          path: |
+            browser-e2e/build/test-results/test
+            browser-e2e/build/reports/tests
+            build/libs/browser-e2e-simulator.log
+          name: browser-e2e-reports
+          retention-days: 14
+          if-no-files-found: warn
+
+  demo-shop:
+    name: demo shop - its own suite, its real-browser walk, and its one command
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the JDK the Gradle toolchain asks for
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Gradle, validate both wrappers, restore the Gradle home cache
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Report the Docker the walk's PostgreSQL container and the compose stack will use
+        run: |
+          docker version
+          docker compose version
+      - name: Restore the browser Playwright would otherwise download
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ms-playwright-${{ runner.os }}-${{ hashFiles('demo-shop/gradle/libs.versions.toml') }}
+      - name: Install the headless Chromium and the system libraries it links against
+        working-directory: demo-shop
+        run: ./gradlew installTheBrowserTheWalkDrives ${{ env.GRADLE_FLAGS }}
+      - name: Run the shop's own suite and the walk through a real browser
+        working-directory: demo-shop
+        run: ./gradlew check ${{ env.GRADLE_FLAGS }}
+      - name: Name every failed story in this log
+        if: failure()
+        run: python3 .github/scripts/ci-name-the-failure.py demo-shop
+      - name: Name whatever already listens on the ports both stacks publish
+        run: ss -lntH 'sport = :8080 or sport = :8081 or sport = :8082 or sport = :5432' || true
+      - name: Build both images, start the stack beside the root one, and prove each answers on its own address
+        run: .github/scripts/ci-demo-shop-one-command-works.sh
+      - name: Keep the shop's test results and the simulator's own log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: demo-shop-reports
+          path: |
+            demo-shop/build/test-results
+            demo-shop/build/reports/tests
+            build/libs/demo-shop-simulator.log
+          retention-days: 14
+          if-no-files-found: warn
+
+  one-command:
+    name: one command - the stack a clone with nothing but Docker brings up
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the commit under test
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Report the Docker that builds the image and runs the stack, and install nothing else
+        run: |
+          docker version
+          docker compose version
+      - name: Name whatever already listens on the ports the stack publishes
+        run: ss -lntH 'sport = :8080 or sport = :5432' || true
+      - name: Build the image, start the stack twice, and prove it answers what one command promises
+        run: .github/scripts/ci-one-command-works.sh
+
+  gate:
+    name: gate
+    needs: [shape, static, tests, mutation, e2e, browser, demo-shop, one-command]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every gate job succeeded, and name the ones that did not
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          printf '%s\n' "$RESULTS"
+          failed="$(printf '%s\n' "$RESULTS" | python3 -c '
+          import json, sys
+          jobs = json.load(sys.stdin)
+          print("\n".join(sorted(name for name, job in jobs.items() if job["result"] != "success")))
+          ')"
+          if [ -n "$failed" ]; then
+            printf '%s\n' "$failed" | while read -r job; do
+              echo "::error::gate job $job did not succeed"
+            done
+            { echo "### The gate did not pass"; echo; printf '%s\n' "$failed" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          { echo "### The gate passed"; echo; echo "Every job in the gate succeeded on this commit."; } >> "$GITHUB_STEP_SUMMARY"

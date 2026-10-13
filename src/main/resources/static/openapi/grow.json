@@ -1,0 +1,363 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider grow",
+    "version": "0.1.0",
+    "description": "Provider grow answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/grow.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/light/server/1.0/approveTransaction": {
+      "post": {
+        "operationId": "approveTransaction",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/cancelBitTransaction": {
+      "post": {
+        "operationId": "cancelBitTransaction",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/createPaymentProcess": {
+      "post": {
+        "operationId": "createPaymentProcess",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/createTransactionWithToken": {
+      "post": {
+        "operationId": "createTransactionWithToken",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/getPaymentProcessInfo": {
+      "post": {
+        "operationId": "getPaymentProcessInfo",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/getTokenTransactionsByExternalIdentifiers": {
+      "post": {
+        "operationId": "getTokenTransactionsByExternalIdentifiers",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/getTokenTransactionsByExternalIdentifiers/": {
+      "post": {
+        "operationId": "getTokenTransactionsByExternalIdentifiers",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/getTransactionInfo": {
+      "post": {
+        "operationId": "getTransactionInfo",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/refundTransaction": {
+      "post": {
+        "operationId": "refundTransaction",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/settleSuspendedTransaction": {
+      "post": {
+        "operationId": "settleSuspendedTransaction",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider grow reads this body in its own wire format, specified in doc/grow.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/api/light/server/1.0/updateMyUrl": {
+      "get": {
+        "operationId": "updateMyUrl",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/light/server/1.0/updateMyUrl/": {
+      "get": {
+        "operationId": "updateMyUrl",
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/far": {
+      "get": {
+        "operationId": "open",
+        "parameters": [
+          {
+            "name": "l",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "name": "l",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "card",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider grow answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/grow.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider grow answers, specified in doc/grow.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

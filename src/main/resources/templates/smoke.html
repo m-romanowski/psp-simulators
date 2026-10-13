@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Checks against the real PSP')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+
+      <section class="panel">
+        <h2>Checks against the real PSP</h2>
+        <div class="body">
+          <form method="post" th:action="@{/ui/smoke/run(provider=${provider},testRunId=${testRunId})}">
+            <button type="submit">Run the checks</button>
+          </form>
+          <details>
+            <summary>What these checks drive, and which test run they write to</summary>
+            <p class="note">
+              These checks drive this simulator's own provider-compatible HTTP routes from inside the
+              running application, exactly as a client would, and read every answer against a
+              sample of the provider's own answer, recorded from its published examples, its
+              published rules or a live probe. They need no real PSP and no
+              credentials of yours. Every request they make is stamped into the test run
+              <code th:text="${checkRun}">smoke</code>, which is reset before each check, so nothing
+              they write reaches a run of yours.
+            </p>
+          </details>
+          <p class="empty" th:unless="${smoke.ran}" th:text="${smoke.summary}"></p>
+          <p th:if="${smoke.ran}" th:text="${smoke.summary}"></p>
+          <p class="note" th:if="${smoke.ran}">
+            <span th:text="${smoke.passed}">0</span> held,
+            <span th:text="${smoke.failed}">0</span> did not hold,
+            <span th:text="${smoke.notApplicable}">0</span> do not apply, in
+            <span th:text="${smoke.tookMillis}">0</span> ms.
+          </p>
+          <p class="note" th:unless="${#lists.isEmpty(smoke.uncovered)}">
+            No check is published yet for
+            <span th:each="name, i : ${smoke.uncovered}"
+              ><code th:text="${name}">provider</code
+              ><span th:unless="${i.last}">, </span></span
+            >. A provider with no check is listed here rather than shown as passing.
+          </p>
+          <div class="scroll" th:if="${smoke.ran}">
+            <table>
+              <thead>
+                <tr>
+                  <th>provider</th>
+                  <th>operation</th>
+                  <th>verdict</th>
+                  <th>field</th>
+                  <th>evidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${smoke.rows}">
+                  <td th:text="${row.provider}">provider</td>
+                  <td th:text="${row.operation}">operation</td>
+                  <td th:text="${row.verdict}">held</td>
+                  <td th:text="${row.field}"></td>
+                  <td class="wrap" th:text="${row.evidence}">evidence</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

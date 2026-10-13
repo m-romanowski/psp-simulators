@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Configuration')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Accounts configured for this provider and test run</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(configuration.accounts)}">
+            This provider has no account in this test run.
+          </p>
+          <p>
+            <a
+              th:href="@{/ui/configuration/account(provider=${provider},testRunId=${testRunId})}"
+              >Configure an account for this provider</a
+            >
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(configuration.accounts)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>account</th>
+                  <th>configuration</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody th:each="account : ${configuration.accounts}">
+                <tr>
+                  <td class="id" th:text="${account.accountId}"></td>
+                  <td>
+                    <span th:if="${account.heldByTheProvider}" class="tag fact"
+                      >held by the provider</span
+                    >
+                    <span th:unless="${account.heldByTheProvider}" class="tag"
+                      >the provider holds no row for this identity</span
+                    >
+                  </td>
+                  <td class="rowActions">
+                    <span class="links">
+                      <a
+                        th:unless="${account.open}"
+                        th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId},open=${account.accountId})}"
+                        >Open</a
+                      >
+                      <a
+                        th:if="${account.open}"
+                        th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId})}"
+                        >Close</a
+                      >
+                      <a
+                        th:href="@{/ui/configuration/account(provider=${provider},testRunId=${testRunId},accountId=${account.accountId})}"
+                        >Replace</a
+                      >
+                    </span>
+                    <form class="confirm" method="post"
+                      th:action="@{/ui/configuration/account/remove(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="accountId" th:value="${account.accountId}" />
+                      <input th:id="'confirm-' + ${account.accountId}" type="checkbox"
+                        name="confirm" value="yes" />
+                      <label th:for="'confirm-' + ${account.accountId}">confirm</label>
+                      <button type="submit">Remove this account for good</button>
+                    </form>
+                  </td>
+                </tr>
+                <tr th:if="${account.open}" class="open">
+                  <td colspan="3">
+                    <p class="empty" th:unless="${account.heldByTheProvider}">
+                      The simulator keeps this identity and the provider keeps no configuration
+                      under it, so a request of this account has nothing to be answered from. The
+                      two rows are written in one transaction, so this is a divergence worth
+                      reporting rather than a state a configuration call can leave behind.
+                    </p>
+                    <p th:if="${account.heldByTheProvider}">
+                      <a
+                        th:unless="${configuration.valuesShown}"
+                        th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId},open=${account.accountId},values='show')}"
+                        >Show the values this account was configured with</a
+                      >
+                      <a
+                        th:if="${configuration.valuesShown}"
+                        th:href="@{/ui/configuration(provider=${provider},testRunId=${testRunId},open=${account.accountId})}"
+                        >Hide the values again</a
+                      >
+                    </p>
+                    <div class="scroll" th:unless="${#lists.isEmpty(account.configuration)}">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>property</th>
+                            <th>configured</th>
+                            <th>value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr th:each="field : ${account.configuration}">
+                            <td class="id" th:text="${field.name}"></td>
+                            <td th:text="${field.occurrences}"></td>
+                            <td class="wrap">
+                              <span th:if="${field.occurrences == 0}" class="withheld"
+                                >this account configured none</span
+                              >
+                              <span
+                                th:if="${field.occurrences > 0 and field.visibility.name() == 'REDACTED_ON_WRITE'}"
+                                class="redacted"
+                                >a credential; the provider hands this screen a marker and never
+                                the value</span
+                              >
+                              <span
+                                th:if="${field.occurrences > 0 and field.visibility.name() == 'WITHHELD'}"
+                                class="withheld"
+                                >hidden until asked for</span
+                              >
+                              <span
+                                th:if="${field.visibility.name() == 'SHOWN'}"
+                                th:each="value : ${field.values}"
+                              >
+                                <span
+                                  th:if="${value.readsAs != null}"
+                                  th:text="${value.readsAs}"
+                                ></span>
+                                <span class="id" th:text="${value.value}"></span>
+                              </span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>What the simulator keeps, and whose names the properties above are</summary>
+            <p class="note">
+              The simulator keeps an account's identity and its test run; every other configured
+              value belongs to the provider, in the provider's own table, under the provider's own
+              names. This screen asks the provider what it will disclose of one account and prints
+              the answer without reading it, so the names above are
+              <span class="id" th:text="${configuration.provider}"></span>'s own vocabulary and not
+              a list this screen knows.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Callback targets this test run delivers to</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(configuration.webhookTargets)}">
+            No callback target is configured, so a send is refused rather than posted anywhere.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(configuration.webhookTargets)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>account</th>
+                  <th>target URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="target : ${configuration.webhookTargets}">
+                  <td class="id" th:text="${target.accountId}"></td>
+                  <td class="wrap id" th:text="${target.url}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>How a target is joined to an account, and where signing material lives</summary>
+            <p class="note">
+              A target is joined to an account by the identity above and by nothing else. Signing
+              material for a callback is not kept here: a provider that signs one keeps the secret
+              in its own account table, where it appears among the properties above.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>URLs this test run answers on</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(configuration.routeAliases)}">
+            No route alias is bound to this test run, so a provider request reaches it by the
+            test-run header or by the credentials it carries.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(configuration.routeAliases)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>the URL the application calls</th>
+                  <th>the route this simulator serves</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="alias : ${configuration.routeAliases}">
+                  <td class="wrap id" th:text="${alias.from}"></td>
+                  <td class="wrap id" th:text="${alias.to}"></td>
+                  <td class="rowActions">
+                    <form class="confirm" method="post"
+                      th:action="@{/ui/configuration/route-alias/release(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="from" th:value="${alias.from}" />
+                      <input th:id="'release-' + ${alias.to}" type="checkbox"
+                        name="confirm" value="yes" />
+                      <label th:for="'release-' + ${alias.to}">confirm</label>
+                      <button type="submit">Release this URL</button>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>Bind another URL to this test run</h3>
+          <form class="form" method="post" th:action="@{/ui/configuration/route-alias(provider=${provider},testRunId=${testRunId})}">
+            <div class="wide">
+              <label for="aliasFrom">from, the URL the application calls</label>
+              <input
+                id="aliasFrom"
+                type="text"
+                name="from"
+                placeholder="https://api.provider.example/v2/merchant-1/payments"
+              />
+            </div>
+            <div class="wide">
+              <label for="aliasTo">to, the route this simulator serves</label>
+              <input
+                id="aliasTo"
+                type="text"
+                name="to"
+                placeholder="/api/light/server/1.0/createPaymentProcess"
+              />
+            </div>
+            <div class="actions">
+              <button type="submit">Bind this URL to the test run</button>
+            </div>
+          </form>
+          <details>
+            <summary>How an alias is matched, what outranks it, and what releasing one is for</summary>
+            <p class="note">
+              A request arriving on the host and path of an alias is served as the route beside it
+              and belongs to this test run, and the audit trail records the URL the application
+              called rather than the route that answered it. The alias is matched on the host and
+              the whole path exactly, with no prefix and no wildcard, and the host is read from
+              <span class="id">X-Forwarded-Host</span> when a proxy sends one and from
+              <span class="id">Host</span> otherwise. The test-run header outranks an alias; an
+              alias outranks the credentials a request carries. Binding a URL an alias of another
+              test run already holds is refused rather than taken from it, and binding one this run
+              already holds replaces the route it pointed at. Releasing a URL is the only way to
+              free it for another test run: a configuration that leaves an alias out leaves it
+              bound, and reset never touches it.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>This test run's clock</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>now, as this test run reads it</dt>
+            <dd class="id" th:text="${configuration.clock.now}"></dd>
+            <dt>pinned to</dt>
+            <dd class="id" th:if="${configuration.clock.pinnedTo}"
+              th:text="${configuration.clock.pinnedTo}"></dd>
+            <dd th:unless="${configuration.clock.pinnedTo}">
+              nothing; this test run reads the host clock
+            </dd>
+          </dl>
+          <h3>Pin the clock to an instant</h3>
+          <form class="form" method="post" th:action="@{/ui/configuration/clock(provider=${provider},testRunId=${testRunId})}">
+            <div>
+              <label for="fixedNow">fixed now</label>
+              <input
+                id="fixedNow"
+                type="text"
+                name="fixedNow"
+                th:value="${configuration.clock.pinnedTo}"
+                placeholder="2026-09-07T12:00:00Z"
+              />
+              <span class="note">an ISO-8601 instant, or empty to release the run</span>
+            </div>
+            <div class="actions">
+              <button type="submit">Pin this test run's clock</button>
+            </div>
+          </form>
+
+          <h3>Move the pinned clock forward</h3>
+          <form class="form" method="post" th:action="@{/ui/configuration/clock/advance(provider=${provider},testRunId=${testRunId})}">
+            <div>
+              <label for="advanceBy">advance by</label>
+              <span class="spanOfTime">
+                <input id="advanceBy" type="text" inputmode="numeric" name="advanceBy" th:placeholder="${configuration.clock.theNumberAnAdvanceHints}" />
+                <select
+                  id="unitOf.advanceBy"
+                  name="unitOf.advanceBy"
+                  aria-label="the unit this clock is advanced by"
+                >
+                  <option
+                    th:each="unit : ${configuration.clock.units}"
+                    th:value="${unit.value}"
+                    th:text="${unit.whatItMeans}"
+                    th:selected="${unit.chosen}"
+                  ></option>
+                </select>
+              </span>
+              <span class="note">a number and a unit, added to the pinned instant</span>
+            </div>
+            <div class="actions">
+              <button type="submit">Advance this test run's clock</button>
+            </div>
+          </form>
+          <details>
+            <summary>Whose clock this is, how to release it, and what advancing it expires</summary>
+            <p class="note">
+              The clock belongs to the test run and not to a provider, so pinning it here moves time
+              for every provider of
+              <span class="id" th:text="${configuration.testRunId}"></span>. Leave the field empty
+              and submit to release the run back to the host clock. Nothing scheduled falls due on a
+              pinned clock until the clock is moved.
+            </p>
+            <p class="note">
+              Advancing takes a number and a unit and adds that span to the instant this run is
+              pinned to, so two advances of an hour each leave the run two hours ahead of where it
+              started. A control call writes the same span as an ISO-8601 duration. Advancing is
+              the only control this simulator offers for making something fall due or run out: a
+              hosted session, a hold, a token, a scheduled callback and a
+              retry all carry a deadline recorded when they were created and compared against this
+              clock, so moving the clock past a deadline expires that one thing and nothing else. A
+              run that reads the host clock cannot be advanced, because a duration added to a clock
+              that is already moving names no instant; pin it first.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Settings this test run uses</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>callback attempts per delivery</dt>
+            <dd th:text="${configuration.deployment.webhookAttemptCap}"></dd>
+            <dt th:if="${#lists.isEmpty(settings.settings)}">delay before each attempt</dt>
+            <dd
+              th:if="${#lists.isEmpty(settings.settings)}"
+              class="id"
+              th:text="${#strings.listJoin(configuration.deployment.webhookRetryDelays, ', ')}"
+            ></dd>
+          </dl>
+          <p class="empty" th:if="${#lists.isEmpty(settings.settings)}">
+            Provider <span class="id" th:text="${settings.provider}"></span>
+            declares no setting a test run can change, so the plan above is the one this simulator
+            was started with.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(settings.settings)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>setting</th>
+                  <th>the value this test run uses</th>
+                  <th>where that value comes from</th>
+                  <th>the default this provider declares</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="setting : ${settings.settings}">
+                  <td class="id" th:text="${setting.key}"></td>
+                  <td class="wrap id" th:text="${setting.theValueTheTestRunUses}"></td>
+                  <td>
+                    <span th:if="${setting.setByThisTestRun}" class="tag fact"
+                      >this test run set it</span
+                    >
+                    <span th:unless="${setting.setByThisTestRun}" class="tag"
+                      >the default, until this test run sets one</span
+                    >
+                  </td>
+                  <td
+                    class="wrap id"
+                    th:text="${setting.theValueTheProviderDefaultsTo}"
+                  ></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h3 th:unless="${#lists.isEmpty(settings.settings)}">Set a setting for this test run</h3>
+          <form
+            class="form"
+            method="post"
+            th:action="@{/ui/configuration/settings(provider=${provider},testRunId=${testRunId})}"
+            th:unless="${#lists.isEmpty(settings.settings)}"
+          >
+            <div class="wide" th:each="setting : ${settings.settings}">
+              <label th:for="${setting.key}">
+                <span th:text="${setting.label}"></span>
+                <span th:if="${setting.refused}" class="tag fact">refused</span>
+              </label>
+              <input
+                type="text"
+                th:id="${setting.key}"
+                th:name="'setting.' + ${setting.key}"
+                th:value="${setting.theValueTheFieldCarries}"
+              />
+              <span class="note" th:text="${setting.shape}"></span>
+            </div>
+            <div class="actions">
+              <button type="submit">Set these settings for this test run</button>
+            </div>
+          </form>
+          <details>
+            <summary>Whose plan this is, and what setting one leaves alone</summary>
+            <p class="note">
+              A setting belongs to one provider and one test run, so the numbers above are read for
+              provider <span class="id" th:text="${settings.provider}"></span> in test run
+              <span class="id" th:text="${settings.testRunId}"></span> and not once for the
+              deployment. The plan holds one delay per attempt, so its length is the attempt cap
+              beside it. A callback delivery already scheduled keeps the plan it was scheduled with.
+              Settings merge: a setting this form leaves unchanged stays as it was, nothing removes
+              one once a test run has set it, and resetting the test run leaves them all. Emptying a
+              field is not a way back to the default this provider declares; typing that default is.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Settings this simulator was started with</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>public base URL</dt>
+            <dd class="id" th:text="${configuration.deployment.publicBaseUrl}"></dd>
+            <dt>default test run</dt>
+            <dd class="id" th:text="${configuration.deployment.defaultTestRunId}"></dd>
+          </dl>
+          <details>
+            <summary>Why these two are apart from the settings above</summary>
+            <p class="note">
+              These two are read once at startup from the environment and the configuration file,
+              they belong to the deployment rather than to a provider or a test run, and no screen
+              and no control call moves them while the simulator is running.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Test-run routing by header</h2>
+        <div class="body">
+          <dl class="pairs">
+            <dt>header</dt>
+            <dd class="id" th:text="${configuration.deployment.testRunHeader}"></dd>
+            <dt>state</dt>
+            <dd><span class="tag fact">honoured, and on by default</span></dd>
+          </dl>
+          <details>
+            <summary>Why routing by header is not authentication</summary>
+            <p class="note">
+              This header routes; it does not authenticate, and it is listed apart from the
+              permissive modes below for that reason. A request that names a test run is still
+              checked against the credentials configured for that run, and a header naming a run
+              those credentials do not belong to is refused like any other credential failure. A
+              header naming a test run that does not exist is refused rather than falling through to
+              the credentials.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${configuration}">
+        <h2>Not on this screen</h2>
+        <div class="body">
+          <details>
+            <summary>One thing the Configuration screen is asked for, and why it is absent</summary>
+            <p class="note">
+              This is required of the Configuration screen and is absent rather than empty, because
+              nothing behind it exists to be shown or changed today.
+            </p>
+            <dl class="pairs">
+              <dt>permissive-auth modes</dt>
+              <dd>
+                No setting turns one on or off anywhere in this simulator, so there is no mode to
+                report as off. Every provider checks its own credentials and signatures on every
+                request of every test run.
+              </dd>
+            </dl>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

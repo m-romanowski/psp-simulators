@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Personas')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <div class="caution" th:if="${personas}" th:text="${nothingHidden}"></div>
+
+      <section class="panel" th:if="${created}" id="created">
+        <h2>What this persona created</h2>
+        <div class="body">
+          <p>
+            Persona <span class="id" id="created-persona" th:text="${created.persona}"></span>
+            created the objects below in test run
+            <span class="id" th:text="${created.testRunId}"></span>.
+          </p>
+          <details>
+            <summary>What a persona leaves behind</summary>
+            <p class="note">
+              Each object above is an ordinary object of this run: open it on its own screen to read
+              it, change what that screen lets you change, or remove it on its own.
+            </p>
+          </details>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>what</th>
+                  <th>id</th>
+                  <th>detail</th>
+                  <th>where it lives</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="rule : ${created.rules}">
+                  <td>scenario rule</td>
+                  <td class="id" th:id="'created-rule-' + ${rule.scenarioId}" th:text="${rule.scenarioId}"></td>
+                  <td>
+                    <span th:text="${rule.operation} ?: 'any operation'"></span>
+                    <span class="tag" th:text="${rule.action}"></span>
+                  </td>
+                  <td>
+                    <a
+                      th:id="'open-rule-' + ${rule.scenarioId}"
+                      th:href="@{/ui/scenarios(provider=${provider},testRunId=${created.testRunId})}"
+                      >Scenarios</a
+                    >
+                  </td>
+                </tr>
+                <tr th:each="instrument : ${created.instruments}">
+                  <td>payment method</td>
+                  <td class="id" th:id="'created-fixture-' + ${instrument.fixtureId}" th:text="${instrument.fixtureId}"></td>
+                  <td>
+                    <span class="id" th:text="${instrument.alias}"></span>
+                    <span
+                      th:each="id : ${instrument.providerNativeIds}"
+                      class="id"
+                      th:text="${id} + ' '"
+                    ></span>
+                    <span
+                      th:if="${instrument.defaultScenario}"
+                      th:text="'triggers ' + ${instrument.defaultScenario}"
+                    ></span>
+                  </td>
+                  <td>
+                    <a
+                      th:id="'open-fixture-' + ${instrument.fixtureId}"
+                      th:href="@{/ui/payment-methods(provider=${provider},testRunId=${created.testRunId})}"
+                      >Payment methods</a
+                    >
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${proposal}" id="proposal">
+        <h2>What this persona would create, not yet created</h2>
+        <div
+          class="body"
+          th:with="howEachOfThemIsMinted=${#sets.toSet(proposal.instruments.![howThoseAreMinted])}"
+        >
+          <p class="caution" th:text="${runWide}"></p>
+          <p>
+            Nothing has been created. Persona
+            <span class="id" id="proposal-persona" th:text="${proposal.persona}"></span> expands the
+            presets <span class="id" th:text="${proposal.presets}"></span> into the rules below for
+            provider <span class="id" th:text="${provider}"></span>, and seeds the instruments
+            beside them.
+          </p>
+          <details>
+            <summary>When the provider-native ids below are minted, and how each is minted</summary>
+            <p class="note">
+              The provider-native ids are minted when you confirm, so the values you get are the
+              values on the Payment methods screen afterwards.
+            </p>
+            <div th:each="minted : ${howEachOfThemIsMinted}">
+              <p>
+                <span
+                  th:each="instrument : ${proposal.instruments}"
+                  th:if="${instrument.howThoseAreMinted == minted}"
+                  class="id"
+                  th:text="${instrument.alias} + ' '"
+                ></span>
+              </p>
+              <p class="note" th:text="${minted}"></p>
+            </div>
+          </details>
+          <p
+            class="caution"
+            id="proposal-unforeseeable-refusal"
+            th:if="${proposal.theRefusalThisPreviewCannotForesee}"
+            th:text="${proposal.theRefusalThisPreviewCannotForesee}"
+          ></p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>priority</th>
+                  <th>operation</th>
+                  <th>action</th>
+                  <th>story</th>
+                  <th>when state</th>
+                  <th>then state</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="rule : ${proposal.rules}">
+                  <td th:text="${rule.priority}"></td>
+                  <td th:text="${rule.operation} ?: 'any'"></td>
+                  <td>
+                    <span class="tag" th:text="${rule.action}"></span>
+                    <span th:if="${rule.providerCode}" class="id" th:text="${rule.providerCode}"></span>
+                    <span th:if="${rule.fault}" class="tag fact" th:text="${rule.fault}"></span>
+                    <span th:if="${rule.httpStatus}" th:text="${rule.httpStatus}"></span>
+                    <span th:if="${rule.delayMs}" th:text="${rule.delayMs} + ' ms'"></span>
+                    <span
+                      th:if="${rule.settlesAfterMs}"
+                      th:text="'settles after ' + ${rule.settlesAfterMs} + ' ms'"
+                    ></span>
+                  </td>
+                  <td th:text="${rule.story}"></td>
+                  <td th:text="${rule.story == null ? '' : (rule.whenState ?: 'any state')}"></td>
+                  <td th:text="${rule.thenState}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>instrument</th>
+                  <th>owner</th>
+                  <th>card</th>
+                  <th>provider-native ids</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="instrument : ${proposal.instruments}">
+                  <td class="id" th:text="${instrument.alias}"></td>
+                  <td th:text="${instrument.ownerId}"></td>
+                  <td>
+                    <span th:if="${instrument.brand}" th:text="${instrument.brand}"></span>
+                    <span th:if="${instrument.maskedCard}" class="id" th:text="${instrument.maskedCard}"></span>
+                    <span th:if="${instrument.expiry}" th:text="${instrument.expiry}"></span>
+                  </td>
+                  <td>
+                    <span
+                      th:each="key : ${instrument.providerNativeIds}"
+                      class="id"
+                      th:text="${key} + ' '"
+                    ></span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${personas}">
+        <h2>Personas provider <span th:text="${personas.provider}"></span> publishes</h2>
+        <div class="body">
+          <p class="empty" th:if="${#lists.isEmpty(personas.personas)}">
+            This provider publishes no persona. What it has instead is named below.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(personas.personas)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>persona</th>
+                  <th>what you get</th>
+                  <th>presets it writes</th>
+                  <th>instruments it seeds</th>
+                  <th>seed it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="row : ${personas.personas}">
+                  <td>
+                    <span class="id" th:id="'persona-' + ${row.name}" th:text="${row.name}"></span>
+                    <span class="tag" th:text="${row.intent}"></span>
+                    <span
+                      th:if="${row.theRunAlreadyHoldsIt}"
+                      class="tag fact"
+                      th:id="'held-' + ${row.name}"
+                      >this run already holds it</span
+                    >
+                  </td>
+                  <td class="wrap" th:text="${row.whatItGives}"></td>
+                  <td>
+                    <span
+                      th:each="preset : ${row.presets}"
+                      class="id"
+                      th:text="${preset} + ' '"
+                    ></span>
+                  </td>
+                  <td>
+                    <span th:each="instrument : ${row.instruments}">
+                      <span class="id" th:text="${instrument.alias}"></span>
+                      <span th:if="${instrument.maskedCard}" th:text="${instrument.maskedCard}"></span>
+                      <span th:each="key : ${instrument.providerNativeIds}">
+                        <span class="tag" th:text="${key}"></span>
+                      </span>
+                    </span>
+                  </td>
+                  <td>
+                    <form class="rowForm" method="post" th:action="@{/ui/personas/seed(provider=${provider},testRunId=${testRunId})}">
+                      <input type="hidden" name="persona" th:value="${row.name}" />
+                      <span class="field">
+                        <label th:for="'merchantId-' + ${row.name}">account</label>
+                        <input
+                          type="text"
+                          th:id="'merchantId-' + ${row.name}"
+                          name="merchantId"
+                          placeholder="an account this run configures"
+                        />
+                      </span>
+                      <span class="confirmGroup">
+                        <input
+                          type="checkbox"
+                          th:id="'confirm-' + ${row.name}"
+                          name="confirm"
+                          value="yes"
+                        />
+                        <label th:for="'confirm-' + ${row.name}">confirm</label>
+                      </span>
+                      <button type="submit" th:id="'seed-' + ${row.name}">
+                        Seed this persona
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details th:unless="${#lists.isEmpty(personas.theFactsMoreThanOnePersonaRepeats)}">
+            <summary>What more than one of the personas above gives you, and which of them do</summary>
+            <div th:each="shared : ${personas.theFactsMoreThanOnePersonaRepeats}">
+              <p>
+                <span
+                  th:each="name : ${shared.personas}"
+                  class="id"
+                  th:text="${name} + ' '"
+                ></span>
+              </p>
+              <p class="note" th:text="${shared.fact}"></p>
+            </div>
+          </details>
+          <details>
+            <summary>What seeding a persona reaches</summary>
+            <p class="note" th:text="${runWide}"></p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${personas}">
+        <h2>What this provider has instead</h2>
+        <div class="body" th:with="whatItHasInstead=${#sets.toSet(personas.uncovered.![instead])}">
+          <p class="empty" th:if="${#lists.isEmpty(personas.uncovered)}">
+            This provider publishes a persona for every intent this simulator names.
+          </p>
+          <div class="scroll" th:unless="${#lists.isEmpty(personas.uncovered)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>intent</th>
+                  <th>what a tester wanted</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="gap : ${personas.uncovered}">
+                  <td class="id" th:id="'uncovered-' + ${gap.intent}" th:text="${gap.intent}"></td>
+                  <td class="wrap" th:text="${gap.whatATesterGets}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details th:unless="${#lists.isEmpty(personas.uncovered)}">
+            <summary>What this provider has instead of each of those</summary>
+            <div th:each="instead : ${whatItHasInstead}">
+              <p>
+                <span
+                  th:each="gap : ${personas.uncovered}"
+                  th:if="${gap.instead == instead}"
+                  class="id"
+                  th:text="${gap.intent} + ' '"
+                ></span>
+              </p>
+              <p class="note" th:text="${instead}"></p>
+            </div>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

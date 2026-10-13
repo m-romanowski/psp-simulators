@@ -1,0 +1,6555 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator control API",
+    "version": "0.1.0",
+    "description": "Every schema in this document was generated from the record that serves it, read out of the compiled class files of this build, and the build fails when the two disagree. A component that can arrive null is typed to allow null and is not required; no other component may be absent. Nothing here carries an example, because an example would be a value and this document states shapes only: a field that holds a credential is named and never shown."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/__simulator/{provider}/address": {
+      "get": {
+        "operationId": "address",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.AddressResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddressResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/audit": {
+      "get": {
+        "operationId": "audit",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "auditId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerObjectId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scenarioId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.AuditRecordView as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditRecordView"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/clock/advance": {
+      "post": {
+        "operationId": "advanceTheClock",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.clock.DeclaredAdvance as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredAdvance"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ClockResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClockResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/config": {
+      "put": {
+        "operationId": "configure",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredConfiguration as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredConfiguration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ConfigurationResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigurationResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/config/accounts/{accountId}": {
+      "delete": {
+        "operationId": "forgetAccount",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.AccountRemovedResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountRemovedResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/config/fields": {
+      "get": {
+        "operationId": "accountFields",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.AccountFieldsResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountFieldsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/config/route-aliases": {
+      "delete": {
+        "operationId": "releaseRouteAlias",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.RouteAliasReleasedResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteAliasReleasedResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/fixtures/payment-methods": {
+      "get": {
+        "operationId": "paymentMethods",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.FixtureResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FixtureResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "seedPaymentMethod",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredPaymentMethodFixture as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredPaymentMethodFixture"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.FixtureResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixtureResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/fixtures/payment-methods/{fixtureId}": {
+      "delete": {
+        "operationId": "forgetPaymentMethod",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fixtureId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.FixtureRemovedResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FixtureRemovedResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/hosted/{providerObjectId}/complete": {
+      "post": {
+        "operationId": "completeHostedPage",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerObjectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredHostedCompletion as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredHostedCompletion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.HostedCompletionResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedCompletionResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/idempotency": {
+      "get": {
+        "operationId": "keyedExchanges",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.KeyInspectorResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyInspectorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/objects": {
+      "get": {
+        "operationId": "objects",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.StateResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StateResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/objects/{providerObjectId}/follow-ups/{name}": {
+      "post": {
+        "operationId": "followUp",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerObjectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredFollowUp as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredFollowUp"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.FollowUpResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/operations": {
+      "get": {
+        "operationId": "operations",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.OperationsResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/originations": {
+      "get": {
+        "operationId": "originations",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startedAs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.OriginationsResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginationsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "startAPayment",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startedAs",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.OriginationResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginationResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/personas": {
+      "get": {
+        "operationId": "personas",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.PersonaCatalogueResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaCatalogueResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "seedPersona",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredPersonaSeeding as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredPersonaSeeding"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.PersonaSeededResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaSeededResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/personas/preview": {
+      "post": {
+        "operationId": "previewPersona",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredPersonaSeeding as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredPersonaSeeding"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.PersonaPlanResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonaPlanResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/reads": {
+      "get": {
+        "operationId": "reads",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readNamed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ReadsResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/reads/answer": {
+      "get": {
+        "operationId": "theAnswerToARead",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readNamed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ReadAnswerResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadAnswerResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/repro-bundle": {
+      "get": {
+        "operationId": "captureReproductionBundle",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.repro.ReproductionBundle as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReproductionBundle"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/repro-bundle/import": {
+      "post": {
+        "operationId": "importReproductionBundle",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredReproductionImport as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredReproductionImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.repro.ReproductionReport as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReproductionReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/reset": {
+      "post": {
+        "operationId": "reset",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredReset as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredReset"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ResetResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/run-bundle": {
+      "get": {
+        "operationId": "exportRunBundle",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.bundle.RunBundle as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunBundle"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/run-bundle/import": {
+      "post": {
+        "operationId": "importRunBundle",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredBundleImport as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredBundleImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.bundle.BundleReport as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BundleReport"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios": {
+      "get": {
+        "operationId": "scenarios",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createScenario",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.scenario.DeclaredScenario as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredScenario"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/import": {
+      "post": {
+        "operationId": "importScenarios",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDocument as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioDocument"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/presets": {
+      "post": {
+        "operationId": "selectPreset",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.scenario.DeclaredPreset as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredPreset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/presets/preview": {
+      "post": {
+        "operationId": "previewPreset",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.scenario.DeclaredPreset as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredPreset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDocument as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioDocument"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/{scenarioId}": {
+      "delete": {
+        "operationId": "deleteScenario",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scenarioId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "scenario",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scenarioId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/{scenarioId}/copy": {
+      "post": {
+        "operationId": "copyScenario",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scenarioId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredScenarioCopy as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredScenarioCopy"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.ScenarioResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/scenarios/{scenarioId}/diff": {
+      "get": {
+        "operationId": "compareScenarios",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scenarioId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "against",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "againstProvider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "againstTestRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.kernel.spi.ScenarioComparison.Comparison.Compared as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Compared"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/state/{providerObjectId}": {
+      "get": {
+        "operationId": "state",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerObjectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.StateResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/webhooks": {
+      "get": {
+        "operationId": "webhooks",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "testRunId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.WebhookDeliveryView as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDeliveryView"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "webhook",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredWebhookCall as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredWebhookCall"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.WebhookResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/__simulator/{provider}/webhooks/deliver-due": {
+      "post": {
+        "operationId": "deliverDue",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "generated from dev.marcinromanowski.pspsim.kernel.spi.DeclaredWebhookCall as this build compiled it; a component that may be left out is typed to allow null and is not required",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclaredWebhookCall"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "2XX": {
+            "description": "the body this route answers on success, generated from dev.marcinromanowski.pspsim.control.ControlPayloads.DeliverDueResponse as this build compiled it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverDueResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "every refusal of this API carries a message, and a refusal naming the properties it refused carries those too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ControlError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ControlRefusal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AbsentMechanismView": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "roleMeans": {
+            "type": "string"
+          },
+          "instead": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "roleMeans",
+          "instead"
+        ],
+        "additionalProperties": false
+      },
+      "AcceptedValueView": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "whatItMeans": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "whatItMeans"
+        ],
+        "additionalProperties": false
+      },
+      "AccountFieldView": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "whatItIsFor": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "acceptedValues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AcceptedValueView"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "whatItIsFor",
+          "required",
+          "secret",
+          "acceptedValues"
+        ],
+        "additionalProperties": false
+      },
+      "AccountFieldsResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "accountFields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountFieldView"
+            }
+          }
+        },
+        "required": [
+          "provider",
+          "accountFields"
+        ],
+        "additionalProperties": false
+      },
+      "AccountRemovedResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "removedAccount": {
+            "type": "string"
+          },
+          "configuredAccounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "removedAccount",
+          "configuredAccounts"
+        ],
+        "additionalProperties": false
+      },
+      "AddressResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "publicBaseUrl": {
+            "type": "string"
+          },
+          "providerBaseUrl": {
+            "type": "string"
+          },
+          "apiBasePath": {
+            "type": "string"
+          },
+          "testRunHeader": {
+            "type": "string"
+          },
+          "howARequestNamesItsAccount": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "publicBaseUrl",
+          "providerBaseUrl",
+          "apiBasePath",
+          "testRunHeader",
+          "howARequestNamesItsAccount"
+        ],
+        "additionalProperties": false
+      },
+      "AnsweredFactView": {
+        "type": "object",
+        "properties": {
+          "asTheProviderNamesIt": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/AnsweredValueView"
+          }
+        },
+        "required": [
+          "asTheProviderNamesIt",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "AnsweredRowView": {
+        "type": "object",
+        "properties": {
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnsweredFactView"
+            }
+          }
+        },
+        "required": [
+          "facts"
+        ],
+        "additionalProperties": false
+      },
+      "AnsweredValueView": {
+        "type": "object",
+        "properties": {
+          "theValueItAnswered": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itAnsweredNoValueAtAll": {
+            "type": "boolean"
+          },
+          "theMembersUnderIt": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnsweredFactView"
+            }
+          },
+          "theElementsUnderIt": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/AnsweredValueView"
+            }
+          }
+        },
+        "required": [
+          "itAnsweredNoValueAtAll"
+        ],
+        "additionalProperties": false
+      },
+      "AuditRecordView": {
+        "type": "object",
+        "properties": {
+          "auditId": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "resolutionRule": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refusal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RefusalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scenarioId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sanitizedHeaders": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "sanitizedBody": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "delivered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveredResponseView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "auditId",
+          "testRunId",
+          "provider",
+          "origin",
+          "direction",
+          "method",
+          "attempt",
+          "createdAt",
+          "sanitizedHeaders",
+          "sanitizedBody"
+        ],
+        "additionalProperties": false
+      },
+      "BundleCompatibility": {
+        "type": "object",
+        "properties": {
+          "accountFields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "paymentMethodFields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "settings": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "actionTypes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BundleEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "UPDATED",
+              "SKIPPED"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "verdict"
+        ],
+        "additionalProperties": false
+      },
+      "BundleReport": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "updated": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BundleEntry"
+            }
+          },
+          "secretsSupplied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "applied",
+          "created",
+          "updated",
+          "skipped",
+          "entries",
+          "secretsSupplied"
+        ],
+        "additionalProperties": false
+      },
+      "CarriedContent": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "carried": {
+            "type": "integer"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "carried",
+          "why"
+        ],
+        "additionalProperties": false
+      },
+      "ClockResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "advancedBy": {
+            "type": "string"
+          },
+          "movedFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "advancedBy",
+          "movedFrom",
+          "now"
+        ],
+        "additionalProperties": false
+      },
+      "Compared": {
+        "type": "object",
+        "properties": {
+          "onTheLeft": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "onTheRight": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "differences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difference"
+            }
+          },
+          "thePropertiesBothSidesSayAlike": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "thePropertiesSaidAlikeOnTheirNameAlone": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "whatAPropertySaidAlikeOnItsNameDoesNotCompare": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "theDimensionsItCannotCompare": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotHeldByAScenario"
+            }
+          }
+        },
+        "required": [
+          "onTheLeft",
+          "onTheRight",
+          "differences",
+          "thePropertiesBothSidesSayAlike",
+          "thePropertiesSaidAlikeOnTheirNameAlone",
+          "theDimensionsItCannotCompare"
+        ],
+        "additionalProperties": false
+      },
+      "ConfigurationResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "configuredAccounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "configuredWebhookTargets": {
+            "type": "integer"
+          },
+          "configuredRouteAliases": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "configuredAccounts",
+          "configuredWebhookTargets",
+          "configuredRouteAliases",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ContractOperationView": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "carries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "storiesKeyedOn": {
+            "type": "string"
+          },
+          "itsFlowKeyMayBeReplaced": {
+            "type": "boolean"
+          },
+          "reportsAProcessingState": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "carries",
+          "storiesKeyedOn",
+          "itsFlowKeyMayBeReplaced",
+          "reportsAProcessingState"
+        ],
+        "additionalProperties": false
+      },
+      "ControlError": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "ControlRefusal": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "message",
+          "properties"
+        ],
+        "additionalProperties": false
+      },
+      "DeclaredAccount": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "configuration": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredAction": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failuresBeforeSuccess": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "providerCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fault": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "terminalStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delayMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "settlesAfterMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredAdvance": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "advanceBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredBundleImport": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dryRun": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secrets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredCard": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expMonth": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "expYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "funding": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredClock": {
+        "type": "object",
+        "properties": {
+          "fixedNow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxSkewSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredConfiguration": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredClock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accounts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DeclaredAccount"
+            }
+          },
+          "webhooks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DeclaredWebhookTarget"
+            }
+          },
+          "routeAliases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DeclaredRouteAlias"
+            }
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredFieldView": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "whatItIsFor": {
+            "type": "string"
+          },
+          "theQueryParameterItIsSentIn": {
+            "type": "string"
+          },
+          "theValueItSuggests": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "whereItsValuesComeFrom": {
+            "type": "string",
+            "enum": [
+              "WHATEVER_THE_TESTER_TYPES",
+              "THE_VALUES_THE_PROVIDER_DECLARES",
+              "THE_CALLBACK_TARGETS_THIS_RUN_CONFIGURES",
+              "THE_VALUES_THIS_TEST_RUN_HAS_ALREADY_PRODUCED"
+            ]
+          },
+          "theValuesItOffers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferedValueView"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "required",
+          "whatItIsFor",
+          "theQueryParameterItIsSentIn",
+          "whereItsValuesComeFrom",
+          "theValuesItOffers"
+        ],
+        "additionalProperties": false
+      },
+      "DeclaredFollowUp": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredHostedCompletion": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "card": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredKeyView": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "roleMeans": {
+            "type": "string"
+          },
+          "carriedIn": {
+            "type": "string"
+          },
+          "scopedBy": {
+            "type": "string"
+          },
+          "canBeHeld": {
+            "type": "boolean"
+          },
+          "whileItIsHeld": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "roleMeans",
+          "carriedIn",
+          "scopedBy",
+          "canBeHeld",
+          "whileItIsHeld"
+        ],
+        "additionalProperties": false
+      },
+      "DeclaredMatch": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentMethodId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "header": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredPaymentMethodFixture": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alias": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerIds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "defaultScenario": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredPersonaSeeding": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "persona": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredPreset": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredReadView": {
+        "type": "object",
+        "properties": {
+          "readNamed": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "theQuestionItAnswers": {
+            "type": "string"
+          },
+          "whatAnEmptyAnswerWouldMean": {
+            "type": "string"
+          },
+          "itNeverAnswersNothingAtAll": {
+            "type": "boolean"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredFieldView"
+            }
+          }
+        },
+        "required": [
+          "readNamed",
+          "label",
+          "theQuestionItAnswers",
+          "whatAnEmptyAnswerWouldMean",
+          "itNeverAnswersNothingAtAll",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "DeclaredReproductionImport": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dryRun": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bundle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReproductionBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secrets": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "remapProviderIds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredReset": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredRouteAlias": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredScenario": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "story": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keyedOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "whenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredScenarioCopy": {
+        "type": "object",
+        "properties": {
+          "edit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredScenario"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clear": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredWebhookCall": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "delayMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "reuseEventId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attemptOverride": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "webhookJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeclaredWebhookTarget": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeliverDueResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "attempted": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "attempted"
+        ],
+        "additionalProperties": false
+      },
+      "DeliveredResponseView": {
+        "type": "object",
+        "properties": {
+          "transportFault": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "faultPlacement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "declaredContentLength": {
+            "type": "integer"
+          },
+          "writtenBodyBytes": {
+            "type": "integer"
+          },
+          "heldForMillis": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "declaredContentLength",
+          "writtenBodyBytes",
+          "heldForMillis"
+        ],
+        "additionalProperties": false
+      },
+      "DerivedBalancesView": {
+        "type": "object",
+        "properties": {
+          "capturedAmount": {
+            "type": "string"
+          },
+          "refundedAmount": {
+            "type": "string"
+          },
+          "capturableRemainder": {
+            "type": "string"
+          },
+          "refundableRemainder": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capturedAmount",
+          "refundedAmount",
+          "capturableRemainder",
+          "refundableRemainder"
+        ],
+        "additionalProperties": false
+      },
+      "Difference": {
+        "type": "object",
+        "properties": {
+          "property": {
+            "type": "string"
+          },
+          "onTheLeft": {
+            "$ref": "#/components/schemas/Named"
+          },
+          "onTheRight": {
+            "$ref": "#/components/schemas/Named"
+          },
+          "inTheProvidersWords": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "property",
+          "onTheLeft",
+          "onTheRight"
+        ],
+        "additionalProperties": false
+      },
+      "FilledInFieldView": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "whereTheValueComesFrom": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "whereTheValueComesFrom"
+        ],
+        "additionalProperties": false
+      },
+      "FixtureCardView": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "string"
+          },
+          "last4": {
+            "type": "string"
+          },
+          "expMonth": {
+            "type": "integer"
+          },
+          "expYear": {
+            "type": "integer"
+          },
+          "funding": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "brand",
+          "last4",
+          "expMonth",
+          "expYear",
+          "funding"
+        ],
+        "additionalProperties": false
+      },
+      "FixtureRemovedResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "removedFixture": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "removedFixture"
+        ],
+        "additionalProperties": false
+      },
+      "FixtureResponse": {
+        "type": "object",
+        "properties": {
+          "fixtureId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string"
+          },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixtureCardView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerObjects": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "defaultScenario": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "fixtureId",
+          "provider",
+          "testRunId",
+          "merchantId",
+          "ownerId",
+          "type",
+          "alias",
+          "providerObjects",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "FollowUpResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "followUp": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StateResponse"
+          },
+          "webhookJobIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "followUp",
+          "state",
+          "webhookJobIds"
+        ],
+        "additionalProperties": false
+      },
+      "HostedCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerObjectId": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "createdObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "webhookJobIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "providerObjectId",
+          "outcome",
+          "webhookJobIds"
+        ],
+        "additionalProperties": false
+      },
+      "HostedSessionView": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "party": {
+            "type": "string"
+          },
+          "aPartyIsNamed": {
+            "type": "boolean"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires": {
+            "type": "string"
+          },
+          "itExpiresAtAKnownTime": {
+            "type": "boolean"
+          },
+          "itsDeadlineHasPassed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "account",
+          "party",
+          "aPartyIsNamed",
+          "operation",
+          "createdAt",
+          "expires",
+          "itExpiresAtAKnownTime",
+          "itsDeadlineHasPassed"
+        ],
+        "additionalProperties": false
+      },
+      "KeyInspectorResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredKeyView"
+            }
+          },
+          "withoutAMechanism": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AbsentMechanismView"
+            }
+          },
+          "exchanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyedExchangeView"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "keys",
+          "withoutAMechanism",
+          "exchanges"
+        ],
+        "additionalProperties": false
+      },
+      "KeyedExchangeView": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "keyName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "roleMeans": {
+            "type": "string"
+          },
+          "keyValue": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "firstRequestAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replayTimestamps": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "stateChanged": {
+            "type": "boolean"
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyedRequestView"
+            }
+          }
+        },
+        "required": [
+          "cursor",
+          "accountId",
+          "keyName",
+          "role",
+          "roleMeans",
+          "keyValue",
+          "operation",
+          "requestFingerprint",
+          "firstRequestAt",
+          "replayTimestamps",
+          "stateChanged",
+          "requests"
+        ],
+        "additionalProperties": false
+      },
+      "KeyedRequestView": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "verdictMeans": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "contentType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stateChanged": {
+            "type": "boolean"
+          },
+          "timeout": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "conflictReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sequence",
+          "verdict",
+          "verdictMeans",
+          "operation",
+          "requestFingerprint",
+          "stateChanged",
+          "at"
+        ],
+        "additionalProperties": false
+      },
+      "Named": {
+        "type": "object",
+        "properties": {
+          "named": {
+            "type": "boolean"
+          },
+          "withheld": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "named",
+          "withheld"
+        ],
+        "additionalProperties": false
+      },
+      "NotHeldByAScenario": {
+        "type": "object",
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dimension",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "OfferedValueView": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "whatItNames": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "whatItNames"
+        ],
+        "additionalProperties": false
+      },
+      "OperationView": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "closesAuthorization": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "createdObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nativeStatus": {
+            "type": "string"
+          },
+          "normalizedStatus": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sequence",
+          "kind",
+          "amount",
+          "nativeStatus",
+          "normalizedStatus",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "OperationsResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContractOperationView"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "operations"
+        ],
+        "additionalProperties": false
+      },
+      "OriginationResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "startedAs": {
+            "type": "string"
+          },
+          "providerObjectId": {
+            "type": "string"
+          },
+          "whatExistsNow": {
+            "type": "string"
+          },
+          "theRuleThatDecidedIt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "accountId",
+          "startedAs",
+          "providerObjectId",
+          "whatExistsNow"
+        ],
+        "additionalProperties": false
+      },
+      "OriginationsResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "theAccountsThisRunConfigures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "waysToStartAPayment": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WayToStartAPaymentView"
+            }
+          },
+          "theFieldsThisSimulatorFillsInItself": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FilledInFieldView"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "theAccountsThisRunConfigures",
+          "waysToStartAPayment",
+          "theFieldsThisSimulatorFillsInItself"
+        ],
+        "additionalProperties": false
+      },
+      "PersonaCatalogueResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "personas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonaView"
+            }
+          },
+          "uncovered": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UncoveredIntentView"
+            }
+          }
+        },
+        "required": [
+          "provider",
+          "personas",
+          "uncovered"
+        ],
+        "additionalProperties": false
+      },
+      "PersonaInstrumentView": {
+        "type": "object",
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixtureCardView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerNativeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "howThoseAreMinted": {
+            "type": "string"
+          },
+          "triggersTheRuleAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "alias",
+          "ownerId",
+          "type",
+          "providerNativeIds",
+          "howThoseAreMinted"
+        ],
+        "additionalProperties": false
+      },
+      "PersonaPlanResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "persona": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instruments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonaInstrumentView"
+            }
+          },
+          "theRunAlreadyHoldsIt": {
+            "type": "boolean"
+          },
+          "theRefusalThisPlanCannotForesee": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "testRunId",
+          "persona",
+          "intent",
+          "instruments",
+          "theRunAlreadyHoldsIt"
+        ],
+        "additionalProperties": false
+      },
+      "PersonaSeededResponse": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "persona": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScenarioResponse"
+            }
+          },
+          "fixtures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixtureResponse"
+            }
+          }
+        },
+        "required": [
+          "provider",
+          "testRunId",
+          "persona",
+          "intent",
+          "rules",
+          "fixtures"
+        ],
+        "additionalProperties": false
+      },
+      "PersonaView": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "whatATesterGets": {
+            "type": "string"
+          },
+          "whatItGives": {
+            "type": "string"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "instruments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonaInstrumentView"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "intent",
+          "whatATesterGets",
+          "whatItGives",
+          "presets",
+          "instruments"
+        ],
+        "additionalProperties": false
+      },
+      "PortableAccount": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "configuration": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "secretsItDoesNotCarry": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableCard": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expMonth": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "expYear": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "funding": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableFixture": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alias": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortableCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "providerIds": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "triggersRuleAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableMatch": {
+        "type": "object",
+        "properties": {
+          "merchantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "orderId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "paymentMethodId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableRouteAlias": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableScenario": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "story": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keyedOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "whenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PortableMatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PortableWebhookTarget": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReadAnswerResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "readNamed": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnsweredRowView"
+            }
+          },
+          "whatItAnsweredAboutTheQuery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnsweredFactView"
+            }
+          },
+          "whatItMeansThatItAnsweredNothingAtAll": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "theRuleThatDecidedIt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "accountId",
+          "readNamed",
+          "rows",
+          "whatItAnsweredAboutTheQuery"
+        ],
+        "additionalProperties": false
+      },
+      "ReadsResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredReadView"
+            }
+          },
+          "whatThisProviderPublishesInstead": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "reads"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedAttempt": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "targetUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "transportFailure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsePreview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sentHeaders": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedCallback": {
+        "type": "object",
+        "properties": {
+          "deliveryId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eventType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "targetUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attemptsMade": {
+            "type": "integer"
+          },
+          "attemptCap": {
+            "type": "integer"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shapedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notSentBecause": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sanitizedPayload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "attempts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RecordedAttempt"
+            }
+          }
+        },
+        "required": [
+          "attemptsMade",
+          "attemptCap"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedExchange": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "type": "integer"
+          },
+          "auditId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "surface": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "direction": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refusedAs": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refusalSubject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scenarioId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sanitizedHeaders": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "sanitizedBody": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "place",
+          "attempt"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedObject": {
+        "type": "object",
+        "properties": {
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "answersTo": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "nativeStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "normalizedStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authorizationOpen": {
+            "type": "boolean"
+          },
+          "capturesAccepted": {
+            "type": "boolean"
+          },
+          "refundsAccepted": {
+            "type": "boolean"
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relatedObjects": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "ledger": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RecordedOperation"
+            }
+          }
+        },
+        "required": [
+          "authorizationOpen",
+          "capturesAccepted",
+          "refundsAccepted"
+        ],
+        "additionalProperties": false
+      },
+      "RecordedOperation": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closesAuthorization": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "createdObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nativeStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "normalizedStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "sequence"
+        ],
+        "additionalProperties": false
+      },
+      "RefusalView": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "howManyAnswered": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "inItsOwnWords": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "whatItRefusedInstead": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "additionalProperties": false
+      },
+      "ReproductionBundle": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "capturedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunBundle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReproductionEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contents": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReproductionManifest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReproductionEvidence": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "foundBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effectiveClock": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "object": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordedObject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trail": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RecordedExchange"
+            }
+          },
+          "callbacks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/RecordedCallback"
+            }
+          },
+          "trailTruncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "trailTruncated"
+        ],
+        "additionalProperties": false
+      },
+      "ReproductionManifest": {
+        "type": "object",
+        "properties": {
+          "replayable": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CarriedContent"
+            }
+          },
+          "readable": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CarriedContent"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReproductionReport": {
+        "type": "object",
+        "properties": {
+          "setup": {
+            "$ref": "#/components/schemas/BundleReport"
+          },
+          "theContentsItWrote": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "theContentsItOnlyRead": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "theProviderNativeIdKeysItRemapped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "providerNativeIdsPreserved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "setup",
+          "theContentsItWrote",
+          "theContentsItOnlyRead",
+          "theProviderNativeIdKeysItRemapped",
+          "providerNativeIdsPreserved"
+        ],
+        "additionalProperties": false
+      },
+      "ResetResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "clearedObjects": {
+            "type": "integer"
+          },
+          "clearedAuditRecords": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "scope",
+          "clearedObjects",
+          "clearedAuditRecords"
+        ],
+        "additionalProperties": false
+      },
+      "RouteAliasReleasedResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "releasedRouteAlias": {
+            "type": "string"
+          },
+          "configuredRouteAliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "releasedRouteAlias",
+          "configuredRouteAliases"
+        ],
+        "additionalProperties": false
+      },
+      "RunBundle": {
+        "type": "object",
+        "properties": {
+          "compatibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BundleCompatibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exportedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clock": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredClock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accounts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PortableAccount"
+            }
+          },
+          "webhooks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PortableWebhookTarget"
+            }
+          },
+          "routeAliases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PortableRouteAlias"
+            }
+          },
+          "settings": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "fixtures": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PortableFixture"
+            }
+          },
+          "scenarios": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioDocument"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScenarioDocument": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PortableScenario"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScenarioResponse": {
+        "type": "object",
+        "properties": {
+          "scenarioId": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "operation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "story": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "keyedOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "whenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thenState": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "scenarioId",
+          "testRunId",
+          "provider",
+          "priority",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Side": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "testRunId": {
+            "type": "string"
+          },
+          "scenarioId": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer"
+          },
+          "specificity": {
+            "type": "integer"
+          },
+          "arrival": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "testRunId",
+          "scenarioId",
+          "priority",
+          "specificity",
+          "arrival"
+        ],
+        "additionalProperties": false
+      },
+      "StateResponse": {
+        "type": "object",
+        "properties": {
+          "testRunId": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerObjectId": {
+            "type": "string"
+          },
+          "addressedBy": {
+            "type": "string"
+          },
+          "answersTo": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "nativeStatus": {
+            "type": "string"
+          },
+          "normalizedStatus": {
+            "type": "string"
+          },
+          "capturesAccepted": {
+            "type": "boolean"
+          },
+          "refundsAccepted": {
+            "type": "boolean"
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperationView"
+            }
+          },
+          "derivedBalances": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DerivedBalancesView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relatedObjects": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "origin": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hostedSession": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HostedSessionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "testRunId",
+          "provider",
+          "providerObjectId",
+          "addressedBy",
+          "answersTo",
+          "nativeStatus",
+          "normalizedStatus",
+          "capturesAccepted",
+          "refundsAccepted",
+          "operations",
+          "relatedObjects",
+          "origin",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "UncoveredIntentView": {
+        "type": "object",
+        "properties": {
+          "intent": {
+            "type": "string"
+          },
+          "whatATesterGets": {
+            "type": "string"
+          },
+          "instead": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "whatATesterGets",
+          "instead"
+        ],
+        "additionalProperties": false
+      },
+      "WayToStartAPaymentView": {
+        "type": "object",
+        "properties": {
+          "startedAs": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "whatItLeavesBehind": {
+            "type": "string"
+          },
+          "whatThePayerDoesNext": {
+            "type": "string"
+          },
+          "thePayerPageThisSimulatorServes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeclaredFieldView"
+            }
+          }
+        },
+        "required": [
+          "startedAs",
+          "label",
+          "whatItLeavesBehind",
+          "whatThePayerDoesNext",
+          "fields"
+        ],
+        "additionalProperties": false
+      },
+      "WebhookAttemptView": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer"
+          },
+          "attemptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "targetUrl": {
+            "type": "string"
+          },
+          "sentHeaders": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "httpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "transportFailure": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsePreview": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "number",
+          "attemptedAt",
+          "targetUrl",
+          "verdict"
+        ],
+        "additionalProperties": false
+      },
+      "WebhookDeliveryView": {
+        "type": "object",
+        "properties": {
+          "webhookJobId": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "providerObjectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "merchantId": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "shapedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notSentBecause": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attemptsMade": {
+            "type": "integer"
+          },
+          "attemptCap": {
+            "type": "integer"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookAttemptView"
+            }
+          }
+        },
+        "required": [
+          "webhookJobId",
+          "eventId",
+          "merchantId",
+          "status",
+          "attemptsMade",
+          "attemptCap",
+          "createdAt",
+          "contentType",
+          "headers",
+          "payload",
+          "attempts"
+        ],
+        "additionalProperties": false
+      },
+      "WebhookJobView": {
+        "type": "object",
+        "properties": {
+          "webhookJobId": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attemptsMade": {
+            "type": "integer"
+          },
+          "scheduledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "webhookJobId",
+          "eventId",
+          "status",
+          "attemptsMade"
+        ],
+        "additionalProperties": false
+      },
+      "WebhookResponse": {
+        "type": "object",
+        "properties": {
+          "webhookJobId": {
+            "type": "string"
+          },
+          "eventId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attemptsMade": {
+            "type": "integer"
+          },
+          "scheduledAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookJobView"
+            }
+          }
+        },
+        "required": [
+          "webhookJobId",
+          "eventId",
+          "status",
+          "attemptsMade",
+          "deliveries"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

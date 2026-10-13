@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: psp-simulators
+  datasource:
+    url: ${SIMULATOR_DB_URL:jdbc:postgresql://localhost:5432/pspsim}
+    username: ${SIMULATOR_DB_USERNAME:pspsim}
+    password: ${SIMULATOR_DB_PASSWORD:pspsim}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  thymeleaf:
+    cache: ${SIMULATOR_TEMPLATE_CACHE:true}
+    servlet:
+      produce-partial-output-while-processing: false
+  servlet:
+    multipart:
+      resolve-lazily: true
+
+server:
+  address: ${SIMULATOR_BIND_ADDRESS:127.0.0.1}
+  port: ${SIMULATOR_PORT:8080}
+  servlet:
+    session:
+      tracking-modes: cookie
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db,scheduler
+  health:
+    diskspace:
+      enabled: false
+
+simulator:
+  public-base-url: ${SIMULATOR_PUBLIC_BASE_URL:http://localhost:8080}
+  default-test-run-id: ${SIMULATOR_DEFAULT_TEST_RUN_ID:default}
+  webhook:
+    retry-delays:
+      - PT0S
+      - PT1S
+      - PT5S
+      - PT30S
+      - PT2M
+    connect-timeout: ${SIMULATOR_WEBHOOK_CONNECT_TIMEOUT:PT2S}
+    read-timeout: ${SIMULATOR_WEBHOOK_READ_TIMEOUT:PT5S}
+    max-response-preview-bytes: ${SIMULATOR_WEBHOOK_MAX_RESPONSE_PREVIEW_BYTES:2048}
+    poll-interval: ${SIMULATOR_WEBHOOK_POLL_INTERVAL:PT1S}
+  fault:
+    longest-delay: ${SIMULATOR_FAULT_LONGEST_DELAY:PT30S}
+  scheduler:
+    pool-size: 4

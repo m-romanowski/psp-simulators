@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head th:replace="~{fragments :: head('Run bundle')}"></head>
+  <body>
+    <div th:replace="~{fragments :: bar}"></div>
+    <main>
+      <div th:replace="~{fragments :: refusal}"></div>
+      <div th:replace="~{fragments :: done}"></div>
+      <div th:replace="~{fragments :: choose}"></div>
+
+      <section class="panel" th:unless="${#lists.isEmpty(exportRefusals)}">
+        <h2>This run cannot be exported whole</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not carry it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${exportRefusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why nothing partial is offered instead</summary>
+            <p class="note">
+              Nothing partial is offered instead. A bundle missing one of the rules this run decides
+              by is a setup a tester would believe is complete.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:unless="${#lists.isEmpty(refusals)}">
+        <h2>This bundle was not taken back</h2>
+        <div class="body">
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>property</th>
+                  <th>why the simulator will not apply it</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="refusal : ${refusals}">
+                  <td class="id" th:text="${refusal.property}"></td>
+                  <td class="wrap" th:text="${refusal.reason}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Why a refusal prints no value</summary>
+            <p class="note">
+              A refusal names the property and never the value beside it, so a bundle refused for
+              carrying a credential does not print the credential here.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${report}">
+        <h2 th:if="${report.applied}">What this import created, updated and skipped</h2>
+        <h2 th:unless="${report.applied}">What an import would create, update and skip</h2>
+        <div class="body">
+          <p class="note">
+            <span th:text="${report.testRunId}"></span> of provider
+            <span th:text="${report.provider}"></span>:
+            <span th:text="${report.created}"></span> created,
+            <span th:text="${report.updated}"></span> updated,
+            <span th:text="${report.skipped}"></span> skipped.
+          </p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>kind</th>
+                  <th>name</th>
+                  <th>verdict</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="entry : ${report.entries}">
+                  <td th:text="${entry.kind}"></td>
+                  <td class="id" th:text="${entry.name}"></td>
+                  <td th:text="${entry.verdict}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="scroll" th:unless="${#lists.isEmpty(report.secretsSupplied)}">
+            <table>
+              <thead>
+                <tr>
+                  <th>the secrets this import was given</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr th:each="name : ${report.secretsSupplied}">
+                  <td class="id" th:text="${name}"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <details th:unless="${#lists.isEmpty(report.secretsSupplied)}">
+            <summary>What is named above, and what is not</summary>
+            <p class="note">
+              Only the account and the field are named. No value supplied to an import is shown here,
+              written to the trail, or carried by anything this screen can export.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${document}">
+        <h2>This run as a bundle</h2>
+        <div class="body">
+          <textarea class="document" readonly rows="18" th:text="${document}"></textarea>
+          <details>
+            <summary>What is in this document, and what is deliberately not</summary>
+            <p class="note">
+              This is the setup this test run holds, as a document: the vocabulary it was written
+              against, the run it came from, the clock it is pinned to, the accounts and their
+              plainly declared fields, the webhook targets, the route aliases, the settings, the
+              payment-method fixtures and the scenario rules. Copy it to keep a reproducible setup
+              beside a test, and paste it back below into this run or another one.
+            </p>
+            <p class="note">
+              No value this provider declares secret is in it. Each account names the secret fields
+              it leaves out, and an import is given those separately in the box below. A run whose
+              rules narrow on a request header cannot be exported whole, because a header value is
+              supplied verbatim by whoever wrote the rule and is the one part of a rule that can
+              hold a credential.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <section class="panel" th:if="${providers != null and provider != null}">
+        <h2>Take a bundle back</h2>
+        <div class="body">
+          <form class="form" method="post" th:action="@{/ui/run-bundle/import(provider=${provider},testRunId=${testRunId})}">
+            <div>
+              <label for="into">into test run</label>
+              <input id="into" name="into" th:value="${into}" placeholder="this run" />
+            </div>
+            <div class="wide">
+              <label for="document-in">document</label>
+              <textarea
+                id="document-in"
+                class="document"
+                name="document"
+                rows="10"
+                placeholder="the JSON the box above produced"
+              ></textarea>
+            </div>
+            <div class="wide">
+              <label for="secrets">secrets, one accountId.field=value per line<span
+                  th:if="${theSecretsBoxTakesABlockOfManyLines}"
+                >, and a key this provider takes as a block of many lines may run on over the
+                  lines under it, as far as the line that block ends with</span></label>
+              <textarea id="secrets" class="document" name="secrets" rows="4"></textarea>
+            </div>
+            <div class="actions">
+              <span class="confirmGroup">
+                <input id="dryRun" type="checkbox" name="dryRun" value="on" />
+                <label for="dryRun">report only, write nothing</label>
+              </span>
+              <button type="submit">Take this bundle back</button>
+            </div>
+          </form>
+          <details>
+            <summary>What a dry run says, what is created, updated or skipped, and where a secret goes</summary>
+            <p class="note">
+              A dry run and a real import answer the same report, and differ only in whether it was
+              applied, so what a dry run says is what an import does. Configuration is created where
+              the target run holds no account by that label and updated where it does; a fixture whose
+              alias the run already holds is skipped; scenario rules are always created, because a
+              document carries what a rule is and never what it was called, so taking the same bundle
+              back twice leaves two sets of rules.
+            </p>
+            <p class="note">
+              The secrets box is never filled back in by this screen, whether the import was applied
+              or refused. What is typed there is written to the provider's own account configuration
+              and to nowhere else.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
