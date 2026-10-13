@@ -613,11 +613,14 @@ Every vendor sample, and every statement in a provider file, names its class:
 
 - **published rule**: prose or a table on the provider's documentation,
 - **published example**: a saved example on a provider page or in the provider's official collection,
-- **vendor script**: the provider's own published JavaScript, read for its public API and wire shapes,
-- **vendor correspondence**: the provider's written answer to a merchant, not published. The weakest class,
 - **live probe**: observed against the provider. Re-confirm with sandbox credentials before relying on it,
 - **simulator contract**: the control API's own samples, under `vendor-samples/simulator/`. Refused in any provider
   manifest.
 
 Provider files also mark an **inference** (read off the wording) and a **simulator decision** (a choice with no vendor
-source). Where a provider's rule and example disagree, the file records both.
+source), and may name two classes no vendor sample can carry (`kernel/smoke/EvidenceClass` admits only the four above):
+
+- **vendor script**: the provider's own published JavaScript, read for its public API and wire shapes,
+- **vendor correspondence**: the provider's written answer to a merchant, not published. The weakest class.
+
+Where a provider's rule and example disagree, the file records both.

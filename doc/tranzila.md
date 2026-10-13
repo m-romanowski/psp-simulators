@@ -12,7 +12,7 @@ inference, simulator decision. No live probe: no sandbox host, test terminal or 
 
 | Route                                                         | What the simulator does                                                                                       | Key deviations                                                                                           |
 |---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| `POST /v1/transaction/credit_card/create`                      | `debit`, `verify` (`verify_mode` `2`, `5`), `force`, `reversal`, `credit`, `cancel`                            | amount from `items` only; discounts, exchange rates and `C` items refused; `sto`, `verify_mode` `6` and instalments refused; `activate_3ds: "Y"` refused `400` `20004` after the authentication and terminal checks, nothing stored |
+| `POST /v1/transaction/credit_card/create`                      | `debit`, `verify` (`verify_mode` `2`, `5`), `force`, `reversal`, `credit`, `cancel`; 3-D Secure on `activate_3ds=Y` | amount from `items` only; discounts, exchange rates and `C` items refused; `sto`, `verify_mode` `6` and instalments refused |
 | `POST /v1/transaction/credit_card/3ds/complete`                | finishes a challenged 3-D Secure transaction by `track_id`                                                     | challenge answer shape is a simulator decision                                                           |
 | `POST /v2/handshake/create`                                    | mints a `thtk` bound to terminal and `sum`, 20 minutes                                                         |                                                                                                          |
 | `POST /v1/transactions`                                        | lookup by `transaction_index` or date range                                                                   | amounts in minor units, as strings (inference)                                                           |
@@ -70,8 +70,9 @@ Simulator decision: the three non-API hosts sit under a prefix because the payme
 terminal name, which at the root would shadow every other route. The pairing screen publishes one base URL per host,
 and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs.
 
-At the root, Tranzila claims the namespace `/v1/transaction`; `/v1` is shared with stripe and autra. `/v2` is
-worldline's namespace; `/v2/handshake/create` is Tranzila's route inside it, beside worldline's.
+At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and `/v2/handshake`;
+stripe and autra also answer under `/v1`, and worldline keeps the rest of `/v2`. The deeper namespace answers the
+faults under it ("Error Shape").
 
 ## Authentication and Transport
 
@@ -84,7 +85,7 @@ table; published schema, `required: true`): `X-tranzila-api-app-key`, `X-tranzil
 | access token   | "hash_hmac using 'sha256' on application key with secret + request-time + nonce" (published rule); PHP `hash_hmac('sha256', $appKey, $secret . $time . $nonce)` (published example); `RP/authentication`: "message: app_key, key: secret + timestamp + nonce", "Output must be hex-encoded" | default construction                                                                       |
 | quickstart     | `printf "%s%s%s" "$TRANZILA_APP_KEY" "$REQUEST_TIME" "$NONCE" \| openssl dgst -sha256 -hmac "$TRANZILA_APP_SECRET" -binary \| xxd -p -c 256`: message app key + time + nonce, key the secret; `REQUEST_TIME=$(date +%s%3N)` (published example) | `AS_THE_QUICKSTART_SIGNS_IT`: that construction, request time in milliseconds              |
 | hex case       | Handshake V2: "Result must be a lowercase hex string" (published schema); the .NET sample emits `ToString("X2")`, uppercase (published example) | compared case-insensitively                                                                |
-| request time   | "Unix format (integer counting seconds…)" (published rule); reports: "Must be within a few minutes of server time" (published schema) | an integer of at most 15 digits; simulator decision: ±5 minutes on the run clock, because "a few minutes" is the only bound published |
+| request time   | "Unix format (integer counting seconds…)" (published rule); reports: "Must be within a few minutes of server time" (published schema) | simulator decision: an integer of at most 15 digits, ±5 minutes on the run clock, because "a few minutes" is the only bound published |
 | nonce          | "A 40 bytes NONCE – unique random string" (published rule); PHP `bin2hex(random_bytes(40)) //actually 80 characters string`; quickstart `openssl rand -hex 20`; reports: "80-character random hexadecimal string generated fresh for each session" and "Generate once and reuse"; Handshake V2: "The nonce is unique per request" | any non-empty value; on `api.tranzila.com` a nonce is remembered per account for 10 minutes on the run clock, twice the request-time tolerance, so a signature cannot be replayed while its request time is still accepted; reuse is refused `20000`, because the auth page says the token "prevent[s] processing of the same request more than once"; the nonce is spent only once the token verifies, so a wrong token does not spend it; on `report.tranzila.com` reuse is accepted, because that host's own header says "Generate once and reuse" |
 | secret         | "you cannot call Tranzila API from within web client application" (published rule)                                                | the account's secret; never answered back                                                  |
 
@@ -135,13 +136,13 @@ Fields read:
 | `pan_entry_mode`            | `50`, `51`, `52`                                                                              | accepted, echoed                                                            |
 | `user_defined_fields[]`     | `{name, value}`                                                                               | `DCdisable` read; all stored and answered by the lookups                    |
 | `client`, `remarks`, `response_language`, `created_by_user`, `created_by_system` | published schema                        | accepted, echoed in `original_request`                                      |
-| `activate_3ds`, `3ds_settings` | 3DS schema, same route                                                                     | admitted; `activate_3ds: "Y"` refused `20004` (route table)                 |
+| `activate_3ds`, `3ds_settings` | 3DS schema, same route                                                                     | "3-D Secure"                                                                |
 
 Simulator decision: an out-of-scope value the schema admits (`sto`, `verify_mode` `6`, `payment_plan` `6`/`8`) is
 refused `20004`, so a client learns it was not performed instead of reading a success.
 
-Simulator decision: a body field outside both the Transactions API schema and the 3DS schema is a schema mismatch,
-refused `20004`, so `verfiy_mode` (the hidden page's spelling) is refused rather than silently read. Every schema
+Simulator decision: a body field outside both the Transactions API schema and the 3DS schema, other than the
+top-level `auth_3ds_redirect` ("3-D Secure"), is a schema mismatch, refused `20004`, so `verfiy_mode` (the hidden page's spelling) is refused rather than silently read. Every schema
 violation answers `20004`; `20003` is never answered.
 
 Success (published schema, `200`; field names published, values illustrative):
@@ -181,8 +182,10 @@ Success (published schema, `200`; field names published, values illustrative):
   Simulator decision: `1` when sent, `0` when not, unless a scenario says otherwise.
 - `token`: "applies only to tokens service subscribers" (published schema). Simulator decision: always answered, as for
   a subscribed terminal, because a run's later `force`, `credit` and repeat charges need it. Format: `t`, 14 hex
-  digits and the card's last four, 19 characters (simulator decision; of the published tokens only the Hosted Fields
-  pair `me4b50240d8c6222312` / `2312` ends in the last four).
+  digits and the card's last four, 19 characters (simulator decision). The Hosted Fields examples' tokens end in the
+  card's last four (`me4b50240d8c6222312` / `2312`, `s9aa520a6e14fac5178` / `5178`, `Ua19f41b365c87a9943` / `9943`,
+  `Mc7fcd54jdk41a62716` / `2716`, published example); the API's and the 3DS examples' tokens (`O5d55d2922ca4021382`,
+  `Q823424234234dfsgdf029`) do not.
 - `card_type`: from the card prefix through the page's `cardtype` table; `card_locality`: always `domestic`
   (simulator decision).
 - `tranmode`: none on a `reversal`, because the lookups' `tranmode` table publishes none for it.
@@ -196,10 +199,10 @@ There is no top-level amount; the request schema has no amount field (published 
 
 | Item field                 | Published                                                                                       | Simulator                                                     |
 |----------------------------|-------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| `price_type`               | `N` "Net (excluding VAT)", `G` "Gross (including VAT)"; "if Net, VAT is added to sent amount", default `G` (3DS and hidden page schema) | `G`: the item as sent, lexical form kept; `N`: VAT added, the item rounded half-up to 2 decimals |
-| `vat_percent`              | number; "if omitted, current Bank Of Israel VAT will be used" (3DS schema)                      | the rate for an `N` item; omitted: 18 (inference: Israel's statutory rate stands in for "current Bank Of Israel VAT") |
+| `price_type`               | `N` "Net (excluding VAT)", `G` "Gross (including VAT)" (Transactions API schema); "if Net, VAT is added to sent amount", default `G`, is published for the STO item's `priceType` (3DS and hidden page schema) | `G`: the item as sent, lexical form kept; `N`: VAT added, the item rounded half-up to 2 decimals (inference: the STO item's arithmetic applied to card items) |
+| `vat_percent`              | number, no description (Transactions API schema); "if omitted, current Bank Of Israel VAT will be used" for the STO item (3DS schema) | the rate for an `N` item; omitted: 18, the value of the Transactions API's own example (`price_type: G`, `vat_percent: 18`) (inference) |
 | `discount`, `discount_type`, `to_txn_currency_exchange_rate`, `type` `C` | published schema, arithmetic unpublished                          | refused `20004`                                               |
-| `currency_code` other than `txn_currency_code` | published schema, conversion unpublished                                    | refused `20004`                                               |
+| `currency_code` other than the transaction's currency (the original's on a follow-on) | published schema, conversion unpublished | refused `20004`                                    |
 | any other field            | outside the schema                                                                              | refused `20004`                                               |
 
 ### Per Transaction Type
@@ -211,7 +214,7 @@ There is no top-level amount; the request schema has no amount field (published 
 | `verify` + `5`       | "J5 authorization. Reserves credit for the specified amount. The actual charge is later performed using `txn_type=force`." | approved at `tranzila.verification-approval-code`; a hold lives `tranzila.j5-validity` on the run clock               |
 | `force`              | J5 capture; example sends `reference_txn_id`, card, items, no `authorization_number`                        | `reference_txn_id` must name a live J5 of the same terminal; one `force` per J5; amount ≤ J5 amount else processor code `507`   |
 | `reversal`           | "Releases a reserved credit amount from a J5 authorization transaction (`verify_mode=5`)"                   | releases a live, unforced J5 in full                                                                                            |
-| `credit`             | "Credits funds back to the cardholder"; `23002` "Already Credited this transaction id", "sum is larger than the original debit transaction" | one `credit` per `debit` or `force`, at most its amount; partial allowed; not after a `cancel`          |
+| `credit`             | "Credits funds back to the cardholder"; `23002` "Already Credited this transaction id", "id 4 - sum is larger than the original debit transaction" | one approved `credit` per `debit` or `force`, at most its amount; partial allowed; a declined `credit` does not use it; not after a `cancel` |
 | `cancel`             | "Cancels a `debit` or `credit` transaction"; example carries no card, expiry or items                       | cancels a `debit`, `force` or `credit` in full; not after a `credit`; card fields not required                                  |
 
 A follow-on (`force`, `reversal`, `credit`, `cancel`) takes the original's currency; a different `txn_currency_code` on
@@ -233,7 +236,7 @@ answers which is a simulator decision unless the code's own text says it):
 | `credit` with a different card than the original, by card identity (a non-reversible fingerprint), not by mask | `20112` ("uncreditable origin" text) |
 | `force` or `reversal` of a J5 already forced, reversed or past validity     | `20112` ("uncreditable origin" text)                       |
 | `cancel` of a transaction already credited                                  | `20112` ("uncreditable origin" text)                       |
-| `cancel` of a transaction already cancelled                                 | `20112`                                                    |
+| `cancel` of a transaction already cancelled                                 | `20112` ("uncreditable origin" text)                       |
 
 - Partial `force` (lower than the J5 amount) is allowed and closes the J5: "partial force is supported" (vendor
   correspondence); nothing published contradicts it, and multiple captures per J5 are unpublished.
@@ -292,8 +295,6 @@ with an Application error code"):
 
 ### 3-D Secure
 
-`activate_3ds: "Y"` is currently refused `400` `20004`, as an out-of-scope value the schema admits, and stores nothing.
-
 Create with `activate_3ds: "Y"` and `3ds_settings` (`browser`, `force_txn_on_3ds_fail` default `N`, `force_challenge`
 `0`/`1`, `auth_3ds_redirect`) (published schema). Three published outcomes ("3DS Process"): authorised frictionlessly
 with 3DS statuses; not authorised, which ends the flow unless `force_txn_on_3ds_fail` is `Y`; or a challenge at
@@ -306,8 +307,11 @@ with 3DS statuses; not authorised, which ends the flow unless `force_txn_on_3ds_
 | challenge     | `200`, `{"error_code": 0, "message": "success", "challengeUrl": "…", "track_id": "…"}`; `challengeUrl` names this simulator's challenge page |
 
 Simulator decision: the challenge answer's shape is unpublished (no `200` schema for create); the two names are the
-prose's `challengeUrl` and the complete body's `track_id`. The challenge page returns the browser to the URL in
-`auth_3ds_redirect.url`, with the `{key, value}` array read as its params ("Vendor Contradictions").
+prose's `challengeUrl` and the complete body's `track_id`. Redirect after the challenge ("Vendor Contradictions"): a
+top-level `auth_3ds_redirect` `{url, params}`, as the complete example's `original_request` carries it, is admitted on
+create and supplies the URL and params; `3ds_settings.auth_3ds_redirect`, an array of `{key, value}` with no URL,
+supplies params only; with neither, the browser is not redirected and the result reaches the client only through
+complete.
 
 Complete: `POST /v1/transaction/credit_card/3ds/complete`, `{track_id, terminal_name}` (published schema). Answers the
 published example's shape: `transaction_result` with string values (`transaction_id: "372803"`, `card_type: "2"`,
@@ -393,9 +397,9 @@ cardtype=1, cardissuer=1, cardacquirer=2, TranzilaTK, txn_type=debit, tranmode=A
 | Rule                                                                                                   | Evidence                          | Simulator                                                                  |
 |--------------------------------------------------------------------------------------------------------|-----------------------------------|----------------------------------------------------------------------------|
 | return method is a terminal setting ("Return Method"); guides set POST                                 | published rule                    | an auto-submitting `POST` form                                             |
-| `Response` `000` = success; `ccno` last 4; `TranzilaTK` "if tokenization is enabled"                   | published rule                    | `TranzilaTK` on every approved attempt; J2, J5 and `K` `Response` per `tranzila.verification-approval-code` |
+| `Response` `000` = success; `ccno` last 4; `TranzilaTK` "if tokenization is enabled"                   | published rule                    | `TranzilaTK` on every approved attempt; J2, J5 and `K` `Response` per `tranzila.verification-approval-code` (for `K`, inference from the `777` text) |
 | notify: `application/x-www-form-urlencoded` `POST`                                                     | published rule (notify guides)    | as published                                                               |
-| notify fields: `ConfirmationCode?: string // Success confirmation` among them                          | published example (Lovable notify guide) | simulator decision: the return's fields plus `ConfirmationCode`, the transaction's auth number |
+| notify fields: `ConfirmationCode?: string; // Success confirmation` among them                          | published example (Lovable notify guide) | simulator decision: the return's fields plus `ConfirmationCode`, the transaction's auth number |
 | notify acknowledged by `Return "OK" with status 200 (otherwise Tranzila retries).`                      | published rule (Base44 guide)     | `200` with body `OK` acknowledges; anything else is retried                |
 | notify signature                                                                                       | none published                    | unsigned                                                                   |
 | notify retry schedule; notify on a declined attempt                                                    | unpublished                       | `simulator.webhook.retry-delays`; sent for every finished attempt, approved or declined |
@@ -500,7 +504,9 @@ Tranzila has no status field. Every transaction is an object of its own; its nat
 
 A `force`, `credit`, `reversal` or `cancel` has its own `transaction_id` and an empty ledger, and relates to its
 original by `reference_txn_id`; the original's ledger operations name it in `createdObjectId`. A payment is no longer
-refundable once it has a `credit`, approved or cancelled, or once it is cancelled or declined.
+refundable once it has a `credit`, approved or cancelled, or once it is cancelled or declined; a declined `credit` does
+not count. An original whose `credit` was cancelled returns to its normalized status before the credit, with
+`refundsAccepted` `false`.
 
 ## Error Shape
 
@@ -509,7 +515,7 @@ refundable once it has a `credit`, approved or cancelled, or once it is cancelle
 | `api.tranzila.com` create, complete   | application error                           | `200`, `{"error_code": 20112, "message": "…"}` (integer)                                   | published schema               |
 | `api.tranzila.com` create, complete   | `400` `20001` Invalid JSON Format, `20004` JSON Schema mismatch; `20003` Invalid JSON Schema is published and never answered | `Error` schema: `{"error_code": "20004", "message": "…"}` (string) | published schema               |
 | `api.tranzila.com` create, complete   | `401` `20000` Authentication failed, `20002` Authorization failed | `Error` schema                                                       | published schema               |
-| `api.tranzila.com` under `/v1/transaction` | unknown address `404`; wrong method `405` | `{"error_code":"404","message":"The specified resource was not found"}`; `405` the same shape | inference: the `404` is declared on the create operation only |
+| `api.tranzila.com` under Tranzila's namespaces | unknown address `404`; wrong method `405` | `{"error_code":"404","message":"The specified resource was not found"}`; `{"error_code":"405","message":"This address does not answer this HTTP method"}` | simulator decision: the `404` text is the one declared on the create operation; no `405` is published |
 | `/v1/transactions`                    | auth, schema                                | as create (only `200` is declared)                                                         | simulator decision             |
 | `/v2/handshake/create`                | `400`, `401`                                | `error_code` equal to the HTTP status                                                      | published example              |
 | `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}` | published example |
@@ -545,7 +551,7 @@ buttons.
 | error envelopes                | `error_code` integer in `200` bodies; string in the `Error` schema                    | `error_code` = HTTP status (Handshake V2); `{error, message}` (reports)                            | each host as published                     |
 | field types                    | `transaction_id` integer, `auth_number` string (API schema)                            | strings `"372803"` (3DS complete), `"97588"` (Hosted Fields)                                       | each route as its example                  |
 | `force_txn_on_3ds_fail` default | `Y` (Hosted Fields)                                                                   | `N` (3DS schema)                                                                                   | each surface as published                  |
-| `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | URL from `auth_3ds_redirect.url`; the array read as params |
+| `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only |
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |
 | Hosted Fields errors           | `errors[{code, param, message}]`, codes `10000`–`10016` (table)                        | `err.messages[]` (prose, vendor script)                                                            | client-side `err`, server `errors`         |
@@ -564,7 +570,7 @@ buttons.
 | arithmetic of discounts and exchange rates                   | refused `20004`                                                |
 | 3-D Secure create challenge answer; redirect method          | `challengeUrl` + `track_id`; browser `POST` to `auth_3ds_redirect.url` |
 | full notify field list, signature, retry schedule, on decline | the return's fields plus `ConfirmationCode`, unsigned, simulator retry plan, sent |
-| page `K` answer (no transaction recorded)                    | `Response` per `tranzila.verification-approval-code`, `TranzilaTK`, no `index` |
+| page `K` answer (no transaction recorded)                    | `Response` per `tranzila.verification-approval-code` (inference from the `777` text), `TranzilaTK`, no `index` |
 | API `card_type` ("shva card type") values                    | the page's `cardtype` table (`1` Mastercard … `6` Maestro)     |
 | token format                                                 | `t`, 14 hex digits, the card's last four                       |
 | `/v1/transactions` amount units                              | minor units, as a string (inference from `amount: '500'`)      |
