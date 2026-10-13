@@ -193,15 +193,6 @@ class TranzilaFollowOnTest {
   }
 
   @Test
-  void an_original_whose_id_another_request_closed_first_names_the_id_it_drew() {
-    wired.transactions.closedByAnotherRequestFirst();
-
-    TranzilaOperationResult refused = wired.create(TranzilaWire.aDebit());
-
-    assertThat(refused.refusal()).isEqualTo(RefusalSubject.theObject("10000001"));
-  }
-
-  @Test
   void a_force_with_a_token_this_run_never_answered_is_refused_20111() {
     Held held = aJ5Of("100");
 

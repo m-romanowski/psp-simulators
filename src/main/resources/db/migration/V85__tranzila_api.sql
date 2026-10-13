@@ -71,7 +71,6 @@ create table tranzila_transaction (
     hold_expires_at         timestamptz,
     origin                  varchar(16)  not null,
     created_at              timestamptz  not null,
-    card_fingerprint        varchar(64)  not null,
     arrival                 bigint       not null default nextval('simulator_provider_object_arrival'),
     primary key (test_run_id, transaction_id),
     constraint tranzila_transaction_id_is_positive
@@ -94,8 +93,6 @@ create table tranzila_transaction (
         check (currency_code in ('ILS', 'USD', 'EUR', 'GBP')),
     constraint tranzila_transaction_token_is_alphanumeric
         check (token is null or token ~ '^[0-9A-Za-z]+$'),
-    constraint tranzila_transaction_card_fingerprint_is_sha256_hex
-        check (card_fingerprint ~ '^[0-9a-f]{64}$'),
     constraint tranzila_transaction_card_type
         check (card_type between 1 and 6),
     constraint tranzila_transaction_expiry

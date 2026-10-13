@@ -275,12 +275,10 @@ public final class SeededProviderObjects {
                 (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
                  verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
                  auth_number, token, card_mask, card_type, expiry_month, expiry_year,
-                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at,
-                 card_fingerprint)
+                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
             values (?, ?, ?, 'acct-one-query', 'myterminal', 'debit', null, null, '000', ?, 'ILS',
                     '1000001', 't000000000000014245', '458021xxxxxx4245', 2, 7, 30, '0', '0',
-                    null, null, 'PROVIDER_API', ?,
-                    'a5a3f0a5a2b14f8e2cd0cfb5b44c1f4bd4f1e3f6a1c9b8e7d6c5b4a3f2e1d0c9')
+                    null, null, 'PROVIDER_API', ?)
             """)
         .param(run.value())
         .param(Long.valueOf(theTranzilaTransactionIdOf(held)))

@@ -11,8 +11,6 @@ final class TranzilaPayerCards {
 
   static final int UNSEEN_DIGITS = 12;
 
-  static final String TOKEN_STANDS_FOR_A_CARD = "token:";
-
   private final PaymentMethodFixtures fixtures;
 
   TranzilaPayerCards(PaymentMethodFixtures fixtures) {
@@ -25,17 +23,16 @@ final class TranzilaPayerCards {
         .map(PaymentMethodFixture::card)
         .flatMap(card -> Optional.ofNullable(card).stream())
         .findFirst()
-        .map(card -> theCardOf(testRunId, token, card));
+        .map(TranzilaPayerCards::theCardOf);
   }
 
-  static TranzilaCard theCardOf(TestRunId testRunId, String token, FixtureCard card) {
+  static TranzilaCard theCardOf(FixtureCard card) {
     return new TranzilaCard(
         "x".repeat(UNSEEN_DIGITS) + card.last4(),
         TranzilaCard.cardTypeNamed(card.brand())
             .orElse(Integer.valueOf(TranzilaCard.VISA))
             .intValue(),
         card.expMonth(),
-        card.expYear() % 100,
-        TranzilaCard.fingerprintOf(testRunId.value() + ":" + TOKEN_STANDS_FOR_A_CARD + token));
+        card.expYear() % 100);
   }
 }

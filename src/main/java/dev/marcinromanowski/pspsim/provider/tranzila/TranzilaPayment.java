@@ -80,13 +80,6 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
         .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
-  BigDecimal refundableRemainder() {
-    return whatACreditIsAgainst()
-        .filter(original -> !isCancelled(original))
-        .map(original -> original.theAmount().subtract(theCreditsAgainst(original)))
-        .orElse(BigDecimal.ZERO);
-  }
-
   NormalizedStatus normalizedStatusAt(Instant now) {
     if (!root.approved()) {
       return NormalizedStatus.FAILED;

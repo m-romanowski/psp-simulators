@@ -34,15 +34,15 @@ final class TranzilaResponseCodes {
           + " currency or 017 unauthorised credit type. Three digits, as the table writes them";
 
   static final String BLOCKED =
-      "Blocked confiscate card." + " Please check and enter the credit number again.";
+      "Blocked confiscate card. Please check and enter the credit number again.";
 
   static final String STOLEN =
-      "Stolen confiscate card." + " Please check and enter the credit number again.";
+      "Stolen confiscate card. Please check and enter the credit number again.";
 
   static final String REFUSAL =
-      "Refusal." + " Please contact the card owner to check the reason with his credit company.";
+      "Refusal. Please contact the card owner to check the reason with his credit company.";
 
-  static final String EXPIRED = "Expired card." + " Please check the expiration date again.";
+  static final String EXPIRED = "Expired card. Please check the expiration date again.";
 
   private static SequencedMap<String, String> declines() {
     SequencedMap<String, String> published = new LinkedHashMap<>();

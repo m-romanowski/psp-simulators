@@ -24,9 +24,6 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
 
   private static final String RUN = "before-tranzila";
 
-  private static final String A_FINGERPRINT =
-      "5c1b3f0e2a4d6c8b9a7f1e3d5c7b9a1f2e4d6c8b0a9f7e5d3c1b2a4f6e8d0c9b";
-
   private static final String ANOTHER_PROVIDERS_ACCOUNT = "merchant-already-here";
 
   private static final MigrationVersion BEFORE_TRANZILA = MigrationVersion.fromVersion("84");
@@ -281,11 +278,10 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
           {"response_cvv", "'4'", "tranzila_transaction_response_cvv"},
           {"response_id", "'4'", "tranzila_transaction_response_id"},
           {"root_txn_id", "77", "tranzila_transaction_an_original_references_nothing"},
-          {
-            "card_fingerprint",
-            "'4580210000004245'",
-            "tranzila_transaction_card_fingerprint_is_sha256_hex"
-          }
+          {"verify_mode", "5", "tranzila_transaction_verify_mode_belongs_to_a_verify"},
+          {"amount", "'-1'", "tranzila_transaction_amount_is_a_decimal"},
+          {"currency_code", "'GPB'", "tranzila_transaction_currency"},
+          {"auth_number", "null", "tranzila_transaction_an_approval_carries_an_authorization_numbe"}
         }) {
       String statement =
           refused.length > 3
@@ -296,7 +292,41 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
           .isInstanceOf(DataIntegrityViolationException.class)
           .hasMessageContaining(refused[2]);
     }
+    String aStandingOrder =
+        aRow("txn_type", "'sto'", "reference_txn_id", "1")
+            .replace("values ('" + RUN + "', 1, 1,", "values ('" + RUN + "', 2, 1,");
+    assertThatThrownBy(() -> jdbc.update(aStandingOrder))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("tranzila_transaction_type");
     assertThatCode(() -> jdbc.update(aRow("token", "'t1'"))).doesNotThrowAnyException();
+  }
+
+  @Test
+  void one_transaction_id_one_account_and_one_exchange_sequence_name_one_row_of_a_run() {
+    String aTransaction = aRow("token", "null");
+    jdbc.update(aTransaction);
+    aTerminal("a-1", "myterminal", "k-1", "777", "PT168H");
+    String anotherTerminalOfTheAccount =
+        "insert into "
+            + SCHEMA
+            + ".tranzila_terminal (test_run_id, account_id, terminal_name, app_key, app_secret,"
+            + " access_token, authentication, verification_approval_code, j5_validity)"
+            + " values ('"
+            + RUN
+            + "', 'a-1', 'otherterminal', 'k-2', 's', 'AS_THE_QUICKSTART_SIGNS_IT',"
+            + " 'THE_ACCESS_TOKEN_IS_VERIFIED', '777', 'PT168H')";
+    String anExchange = exchange("FIRST_REQUEST", 0);
+    jdbc.update(anExchange);
+
+    assertThatThrownBy(() -> jdbc.update(aTransaction))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_transaction_pkey");
+    assertThatThrownBy(() -> jdbc.update(anotherTerminalOfTheAccount))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_terminal_pkey");
+    assertThatThrownBy(() -> jdbc.update(anExchange))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_keyed_exchange_pkey");
   }
 
   @Test
@@ -387,7 +417,7 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
         + " terminal_name, txn_type, verify_mode, reference_txn_id, processor_response_code,"
         + " amount, currency_code, auth_number, token, card_mask, card_type, expiry_month,"
         + " expiry_year, response_cvv, response_id, dc_disable, hold_expires_at, origin,"
-        + " created_at, card_fingerprint) values ('"
+        + " created_at) values ('"
         + RUN
         + "', "
         + id
@@ -409,9 +439,7 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
         + (auth == null ? "null" : "'" + auth + "'")
         + ", null, '458021xxxxxx4245', 2, 7, 30, '0', '0', null, "
         + (expires == null ? "null" : "timestamptz '" + expires + "'")
-        + ", 'PROVIDER_API', timestamptz '2026-10-13T12:00:00Z', '"
-        + A_FINGERPRINT
-        + "')";
+        + ", 'PROVIDER_API', timestamptz '2026-10-13T12:00:00Z')";
   }
 
   private String aRow(String column, String value) {
@@ -439,7 +467,6 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
     values.put("response_id", "'0'");
     values.put("origin", "'PROVIDER_API'");
     values.put("created_at", "timestamptz '2026-10-13T12:00:00Z'");
-    values.put("card_fingerprint", "'" + A_FINGERPRINT + "'");
     values.put(column, value);
     values.put(another, itsValue);
     return "insert into "

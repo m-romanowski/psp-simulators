@@ -1,15 +1,9 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
-import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
 
-record TranzilaCard(
-    String cardMask, int cardType, int expiryMonth, int expiryYear, String fingerprint) {
+record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYear) {
 
   static final int MASTERCARD = 1;
 
@@ -29,29 +23,14 @@ record TranzilaCard(
 
   static final String CARD_LOCALITY = "domestic";
 
-  static final String DIGEST = "SHA-256";
+  static final String UNSEEN = "x";
 
-  static TranzilaCard ofThePan(TestRunId testRunId, String pan, int expiryMonth, int expiryYear) {
-    return new TranzilaCard(
-        maskOf(pan),
-        cardTypeOf(pan),
-        expiryMonth,
-        expiryYear % 100,
-        fingerprintOf(testRunId.value() + ":" + pan));
-  }
-
-  static String fingerprintOf(String material) {
-    try {
-      return HexFormat.of()
-          .formatHex(
-              MessageDigest.getInstance(DIGEST).digest(material.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException unavailable) {
-      throw new IllegalStateException("a card fingerprint needs " + DIGEST, unavailable);
-    }
+  static TranzilaCard ofThePan(String pan, int expiryMonth, int expiryYear) {
+    return new TranzilaCard(maskOf(pan), cardTypeOf(pan), expiryMonth, expiryYear % 100);
   }
 
   TranzilaCard expiringIn(int month, int year) {
-    return new TranzilaCard(cardMask, cardType, month, year % 100, fingerprint);
+    return new TranzilaCard(cardMask, cardType, month, year % 100);
   }
 
   static String maskOf(String cardNumber) {
@@ -111,6 +90,17 @@ record TranzilaCard(
   }
 
   boolean isTheSameCardAs(TranzilaCard other) {
-    return fingerprint.equals(other.fingerprint);
+    return last4().equals(other.last4())
+        && expiryMonth == other.expiryMonth
+        && expiryYear == other.expiryYear
+        && cardType == other.cardType
+        && theBin().flatMap(bin -> other.theBin().map(bin::equals)).orElse(Boolean.TRUE);
+  }
+
+  Optional<String> theBin() {
+    String shown = cardMask.substring(0, Math.min(SHOWN_FIRST, cardMask.length()));
+    return shown.length() == SHOWN_FIRST && !shown.contains(UNSEEN)
+        ? Optional.of(shown)
+        : Optional.empty();
   }
 }

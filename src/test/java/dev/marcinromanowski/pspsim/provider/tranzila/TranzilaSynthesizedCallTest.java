@@ -159,6 +159,29 @@ class TranzilaSynthesizedCallTest {
   }
 
   @Test
+  void a_withheld_body_redacts_exactly_the_keys_the_trail_redacted_at_any_depth() {
+    TranzilaJson body =
+        TranzilaJsonReader.objectIn(
+                "{\"a\":{\"Token\":\"t1\",\"keep\":1},\"list\":[{\"token\":\"t2\"}],"
+                    + "\"empty\":[],\"mixed\":[\"x\",\"y\"]}")
+            .orElseThrow();
+    Map<String, List<String>> redacted = new LinkedHashMap<>();
+    redacted.put("a.Token", List.of("[redacted]"));
+    redacted.put("list.token", List.of("[redacted]"));
+    redacted.put("empty", List.of());
+    redacted.put("mixed", List.of("x", "[redacted]"));
+    redacted.put("a.keep", List.of("1"));
+
+    assertThat(TranzilaWithheld.theKeysItRedacted(redacted))
+        .containsExactlyInAnyOrder("a.token", "list.token");
+    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.of(200, body), redacted))
+        .isEqualTo(
+            "{\"a\":{\"Token\":\"[redacted]\",\"keep\":1},\"list\":[{\"token\":\"[redacted]\"}],"
+                + "\"empty\":[],\"mixed\":[\"x\",\"y\"]}");
+    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.nothingRendered(), redacted)).isEmpty();
+  }
+
+  @Test
   void a_transaction_id_is_never_drawn_as_zero() {
     IdGenerator zeros =
         new IdGenerator() {

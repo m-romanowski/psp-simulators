@@ -15,6 +15,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.assertj.core.groups.Tuple;
@@ -470,28 +471,98 @@ class CreateTransactionTest {
 
     TranzilaObservedRequest observed = wired.exchanges.everythingItObserved().get(0);
     assertThat(observed.keyName()).isEqualTo("DCdisable");
-    assertThat(observed.keyValue()).isEqualTo("order-5");
+    assertThat(observed.keyValue()).isEqualTo("debit order-5");
     assertThat(observed.operation()).isEqualTo("debit");
     assertThat(observed.httpStatus()).isEqualTo(200);
     assertThat(observed.contentType()).isEqualTo("application/json");
-    assertThat(observed.body()).isEqualTo(answered);
+    assertThat(observed.body())
+        .isEqualTo(
+            answered
+                .replace("\"token\":\"t000000000000014245\"", "\"token\":\"[redacted]\"")
+                .replace("\"card_number\":\"458021xxxxxx4245\"", "\"card_number\":\"[redacted]\""));
     assertThat(observed.providerObjectId()).isEqualTo("10000001");
     assertThat(observed.accountId()).isEqualTo(TranzilaWiring.ACCOUNT);
     assertThat(observed.testRunId()).isEqualTo(TranzilaWiring.RUN);
     assertThat(observed.at()).isEqualTo(TranzilaWiring.NOW);
     assertThat(observed.fingerprint()).hasSize(64);
+    assertThat(wired.transactions.theKeysHeld()).hasSize(1);
   }
 
   @Test
-  void an_observation_another_request_took_the_place_of_is_written_again_up_to_five_times() {
-    wired.exchanges.takenMeanwhile(4);
+  void an_observation_another_request_took_the_place_of_is_written_again_until_it_is_recorded() {
+    wired.exchanges.takenMeanwhile(99);
+
     wired.answered(underDcDisable("order-8"));
-    TranzilaWiring giving = new TranzilaWiring();
-    giving.exchanges.takenMeanwhile(5);
-    giving.answered(underDcDisable("order-8"));
 
     assertThat(wired.exchanges.everythingItObserved()).hasSize(1);
-    assertThat(giving.exchanges.everythingItObserved()).isEmpty();
+    assertThat(wired.stored()).hasSize(1);
+  }
+
+  @Test
+  void an_observation_that_cannot_be_recorded_in_a_hundred_attempts_undoes_the_transaction() {
+    wired.exchanges.takenMeanwhile(100);
+
+    assertThatThrownBy(() -> wired.create(underDcDisable("order-9")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("100 attempts");
+    assertThat(wired.stored()).isEmpty();
+    assertThat(wired.exchanges.everythingItObserved()).isEmpty();
+  }
+
+  @Test
+  void a_follow_on_observation_that_cannot_be_recorded_undoes_the_follow_on_too() {
+    long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
+    String auth = String.valueOf(wired.theLastStored().authNumber());
+    wired.exchanges.takenMeanwhile(100);
+
+    assertThatThrownBy(() -> wired.create(TranzilaWire.aCancel(debit, auth)))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(wired.stored()).hasSize(1);
+  }
+
+  @Test
+  void two_requests_differing_only_in_their_card_share_one_fingerprint() {
+    wired.answered(underDcDisable("order-10"));
+    wired.answered(
+        underDcDisable("order-10")
+            .replace(TranzilaWire.A_VISA, TranzilaWire.A_MASTERCARD)
+            .replace(
+                "\"expire_month\":7,\"expire_year\":2030",
+                "\"expire_month\":1,\"expire_year\":2031")
+            .replace("}],\"user", "}],\"cvv\":\"999\",\"card_holder_id\":\"123456789\",\"user"));
+    wired.answered(underDcDisable("order-10").replace("10.53", "10.54"));
+
+    List<String> fingerprints =
+        wired.exchanges.everythingItObserved().stream()
+            .map(TranzilaObservedRequest::fingerprint)
+            .toList();
+    assertThat(fingerprints.get(1)).isEqualTo(fingerprints.get(0));
+    assertThat(fingerprints.get(2)).isNotEqualTo(fingerprints.get(0));
+  }
+
+  @Test
+  void an_exchange_keeps_no_card_number_no_cvv_and_no_holder_id() {
+    wired.answered(
+        underDcDisable("order-11")
+            .replace("}],\"user", "}],\"cvv\":\"987\",\"card_holder_id\":\"123456789\",\"user"));
+
+    TranzilaObservedRequest observed = wired.exchanges.everythingItObserved().get(0);
+    assertThat(observed.body())
+        .doesNotContain("4580210000004245")
+        .doesNotContain("987")
+        .doesNotContain("123456789")
+        .doesNotContain("t000000000000014245")
+        .contains("\"card_holder_id\":\"[redacted]\"")
+        .contains("\"cvv\":\"***\"");
+    assertThat(
+            CreateTransaction.theFieldsAFingerprintReads(
+                TranzilaApiCall.of(
+                    "POST",
+                    "/",
+                    Map.of(),
+                    "{\"card_number\":\"1\",\"cvv\":\"2\","
+                        + "\"card_holder_id\":\"3\",\"expire_month\":4,\"expire_year\":5,\"remarks\":\"r\"}")))
+        .containsOnlyKeys("remarks");
   }
 
   @Test

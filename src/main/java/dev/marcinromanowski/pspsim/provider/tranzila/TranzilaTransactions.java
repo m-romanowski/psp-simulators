@@ -24,6 +24,8 @@ interface TranzilaTransactions {
 
   <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision);
 
+  <T> T together(Supplier<T> work);
+
   Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long transactionId);
 
   List<ArrivalOf<TranzilaObject>> newestFirst(

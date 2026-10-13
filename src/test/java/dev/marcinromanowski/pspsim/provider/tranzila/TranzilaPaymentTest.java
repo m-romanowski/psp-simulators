@@ -22,8 +22,7 @@ class TranzilaPaymentTest {
 
   private static final Instant LATER = AT.plusSeconds(60);
 
-  private static final TranzilaCard CARD =
-      TranzilaCard.ofThePan(TranzilaWiring.RUN, "4580210000004245", 7, 2030);
+  private static final TranzilaCard CARD = TranzilaCard.ofThePan("4580210000004245", 7, 2030);
 
   @Test
   void an_approved_debit_succeeded_charged_its_amount_and_takes_credits() {
@@ -31,7 +30,8 @@ class TranzilaPaymentTest {
 
     assertThat(payment.normalizedStatusAt(AT)).isEqualTo(NormalizedStatus.SUCCEEDED);
     assertThat(new TranzilaObject(payment, payment.root()).nativeStatus()).isEqualTo("debit 000");
-    assertThat(payment.refundableRemainder()).isEqualByComparingTo("100");
+    assertThat(payment.ledger().refundableRemainder())
+        .hasValueSatisfying(left -> assertThat(left).isEqualByComparingTo("100"));
     assertThat(payment.refundsAccepted()).isTrue();
     assertThat(payment.isAJ5StillHeldAt(AT)).isFalse();
     assertThat(payment.ledger().operations())
@@ -122,7 +122,8 @@ class TranzilaPaymentTest {
     assertThat(forced.theForce()).contains(force);
     assertThat(forced.whatACreditIsAgainst()).contains(force);
     assertThat(credited.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.PARTIALLY_REFUNDED);
-    assertThat(credited.refundableRemainder()).isEqualByComparingTo("40");
+    assertThat(credited.ledger().refundableRemainder())
+        .hasValueSatisfying(left -> assertThat(left).isEqualByComparingTo("40"));
     assertThat(credited.ledger().operations())
         .extracting(
             MonetaryOperation::kind,
@@ -170,7 +171,8 @@ class TranzilaPaymentTest {
                 followOn(3, 1, 1, TranzilaTxnType.CREDIT, "60", "000", LATER)));
 
     assertThat(payment.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.REFUNDED);
-    assertThat(payment.refundableRemainder()).isEqualByComparingTo("0");
+    assertThat(payment.ledger().refundableRemainder())
+        .hasValueSatisfying(left -> assertThat(left).isEqualByComparingTo("0"));
     assertThat(payment.refundsAccepted()).isFalse();
     assertThat(payment.ledger().operations())
         .extracting(MonetaryOperation::normalizedStatus)
@@ -219,7 +221,8 @@ class TranzilaPaymentTest {
             List.of(followOn(2, 1, 1, TranzilaTxnType.CANCEL, "100", "000", LATER)));
 
     assertThat(payment.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.CANCELLED);
-    assertThat(payment.refundableRemainder()).isEqualByComparingTo("0");
+    assertThat(payment.ledger().refundableRemainder())
+        .hasValueSatisfying(left -> assertThat(left).isEqualByComparingTo("0"));
     assertThat(payment.ledger().operations())
         .extracting(MonetaryOperation::kind)
         .containsExactly(OperationKind.AUTHORIZATION);

@@ -54,6 +54,7 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
   @LocalServerPort private int port;
 
   private RestClient http;
+  private Instant runClock = FIXED_NOW;
   private final HttpClient wire = HttpClient.newHttpClient();
 
   @BeforeEach
@@ -242,6 +243,78 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_j2_a_j5_and_a_debit_under_one_dc_disable_are_no_duplicates_and_a_second_debit_is() {
+    String underTheKey = ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"kinds\"}]";
+    String j2 =
+        aDebit(underTheKey)
+            .replace("{\"terminal", "{\"txn_type\":\"verify\",\"verify_mode\":2,\"terminal");
+    String j5 =
+        aDebit(underTheKey)
+            .replace("{\"terminal", "{\"txn_type\":\"verify\",\"verify_mode\":5,\"terminal");
+
+    HttpResponse<String> checked = signed(j2);
+    HttpResponse<String> held = signed(j5);
+    HttpResponse<String> charged = signed(aDebit(underTheKey));
+    HttpResponse<String> chargedAgain = signed(aDebit(underTheKey));
+
+    assertThat(checked.body()).contains("\"message\":\"success\"").contains("\"tranmode\":\"N\"");
+    assertThat(held.body()).contains("\"message\":\"success\"").contains("\"tranmode\":\"V\"");
+    assertThat(charged.body()).contains("\"message\":\"success\"").contains("\"tranmode\":\"A\"");
+    assertThat(chargedAgain.body())
+        .contains("already been made")
+        .contains("\"transaction_id\":" + valueIn(charged.body(), "transaction_id"));
+    assertThat(objects()).hasSize(3);
+  }
+
+  @Test
+  void a_declined_original_under_a_dc_disable_blocks_no_retry() {
+    declinedOnceThenApproved();
+    String underTheKey =
+        ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"declined\"}]";
+
+    HttpResponse<String> declined = signed(aDebit(underTheKey));
+    HttpResponse<String> retried = signed(aDebit(underTheKey));
+
+    assertThat(declined.body()).contains("\"error_code\":4");
+    assertThat(retried.body()).contains("\"message\":\"success\"");
+    assertThat(objects()).hasSize(2);
+  }
+
+  @Test
+  void an_approval_24_hours_old_on_the_run_clock_blocks_no_repeat() {
+    String underTheKey = ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"a-day\"}]";
+    HttpResponse<String> first = signed(aDebit(underTheKey));
+    configureAt(FIXED_NOW.plusSeconds(24 * 60 * 60 - 1), List.of(anAccount()));
+    HttpResponse<String> justInside = signed(aDebit(underTheKey));
+    configureAt(FIXED_NOW.plusSeconds(24 * 60 * 60), List.of(anAccount()));
+    HttpResponse<String> aDayLater = signed(aDebit(underTheKey));
+
+    assertThat(first.body()).contains("\"message\":\"success\"");
+    assertThat(justInside.body()).contains("already been made");
+    assertThat(aDayLater.body()).contains("\"message\":\"success\"");
+    assertThat(objects()).hasSize(2);
+  }
+
+  @Test
+  void a_declined_first_request_lets_the_concurrent_second_under_its_dc_disable_through()
+      throws Exception {
+    declinedOnceThenApproved();
+    String body =
+        aDebit(",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"race-2\"}]");
+
+    List<HttpResponse<String>> answers = atOnce(List.of(body, body));
+
+    assertThat(answers)
+        .as("%s", answers.stream().map(HttpResponse::body).toList())
+        .filteredOn(answer -> answer.body().contains("\"error_code\":4,"))
+        .hasSize(1);
+    assertThat(answers)
+        .filteredOn(answer -> answer.body().contains("\"message\":\"success\""))
+        .hasSize(1);
+    assertThat(objects()).hasSize(2);
+  }
+
+  @Test
   void a_wrong_access_token_and_a_reused_nonce_are_answered_401_20000() {
     String nonce = "nonce-" + NONCES.incrementAndGet();
     String requestTime = Long.toString(FIXED_NOW.getEpochSecond());
@@ -275,6 +348,41 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
     assertThat(autra.body()).doesNotContain("error_code");
     assertThat(worldline.statusCode()).isEqualTo(403);
     assertThat(worldline.body()).contains("ACCESS_TO_MERCHANT_NOT_ALLOWED");
+  }
+
+  private void declinedOnceThenApproved() {
+    scenario(
+        Map.of(
+            "testRunId", RUN.value(),
+            "story", "declined-once",
+            "keyedOn", "TEST_RUN",
+            "whenState", "Started",
+            "thenState", "declined",
+            "match", Map.of("operation", "debit"),
+            "action", Map.of("type", "TERMINAL_FAILURE", "providerCode", "004")));
+    scenario(
+        Map.of(
+            "testRunId",
+            RUN.value(),
+            "story",
+            "declined-once",
+            "keyedOn",
+            "TEST_RUN",
+            "whenState",
+            "declined",
+            "match",
+            Map.of("operation", "debit"),
+            "action",
+            Map.of("type", "FIXED_SUCCESS")));
+  }
+
+  private void scenario(Map<String, Object> declared) {
+    http.post()
+        .uri("/__simulator/tranzila/scenarios")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(declared)
+        .retrieve()
+        .toBodilessEntity();
   }
 
   private List<HttpResponse<String>> atOnce(List<String> bodies) throws Exception {
@@ -312,7 +420,7 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
 
   private HttpResponse<String> signed(String body) {
     String nonce = "nonce-" + NONCES.incrementAndGet();
-    String requestTime = Long.toString(FIXED_NOW.getEpochSecond());
+    String requestTime = Long.toString(runClock.getEpochSecond());
     return send(body, requestTime, nonce, tokenFor(requestTime, nonce));
   }
 
@@ -366,6 +474,11 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
   }
 
   private void configure(List<Map<String, Object>> accounts) {
+    configureAt(FIXED_NOW, accounts);
+  }
+
+  private void configureAt(Instant now, List<Map<String, Object>> accounts) {
+    runClock = now;
     http.put()
         .uri("/__simulator/tranzila/config")
         .contentType(MediaType.APPLICATION_JSON)
@@ -374,7 +487,7 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
                 "testRunId",
                 RUN.value(),
                 "clock",
-                Map.of("fixedNow", FIXED_NOW.toString()),
+                Map.of("fixedNow", now.toString()),
                 "accounts",
                 accounts,
                 "webhooks",

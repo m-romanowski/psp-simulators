@@ -33,6 +33,13 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
   }
 
   @Override
+  public <T> T together(Supplier<T> work) {
+    return Objects.requireNonNull(
+        transactions.execute(status -> work.get()),
+        "the unit of work answered nothing where its callback answers on every path");
+  }
+
+  @Override
   public <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision) {
     return Objects.requireNonNull(
         transactions.execute(
@@ -56,9 +63,8 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
                 (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
                  verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
                  auth_number, token, card_mask, card_type, expiry_month, expiry_year,
-                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at,
-                 card_fingerprint)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict do nothing
             """)
         .param(transaction.testRunId().value())
@@ -84,7 +90,6 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         .param(TranzilaStoredForm.timestampOf(transaction.holdExpiresAt()))
         .param(transaction.origin().name())
         .param(transaction.createdAt().atOffset(ZoneOffset.UTC))
-        .param(transaction.card().fingerprint())
         .update();
   }
 
@@ -247,8 +252,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
             rs.getString("card_mask"),
             rs.getInt("card_type"),
             rs.getInt("expiry_month"),
-            rs.getInt("expiry_year"),
-            rs.getString("card_fingerprint")),
+            rs.getInt("expiry_year")),
         rs.getString("response_cvv"),
         rs.getString("response_id"),
         rs.getString("dc_disable"),

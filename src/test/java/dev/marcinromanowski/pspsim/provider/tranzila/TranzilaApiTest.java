@@ -158,15 +158,16 @@ class TranzilaApiTest {
   }
 
   @Test
-  void a_request_time_in_milliseconds_is_accepted_up_to_five_minutes_from_the_run_clock() {
+  void
+      a_request_time_in_milliseconds_is_accepted_up_to_300000_ms_from_the_run_clock_and_not_one_more() {
     wired.configuring(
         Map.of(TranzilaAccessToken.SETTING, TranzilaAccessToken.AS_THE_QUICKSTART_SIGNS_IT.name()));
     long now = TranzilaWiring.NOW.toEpochMilli();
 
     assertThat(call(quickstart(Long.toString(now + 300_000), "q-1")).httpStatus()).isEqualTo(200);
     assertThat(call(quickstart(Long.toString(now - 300_000), "q-2")).httpStatus()).isEqualTo(200);
-    assertThat(call(quickstart(Long.toString(now + 301_000), "q-3")).httpStatus()).isEqualTo(401);
-    assertThat(call(quickstart(Long.toString(now - 301_000), "q-4")).httpStatus()).isEqualTo(401);
+    assertThat(call(quickstart(Long.toString(now + 300_001), "q-3")).httpStatus()).isEqualTo(401);
+    assertThat(call(quickstart(Long.toString(now - 300_001), "q-4")).httpStatus()).isEqualTo(401);
   }
 
   @Test

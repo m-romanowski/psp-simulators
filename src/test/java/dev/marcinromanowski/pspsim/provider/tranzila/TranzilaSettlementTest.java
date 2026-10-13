@@ -109,6 +109,39 @@ class TranzilaSettlementTest {
   }
 
   @Test
+  void the_currency_of_a_follow_on_is_refused_before_any_application_rule_could_answer() {
+    Charged debit = aDebit();
+    String aCancelWithNoAuthorization =
+        TranzilaWire.aCancel(debit.id(), "").replace("}", ",\"txn_currency_code\":\"USD\"}");
+    String aCreditOfAnUnknownToken =
+        TranzilaWire.aCredit(debit.id(), "7654321", "tnosuchtoken4245", "1000")
+            .replace("{\"terminal", "{\"txn_currency_code\":\"EUR\",\"terminal");
+    String aReversalOfADebit =
+        TranzilaWire.aReversal(debit.id(), debit.auth())
+            .replace("}", ",\"txn_currency_code\":\"GBP\"}");
+
+    assertThat(wired.create(aCancelWithNoAuthorization).body().httpStatus()).isEqualTo(400);
+    assertThat(wired.create(aCreditOfAnUnknownToken).body().httpStatus()).isEqualTo(400);
+    assertThat(wired.create(aReversalOfADebit).body().httpStatus()).isEqualTo(400);
+    assertThat(wired.stored()).hasSize(1);
+  }
+
+  @Test
+  void a_follow_on_naming_no_original_or_an_unknown_one_is_answered_by_its_own_rule() {
+    String noReference =
+        "{\"terminal_name\":\"myterminal\",\"txn_type\":\"cancel\","
+            + "\"authorization_number\":\"1\",\"txn_currency_code\":\"USD\"}";
+
+    assertThat(wired.answered(noReference)).contains("\"error_code\":21101");
+    assertThat(
+            wired.answered(
+                TranzilaWire.aCancel(99999999L, "1")
+                    .replace("}", ",\"txn_currency_code\":\"USD\"}")))
+        .contains("\"error_code\":20112")
+        .contains("Original transaction not found");
+  }
+
+  @Test
   void a_force_in_another_currency_than_its_j5_is_refused_400_20004() {
     String held = wired.answered(TranzilaWire.aJ5("100"));
     long j5 = TranzilaWire.transactionIdIn(held);
@@ -152,19 +185,17 @@ class TranzilaSettlementTest {
     TranzilaDcDisableKey key =
         new TranzilaDcDisableKey(TranzilaWiring.RUN, "a", "v", TranzilaTxnType.VERIFY, 5);
 
-    assertThat(key.lock())
-        .isEqualTo(
-            ("tranzila-unit"
-                    + '\u0000'
-                    + "a"
-                    + '\u0000'
-                    + "verify"
-                    + '\u0000'
-                    + "5"
-                    + '\u0000'
-                    + "v")
-                .hashCode());
-    assertThat(TranzilaDcDisableKey.LOCK_SPACE).isEqualTo("tranzila DCdisable".hashCode());
+    assertThat(key.lock()).isEqualTo(909680033);
+    assertThat(
+            new TranzilaDcDisableKey(TranzilaWiring.RUN, "a", "v", TranzilaTxnType.DEBIT, null)
+                .lock())
+        .isEqualTo(677208270);
+    assertThat(TranzilaDcDisableKey.LOCK_SPACE).isEqualTo(-1304572616);
+    assertThat(key.exchangeValue()).isEqualTo("verify 5 v");
+    assertThat(
+            new TranzilaDcDisableKey(TranzilaWiring.RUN, "a", "v", TranzilaTxnType.DEBIT, null)
+                .exchangeValue())
+        .isEqualTo("debit v");
   }
 
   private ProviderObjectState stateOf(long id) {

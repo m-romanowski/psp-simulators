@@ -221,7 +221,19 @@ final class TranzilaDoubles {
     @Override
     public synchronized <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision) {
       held.add(key);
-      return decision.get();
+      return together(decision);
+    }
+
+    @Override
+    public <T> T together(Supplier<T> work) {
+      List<TranzilaTransaction> before = List.copyOf(stored);
+      try {
+        return work.get();
+      } catch (RuntimeException rolledBack) {
+        stored.clear();
+        stored.addAll(before);
+        throw rolledBack;
+      }
     }
 
     private final List<TranzilaDcDisableKey> held = new ArrayList<>();
