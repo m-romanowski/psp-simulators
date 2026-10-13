@@ -164,6 +164,16 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
         .contains("This payment has already been made, please contact the business")
         .contains("\"transaction_id\":" + valueIn(first.body(), "transaction_id"));
     assertThat(objects()).hasSize(1);
+    String inspector =
+        http.get()
+            .uri("/__simulator/tranzila/idempotency?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+    assertThat(inspector)
+        .contains("order-7")
+        .contains("FIRST_REQUEST")
+        .contains("DUPLICATE_KEY_REFUSAL")
+        .contains("DCdisable");
   }
 
   @Test
