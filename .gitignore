@@ -28,3 +28,5 @@ bin/
 # Local tooling state: agent settings, transcripts and hooks belong to a machine, not
 # to the repository.
 .claude/
+.tmp/
+
