@@ -696,12 +696,12 @@ class TrailWithholdingConventionTest {
                 + " name, each excused in the initializer that stores it")
         .isEqualTo(21);
     assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(193);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(492);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(495);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(706);
+        .isEqualTo(709);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"
