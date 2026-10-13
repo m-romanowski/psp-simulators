@@ -82,11 +82,11 @@ public final class TrailWithholdingConvention {
 
   public static final String WHY_AN_ADDRESS_IS_THE_FLOOR =
       "the address of a payer page this simulator serves is published under a name whose own"
-          + " words say it is an address, and for two of the four providers that serve such a"
+          + " words say it is an address, and for some of the providers that serve such a"
           + " page it carries the one-time token a payer completes a payment with. A floor over"
           + " every name that reads like a token or a secret would be a guess: those words name"
           + " account settings, environment variables, persona identifiers and database columns"
-          + " across these five modules far more often than they name a field an answer carries";
+          + " across these modules far more often than they name a field an answer carries";
 
   public static final String HOW_AN_ADDRESS_IS_ADMITTED =
       "a name that reads as an address and is not withheld is admitted by registering it in"
@@ -251,6 +251,12 @@ public final class TrailWithholdingConvention {
               "the field a stripe list object names its own route in, /v1/payment_methods: the"
                   + " address of the call the client just made, which the same trail row already"
                   + " keeps in its path"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_API_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's base address; it names no object and reaches a"
+                  + " trail row under no field"),
           new AnAddressInTheClear(
               "worldline",
               "Location",
@@ -811,7 +817,7 @@ public final class TrailWithholdingConvention {
             + " keeps a trail row naming any of "
             + TrailWithholdingDeclarations.THE_DIRECTIONS_A_DELIVERY_ROW_NAMES
             + ", so this rule would examine no delivery and report that every module withholds"
-            + " what it delivers. This simulator delivers a callback for four of its five"
+            + " what it delivers. This simulator delivers a callback for most of its"
             + " providers, so a run that reads no delivery row has a broken classpath, not a clean"
             + " tree. "
             + deliveries.classesRead()

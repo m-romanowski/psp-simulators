@@ -485,7 +485,7 @@ class RelatedObjectAddressConventionTest {
 
     assertThat(build.providerModules())
         .as("every provider module compiled here is read")
-        .containsExactly("autra", "azericard", "grow", "stripe", "worldline");
+        .containsExactly("autra", "azericard", "grow", "stripe", "tranzila", "worldline");
     assertThat(build.theModulesThatBuildAState())
         .as("and every one of them builds a state this gate can walk out of")
         .isEqualTo(build.providerModules());
@@ -529,8 +529,10 @@ class RelatedObjectAddressConventionTest {
                 "worldline",
                 List.of(A_PAGE_WITH_A_VARIABLE)));
     assertThat(RelatedObjectAddressConvention.theModulesThatDeclareNoPageOfTheirOwn(build, pages))
-        .as("stripe builds a state and serves no payer page, so its values are swept for nothing")
-        .containsExactly("stripe");
+        .as(
+            "stripe and tranzila build states and serve no payer page, so their values are swept"
+                + " for nothing")
+        .containsExactly("stripe", "tranzila");
   }
 
   @Test

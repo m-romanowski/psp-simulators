@@ -158,8 +158,8 @@ class PaymentMethodUiIntegrationTest extends PostgresBackedTest {
 
     assertThat(swept)
         .as("every provider-native id box this build draws on this screen, across every provider")
-        .hasSize(6)
-        .contains("stripe.paymentMethodId", "azericard.token", "worldline.token");
+        .hasSize(7)
+        .contains("stripe.paymentMethodId", "azericard.token", "tranzila.token", "worldline.token");
   }
 
   @Test
