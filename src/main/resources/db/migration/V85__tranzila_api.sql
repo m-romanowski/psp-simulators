@@ -71,6 +71,7 @@ create table tranzila_transaction (
     hold_expires_at         timestamptz,
     origin                  varchar(16)  not null,
     created_at              timestamptz  not null,
+    card_fingerprint        varchar(64)  not null,
     arrival                 bigint       not null default nextval('simulator_provider_object_arrival'),
     primary key (test_run_id, transaction_id),
     constraint tranzila_transaction_id_is_positive
@@ -93,6 +94,8 @@ create table tranzila_transaction (
         check (currency_code in ('ILS', 'USD', 'EUR', 'GBP')),
     constraint tranzila_transaction_token_is_alphanumeric
         check (token is null or token ~ '^[0-9A-Za-z]+$'),
+    constraint tranzila_transaction_card_fingerprint_is_sha256_hex
+        check (card_fingerprint ~ '^[0-9a-f]{64}$'),
     constraint tranzila_transaction_card_type
         check (card_type between 1 and 6),
     constraint tranzila_transaction_expiry
@@ -111,22 +114,18 @@ create unique index tranzila_transaction_by_arrival on tranzila_transaction (tes
 
 create unique index tranzila_transaction_closes_a_hold_once
     on tranzila_transaction (test_run_id, reference_txn_id)
-    where txn_type in ('force', 'reversal') and processor_response_code = '000';
+    where txn_type in ('force', 'reversal') and processor_response_code in ('000', '777');
 
-create unique index tranzila_transaction_credits_once
+create unique index tranzila_transaction_settles_an_original_once
     on tranzila_transaction (test_run_id, reference_txn_id)
-    where txn_type = 'credit' and processor_response_code = '000';
-
-create unique index tranzila_transaction_cancels_once
-    on tranzila_transaction (test_run_id, reference_txn_id)
-    where txn_type = 'cancel' and processor_response_code = '000';
+    where txn_type in ('credit', 'cancel') and processor_response_code in ('000', '777');
 
 create index tranzila_transaction_by_root on tranzila_transaction (test_run_id, root_txn_id);
 
 create index tranzila_transaction_by_token on tranzila_transaction (test_run_id, account_id, token);
 
 create index tranzila_transaction_by_dc_disable
-    on tranzila_transaction (test_run_id, account_id, dc_disable);
+    on tranzila_transaction (test_run_id, account_id, dc_disable, txn_type);
 
 create table tranzila_keyed_exchange (
     arrival            bigint       generated always as identity,

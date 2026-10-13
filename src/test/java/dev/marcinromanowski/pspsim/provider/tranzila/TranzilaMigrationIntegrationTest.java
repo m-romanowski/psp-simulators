@@ -24,6 +24,9 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
 
   private static final String RUN = "before-tranzila";
 
+  private static final String A_FINGERPRINT =
+      "5c1b3f0e2a4d6c8b9a7f1e3d5c7b9a1f2e4d6c8b0a9f7e5d3c1b2a4f6e8d0c9b";
+
   private static final String ANOTHER_PROVIDERS_ACCOUNT = "merchant-already-here";
 
   private static final MigrationVersion BEFORE_TRANZILA = MigrationVersion.fromVersion("84");
@@ -191,6 +194,40 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void an_original_is_settled_once_by_a_credit_or_a_cancel_and_never_by_both() {
+    String aCredit = insert(2, 1, "credit", null, 1L, "000", "1000002", null, "1", "ILS");
+    String aCancelAfterIt = insert(3, 1, "cancel", null, 1L, "000", "1000003", null, "1", "ILS");
+    anOriginal(1, "debit", null, "000", null);
+    jdbc.update(aCredit);
+
+    assertThatThrownBy(() -> jdbc.update(aCancelAfterIt))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_transaction_settles_an_original_once");
+  }
+
+  @Test
+  void a_declined_credit_settles_nothing() {
+    String declined = insert(2, 1, "credit", null, 1L, "004", null, null, "1", "ILS");
+    String aCancel = insert(3, 1, "cancel", null, 1L, "000", "1000003", null, "1", "ILS");
+    anOriginal(1, "debit", null, "000", null);
+    jdbc.update(declined);
+
+    assertThatCode(() -> jdbc.update(aCancel)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void a_j5_closed_by_a_force_approved_777_refuses_a_reversal() {
+    String aForce = insert(2, 1, "force", null, 1L, "777", "1000002", null, "1", "ILS");
+    String aReversal = insert(3, 1, "reversal", null, 1L, "000", "1000003", null, "1", "ILS");
+    anOriginal(1, "verify", 5, "777", "2026-10-20T12:00:00Z");
+    jdbc.update(aForce);
+
+    assertThatThrownBy(() -> jdbc.update(aReversal))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_transaction_closes_a_hold_once");
+  }
+
+  @Test
   void the_nonce_store_keys_one_nonce_per_account_of_a_run() {
     String statement9 = nonce("n-1");
     String statement10 = nonce("");
@@ -243,7 +280,12 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
           {"expiry_year", "100", "tranzila_transaction_expiry"},
           {"response_cvv", "'4'", "tranzila_transaction_response_cvv"},
           {"response_id", "'4'", "tranzila_transaction_response_id"},
-          {"root_txn_id", "77", "tranzila_transaction_an_original_references_nothing"}
+          {"root_txn_id", "77", "tranzila_transaction_an_original_references_nothing"},
+          {
+            "card_fingerprint",
+            "'4580210000004245'",
+            "tranzila_transaction_card_fingerprint_is_sha256_hex"
+          }
         }) {
       String statement =
           refused.length > 3
@@ -345,7 +387,7 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
         + " terminal_name, txn_type, verify_mode, reference_txn_id, processor_response_code,"
         + " amount, currency_code, auth_number, token, card_mask, card_type, expiry_month,"
         + " expiry_year, response_cvv, response_id, dc_disable, hold_expires_at, origin,"
-        + " created_at) values ('"
+        + " created_at, card_fingerprint) values ('"
         + RUN
         + "', "
         + id
@@ -367,7 +409,9 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
         + (auth == null ? "null" : "'" + auth + "'")
         + ", null, '458021xxxxxx4245', 2, 7, 30, '0', '0', null, "
         + (expires == null ? "null" : "timestamptz '" + expires + "'")
-        + ", 'PROVIDER_API', timestamptz '2026-10-13T12:00:00Z')";
+        + ", 'PROVIDER_API', timestamptz '2026-10-13T12:00:00Z', '"
+        + A_FINGERPRINT
+        + "')";
   }
 
   private String aRow(String column, String value) {
@@ -395,6 +439,7 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
     values.put("response_id", "'0'");
     values.put("origin", "'PROVIDER_API'");
     values.put("created_at", "timestamptz '2026-10-13T12:00:00Z'");
+    values.put("card_fingerprint", "'" + A_FINGERPRINT + "'");
     values.put(column, value);
     values.put(another, itsValue);
     return "insert into "
