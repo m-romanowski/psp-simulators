@@ -347,3 +347,7 @@ told to annotate `dev.marcinromanowski.pspsim`, which is no package of theirs.
 
 skips the tests tagged `docker`. It is a fast local loop, not the gate: `check -PwithoutDocker` fails the coverage
 thresholds. The full `./gradlew check` starts its own containers and needs only Docker running.
+
+## License
+
+This project is licensed under the Apache-2.0 License.
