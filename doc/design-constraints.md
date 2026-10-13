@@ -66,8 +66,8 @@ The core may do two things and no more: recognise which provider's namespace an 
 provider. The provider decides the status, the media type, the field names and the bytes. An address no provider claims
 may belong to a surface of this simulator, which is asked the same way and decides the same things for itself. The
 split is the one in `kernel/spi/ProviderWireRoutes.java` (the namespaces a module claims, matched on segment
-boundaries because stripe and autra both answer under `/v1`, and azericard's `/token` begins with the letters of
-autra's `/tokenize`) and `kernel/spi/ProviderWireAnswer.java`.
+boundaries because stripe, autra and tranzila answer under `/v1`, and autra's `/tokenize` begins with azericard's
+`/token`) and `kernel/spi/ProviderWireAnswer.java`.
 
 `ProviderWireRoutes` refuses a namespace that lies inside an address this simulator serves itself, which is one list in
 one place: `kernel/ThisSimulatorsOwnAddresses.java` names `/__simulator`, `/ui` and `/actuator`, and both the route
@@ -84,11 +84,11 @@ vendor's to every client that logs one, which is why it is not written.
 
 ### A failure of the platform a provider publishes nothing for is answered with no body (simulator decision)
 
-- The status nothing else chose, no body, and no `Content-Type`. Grow, azericard, stripe and worldline publish nothing
-  for a failure of their own platform and are answered this way; autra on `/v1/acquiring` is answered in its own
-  envelope.
+- The status nothing else chose, no body, and no `Content-Type`. Every provider publishes nothing for a failure of its
+  own platform except autra on `/v1/acquiring`, which is answered in its own envelope; every other namespace, autra's
+  other namespaces among them, is answered this way.
 - A bodyless `5xx` emits nothing the vendor never sends and can be read as no vendor envelope. `text/plain` is a content
-  type none of those four platforms ever sends, so a generated client dispatching on content type, or one with a strict
+  type none of those platforms ever sends, so a generated client dispatching on content type, or one with a strict
   `Accept`, would behave differently here than against the real thing.
 - Vendors publish that shape (published rule): 5 of the 23 `5xx` declarations under autra's `/v1/acquiring` carry no
   body at all, `capture` and `void` among them at `502` (`autra.md`, "Error Catalogue").
