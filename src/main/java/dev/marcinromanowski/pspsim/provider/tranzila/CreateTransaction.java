@@ -3,7 +3,6 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
@@ -138,6 +137,10 @@ final class CreateTransaction {
             TranzilaOriginalRequest.of(parsed.get()),
             now,
             askedBy);
+    Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
+    if (inAnotherCurrency.isPresent()) {
+      return inAnotherCurrency.get().result();
+    }
     String dcDisable = request.dcDisable();
     if (dcDisable == null) {
       return transactions.together(() -> observedUnderTheReference(asked, answered(asked)));
@@ -155,10 +158,7 @@ final class CreateTransaction {
   private TranzilaOperationResult underTheDcDisable(Asked asked, TranzilaDcDisableKey key) {
     boolean seen =
         exchanges.howOftenSeen(
-                asked.testRunId(),
-                asked.accountId(),
-                TranzilaFields.DC_DISABLE,
-                key.exchangeValue())
+                asked.testRunId(), asked.accountId(), key.exchangeKeyName(), key.dcDisable())
             > 0;
     Optional<TranzilaTransaction> original =
         transactions.approvedUnderDcDisable(key, asked.now().minus(THE_DUPLICATE_CHECK_LOOKS_BACK));
@@ -167,8 +167,8 @@ final class CreateTransaction {
           Answered.refused(TranzilaAnswers.aDuplicateOf(original.get(), asked.originalRequest()));
       observe(
           asked,
-          TranzilaFields.DC_DISABLE,
-          key.exchangeValue(),
+          key.exchangeKeyName(),
+          key.dcDisable(),
           ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
           duplicate);
       return duplicate.result();
@@ -176,8 +176,8 @@ final class CreateTransaction {
     Answered answered = answered(asked);
     observe(
         asked,
-        TranzilaFields.DC_DISABLE,
-        key.exchangeValue(),
+        key.exchangeKeyName(),
+        key.dcDisable(),
         seen ? ExchangeVerdict.REPEAT_ADMITTED : ExchangeVerdict.FIRST_REQUEST,
         answered);
     return observedUnderTheReference(asked, answered);
@@ -222,8 +222,7 @@ final class CreateTransaction {
             verdict,
             body.httpStatus(),
             TranzilaFields.JSON,
-            TranzilaWithheld.theTextOf(
-                body, Redaction.redact(body.fields(), TranzilaFields.SENSITIVE_RESPONSE_FIELDS)),
+            TranzilaWithheld.theTextOf(body),
             result.providerObjectId(),
             answered.stored(),
             asked.now());
@@ -317,10 +316,6 @@ final class CreateTransaction {
   }
 
   private Answered aForce(Asked asked) {
-    Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
-    if (inAnotherCurrency.isPresent()) {
-      return inAnotherCurrency.get();
-    }
     TranzilaCreateRequest request = asked.request();
     Optional<Presented> presented = thePresentedCard(asked);
     if (presented.isEmpty()) {
@@ -413,10 +408,6 @@ final class CreateTransaction {
   }
 
   private Answered aReversal(Asked asked) {
-    Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
-    if (inAnotherCurrency.isPresent()) {
-      return inAnotherCurrency.get();
-    }
     return switch (theReferencedOriginal(asked)) {
       case Reference.Refused refused -> refused.answer();
       case Reference.Found found -> aReversalOf(asked, found.payment(), found.target());
@@ -431,10 +422,6 @@ final class CreateTransaction {
   }
 
   private Answered aCredit(Asked asked) {
-    Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
-    if (inAnotherCurrency.isPresent()) {
-      return inAnotherCurrency.get();
-    }
     Optional<Presented> presented = thePresentedCard(asked);
     if (presented.isEmpty()) {
       return theTokenIsUnknown();
@@ -471,10 +458,6 @@ final class CreateTransaction {
   }
 
   private Answered aCancel(Asked asked) {
-    Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
-    if (inAnotherCurrency.isPresent()) {
-      return inAnotherCurrency.get();
-    }
     return switch (theReferencedOriginal(asked)) {
       case Reference.Refused refused -> refused.answer();
       case Reference.Found found -> aCancelOf(asked, found.payment(), found.target());

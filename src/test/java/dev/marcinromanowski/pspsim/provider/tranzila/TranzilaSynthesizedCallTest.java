@@ -159,26 +159,24 @@ class TranzilaSynthesizedCallTest {
   }
 
   @Test
-  void a_withheld_body_redacts_exactly_the_keys_the_trail_redacted_at_any_depth() {
+  void a_withheld_body_redacts_the_fields_the_trail_withholds_at_any_depth_in_any_case() {
     TranzilaJson body =
         TranzilaJsonReader.objectIn(
-                "{\"a\":{\"Token\":\"t1\",\"keep\":1},\"list\":[{\"token\":\"t2\"}],"
-                    + "\"empty\":[],\"mixed\":[\"x\",\"y\"]}")
+                "{\"Transaction_Result\":{\"token\":\"t1\",\"keep\":1},"
+                    + "\"original_request\":{\"card_number\":\"458021xxxxxx4245\","
+                    + "\"card_holder_id\":\"123456789\",\"cvv\":\"***\"},"
+                    + "\"list\":[{\"token\":\"t2\"}],\"token\":\"t3\"}")
             .orElseThrow();
-    Map<String, List<String>> redacted = new LinkedHashMap<>();
-    redacted.put("a.Token", List.of("[redacted]"));
-    redacted.put("list.token", List.of("[redacted]"));
-    redacted.put("empty", List.of());
-    redacted.put("mixed", List.of("x", "[redacted]"));
-    redacted.put("a.keep", List.of("1"));
 
-    assertThat(TranzilaWithheld.theKeysItRedacted(redacted))
-        .containsExactlyInAnyOrder("a.token", "list.token");
-    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.of(200, body), redacted))
+    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.of(200, body)))
         .isEqualTo(
-            "{\"a\":{\"Token\":\"[redacted]\",\"keep\":1},\"list\":[{\"token\":\"[redacted]\"}],"
-                + "\"empty\":[],\"mixed\":[\"x\",\"y\"]}");
-    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.nothingRendered(), redacted)).isEmpty();
+            "{\"Transaction_Result\":{\"token\":\"[redacted]\",\"keep\":1},"
+                + "\"original_request\":{\"card_number\":\"[redacted]\","
+                + "\"card_holder_id\":\"[redacted]\",\"cvv\":\"***\"},"
+                + "\"list\":[{\"token\":\"t2\"}],\"token\":\"t3\"}");
+    assertThat(TranzilaWithheld.isWithheld("transaction_result.token")).isTrue();
+    assertThat(TranzilaWithheld.isWithheld("transaction_result.last_4")).isFalse();
+    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.nothingRendered())).isEmpty();
   }
 
   @Test

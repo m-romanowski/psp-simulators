@@ -470,8 +470,8 @@ class CreateTransactionTest {
     String answered = wired.answered(underDcDisable("order-5"));
 
     TranzilaObservedRequest observed = wired.exchanges.everythingItObserved().get(0);
-    assertThat(observed.keyName()).isEqualTo("DCdisable");
-    assertThat(observed.keyValue()).isEqualTo("debit order-5");
+    assertThat(observed.keyName()).isEqualTo("DCdisable debit");
+    assertThat(observed.keyValue()).isEqualTo("order-5");
     assertThat(observed.operation()).isEqualTo("debit");
     assertThat(observed.httpStatus()).isEqualTo(200);
     assertThat(observed.contentType()).isEqualTo("application/json");
@@ -617,7 +617,7 @@ class CreateTransactionTest {
 
     assertThat(wired.exchanges.everythingItObserved())
         .extracting(TranzilaObservedRequest::keyName)
-        .containsExactly("DCdisable", "reference_txn_id");
+        .containsExactly("DCdisable cancel", "reference_txn_id");
   }
 
   @Test

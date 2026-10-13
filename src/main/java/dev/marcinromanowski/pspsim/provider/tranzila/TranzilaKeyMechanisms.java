@@ -5,13 +5,16 @@ import dev.marcinromanowski.pspsim.kernel.spi.DeclaredKey;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyCarriage;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyClaim;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderKeyMechanisms;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 final class TranzilaKeyMechanisms {
 
   static final String SCOPED_BY_THE_TERMINAL_AND_A_DAY =
-      "the DCdisable value a create carries in user_defined_fields, which provider tranzila"
+      "the DCdisable value a create carries in user_defined_fields, kept as the client sent it"
+          + " under a key name that carries the txn_type and verify_mode it is compared within,"
+          + " which provider tranzila"
           + " compares \"up to 24 hours back\" and \"at the parent terminal level\", against"
           + " transactions of the same txn_type and verify_mode. A repeat within that window of an"
           + " approved original runs nothing and is answered error_code"
@@ -46,23 +49,42 @@ final class TranzilaKeyMechanisms {
           + " DCdisable, whose repeat is answered with a duplicate message rather than with the"
           + " original answer replayed unchanged";
 
+  static final List<String> THE_DC_DISABLE_KEY_NAMES =
+      List.of(
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.DEBIT, null),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.VERIFY, TranzilaTxnType.J2),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.VERIFY, TranzilaTxnType.J5),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.FORCE, null),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.REVERSAL, null),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.CREDIT, null),
+          TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.CANCEL, null));
+
   static final ProviderKeyMechanisms MECHANISMS =
       new ProviderKeyMechanisms(
           TranzilaApi.TRANZILA,
-          List.of(
-              new DeclaredKey(
-                  TranzilaFields.DC_DISABLE,
-                  KeyRole.DUPLICATE_DETECTION_KEY,
-                  KeyCarriage.REQUEST_FIELD,
-                  SCOPED_BY_THE_TERMINAL_AND_A_DAY,
-                  ONE_REQUEST_AT_A_TIME_UNDER_A_DC_DISABLE),
-              new DeclaredKey(
-                  TranzilaFields.REFERENCE_TXN_ID,
-                  KeyRole.CORRELATION_KEY,
-                  KeyCarriage.REQUEST_FIELD,
-                  SCOPED_BY_THE_ORIGINAL,
-                  THE_ORIGINAL_IS_NEVER_CLAIMED)),
+          theKeys(),
           Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY));
+
+  private static List<DeclaredKey> theKeys() {
+    List<DeclaredKey> keys = new ArrayList<>();
+    THE_DC_DISABLE_KEY_NAMES.forEach(
+        name ->
+            keys.add(
+                new DeclaredKey(
+                    name,
+                    KeyRole.DUPLICATE_DETECTION_KEY,
+                    KeyCarriage.REQUEST_FIELD,
+                    SCOPED_BY_THE_TERMINAL_AND_A_DAY,
+                    ONE_REQUEST_AT_A_TIME_UNDER_A_DC_DISABLE)));
+    keys.add(
+        new DeclaredKey(
+            TranzilaFields.REFERENCE_TXN_ID,
+            KeyRole.CORRELATION_KEY,
+            KeyCarriage.REQUEST_FIELD,
+            SCOPED_BY_THE_ORIGINAL,
+            THE_ORIGINAL_IS_NEVER_CLAIMED));
+    return List.copyOf(keys);
+  }
 
   private TranzilaKeyMechanisms() {}
 }

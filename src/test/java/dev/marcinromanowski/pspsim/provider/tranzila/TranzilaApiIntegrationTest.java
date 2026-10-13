@@ -296,7 +296,7 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void a_declined_first_request_lets_the_concurrent_second_under_its_dc_disable_through()
+  void the_lock_does_not_block_a_second_request_after_a_declined_first_under_one_dc_disable()
       throws Exception {
     declinedOnceThenApproved();
     String body =
@@ -312,6 +312,49 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
         .filteredOn(answer -> answer.body().contains("\"message\":\"success\""))
         .hasSize(1);
     assertThat(objects()).hasSize(2);
+  }
+
+  @Test
+  void
+      a_dc_disable_of_254_characters_is_kept_as_sent_on_a_j5_and_on_a_reversal_and_255_is_refused() {
+    String longest = "d".repeat(254);
+    String underIt =
+        ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"" + longest + "\"}]";
+    String aJ5 =
+        aDebit(underIt)
+            .replace("{\"terminal", "{\"txn_type\":\"verify\",\"verify_mode\":5,\"terminal");
+
+    HttpResponse<String> held = signed(aJ5);
+    HttpResponse<String> heldAgain = signed(aJ5);
+    String reversal =
+        "{\"terminal_name\":\"myterminal\",\"txn_type\":\"reversal\",\"reference_txn_id\":"
+            + valueIn(held.body(), "transaction_id")
+            + ",\"authorization_number\":\""
+            + textIn(held.body(), "auth_number")
+            + "\""
+            + underIt
+            + "}";
+    HttpResponse<String> reversed = signed(reversal);
+    HttpResponse<String> reversedAgain = signed(reversal);
+    HttpResponse<String> tooLong = signed(aDebit(underIt.replace(longest, longest + "d")));
+
+    assertThat(held.body()).contains("\"message\":\"success\"");
+    assertThat(heldAgain.body()).contains("already been made");
+    assertThat(reversed.body())
+        .contains("\"message\":\"success\"")
+        .contains("\"txn_type\":\"reversal\"");
+    assertThat(reversedAgain.body()).contains("already been made");
+    assertThat(tooLong.body())
+        .isEqualTo("{\"error_code\":22103,\"message\":\"Invalid DCdisable\"}");
+    String inspector =
+        http.get()
+            .uri("/__simulator/tranzila/idempotency?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+    assertThat(inspector)
+        .contains("DCdisable verify 5")
+        .contains("DCdisable reversal")
+        .contains("\"" + longest + "\"");
   }
 
   @Test

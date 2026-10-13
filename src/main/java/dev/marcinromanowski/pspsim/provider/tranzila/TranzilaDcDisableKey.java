@@ -12,11 +12,14 @@ record TranzilaDcDisableKey(
 
   static final int LOCK_SPACE = "tranzila DCdisable".hashCode();
 
-  String exchangeValue() {
-    Integer mode = verifyMode;
-    return mode == null
-        ? type.wire() + " " + dcDisable
-        : type.wire() + " " + mode + " " + dcDisable;
+  String exchangeKeyName() {
+    return keyNameOf(type, verifyMode);
+  }
+
+  static String keyNameOf(TranzilaTxnType type, @Nullable Integer verifyMode) {
+    return verifyMode == null
+        ? TranzilaFields.DC_DISABLE + " " + type.wire()
+        : TranzilaFields.DC_DISABLE + " " + type.wire() + " " + verifyMode;
   }
 
   int lock() {

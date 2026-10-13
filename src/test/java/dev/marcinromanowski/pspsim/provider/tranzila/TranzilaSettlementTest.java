@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
+import java.time.Duration;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 
@@ -142,6 +143,51 @@ class TranzilaSettlementTest {
   }
 
   @Test
+  void the_currency_of_a_follow_on_is_refused_before_its_dc_disable_is_read() {
+    Charged debit = aDebit();
+    String tooLong =
+        TranzilaWire.aCancel(debit.id(), debit.auth())
+            .replace(
+                "}",
+                ",\"txn_currency_code\":\"USD\",\"user_defined_fields\":[{\"name\":\"DCdisable\","
+                    + "\"value\":\""
+                    + "x".repeat(255)
+                    + "\"}]}");
+    String underTheKey = ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"once\"}]";
+    Charged credited = aDebit();
+    wired.create(
+        TranzilaWire.aCredit(credited.id(), credited.auth(), credited.token(), "1")
+            .replace("}]}", "}]" + underTheKey + "}"));
+    String aDuplicateInDollars =
+        TranzilaWire.aCredit(credited.id(), credited.auth(), credited.token(), "1")
+            .replace("}]}", "}]" + underTheKey + ",\"txn_currency_code\":\"USD\"}");
+
+    assertThat(wired.create(tooLong).body().httpStatus()).isEqualTo(400);
+    assertThat(wired.create(aDuplicateInDollars).body().text())
+        .contains("\"error_code\":\"20004\"")
+        .doesNotContain("already been made");
+  }
+
+  @Test
+  void a_force_in_another_currency_is_refused_400_before_its_closed_j5_or_its_authorization() {
+    String held = wired.answered(TranzilaWire.aJ5("100"));
+    long j5 = TranzilaWire.transactionIdIn(held);
+    String token = TranzilaWire.textIn(held, "token");
+    String withAnotherAuthorization =
+        TranzilaWire.aForce(j5, token, "10")
+            .replace(
+                "{\"terminal",
+                "{\"txn_currency_code\":\"EUR\",\"authorization_number\":\"7654321\",\"terminal");
+    String afterExpiry =
+        TranzilaWire.aForce(j5, token, "10")
+            .replace("{\"terminal", "{\"txn_currency_code\":\"EUR\",\"terminal");
+
+    assertThat(wired.create(withAnotherAuthorization).body().httpStatus()).isEqualTo(400);
+    wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofDays(8)));
+    assertThat(wired.create(afterExpiry).body().httpStatus()).isEqualTo(400);
+  }
+
+  @Test
   void a_force_in_another_currency_than_its_j5_is_refused_400_20004() {
     String held = wired.answered(TranzilaWire.aJ5("100"));
     long j5 = TranzilaWire.transactionIdIn(held);
@@ -191,11 +237,20 @@ class TranzilaSettlementTest {
                 .lock())
         .isEqualTo(677208270);
     assertThat(TranzilaDcDisableKey.LOCK_SPACE).isEqualTo(-1304572616);
-    assertThat(key.exchangeValue()).isEqualTo("verify 5 v");
+    assertThat(key.exchangeKeyName()).isEqualTo("DCdisable verify 5");
     assertThat(
             new TranzilaDcDisableKey(TranzilaWiring.RUN, "a", "v", TranzilaTxnType.DEBIT, null)
-                .exchangeValue())
-        .isEqualTo("debit v");
+                .exchangeKeyName())
+        .isEqualTo("DCdisable debit");
+    assertThat(TranzilaKeyMechanisms.THE_DC_DISABLE_KEY_NAMES)
+        .containsExactly(
+            "DCdisable debit",
+            "DCdisable verify 2",
+            "DCdisable verify 5",
+            "DCdisable force",
+            "DCdisable reversal",
+            "DCdisable credit",
+            "DCdisable cancel");
   }
 
   private ProviderObjectState stateOf(long id) {

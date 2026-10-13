@@ -3,32 +3,25 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 
 final class TranzilaWithheld {
 
   private TranzilaWithheld() {}
 
-  static String theTextOf(TranzilaBody body, Map<String, List<String>> redacted) {
+  static String theTextOf(TranzilaBody body) {
     TranzilaJson json = body.json();
-    return json == null
-        ? body.text()
-        : TranzilaJsonWriter.toText(withheld(json, null, theKeysItRedacted(redacted)));
+    return json == null ? body.text() : TranzilaJsonWriter.toText(withheld(json, null));
   }
 
-  static Set<String> theKeysItRedacted(Map<String, List<String>> redacted) {
-    return redacted.entrySet().stream()
-        .filter(field -> !field.getValue().isEmpty())
-        .filter(field -> field.getValue().stream().allMatch(Redaction.REDACTED::equals))
-        .map(field -> field.getKey().toLowerCase(Locale.ROOT))
-        .collect(Collectors.toUnmodifiableSet());
+  static boolean isWithheld(String path) {
+    return Redaction.redact(Map.of(path, List.of(path)), TranzilaFields.SENSITIVE_RESPONSE_FIELDS)
+        .getOrDefault(path, List.of())
+        .contains(Redaction.REDACTED);
   }
 
-  static TranzilaJson withheld(TranzilaJson value, @Nullable String path, Set<String> redacted) {
+  static TranzilaJson withheld(TranzilaJson value, @Nullable String path) {
     return switch (value) {
       case TranzilaJson.JsonObject object -> {
         Map<String, TranzilaJson> kept = new LinkedHashMap<>();
@@ -39,15 +32,15 @@ final class TranzilaWithheld {
                   String at = path == null ? name : path + "." + name;
                   kept.put(
                       name,
-                      redacted.contains(at.toLowerCase(Locale.ROOT))
+                      isWithheld(at)
                           ? TranzilaJson.text(Redaction.REDACTED)
-                          : withheld(member, at, redacted));
+                          : withheld(member, at));
                 });
         yield TranzilaJson.object(kept);
       }
       case TranzilaJson.JsonArray array ->
           TranzilaJson.array(
-              array.elements().stream().map(element -> withheld(element, path, redacted)).toList());
+              array.elements().stream().map(element -> withheld(element, path)).toList());
       default -> value;
     };
   }
