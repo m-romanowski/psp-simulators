@@ -377,7 +377,7 @@ public final class TrailWithholdingConvention {
               + " compiles into "
               + TrailWithholdingDeclarations.PROVIDER_PACKAGE
               + ", so this gate would examine no provider and report that every provider it"
-              + " examined withholds what it must. This simulator serves five providers, so a run"
+              + " examined withholds what it must. This simulator serves providers, so a run"
               + " that reads no module has a broken classpath, not a clean tree. "
               + build.classesRead()
               + " provider class file(s) were read.");
