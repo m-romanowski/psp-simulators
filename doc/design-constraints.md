@@ -66,14 +66,14 @@ The core may do two things and no more: recognise which provider's namespace an 
 provider. The provider decides the status, the media type, the field names and the bytes. An address no provider claims
 may belong to a surface of this simulator, which is asked the same way and decides the same things for itself. The
 split is the one in `kernel/spi/ProviderWireRoutes.java` (the namespaces a module claims, matched on segment
-boundaries because two providers answer under `/v1` and two more share a first path segment) and
-`kernel/spi/ProviderWireAnswer.java`.
+boundaries because stripe and autra both answer under `/v1`, and azericard's `/token` begins with the letters of
+autra's `/tokenize`) and `kernel/spi/ProviderWireAnswer.java`.
 
 `ProviderWireRoutes` refuses a namespace that lies inside an address this simulator serves itself, which is one list in
 one place: `kernel/ThisSimulatorsOwnAddresses.java` names `/__simulator`, `/ui` and `/actuator`, and both the route
-alias grammar and the control surface read it from there. A sixth module naming `/__simulator` as a wire namespace
-would be asked what that address answers — modules are asked before surfaces — and would hand a tester on the
-control API a vendor envelope. A documented reservation is not that invariant; the constructor is.
+alias grammar and the control surface read it from there. A provider module naming `/__simulator` as a wire namespace
+would be asked what that address answers — modules are asked before surfaces — and would hand a tester on the control
+API a vendor envelope. A documented reservation is not that invariant; the constructor is.
 
 A provider whose contract publishes no answer for an address it does not serve, or for a method one of its addresses
 does not answer, says so, and the core writes this simulator's own `text/plain` diagnostic at the status nothing else
@@ -84,10 +84,11 @@ vendor's to every client that logs one, which is why it is not written.
 
 ### A failure of the platform a provider publishes nothing for is answered with no body (simulator decision)
 
-- The status nothing else chose, no body, and no `Content-Type`. A provider that publishes nothing for a failure
-  of its own platform is answered this way; autra on `/v1/acquiring` is answered in its own envelope.
+- The status nothing else chose, no body, and no `Content-Type`. Grow, azericard, stripe and worldline publish nothing
+  for a failure of their own platform and are answered this way; autra on `/v1/acquiring` is answered in its own
+  envelope.
 - A bodyless `5xx` emits nothing the vendor never sends and can be read as no vendor envelope. `text/plain` is a content
-  type none of those platforms ever sends, so a generated client dispatching on content type, or one with a strict
+  type none of those four platforms ever sends, so a generated client dispatching on content type, or one with a strict
   `Accept`, would behave differently here than against the real thing.
 - Vendors publish that shape (published rule): 5 of the 23 `5xx` declarations under autra's `/v1/acquiring` carry no
   body at all, `capture` and `void` among them at `502` (`autra.md`, "Error Catalogue").
@@ -619,13 +620,13 @@ TTL (`azericard.md`, "Card Storage and Stored-Card Payment"). Stripe completes a
 
 ### The address of a payer page is built where it is answered, and kept nowhere
 
-The three providers that answer a hosted URL build it from the token on the row and
-`simulator.public-base-url`: grow from `hosted_link`, autra from `page_token`, worldline from the
-`hostedTokenizationId` that is the row's own `providerObjectId`. No row keeps the built address: V81 drops grow's
-`hosted_page_url` and autra's `hosted_card_url`, because V49 and V72 had already taken out of those columns the
-token each address is built from, which left a value only the row's own mapper and its insert touched. A derived
-address on a row is also the one shape `verifyNoPayerUrlAmongRelatedObjects` cannot see, since it reaches a screen as
-no constant of this build, so it is a shape this build does not have rather than one the gate registers.
+A provider that answers a hosted URL builds it from the token on the row and `simulator.public-base-url`: grow from
+`hosted_link`, autra from `page_token`, worldline from the `hostedTokenizationId` that is the row's own
+`providerObjectId`. No row keeps the built address: V81 drops grow's `hosted_page_url` and autra's `hosted_card_url`,
+because V49 and V72 had already taken out of those columns the token each address is built from, which left a value only
+the row's own mapper and its insert touched. A derived address on a row is also the one shape
+`verifyNoPayerUrlAmongRelatedObjects` cannot see, since it reaches a screen as no constant of this build, so it is a
+shape this build does not have rather than one the gate registers.
 
 Grow's create answers `url` and autra's answers `hostedCardUrl`, each computed where it is answered from the values
 the row keeps, which is what makes the two columns derived.
@@ -700,15 +701,15 @@ are compared that way. The key a name is finally published under is composed at 
 that can no longer match the body beside it is caught by the unit test that reads the row, never by this gate.
 
 The floor the declaration stands on is the address of the payer page the provider declares as
-`ThePayerStep.APageThisSimulatorServes`: for two of the four providers that serve such a page it carries the
-one-time token a payer completes a payment with, and its name says in its own words that it is an address. A
-published name whose own words include `url`, `uri`, `link`, `href` or `location` is either withheld or registered in
+`ThePayerStep.APageThisSimulatorServes`: for grow and autra it carries the one-time token a payer completes a payment
+with (azericard's and worldline's do not), and its name says in its own words that it is an address. A published name
+whose own words include `url`, `uri`, `link`, `href` or `location` is either withheld or registered in
 `TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR` against the one provider that publishes it,
 with the reason that address is no secret of that provider; the registration is the decision, and the gate reports only
 that nobody made it.
 
 The floor is that narrow on purpose. A name reading as a token or a secret names an account setting, an environment
-variable, a persona or a database column across these five modules far more often than it names a field an answer
+variable, a persona or a database column across the provider modules far more often than it names a field an answer
 carries, so a floor over those words would be a guess with a registry larger than the rule.
 
 Azericard withholds nothing and is registered in
@@ -747,14 +748,14 @@ declaration — `StripeWebhookRendering`, which re-signs the event stripe's sche
 one such class. Composing, not minting, is also what obliges a module to withhold a field or register that it has
 none, because a module that composes nothing would be registering a decision about fields it writes none of.
 
-Four of the five modules mint a delivery: autra, azericard, grow and stripe. Worldline mints none and declares none.
+Autra, azericard, grow and stripe mint a delivery. Worldline mints none and declares none.
 Between them they withhold five fields: grow's `data[processToken]`, `data[transactionToken]`, `data[cardToken]` and
 `data[customFields][cField1]`, and stripe's `data.object.client_secret`.
 
-What a delivery declaration withholds is matched the way the redactor that module hands `SENSITIVE_DELIVERY_FIELDS`
-to matches a key, read of that field and not of the response declaration beside it. All four modules hand it to
-`Redaction.redact`, so a recorded name is met by a declared key equal to it or by a declared path ending in that
-segment, and a bracketed key is a key of its own here as it is in the response direction. Stripe is the module this
+What a delivery declaration withholds is matched the way the redactor that module hands `SENSITIVE_DELIVERY_FIELDS` to
+matches a key, read of that field and not of the response declaration beside it. Autra, azericard, grow and stripe all
+hand it to `Redaction.redact`, so a recorded name is met by a declared key equal to it or by a declared path ending in
+that segment, and a bracketed key is a key of its own here as it is in the response direction. Stripe is the module this
 separates: its responses go to its own `withholding` methods and its deliveries to `Redaction.redact`, so the two
 directions of one module are compared differently. A delivery declaration handed to redactors that do not match a key
 the same way fails the build rather than being read against one of them.
