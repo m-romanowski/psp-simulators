@@ -46,7 +46,7 @@ Each provider renders its own bytes. Shared code does not choose the content typ
 
 ### No shared error rendering and no shared exception handling over provider routes
 
-Provider routes have no common exception handler and no common error body. Five providers use seven error shapes:
+Provider routes have no common exception handler and no common error body. Each provider has its own error shapes, some more than one:
 
 | Provider | Shape | Citation |
 |---|---|---|
@@ -84,10 +84,10 @@ vendor's to every client that logs one, which is why it is not written.
 
 ### A failure of the platform a provider publishes nothing for is answered with no body (simulator decision)
 
-- The status nothing else chose, no body, and no `Content-Type`. Four of the five providers publish nothing for a
-  failure of their own platform and are answered this way; autra on `/v1/acquiring` is answered in its own envelope.
+- The status nothing else chose, no body, and no `Content-Type`. A provider that publishes nothing for a failure
+  of its own platform is answered this way; autra on `/v1/acquiring` is answered in its own envelope.
 - A bodyless `5xx` emits nothing the vendor never sends and can be read as no vendor envelope. `text/plain` is a content
-  type none of those four platforms ever sends, so a generated client dispatching on content type, or one with a strict
+  type none of those platforms ever sends, so a generated client dispatching on content type, or one with a strict
   `Accept`, would behave differently here than against the real thing.
 - Vendors publish that shape (published rule): 5 of the 23 `5xx` declarations under autra's `/v1/acquiring` carry no
   body at all, `capture` and `void` among them at `502` (`autra.md`, "Error Catalogue").
@@ -691,7 +691,7 @@ nothing, and autra's card page and worldline's tokenization checkout each hand t
 the nine sites the declaration is applied and can match nothing. The unit test of each row states what it carries; the gate states only
 that the module's own declaration is what every answering class reads.
 
-The comparison follows each module's own redactor rather than one rule for all five, and the redactor is read of each
+The comparison follows each module's own redactor rather than one rule for all, and the redactor is read of each
 declaration separately, because one module hands its two declarations to different ones. `Redaction.redact` matches a
 whole key, so for autra, azericard, grow and worldline a published name is met by a declared key equal to it or by a
 declared path ending in it — which is how grow's `data.url` covers the `url` its flattened body is keyed under, and

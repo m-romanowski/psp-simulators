@@ -1,6 +1,6 @@
 # PSP Simulators
 
-A standalone simulator for six payment service providers. Point an application at it instead of the real PSP and it
+A standalone simulator of payment service providers. Point an application at it instead of the real PSP and it
 answers in the vendor's own shapes: the same routes, payloads, error envelopes and callbacks. A payment journey can be
 driven end to end with no sandbox account, no real card and no network nobody controls.
 
@@ -51,7 +51,7 @@ A first payment is [`doc/quickstart.md`](doc/quickstart.md). To work on the simu
   rule rather than by card number, and a run's setup as one exportable document.
 - **Testers and support engineers**, who do the same from screens.
 
-## The six providers
+## The providers
 
 | Provider         | What it answers                                                                                                                                                  | Contract                               |
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|

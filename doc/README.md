@@ -1,7 +1,7 @@
 # PSP Simulator API Contracts
 
-The contract of this simulator: the surface each provider serves, the provider-neutral control API, and the rules the
-five providers share. Each provider file holds the vendor's own contract and every place the simulator departs from it.
+The contract of this simulator: the surface each provider serves, the provider-neutral control API, and the rules every
+provider shares. Each provider file holds the vendor's own contract and every place the simulator departs from it.
 
 Every request and response schema of the control API is in the generated OpenAPI documents, browsable at
 `/openapi/index.html` (sources under `src/main/resources/static/openapi/`). `verifyOpenApi` fails the build when they
