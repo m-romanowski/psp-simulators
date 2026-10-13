@@ -1,0 +1,25 @@
+{
+  "error_code": 0,
+  "message": "success",
+  "transaction_result": {
+    "processor_response_code": "000",
+    "transaction_id": 12345,
+    "auth_number": "0587923",
+    "Responsecvv": "1",
+    "Responseid": "0",
+    "card_type": 2,
+    "card_type_name": "Visa",
+    "currency_code": "ILS",
+    "expiry_month": 7,
+    "expiry_year": 25,
+    "payment_plan": 1,
+    "token": "O5d55d2922ca4021382",
+    "last_4": "4245",
+    "card_mask": "458021xxxxxx4245",
+    "card_locality": "domestic",
+    "amount": 10.53,
+    "txn_type": "debit",
+    "tranmode": "A"
+  },
+  "original_request": {}
+}

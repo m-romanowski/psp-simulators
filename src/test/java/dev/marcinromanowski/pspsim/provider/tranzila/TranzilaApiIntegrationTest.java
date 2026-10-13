@@ -1,0 +1,320 @@
+package dev.marcinromanowski.pspsim.provider.tranzila;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import dev.marcinromanowski.pspsim.PostgresBackedTest;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestClient;
+
+class TranzilaApiIntegrationTest extends PostgresBackedTest {
+
+  private static final TestRunId RUN = TestRunId.of("tranzila-api-it");
+
+  private static final Instant FIXED_NOW = Instant.parse("2026-10-13T12:00:00Z");
+
+  private static final String ACCOUNT = "account-1";
+
+  private static final String TERMINAL = "myterminal";
+
+  private static final String APP_KEY = "tranzila-it-app-key";
+
+  private static final String APP_SECRET = "tranzila-it-app-secret";
+
+  private static final String A_VISA = "4580210000004245";
+
+  private static final AtomicInteger NONCES = new AtomicInteger();
+
+  @LocalServerPort private int port;
+
+  private RestClient http;
+  private final HttpClient wire = HttpClient.newHttpClient();
+
+  @BeforeEach
+  void configureTheTerminal() {
+    http = RestClient.create("http://localhost:" + port);
+    reset();
+    configure(List.of(anAccount()));
+  }
+
+  @AfterEach
+  void unconfigureTheTerminal() {
+    reset();
+    configure(List.of());
+  }
+
+  @Test
+  void a_backend_signing_real_headers_holds_forces_part_credits_part_and_reads_it_back() {
+    HttpResponse<String> held =
+        signed(
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"verify\",\"verify_mode\":5,"
+                + "\"card_number\":\""
+                + A_VISA
+                + "\",\"expire_month\":7,\"expire_year\":2030,\"cvv\":\"123\","
+                + "\"items\":[{\"name\":\"a\",\"units_number\":2,\"unit_price\":50}]}");
+    String j5 = valueIn(held.body(), "transaction_id");
+    String token = textIn(held.body(), "token");
+
+    HttpResponse<String> forced =
+        signed(
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"force\",\"reference_txn_id\":"
+                + j5
+                + ",\"card_number\":\""
+                + token
+                + "\",\"expire_month\":7,\"expire_year\":2030,"
+                + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":60}]}");
+    String force = valueIn(forced.body(), "transaction_id");
+
+    HttpResponse<String> credited =
+        signed(
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"credit\",\"reference_txn_id\":"
+                + force
+                + ",\"authorization_number\":\""
+                + textIn(forced.body(), "auth_number")
+                + "\",\"card_number\":\""
+                + token
+                + "\",\"expire_month\":7,\"expire_year\":2030,"
+                + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":20}]}");
+    String credit = valueIn(credited.body(), "transaction_id");
+
+    assertThat(held.statusCode()).isEqualTo(200);
+    assertThat(held.body())
+        .contains("\"error_code\":0")
+        .contains("\"processor_response_code\":\"777\"")
+        .contains("\"amount\":100")
+        .contains("\"tranmode\":\"V\"")
+        .contains("\"card_mask\":\"458021xxxxxx4245\"")
+        .contains("\"cvv\":\"***\"");
+    assertThat(token).startsWith("t").endsWith("4245").hasSize(19);
+    assertThat(forced.body())
+        .contains("\"processor_response_code\":\"000\"")
+        .contains("\"amount\":60")
+        .contains("\"tranmode\":\"F\"");
+    assertThat(credited.body())
+        .contains("\"processor_response_code\":\"000\"")
+        .contains("\"tranmode\":\"C\"");
+    Map<String, Object> state = stateOf(j5);
+    assertThat(state)
+        .containsEntry("providerObjectId", j5)
+        .containsEntry("normalizedStatus", "PARTIALLY_REFUNDED")
+        .containsEntry("nativeStatus", "credit 000")
+        .containsEntry("amount", "100")
+        .containsEntry("currency", "ILS");
+    assertThat(state.get("answersTo")).isEqualTo(List.of(j5, force, credit));
+    assertThat(stateOf(credit)).containsEntry("providerObjectId", j5);
+  }
+
+  @Test
+  void a_debit_a_backend_cancels_reads_back_as_cancelled() {
+    HttpResponse<String> charged = signed(aDebit(""));
+    String debit = valueIn(charged.body(), "transaction_id");
+
+    HttpResponse<String> cancelled =
+        signed(
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"cancel\",\"reference_txn_id\":"
+                + debit
+                + ",\"authorization_number\":\""
+                + textIn(charged.body(), "auth_number")
+                + "\"}");
+
+    assertThat(charged.body()).contains("\"processor_response_code\":\"000\"");
+    assertThat(cancelled.statusCode()).isEqualTo(200);
+    assertThat(cancelled.body())
+        .contains("\"error_code\":0")
+        .contains("\"txn_type\":\"cancel\"")
+        .contains("\"tranmode\":\"D\"");
+    assertThat(stateOf(debit)).containsEntry("normalizedStatus", "CANCELLED");
+  }
+
+  @Test
+  void
+      a_debit_repeated_after_a_timeout_under_one_dc_disable_answers_the_original_and_charges_once() {
+    String body =
+        aDebit(",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"order-7\"}]");
+    HttpResponse<String> first = signed(body);
+    HttpResponse<String> repeat = signed(body);
+
+    assertThat(repeat.statusCode()).isEqualTo(200);
+    assertThat(repeat.body())
+        .contains("\"error_code\":0")
+        .contains("This payment has already been made, please contact the business")
+        .contains("\"transaction_id\":" + valueIn(first.body(), "transaction_id"));
+    assertThat(objects()).hasSize(1);
+  }
+
+  @Test
+  void a_wrong_access_token_and_a_reused_nonce_are_answered_401_20000() {
+    String nonce = "nonce-" + NONCES.incrementAndGet();
+    String requestTime = Long.toString(FIXED_NOW.getEpochSecond());
+    HttpResponse<String> first = send(aDebit(""), requestTime, nonce, tokenFor(requestTime, nonce));
+    HttpResponse<String> reused =
+        send(aDebit(""), requestTime, nonce, tokenFor(requestTime, nonce));
+    HttpResponse<String> wrong = send(aDebit(""), requestTime, nonce + "x", "00");
+
+    assertThat(first.statusCode()).isEqualTo(200);
+    assertThat(reused.statusCode()).isEqualTo(401);
+    assertThat(reused.body()).contains("\"error_code\":\"20000\"");
+    assertThat(wrong.statusCode()).isEqualTo(401);
+    assertThat(wrong.body()).contains("\"error_code\":\"20000\"");
+  }
+
+  @Test
+  void tranzila_answers_its_v1_route_and_the_neighbours_on_v1_and_v2_still_answer_theirs() {
+    HttpResponse<String> tranzila = signed(aDebit(""));
+    HttpResponse<String> unknown = post("/v1/transaction/credit_card/nothing", "{}", Map.of());
+    HttpResponse<String> stripe = post("/v1/payment_intents", "", Map.of());
+    HttpResponse<String> autra = post("/v1/oauth/token", "", Map.of());
+    HttpResponse<String> worldline = post("/v2/pspid-1/payments", "{}", Map.of());
+
+    assertThat(tranzila.body()).contains("\"txn_type\":\"debit\"");
+    assertThat(unknown.statusCode()).isEqualTo(404);
+    assertThat(unknown.body())
+        .isEqualTo("{\"error_code\":\"404\",\"message\":\"The specified resource was not found\"}");
+    assertThat(stripe.statusCode()).isEqualTo(401);
+    assertThat(stripe.body()).contains("\"error\"").doesNotContain("error_code");
+    assertThat(autra.statusCode()).isNotEqualTo(404);
+    assertThat(autra.body()).doesNotContain("error_code");
+    assertThat(worldline.statusCode()).isEqualTo(403);
+    assertThat(worldline.body()).contains("ACCESS_TO_MERCHANT_NOT_ALLOWED");
+  }
+
+  private static String aDebit(String extra) {
+    return "{\"terminal_name\":\"myterminal\",\"card_number\":\""
+        + A_VISA
+        + "\",\"expire_month\":7,\"expire_year\":2030,"
+        + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":10.53}]"
+        + extra
+        + "}";
+  }
+
+  private HttpResponse<String> signed(String body) {
+    String nonce = "nonce-" + NONCES.incrementAndGet();
+    String requestTime = Long.toString(FIXED_NOW.getEpochSecond());
+    return send(body, requestTime, nonce, tokenFor(requestTime, nonce));
+  }
+
+  private static String tokenFor(String requestTime, String nonce) {
+    try {
+      javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+      mac.init(
+          new javax.crypto.spec.SecretKeySpec(
+              (APP_SECRET + requestTime + nonce).getBytes(UTF_8), "HmacSHA256"));
+      return HexFormat.of().formatHex(mac.doFinal(APP_KEY.getBytes(UTF_8)));
+    } catch (java.security.GeneralSecurityException unavailable) {
+      throw new IllegalStateException(unavailable);
+    }
+  }
+
+  private HttpResponse<String> send(
+      String body, String requestTime, String nonce, String accessToken) {
+    Map<String, String> headers = new LinkedHashMap<>();
+    headers.put("X-tranzila-api-app-key", APP_KEY);
+    headers.put("X-tranzila-api-request-time", requestTime);
+    headers.put("X-tranzila-api-nonce", nonce);
+    headers.put("X-tranzila-api-access-token", accessToken);
+    return post("/v1/transaction/credit_card/create", body, headers);
+  }
+
+  private HttpResponse<String> post(String path, String body, Map<String, String> headers) {
+    try {
+      HttpRequest.Builder built =
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+              .header("Content-Type", "application/json")
+              .POST(HttpRequest.BodyPublishers.ofString(body));
+      for (Map.Entry<String, String> header : headers.entrySet()) {
+        built = built.header(header.getKey(), header.getValue());
+      }
+      return wire.send(built.build(), HttpResponse.BodyHandlers.ofString(UTF_8));
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(interrupted);
+    } catch (java.io.IOException unreachable) {
+      throw new IllegalStateException(unreachable);
+    }
+  }
+
+  private static Map<String, Object> anAccount() {
+    return Map.of(
+        "accountId",
+        ACCOUNT,
+        "configuration",
+        Map.of(
+            TranzilaTerminal.TERMINAL_NAME_PROPERTY, TERMINAL,
+            TranzilaTerminal.APP_KEY_PROPERTY, APP_KEY,
+            TranzilaTerminal.APP_SECRET_PROPERTY, APP_SECRET));
+  }
+
+  private void configure(List<Map<String, Object>> accounts) {
+    http.put()
+        .uri("/__simulator/tranzila/config")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+            Map.of(
+                "testRunId",
+                RUN.value(),
+                "clock",
+                Map.of("fixedNow", FIXED_NOW.toString()),
+                "accounts",
+                accounts,
+                "webhooks",
+                List.of()))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  private void reset() {
+    http.post()
+        .uri("/__simulator/tranzila/reset")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(Map.of("testRunId", RUN.value()))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  private Map<String, Object> stateOf(String providerObjectId) {
+    return http.get()
+        .uri("/__simulator/tranzila/state/" + providerObjectId + "?testRunId=" + RUN.value())
+        .retrieve()
+        .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+  }
+
+  private List<Map<String, Object>> objects() {
+    return http.get()
+        .uri("/__simulator/tranzila/objects?testRunId=" + RUN.value())
+        .retrieve()
+        .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+  }
+
+  private static String valueIn(String json, String field) {
+    String opening = "\"" + field + "\":";
+    int at = json.indexOf(opening);
+    int from = at + opening.length();
+    int to = from;
+    while (to < json.length() && Character.isDigit(json.charAt(to))) {
+      to++;
+    }
+    return json.substring(from, to);
+  }
+
+  private static String textIn(String json, String field) {
+    String opening = "\"" + field + "\":\"";
+    int at = json.indexOf(opening);
+    return json.substring(at + opening.length(), json.indexOf('"', at + opening.length()));
+  }
+}
