@@ -131,40 +131,46 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
   }
 
   @Override
-  public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long paymentId) {
+  public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long transactionId) {
     return jdbc.sql(
             """
             select arrival from tranzila_transaction
-            where test_run_id = ? and transaction_id = ? and root_txn_id = transaction_id
+            where test_run_id = ? and transaction_id = ?
             """)
-        .params(testRunId.value(), Long.valueOf(paymentId))
+        .params(testRunId.value(), Long.valueOf(transactionId))
         .query(Long.class)
         .optional()
-        .map(arrival -> new ProviderObjectCursor(arrival.longValue(), Long.toString(paymentId)));
+        .map(
+            arrival -> new ProviderObjectCursor(arrival.longValue(), Long.toString(transactionId)));
   }
 
   @Override
-  public List<ArrivalOf<TranzilaPayment>> newestFirst(
+  public List<ArrivalOf<TranzilaObject>> newestFirst(
       TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit) {
-    List<ArrivalOf<Long>> roots =
+    List<ArrivalOf<Long>> listed =
         jdbc.sql(
                 """
                 select arrival, transaction_id from tranzila_transaction
-                where test_run_id = ? and root_txn_id = transaction_id and arrival < ?
+                where test_run_id = ? and arrival < ?
                 order by arrival desc limit ?
                 """)
             .params(testRunId.value(), ProviderObjectCursor.walkingBackFrom(after), limit)
-            .query(JdbcTranzilaTransactions::toRoot)
+            .query(JdbcTranzilaTransactions::toListed)
             .list();
     return TranzilaGroups.inTheOrderOf(
-        roots,
+        listed,
         jdbc.sql(
                 """
                 select * from tranzila_transaction
-                where test_run_id = ? and root_txn_id = any(?)
+                where test_run_id = ? and root_txn_id in
+                    (select root_txn_id from tranzila_transaction
+                     where test_run_id = ? and transaction_id = any(?))
                 order by arrival
                 """)
-            .params(testRunId.value(), roots.stream().map(ArrivalOf::row).toArray(Long[]::new))
+            .params(
+                testRunId.value(),
+                testRunId.value(),
+                listed.stream().map(ArrivalOf::row).toArray(Long[]::new))
             .query(JdbcTranzilaTransactions::toTransaction)
             .list());
   }
@@ -181,7 +187,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
     return jdbc.sql("delete from tranzila_transaction").update();
   }
 
-  private static ArrivalOf<Long> toRoot(ResultSet rs, int row) throws SQLException {
+  private static ArrivalOf<Long> toListed(ResultSet rs, int row) throws SQLException {
     return new ArrivalOf<>(rs.getLong("arrival"), Long.valueOf(rs.getLong("transaction_id")));
   }
 

@@ -19,13 +19,43 @@ record TranzilaCreateRequest(
     @Nullable String amount,
     @Nullable Long referenceTxnId,
     @Nullable String authorizationNumber,
-    @Nullable String dcDisable) {
+    @Nullable String dcDisable,
+    boolean asksFor3ds) {
 
   static final String THE_DEFAULT_CURRENCY = "ILS";
 
   static final Set<String> THE_CURRENCIES = Set.of("ILS", "USD", "EUR", "GBP");
 
   static final Set<Long> THE_PAN_ENTRY_MODES = Set.of(50L, 51L, 52L);
+
+  static final Set<String> THE_ITEM_FIELDS_THE_SCHEMA_PUBLISHES =
+      Set.of(
+          "code",
+          TranzilaFields.NAME,
+          TranzilaFields.TYPE,
+          TranzilaFields.UNIT_PRICE,
+          "unit_type",
+          TranzilaFields.PRICE_TYPE,
+          TranzilaFields.UNITS_NUMBER,
+          TranzilaFields.CURRENCY_CODE,
+          "to_txn_currency_exchange_rate",
+          "discount_type",
+          "discount",
+          TranzilaFields.VAT_PERCENT,
+          "attributes");
+
+  static final Set<String> THE_ITEM_FIELDS_WHOSE_ARITHMETIC_IS_UNPUBLISHED =
+      Set.of("to_txn_currency_exchange_rate", "discount_type", "discount");
+
+  static final String WHOSE_ARITHMETIC_IS_UNPUBLISHED =
+      " changes the amount by arithmetic Tranzila does not publish, so it is refused rather than"
+          + " charged at an amount this simulator would have to guess";
+
+  static final String A_COUPON = "C";
+
+  static final String NET = "N";
+
+  static final Set<String> THE_PRICE_TYPES = Set.of("G", NET);
 
   static final int SHORTEST_CARD_NUMBER = 8;
 
@@ -36,11 +66,6 @@ record TranzilaCreateRequest(
   static final String NOT_SERVED =
       " is published and not served by this simulator, so it is refused rather than answered"
           + " with a success that performed something else";
-
-  static final String THREE_D_SECURE_ON =
-      TranzilaFields.ACTIVATE_3DS
-          + " Y asks for 3-D Secure, which this route does not perform here; a request asking for"
-          + " it is refused rather than charged without it";
 
   static TranzilaCreateRequest read(TranzilaJson.JsonObject body) {
     for (String sent : body.members().keySet()) {
@@ -76,7 +101,8 @@ record TranzilaCreateRequest(
         throw required(TranzilaFields.EXPIRE_YEAR);
       }
     }
-    String amount = amountIn(body, type, verifyMode);
+    String currencyCode = currencyIn(body);
+    String amount = amountIn(body, type, verifyMode, currencyCode);
     return new TranzilaCreateRequest(
         terminalName,
         type,
@@ -86,11 +112,12 @@ record TranzilaCreateRequest(
         expireYear,
         cvvIn(body),
         cardHolderIdIn(body),
-        currencyIn(body),
+        currencyCode,
         amount,
         integer(body, TranzilaFields.REFERENCE_TXN_ID).orElse(null),
         text(body, TranzilaFields.AUTHORIZATION_NUMBER).orElse(null),
-        dcDisableIn(body));
+        dcDisableIn(body),
+        body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent());
   }
 
   private static TranzilaTxnType typeIn(TranzilaJson.JsonObject body) {
@@ -145,10 +172,7 @@ record TranzilaCreateRequest(
       String asked =
           text(body, TranzilaFields.ACTIVATE_3DS)
               .orElseThrow(() -> notAString(TranzilaFields.ACTIVATE_3DS));
-      if ("Y".equals(asked)) {
-        throw new TranzilaSchemaMismatch(THREE_D_SECURE_ON);
-      }
-      if (!"N".equals(asked)) {
+      if (!"Y".equals(asked) && !"N".equals(asked)) {
         throw new TranzilaSchemaMismatch(TranzilaFields.ACTIVATE_3DS + " is neither Y nor N");
       }
     }
@@ -212,7 +236,10 @@ record TranzilaCreateRequest(
   }
 
   private static @Nullable String amountIn(
-      TranzilaJson.JsonObject body, TranzilaTxnType type, @Nullable Integer verifyMode) {
+      TranzilaJson.JsonObject body,
+      TranzilaTxnType type,
+      @Nullable Integer verifyMode,
+      String currencyCode) {
     boolean required =
         type.carriesAnAmount() && !Integer.valueOf(TranzilaTxnType.J2).equals(verifyMode);
     if (!body.has(TranzilaFields.ITEMS)) {
@@ -231,7 +258,7 @@ record TranzilaCreateRequest(
     }
     BigDecimal sum = BigDecimal.ZERO;
     for (TranzilaJson item : items) {
-      sum = sum.add(theAmountOf(item));
+      sum = sum.add(theAmountOf(item, currencyCode));
     }
     if (required && sum.signum() <= 0) {
       throw new TranzilaSchemaMismatch(
@@ -240,12 +267,39 @@ record TranzilaCreateRequest(
     return TranzilaAmounts.lexicalOf(sum);
   }
 
-  private static BigDecimal theAmountOf(TranzilaJson item) {
+  private static BigDecimal theAmountOf(TranzilaJson item, String currencyCode) {
     if (!(item instanceof TranzilaJson.JsonObject described)) {
       throw new TranzilaSchemaMismatch("every item of " + TranzilaFields.ITEMS + " is an object");
     }
+    for (String sent : described.members().keySet()) {
+      if (!THE_ITEM_FIELDS_THE_SCHEMA_PUBLISHES.contains(sent)) {
+        throw new TranzilaSchemaMismatch(
+            TranzilaFields.ITEMS + "." + sent + " is not a field of the Transactions API schema");
+      }
+      if (THE_ITEM_FIELDS_WHOSE_ARITHMETIC_IS_UNPUBLISHED.contains(sent)) {
+        throw new TranzilaSchemaMismatch(
+            TranzilaFields.ITEMS + "." + sent + WHOSE_ARITHMETIC_IS_UNPUBLISHED);
+      }
+    }
     if (text(described, TranzilaFields.NAME).isEmpty()) {
       throw required(TranzilaFields.ITEMS + "." + TranzilaFields.NAME);
+    }
+    if (described.text(TranzilaFields.TYPE).filter(A_COUPON::equals).isPresent()) {
+      throw new TranzilaSchemaMismatch(
+          TranzilaFields.ITEMS
+              + "."
+              + TranzilaFields.TYPE
+              + " C"
+              + WHOSE_ARITHMETIC_IS_UNPUBLISHED);
+    }
+    if (described.has(TranzilaFields.CURRENCY_CODE)
+        && described.text(TranzilaFields.CURRENCY_CODE).filter(currencyCode::equals).isEmpty()) {
+      throw new TranzilaSchemaMismatch(
+          TranzilaFields.ITEMS
+              + "."
+              + TranzilaFields.CURRENCY_CODE
+              + " other than txn_currency_code needs an exchange rate"
+              + WHOSE_ARITHMETIC_IS_UNPUBLISHED);
     }
     long units =
         integer(described, TranzilaFields.UNITS_NUMBER)
@@ -263,7 +317,40 @@ record TranzilaCreateRequest(
               + " or fewer than one "
               + TranzilaFields.UNITS_NUMBER);
     }
-    return TranzilaAmounts.ofAnItem(price, units);
+    BigDecimal asSent = TranzilaAmounts.ofAnItem(price, units);
+    return isNet(described) ? TranzilaAmounts.withVat(asSent, vatPercentOf(described)) : asSent;
+  }
+
+  private static boolean isNet(TranzilaJson.JsonObject item) {
+    if (!item.has(TranzilaFields.PRICE_TYPE)) {
+      return false;
+    }
+    String priceType =
+        item.text(TranzilaFields.PRICE_TYPE)
+            .filter(THE_PRICE_TYPES::contains)
+            .orElseThrow(
+                () ->
+                    new TranzilaSchemaMismatch(
+                        TranzilaFields.ITEMS
+                            + "."
+                            + TranzilaFields.PRICE_TYPE
+                            + " is neither G nor N"));
+    return NET.equals(priceType);
+  }
+
+  private static String vatPercentOf(TranzilaJson.JsonObject item) {
+    if (!item.has(TranzilaFields.VAT_PERCENT)) {
+      return TranzilaAmounts.ISRAELI_VAT_PERCENT;
+    }
+    return item.number(TranzilaFields.VAT_PERCENT)
+        .filter(percent -> !percent.startsWith("-"))
+        .orElseThrow(
+            () ->
+                new TranzilaSchemaMismatch(
+                    TranzilaFields.ITEMS
+                        + "."
+                        + TranzilaFields.VAT_PERCENT
+                        + " must be a number that is not negative"));
   }
 
   private static @Nullable String dcDisableIn(TranzilaJson.JsonObject body) {

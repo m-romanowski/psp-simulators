@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.jspecify.annotations.Nullable;
 
 final class TranzilaObjectActions {
 
@@ -26,11 +25,9 @@ final class TranzilaObjectActions {
   private TranzilaObjectActions() {}
 
   static TranzilaApiCall callOf(
-      ObjectActionRequest request,
-      TranzilaPayment payment,
-      TranzilaTerminal terminal,
-      Instant now) {
-    TranzilaTransaction root = payment.root();
+      ObjectActionRequest request, TranzilaObject object, TranzilaTerminal terminal, Instant now) {
+    TranzilaPayment payment = object.payment();
+    TranzilaTransaction root = object.subject();
     Map<String, TranzilaJson> body = new LinkedHashMap<>();
     body.put(TranzilaFields.TERMINAL_NAME, TranzilaJson.text(terminal.terminalName()));
     switch (request.action()) {
@@ -41,7 +38,7 @@ final class TranzilaObjectActions {
         referencing(body, root, false);
       }
       case CANCEL -> {
-        TranzilaTransaction target = theOneACancelActsOn(payment, now);
+        TranzilaTransaction target = theOneACancelActsOn(object, now);
         body.put(
             TranzilaFields.TXN_TYPE,
             TranzilaJson.text(
@@ -51,7 +48,8 @@ final class TranzilaObjectActions {
         referencing(body, target, true);
       }
       case REFUND -> {
-        TranzilaTransaction original = payment.whatACreditIsAgainst().orElse(root);
+        TranzilaTransaction original =
+            object.isTheOriginal() ? payment.whatACreditIsAgainst().orElse(root) : root;
         body.put(TranzilaFields.TXN_TYPE, TranzilaJson.text(TranzilaOperations.CREDIT));
         theCardOf(body, original);
         body.put(TranzilaFields.ITEMS, itemsOf(request.theAmountAsked().value()));
@@ -65,9 +63,12 @@ final class TranzilaObjectActions {
         TranzilaJsonWriter.toText(TranzilaJson.object(body)));
   }
 
-  static TranzilaTransaction theOneACancelActsOn(TranzilaPayment payment, Instant now) {
-    if (payment.root().type() == TranzilaTxnType.DEBIT || payment.isAJ5StillHeldAt(now)) {
-      return payment.root();
+  static TranzilaTransaction theOneACancelActsOn(TranzilaObject object, Instant now) {
+    TranzilaPayment payment = object.payment();
+    if (!object.isTheOriginal()
+        || payment.root().type() == TranzilaTxnType.DEBIT
+        || payment.isAJ5StillHeldAt(now)) {
+      return object.subject();
     }
     return payment.theForce().orElse(payment.root());
   }
@@ -98,7 +99,7 @@ final class TranzilaObjectActions {
     return TranzilaJson.array(List.of(TranzilaJson.object(item)));
   }
 
-  static ObjectActionOutcome outcomeOf(TranzilaOperationResult result, TranzilaPayment acted) {
+  static ObjectActionOutcome outcomeOf(TranzilaOperationResult result, TranzilaObject acted) {
     if (result.outcome() == ProviderOutcome.UNKNOWN) {
       return new ObjectActionOutcome.AnsweredByAScenarioInstead(
           String.valueOf(result.scenarioId()));
@@ -106,7 +107,8 @@ final class TranzilaObjectActions {
     if (result.outcome() != ProviderOutcome.SUCCESS) {
       return new ObjectActionOutcome.RefusedByTheProvider(theWordsOf(result), result.scenarioId());
     }
-    return new ObjectActionOutcome.Applied(acted.paymentId(), null, result.scenarioId());
+    return new ObjectActionOutcome.Applied(
+        acted.objectId(), result.providerObjectId(), result.scenarioId());
   }
 
   static String theWordsOf(TranzilaOperationResult result) {
@@ -127,7 +129,7 @@ final class TranzilaObjectActions {
     return answered.getOrDefault(field, List.of()).stream().findFirst().orElse("");
   }
 
-  static ObjectActionOutcome theRunConfiguresNoTerminalFor(@Nullable TranzilaPayment payment) {
+  static ObjectActionOutcome theRunConfiguresNoTerminal() {
     return new ObjectActionOutcome.RefusedByTheProvider(THE_RUN_CONFIGURES_NO_TERMINAL);
   }
 }

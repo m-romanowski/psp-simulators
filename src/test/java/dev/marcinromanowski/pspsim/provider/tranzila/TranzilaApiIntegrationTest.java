@@ -109,15 +109,23 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
     assertThat(credited.body())
         .contains("\"processor_response_code\":\"000\"")
         .contains("\"tranmode\":\"C\"");
-    Map<String, Object> state = stateOf(j5);
-    assertThat(state)
+    assertThat(stateOf(j5))
         .containsEntry("providerObjectId", j5)
         .containsEntry("normalizedStatus", "PARTIALLY_REFUNDED")
-        .containsEntry("nativeStatus", "credit 000")
+        .containsEntry("nativeStatus", "verify 5 777")
         .containsEntry("amount", "100")
         .containsEntry("currency", "ILS");
-    assertThat(state.get("answersTo")).isEqualTo(List.of(j5, force, credit));
-    assertThat(stateOf(credit)).containsEntry("providerObjectId", j5);
+    assertThat(stateOf(force))
+        .containsEntry("providerObjectId", force)
+        .containsEntry("normalizedStatus", "SUCCEEDED")
+        .containsEntry("nativeStatus", "force 000")
+        .containsEntry("amount", "60");
+    assertThat(stateOf(credit))
+        .containsEntry("providerObjectId", credit)
+        .containsEntry("normalizedStatus", "SUCCEEDED")
+        .containsEntry("nativeStatus", "credit 000")
+        .containsEntry("amount", "20");
+    assertThat(objects()).hasSize(3);
   }
 
   @Test

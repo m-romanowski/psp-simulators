@@ -22,13 +22,40 @@ final class TranzilaObjectKinds {
           "Tranzila \"Checks the card without capturing funds\", so nothing is held and nothing"
               + " is charged.");
 
+  static final ProviderObjectKind A_FORCE =
+      new ProviderObjectKind(
+          "a force",
+          "The charge of a J5 hold, a transaction of its own with its own transaction_id that names"
+              + " the J5 in reference_txn_id; it can be credited back or cancelled.");
+
+  static final ProviderObjectKind A_CREDIT =
+      new ProviderObjectKind(
+          "a credit",
+          "Money returned to the card, a transaction of its own that names the debit or the force"
+              + " it credits in reference_txn_id; it can be cancelled.");
+
+  static final ProviderObjectKind A_REVERSAL =
+      new ProviderObjectKind(
+          "a reversal",
+          "The release of a J5 hold in full, a transaction of its own that names the J5 in"
+              + " reference_txn_id.");
+
+  static final ProviderObjectKind A_CANCEL =
+      new ProviderObjectKind(
+          "a cancel",
+          "The cancellation of a debit, a force or a credit in full, a transaction of its own that"
+              + " names the one it cancels in reference_txn_id.");
+
   private TranzilaObjectKinds() {}
 
-  static ProviderObjectKind of(TranzilaPayment payment) {
-    TranzilaTransaction root = payment.root();
-    if (root.type() == TranzilaTxnType.DEBIT) {
-      return A_DEBIT;
-    }
-    return root.isAJ5() ? A_J5 : A_J2;
+  static ProviderObjectKind of(TranzilaTransaction transaction) {
+    return switch (transaction.type()) {
+      case DEBIT -> A_DEBIT;
+      case VERIFY -> transaction.isAJ5() ? A_J5 : A_J2;
+      case FORCE -> A_FORCE;
+      case CREDIT -> A_CREDIT;
+      case REVERSAL -> A_REVERSAL;
+      case CANCEL -> A_CANCEL;
+    };
   }
 }

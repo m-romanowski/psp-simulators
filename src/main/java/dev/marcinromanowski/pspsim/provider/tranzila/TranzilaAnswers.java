@@ -16,6 +16,8 @@ final class TranzilaAnswers {
 
   static final int METHOD_NOT_ALLOWED = 405;
 
+  static final int NOT_IMPLEMENTED = 501;
+
   static final String SUCCESS = "success";
 
   private TranzilaAnswers() {}
@@ -37,10 +39,21 @@ final class TranzilaAnswers {
         TranzilaErrors.JSON_SCHEMA_MISMATCH, TranzilaErrors.JSON_SCHEMA_MISMATCH_TEXT, why);
   }
 
+  static TranzilaOperationResult notServed(String why) {
+    return TranzilaOperationResult.failed(
+        TranzilaRefusals.theBodyWasRefused(),
+        TranzilaBody.of(NOT_IMPLEMENTED, theErrorSchema(TranzilaErrors.NOT_SERVED, why)));
+  }
+
   static TranzilaOperationResult applicationError(int code, RefusalSubject refusal) {
+    return applicationError(code, TranzilaErrors.theTextOf(code), refusal);
+  }
+
+  static TranzilaOperationResult applicationError(
+      int code, String message, RefusalSubject refusal) {
     Map<String, TranzilaJson> body = new LinkedHashMap<>();
     body.put(TranzilaFields.ERROR_CODE, TranzilaJson.number(Integer.toString(code)));
-    body.put(TranzilaFields.MESSAGE, TranzilaJson.text(TranzilaErrors.theTextOf(code)));
+    body.put(TranzilaFields.MESSAGE, TranzilaJson.text(message));
     return TranzilaOperationResult.failed(refusal, TranzilaBody.of(OK, TranzilaJson.object(body)));
   }
 

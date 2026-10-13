@@ -104,6 +104,9 @@ final class CreateTransaction {
     } catch (TranzilaSchemaMismatch notTheSchema) {
       return TranzilaAnswers.refusedSchema(notTheSchema.why());
     }
+    if (request.asksFor3ds()) {
+      return TranzilaAnswers.notServed(TranzilaErrors.THREE_D_SECURE_IS_NOT_SERVED);
+    }
     if (!request.terminalName().equals(terminal.terminalName())) {
       return TranzilaAnswers.refusedCredential(
           TranzilaErrors.AUTHORIZATION_FAILED,
@@ -403,9 +406,15 @@ final class CreateTransaction {
     if (!presented.card().isTheSameCardAs(original.card())) {
       return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, original.transactionId());
     }
+    if (payment.theCreditOf(original).isPresent()) {
+      return Answered.refused(
+          TranzilaAnswers.applicationError(
+              TranzilaErrors.ALREADY_CREDITED,
+              TranzilaErrors.ALREADY_CREDITED_TEXT,
+              TranzilaRefusals.theTransaction(original.transactionId())));
+    }
     String amount = String.valueOf(asked.request().amount());
-    BigDecimal total = payment.theCreditsAgainst(original).add(new BigDecimal(amount));
-    if (total.compareTo(original.theAmount()) > 0) {
+    if (TranzilaAmounts.isAbove(amount, original.amount())) {
       return refusedOn(TranzilaErrors.ALREADY_CREDITED, original.transactionId());
     }
     return aFollowOnOf(asked, payment, original, amount, presented.card(), presented.token());

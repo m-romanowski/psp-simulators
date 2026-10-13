@@ -54,10 +54,6 @@ class TranzilaCreateRequestTest {
             t("\"pan_entry_mode\":53," + CARD + "," + ITEMS),
             "pan_entry_mode is none of 50, 51 and 52"),
         Arguments.of(
-            t("\"activate_3ds\":\"Y\"," + CARD + "," + ITEMS),
-            "activate_3ds Y asks for 3-D Secure, which this route does not perform here; a"
-                + " request asking for it is refused rather than charged without it"),
-        Arguments.of(
             t("\"activate_3ds\":\"y\"," + CARD + "," + ITEMS), "activate_3ds is neither Y nor N"),
         Arguments.of(
             t("\"activate_3ds\":true," + CARD + "," + ITEMS), "activate_3ds must be a string"),
@@ -156,7 +152,32 @@ class TranzilaCreateRequestTest {
             "user_defined_fields.value is required"),
         Arguments.of(
             t(CARD + "," + ITEMS + ",\"reference_txn_id\":\"12\""),
-            "reference_txn_id must be an integer"));
+            "reference_txn_id must be an integer"),
+        Arguments.of(
+            item("\"colour\":\"red\""),
+            "items.colour is not a field of the Transactions API schema"),
+        Arguments.of(item("\"discount\":5"), "items.discount" + UNPUBLISHED),
+        Arguments.of(item("\"discount_type\":\"percent\""), "items.discount_type" + UNPUBLISHED),
+        Arguments.of(
+            item("\"to_txn_currency_exchange_rate\":2.5"),
+            "items.to_txn_currency_exchange_rate" + UNPUBLISHED),
+        Arguments.of(item("\"type\":\"C\""), "items.type C" + UNPUBLISHED),
+        Arguments.of(
+            item("\"currency_code\":\"USD\""),
+            "items.currency_code other than txn_currency_code needs an exchange rate"
+                + UNPUBLISHED),
+        Arguments.of(
+            item("\"currency_code\":1"),
+            "items.currency_code other than txn_currency_code needs an exchange rate"
+                + UNPUBLISHED),
+        Arguments.of(item("\"price_type\":\"X\""), "items.price_type is neither G nor N"),
+        Arguments.of(item("\"price_type\":1"), "items.price_type is neither G nor N"),
+        Arguments.of(
+            item("\"price_type\":\"N\",\"vat_percent\":-1"),
+            "items.vat_percent must be a number that is not negative"),
+        Arguments.of(
+            item("\"price_type\":\"N\",\"vat_percent\":\"17\""),
+            "items.vat_percent must be a number that is not negative"));
   }
 
   @ParameterizedTest
@@ -264,6 +285,54 @@ class TranzilaCreateRequestTest {
             read("{" + t(CARD + "," + ITEMS + ",\"reference_txn_id\":123456789012345678") + "}")
                 .referenceTxnId())
         .isEqualTo(123456789012345678L);
+  }
+
+  private static final String UNPUBLISHED =
+      " changes the amount by arithmetic Tranzila does not publish, so it is refused rather than"
+          + " charged at an amount this simulator would have to guess";
+
+  private static String item(String members) {
+    return t(
+        CARD + ",\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":5," + members + "}]");
+  }
+
+  @Test
+  void a_net_price_adds_the_items_vat_or_israels_18_percent_rounded_to_agorot() {
+    assertThat(read("{" + item("\"price_type\":\"N\",\"vat_percent\":17") + "}").amount())
+        .isEqualTo("5.85");
+    assertThat(read("{" + item("\"price_type\":\"N\"") + "}").amount()).isEqualTo("5.90");
+    assertThat(
+            read("{"
+                    + t(
+                        CARD
+                            + ",\"items\":[{\"name\":\"a\",\"units_number\":1,"
+                            + "\"unit_price\":0.05,\"price_type\":\"N\"}]")
+                    + "}")
+                .amount())
+        .isEqualTo("0.06");
+    assertThat(read("{" + item("\"price_type\":\"G\",\"vat_percent\":17") + "}").amount())
+        .isEqualTo("5");
+  }
+
+  @Test
+  void the_item_fields_the_schema_publishes_with_no_effect_on_the_amount_are_accepted() {
+    assertThat(
+            read("{"
+                    + item(
+                        "\"code\":\"A1\",\"type\":\"I\",\"unit_type\":1,"
+                            + "\"currency_code\":\"ILS\",\"attributes\":{}")
+                    + "}")
+                .amount())
+        .isEqualTo("5");
+  }
+
+  @Test
+  void a_request_asking_for_3_d_secure_is_read_as_asking_and_one_saying_n_is_not() {
+    assertThat(read("{" + t("\"activate_3ds\":\"Y\"," + CARD + "," + ITEMS) + "}").asksFor3ds())
+        .isTrue();
+    assertThat(read("{" + t("\"activate_3ds\":\"N\"," + CARD + "," + ITEMS) + "}").asksFor3ds())
+        .isFalse();
+    assertThat(read("{" + t(CARD + "," + ITEMS) + "}").asksFor3ds()).isFalse();
   }
 
   private static String t(String members) {

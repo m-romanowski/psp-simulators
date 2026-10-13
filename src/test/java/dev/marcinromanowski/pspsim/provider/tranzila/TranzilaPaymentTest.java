@@ -28,7 +28,7 @@ class TranzilaPaymentTest {
     TranzilaPayment payment = new TranzilaPayment(debit(1, "000"), List.of());
 
     assertThat(payment.normalizedStatusAt(AT)).isEqualTo(NormalizedStatus.SUCCEEDED);
-    assertThat(payment.nativeStatus()).isEqualTo("debit 000");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus()).isEqualTo("debit 000");
     assertThat(payment.refundableRemainder()).isEqualByComparingTo("100");
     assertThat(payment.refundsAccepted()).isTrue();
     assertThat(payment.isAJ5StillHeldAt(AT)).isFalse();
@@ -59,7 +59,7 @@ class TranzilaPaymentTest {
     TranzilaPayment payment = new TranzilaPayment(debit(1, "004"), List.of());
 
     assertThat(payment.normalizedStatusAt(AT)).isEqualTo(NormalizedStatus.FAILED);
-    assertThat(payment.nativeStatus()).isEqualTo("debit 004");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus()).isEqualTo("debit 004");
     assertThat(payment.ledger().operations()).isEmpty();
     assertThat(payment.refundsAccepted()).isFalse();
     assertThat(payment.whatACreditIsAgainst()).isEmpty();
@@ -70,7 +70,8 @@ class TranzilaPaymentTest {
     TranzilaPayment payment = new TranzilaPayment(verify(1, 2, null), List.of());
 
     assertThat(payment.normalizedStatusAt(AT)).isEqualTo(NormalizedStatus.SUCCEEDED);
-    assertThat(payment.nativeStatus()).isEqualTo("verify 2 777");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus())
+        .isEqualTo("verify 2 777");
     assertThat(payment.ledger().operations()).isEmpty();
     assertThat(payment.isAJ5StillHeldAt(AT)).isFalse();
     assertThat(payment.refundsAccepted()).isFalse();
@@ -86,7 +87,8 @@ class TranzilaPaymentTest {
     assertThat(payment.normalizedStatusAt(AT.plusSeconds(10)))
         .isEqualTo(NormalizedStatus.CANCELLED);
     assertThat(payment.isAJ5StillHeldAt(AT.plusSeconds(10))).isFalse();
-    assertThat(payment.nativeStatus()).isEqualTo("verify 5 777");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus())
+        .isEqualTo("verify 5 777");
     assertThat(payment.refundsAccepted()).isFalse();
     assertThat(payment.ledger().operations())
         .containsExactly(
@@ -113,7 +115,8 @@ class TranzilaPaymentTest {
 
     assertThat(forced.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.SUCCEEDED);
     assertThat(forced.isAJ5StillHeldAt(LATER)).isFalse();
-    assertThat(forced.nativeStatus()).isEqualTo("force 000");
+    assertThat(new TranzilaObject(forced, forced.root()).nativeStatus()).isEqualTo("verify 5 777");
+    assertThat(new TranzilaObject(forced, force).nativeStatus()).isEqualTo("force 000");
     assertThat(forced.theForce()).contains(force);
     assertThat(forced.whatACreditIsAgainst()).contains(force);
     assertThat(credited.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.PARTIALLY_REFUNDED);
@@ -123,6 +126,7 @@ class TranzilaPaymentTest {
             MonetaryOperation::kind,
             MonetaryOperation::amount,
             MonetaryOperation::closesAuthorization,
+            MonetaryOperation::createdObjectId,
             MonetaryOperation::nativeStatus,
             MonetaryOperation::normalizedStatus,
             MonetaryOperation::at)
@@ -131,6 +135,7 @@ class TranzilaPaymentTest {
                 OperationKind.AUTHORIZATION,
                 Amount.of("100"),
                 false,
+                null,
                 "verify 5 777",
                 NormalizedStatus.READY_FOR_CAPTURE,
                 AT),
@@ -138,6 +143,7 @@ class TranzilaPaymentTest {
                 OperationKind.CAPTURE,
                 Amount.of("60"),
                 true,
+                "2",
                 "force 000",
                 NormalizedStatus.SUCCEEDED,
                 LATER),
@@ -145,6 +151,7 @@ class TranzilaPaymentTest {
                 OperationKind.REFUND,
                 Amount.of("20"),
                 null,
+                "3",
                 "credit 000",
                 NormalizedStatus.PARTIALLY_REFUNDED,
                 LATER.plusSeconds(1)));
@@ -187,7 +194,7 @@ class TranzilaPaymentTest {
     assertThat(payment.isCancelled(cancelledCredit)).isTrue();
     assertThat(payment.theCreditsAgainst(payment.root())).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(payment.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.SUCCEEDED);
-    assertThat(payment.nativeStatus()).isEqualTo("cancel 000");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus()).isEqualTo("debit 000");
     assertThat(payment.ledger().operations()).hasSize(2);
   }
 
@@ -225,7 +232,7 @@ class TranzilaPaymentTest {
             List.of(followOn(2, 1, 1, TranzilaTxnType.CANCEL, "100", "004", LATER)));
 
     assertThat(payment.isCancelled(payment.root())).isFalse();
-    assertThat(payment.nativeStatus()).isEqualTo("debit 000");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus()).isEqualTo("debit 000");
     assertThat(payment.updatedAt()).isEqualTo(AT);
   }
 
@@ -239,7 +246,8 @@ class TranzilaPaymentTest {
     assertThat(payment.normalizedStatusAt(LATER)).isEqualTo(NormalizedStatus.CANCELLED);
     assertThat(payment.isAJ5StillHeldAt(LATER)).isFalse();
     assertThat(payment.theReversal()).isPresent();
-    assertThat(payment.nativeStatus()).isEqualTo("reversal 000");
+    assertThat(new TranzilaObject(payment, payment.root()).nativeStatus())
+        .isEqualTo("verify 5 777");
   }
 
   @Test
@@ -256,7 +264,7 @@ class TranzilaPaymentTest {
   }
 
   @Test
-  void a_payment_answers_to_its_original_and_to_every_transaction_made_on_it() {
+  void a_payment_holds_its_original_and_every_transaction_made_on_it() {
     TranzilaPayment payment =
         new TranzilaPayment(
             debit(1, "000"),
@@ -265,13 +273,43 @@ class TranzilaPaymentTest {
                 followOn(3, 1, 1, TranzilaTxnType.CREDIT, "10", "004", LATER)));
 
     assertThat(payment.paymentId()).isEqualTo("1");
-    assertThat(payment.identity().canonical()).isEqualTo("1");
-    assertThat(payment.identity().members()).containsExactly("1", "2", "3");
+    assertThat(TranzilaObject.of(payment, 2).map(TranzilaObject::objectId)).contains("2");
+    assertThat(TranzilaObject.of(payment, 4)).isEmpty();
     assertThat(payment.transaction(3))
         .map(TranzilaTransaction::processorResponseCode)
         .contains("004");
     assertThat(payment.transaction(1)).contains(payment.root());
     assertThat(payment.transaction(4)).isEmpty();
+  }
+
+  @Test
+  void a_follow_on_is_an_object_of_its_own_that_succeeded_failed_or_was_cancelled() {
+    TranzilaTransaction force = followOn(2, 1, 1, TranzilaTxnType.FORCE, "60", "000", LATER);
+    TranzilaTransaction declined = followOn(3, 1, 1, TranzilaTxnType.FORCE, "600", "507", LATER);
+    TranzilaTransaction cancel =
+        followOn(4, 1, 2, TranzilaTxnType.CANCEL, "60", "000", LATER.plusSeconds(5));
+    TranzilaPayment payment =
+        new TranzilaPayment(verify(1, 5, AT.plus(Duration.ofDays(7))), List.of(force, declined));
+    TranzilaPayment cancelled =
+        new TranzilaPayment(verify(1, 5, AT.plus(Duration.ofDays(7))), List.of(force, cancel));
+
+    assertThat(new TranzilaObject(payment, force).normalizedStatusAt(LATER))
+        .isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(new TranzilaObject(payment, force).updatedAt()).isEqualTo(LATER);
+    assertThat(new TranzilaObject(payment, force).isTheOriginal()).isFalse();
+    assertThat(new TranzilaObject(payment, declined).normalizedStatusAt(LATER))
+        .isEqualTo(NormalizedStatus.FAILED);
+    assertThat(new TranzilaObject(payment, declined).nativeStatus()).isEqualTo("force 507");
+    assertThat(new TranzilaObject(cancelled, force).normalizedStatusAt(LATER))
+        .isEqualTo(NormalizedStatus.CANCELLED);
+    assertThat(new TranzilaObject(cancelled, force).updatedAt()).isEqualTo(LATER.plusSeconds(5));
+    assertThat(new TranzilaObject(cancelled, cancel).normalizedStatusAt(LATER))
+        .isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(new TranzilaObject(cancelled, cancelled.root()).normalizedStatusAt(LATER))
+        .isEqualTo(NormalizedStatus.CANCELLED);
+    assertThat(new TranzilaObject(cancelled, cancelled.root()).updatedAt())
+        .isEqualTo(LATER.plusSeconds(5));
+    assertThat(cancelled.theCreditOf(force)).isEmpty();
   }
 
   @Test
@@ -281,7 +319,7 @@ class TranzilaPaymentTest {
     TranzilaTransaction ofTheFirst = followOn(3, 1, 1, TranzilaTxnType.CREDIT, "1", "000", LATER);
 
     List<TranzilaPayment> grouped = TranzilaGroups.paymentsOf(List.of(first, second, ofTheFirst));
-    List<ArrivalOf<TranzilaPayment>> ordered =
+    List<ArrivalOf<TranzilaObject>> ordered =
         TranzilaGroups.inTheOrderOf(
             List.of(new ArrivalOf<>(20L, 2L), new ArrivalOf<>(10L, 1L), new ArrivalOf<>(5L, 7L)),
             List.of(first, second, ofTheFirst));
@@ -291,10 +329,15 @@ class TranzilaPaymentTest {
             new TranzilaPayment(first, List.of(ofTheFirst)),
             new TranzilaPayment(second, List.of()));
     assertThat(ordered)
-        .extracting(ArrivalOf::arrival, arrived -> arrived.row().paymentId())
+        .extracting(ArrivalOf::arrival, arrived -> arrived.row().objectId())
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple(20L, "2"),
             org.assertj.core.groups.Tuple.tuple(10L, "1"));
+    assertThat(
+            TranzilaGroups.theObjectsNamed(List.of(3L, 1L, 3L, 9L), grouped).stream()
+                .map(TranzilaObject::objectId)
+                .toList())
+        .containsExactly("3", "1");
     assertThat(TranzilaGroups.theOnePaymentOf(List.of())).isEmpty();
   }
 
@@ -345,12 +388,6 @@ class TranzilaPaymentTest {
             TranzilaTxnType.VERIFY,
             TranzilaTxnType.FORCE,
             TranzilaTxnType.CREDIT);
-    assertThat(TranzilaTxnType.values())
-        .filteredOn(TranzilaTxnType::requiresTheAuthorizationNumber)
-        .containsExactly(TranzilaTxnType.REVERSAL, TranzilaTxnType.CREDIT, TranzilaTxnType.CANCEL);
-    assertThat(TranzilaTxnType.values())
-        .filteredOn(TranzilaTxnType::isAnOriginal)
-        .containsExactly(TranzilaTxnType.DEBIT, TranzilaTxnType.VERIFY);
   }
 
   static TranzilaTransaction debit(long id, String code) {

@@ -40,20 +40,12 @@ enum TranzilaTxnType {
     return wire;
   }
 
-  boolean isAnOriginal() {
-    return this == DEBIT || this == VERIFY;
-  }
-
   boolean carriesACard() {
     return this != CANCEL && this != REVERSAL;
   }
 
   boolean carriesAnAmount() {
     return this == DEBIT || this == VERIFY || this == FORCE || this == CREDIT;
-  }
-
-  boolean requiresTheAuthorizationNumber() {
-    return this == CREDIT || this == REVERSAL || this == CANCEL;
   }
 
   Optional<String> tranmodeOf(@Nullable Integer verifyMode) {

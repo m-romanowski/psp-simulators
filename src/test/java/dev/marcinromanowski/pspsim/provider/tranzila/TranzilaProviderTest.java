@@ -183,32 +183,51 @@ class TranzilaProviderTest {
   }
 
   @Test
-  void the_state_of_a_payment_is_read_by_any_of_its_transaction_ids() {
+  void a_forced_j5_and_its_force_are_two_objects_each_read_by_its_own_transaction_id() {
     long j5 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ5("100")));
     TranzilaTransaction held = wired.theLastStored();
     wired.create(TranzilaWire.aForce(j5, String.valueOf(held.token()), "60"));
     long force = wired.theLastStored().transactionId();
 
-    ProviderObjectState byTheForce =
+    ProviderObjectState theJ5 = provider.state(TranzilaWiring.RUN, Long.toString(j5)).orElseThrow();
+    ProviderObjectState theForce =
         provider.state(TranzilaWiring.RUN, Long.toString(force)).orElseThrow();
 
-    assertThat(byTheForce.providerObjectId()).isEqualTo(Long.toString(j5));
-    assertThat(byTheForce.kind()).isEqualTo(TranzilaObjectKinds.A_J5);
-    assertThat(byTheForce.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
-    assertThat(byTheForce.nativeStatus()).isEqualTo("force 000");
-    assertThat(byTheForce.amount().value()).isEqualTo("100");
-    assertThat(byTheForce.currency()).isEqualTo("ILS");
-    assertThat(byTheForce.authorizationOpen()).isFalse();
-    assertThat(byTheForce.capturesAccepted()).isFalse();
-    assertThat(byTheForce.refundsAccepted()).isTrue();
-    assertThat(byTheForce.origin()).isEqualTo(ObjectOrigin.PROVIDER_API);
-    assertThat(byTheForce.relatedObjects())
+    assertThat(theJ5.providerObjectId()).isEqualTo(Long.toString(j5));
+    assertThat(theJ5.identity().members()).containsExactly(Long.toString(j5));
+    assertThat(theJ5.kind()).isEqualTo(TranzilaObjectKinds.A_J5);
+    assertThat(theJ5.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(theJ5.nativeStatus()).isEqualTo("verify 5 777");
+    assertThat(theJ5.amount().value()).isEqualTo("100");
+    assertThat(theJ5.currency()).isEqualTo("ILS");
+    assertThat(theJ5.authorizationOpen()).isFalse();
+    assertThat(theJ5.capturesAccepted()).isFalse();
+    assertThat(theJ5.refundsAccepted()).isTrue();
+    assertThat(theJ5.origin()).isEqualTo(ObjectOrigin.PROVIDER_API);
+    assertThat(theJ5.ledger().operations()).hasSize(2);
+    assertThat(theJ5.ledger().operations().get(1).createdObjectId())
+        .isEqualTo(Long.toString(force));
+    assertThat(theJ5.relatedObjects())
         .containsExactly(
             Map.entry("terminalName", "myterminal"),
             Map.entry("card_mask", "458021xxxxxx4245"),
             Map.entry("auth_number", "1000001"),
             Map.entry("hold_expires_at", "2026-10-20T12:00:00Z"),
             Map.entry("force", Long.toString(force)));
+    assertThat(theForce.providerObjectId()).isEqualTo(Long.toString(force));
+    assertThat(theForce.kind()).isEqualTo(TranzilaObjectKinds.A_FORCE);
+    assertThat(theForce.nativeStatus()).isEqualTo("force 000");
+    assertThat(theForce.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(theForce.amount().value()).isEqualTo("60");
+    assertThat(theForce.ledger().operations()).isEmpty();
+    assertThat(theForce.refundsAccepted()).isFalse();
+    assertThat(theForce.capturesAccepted()).isFalse();
+    assertThat(theForce.relatedObjects())
+        .containsExactly(
+            Map.entry("terminalName", "myterminal"),
+            Map.entry("card_mask", "458021xxxxxx4245"),
+            Map.entry("auth_number", "1000002"),
+            Map.entry("reference_txn_id", Long.toString(j5)));
     assertThat(provider.state(TranzilaWiring.RUN, "not-a-number")).isEmpty();
     assertThat(provider.state(TranzilaWiring.RUN, "99")).isEmpty();
   }
@@ -242,24 +261,54 @@ class TranzilaProviderTest {
   }
 
   @Test
-  void a_debit_is_related_to_its_credits_in_the_order_they_were_made() {
+  void a_debit_is_related_to_its_credit_and_its_cancel_and_the_credit_to_its_own_cancel() {
     String answered = wired.answered(TranzilaWire.aDebit());
     long debit = TranzilaWire.transactionIdIn(answered);
     String auth = TranzilaWire.textIn(answered, "auth_number");
     wired.create(TranzilaWire.aCredit(debit, auth, TranzilaWire.A_VISA, "1"));
-    long first = wired.theLastStored().transactionId();
-    wired.create(TranzilaWire.aCredit(debit, auth, TranzilaWire.A_VISA, "1"));
-    long second = wired.theLastStored().transactionId();
+    TranzilaTransaction credit = wired.theLastStored();
+    wired.create(TranzilaWire.aCancel(credit.transactionId(), String.valueOf(credit.authNumber())));
+    long ofTheCredit = wired.theLastStored().transactionId();
+    wired.create(TranzilaWire.aCancel(debit, auth));
+    long ofTheDebit = wired.theLastStored().transactionId();
 
-    ProviderObjectState state =
+    ProviderObjectState theDebit =
         provider.state(TranzilaWiring.RUN, Long.toString(debit)).orElseThrow();
+    ProviderObjectState theCredit =
+        provider.state(TranzilaWiring.RUN, credit.transactionIdAsText()).orElseThrow();
 
-    assertThat(state.kind()).isEqualTo(TranzilaObjectKinds.A_DEBIT);
-    assertThat(state.relatedObjects())
-        .containsEntry("credit", Long.toString(first))
-        .containsEntry("credit 2", Long.toString(second))
-        .doesNotContainKey("hold_expires_at");
-    assertThat(state.normalizedStatus()).isEqualTo(NormalizedStatus.PARTIALLY_REFUNDED);
+    assertThat(theDebit.kind()).isEqualTo(TranzilaObjectKinds.A_DEBIT);
+    assertThat(theDebit.relatedObjects())
+        .containsEntry("credit", credit.transactionIdAsText())
+        .containsEntry("cancel", Long.toString(ofTheDebit))
+        .doesNotContainKey("hold_expires_at")
+        .doesNotContainKey("reference_txn_id");
+    assertThat(theDebit.normalizedStatus()).isEqualTo(NormalizedStatus.CANCELLED);
+    assertThat(theCredit.kind()).isEqualTo(TranzilaObjectKinds.A_CREDIT);
+    assertThat(theCredit.normalizedStatus()).isEqualTo(NormalizedStatus.CANCELLED);
+    assertThat(theCredit.relatedObjects()).containsEntry("cancel", Long.toString(ofTheCredit));
+    assertThat(provider.state(TranzilaWiring.RUN, Long.toString(ofTheCredit)).orElseThrow().kind())
+        .isEqualTo(TranzilaObjectKinds.A_CANCEL);
+  }
+
+  @Test
+  void two_follow_ons_of_one_type_are_named_apart() {
+    long j5 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ5("100")));
+    String token = String.valueOf(wired.theLastStored().token());
+    wired.create(TranzilaWire.aForce(j5, token, "1000"));
+    long declined = wired.theLastStored().transactionId();
+    wired.create(TranzilaWire.aForce(j5, token, "10"));
+    long approved = wired.theLastStored().transactionId();
+
+    assertThat(provider.state(TranzilaWiring.RUN, Long.toString(j5)).orElseThrow().relatedObjects())
+        .containsEntry("force", Long.toString(declined))
+        .containsEntry("force 2", Long.toString(approved));
+    assertThat(
+            provider
+                .state(TranzilaWiring.RUN, Long.toString(declined))
+                .orElseThrow()
+                .normalizedStatus())
+        .isEqualTo(NormalizedStatus.FAILED);
   }
 
   @Test
@@ -317,8 +366,10 @@ class TranzilaProviderTest {
 
     ObjectActionOutcome outcome = act(j5, ObjectAction.CAPTURE, "40");
 
-    assertThat(outcome).isEqualTo(new ObjectActionOutcome.Applied(Long.toString(j5), null, null));
     TranzilaTransaction force = wired.theLastStored();
+    assertThat(outcome)
+        .isEqualTo(
+            new ObjectActionOutcome.Applied(Long.toString(j5), force.transactionIdAsText(), null));
     assertThat(force.type()).isEqualTo(TranzilaTxnType.FORCE);
     assertThat(force.amount()).isEqualTo("40");
     assertThat(force.origin()).isEqualTo(ObjectOrigin.UI);
@@ -360,6 +411,24 @@ class TranzilaProviderTest {
     assertThat(act(forced, ObjectAction.REFUND, "5"))
         .isInstanceOf(ObjectActionOutcome.Applied.class);
     assertThat(wired.theLastStored().referenceTxnId()).isEqualTo(force);
+  }
+
+  @Test
+  void an_action_on_a_follow_on_acts_on_that_transaction() {
+    long j5 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ5("100")));
+    act(j5, ObjectAction.CAPTURE, "100");
+    long force = wired.theLastStored().transactionId();
+
+    assertThat(act(force, ObjectAction.REFUND, "5"))
+        .isInstanceOf(ObjectActionOutcome.Applied.class);
+    long credit = wired.theLastStored().transactionId();
+    assertThat(wired.theLastStored().referenceTxnId()).isEqualTo(force);
+    assertThat(act(credit, ObjectAction.CANCEL, null))
+        .isInstanceOf(ObjectActionOutcome.Applied.class);
+    assertThat(wired.theLastStored().type()).isEqualTo(TranzilaTxnType.CANCEL);
+    assertThat(wired.theLastStored().referenceTxnId()).isEqualTo(credit);
+    assertThat(act(force, ObjectAction.CAPTURE, "1"))
+        .isInstanceOf(ObjectActionOutcome.RefusedByTheProvider.class);
   }
 
   @Test

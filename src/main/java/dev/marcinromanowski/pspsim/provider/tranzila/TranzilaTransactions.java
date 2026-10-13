@@ -22,9 +22,9 @@ interface TranzilaTransactions {
   Optional<TranzilaTransaction> approvedUnderDcDisable(
       TestRunId testRunId, String accountId, String dcDisable, Instant since);
 
-  Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long paymentId);
+  Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long transactionId);
 
-  List<ArrivalOf<TranzilaPayment>> newestFirst(
+  List<ArrivalOf<TranzilaObject>> newestFirst(
       TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit);
 
   int clear(TestRunId testRunId);

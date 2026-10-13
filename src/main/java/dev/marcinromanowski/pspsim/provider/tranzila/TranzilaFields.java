@@ -44,6 +44,12 @@ final class TranzilaFields {
 
   static final String UNIT_PRICE = "unit_price";
 
+  static final String TYPE = "type";
+
+  static final String PRICE_TYPE = "price_type";
+
+  static final String VAT_PERCENT = "vat_percent";
+
   static final String REFERENCE_TXN_ID = "reference_txn_id";
 
   static final String AUTHORIZATION_NUMBER = "authorization_number";

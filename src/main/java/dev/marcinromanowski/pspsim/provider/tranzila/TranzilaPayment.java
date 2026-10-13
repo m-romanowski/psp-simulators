@@ -5,7 +5,6 @@ import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
-import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -20,14 +19,6 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
 
   String paymentId() {
     return root.transactionIdAsText();
-  }
-
-  ProviderObjectIdentity identity() {
-    ProviderObjectIdentity identity = ProviderObjectIdentity.of(paymentId());
-    for (TranzilaTransaction followOn : followOns) {
-      identity = identity.answeringAlsoTo(followOn.transactionIdAsText());
-    }
-    return identity;
   }
 
   Optional<TranzilaTransaction> transaction(long transactionId) {
@@ -46,8 +37,19 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
   }
 
   boolean isCancelled(TranzilaTransaction transaction) {
+    return theCancelOf(transaction).isPresent();
+  }
+
+  Optional<TranzilaTransaction> theCancelOf(TranzilaTransaction transaction) {
     return approvedOfType(TranzilaTxnType.CANCEL)
-        .anyMatch(cancel -> cancel.references(transaction.transactionId()));
+        .filter(cancel -> cancel.references(transaction.transactionId()))
+        .findFirst();
+  }
+
+  Optional<TranzilaTransaction> theCreditOf(TranzilaTransaction original) {
+    return approvedOfType(TranzilaTxnType.CREDIT)
+        .filter(credit -> credit.references(original.transactionId()))
+        .findFirst();
   }
 
   boolean isAJ5StillHeldAt(Instant now) {
@@ -113,16 +115,6 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
         : NormalizedStatus.PARTIALLY_REFUNDED;
   }
 
-  String nativeStatus() {
-    TranzilaTransaction latest = root;
-    for (TranzilaTransaction followOn : followOns) {
-      if (followOn.approved()) {
-        latest = followOn;
-      }
-    }
-    return latest.nativeStatus();
-  }
-
   Ledger ledger() {
     if (!root.approved() || root.isAJ2()) {
       return Ledger.empty();
@@ -135,6 +127,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
             OperationKind.AUTHORIZATION,
             root.amount(),
             Boolean.valueOf(charged),
+            null,
             root,
             charged ? NormalizedStatus.SUCCEEDED : NormalizedStatus.READY_FOR_CAPTURE));
     Optional<TranzilaTransaction> original = whatACreditIsAgainst();
@@ -148,6 +141,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
             OperationKind.CAPTURE,
             captured.amount(),
             Boolean.TRUE,
+            captured.isTheOriginal() ? null : captured.transactionIdAsText(),
             captured,
             NormalizedStatus.SUCCEEDED));
     BigDecimal credited = BigDecimal.ZERO;
@@ -165,6 +159,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
               OperationKind.REFUND,
               credit.amount(),
               null,
+              credit.transactionIdAsText(),
               credit,
               credited.compareTo(captured.theAmount()) >= 0
                   ? NormalizedStatus.REFUNDED
@@ -178,6 +173,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
       OperationKind kind,
       String amount,
       @org.jspecify.annotations.Nullable Boolean closesAuthorization,
+      @org.jspecify.annotations.Nullable String createdObjectId,
       TranzilaTransaction by,
       NormalizedStatus status) {
     return new MonetaryOperation(
@@ -185,7 +181,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
         kind,
         Amount.of(amount),
         closesAuthorization,
-        null,
+        createdObjectId,
         by.nativeStatus(),
         status,
         by.createdAt());

@@ -202,28 +202,27 @@ final class TranzilaDoubles {
     }
 
     @Override
-    public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long paymentId) {
-      Long arrival = arrivedAt.get(keyOf(testRunId, paymentId));
+    public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long transactionId) {
+      Long arrival = arrivedAt.get(keyOf(testRunId, transactionId));
       return arrival == null
           ? Optional.empty()
-          : Optional.of(new ProviderObjectCursor(arrival, Long.toString(paymentId)));
+          : Optional.of(new ProviderObjectCursor(arrival, Long.toString(transactionId)));
     }
 
     @Override
-    public List<ArrivalOf<TranzilaPayment>> newestFirst(
+    public List<ArrivalOf<TranzilaObject>> newestFirst(
         TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit) {
-      List<ArrivalOf<Long>> roots = new ArrayList<>();
+      List<ArrivalOf<Long>> listed = new ArrayList<>();
       for (TranzilaTransaction held : stored.reversed()) {
         long arrival = arrivedAt.get(keyOf(held.testRunId(), held.transactionId()));
         if (held.testRunId().equals(testRunId)
-            && held.isTheOriginal()
             && arrival < ProviderObjectCursor.walkingBackFrom(after)
-            && roots.size() < limit) {
-          roots.add(new ArrivalOf<>(arrival, held.transactionId()));
+            && listed.size() < limit) {
+          listed.add(new ArrivalOf<>(arrival, held.transactionId()));
         }
       }
       return TranzilaGroups.inTheOrderOf(
-          roots, stored.stream().filter(held -> held.testRunId().equals(testRunId)).toList());
+          listed, stored.stream().filter(held -> held.testRunId().equals(testRunId)).toList());
     }
 
     @Override

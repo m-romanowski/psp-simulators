@@ -315,6 +315,32 @@ class CreateTransactionTest {
   }
 
   @Test
+  void a_request_asking_for_3_d_secure_is_answered_501_and_charges_nothing() {
+    TranzilaOperationResult answered =
+        wired.create(
+            TranzilaWire.aDebit().replace("{\"terminal", "{\"activate_3ds\":\"Y\",\"terminal"));
+
+    assertThat(answered.body().httpStatus()).isEqualTo(501);
+    assertThat(answered.body().text())
+        .isEqualTo(
+            "{\"error_code\":\"501\",\"message\":\"activate_3ds Y asks for 3-D Secure, which"
+                + " this simulator does not perform on this route; nothing was charged\"}");
+    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(wired.stored()).isEmpty();
+  }
+
+  @Test
+  void a_request_saying_no_3_d_secure_with_its_settings_is_charged() {
+    assertThat(
+            wired.answered(
+                TranzilaWire.aDebit()
+                    .replace(
+                        "{\"terminal",
+                        "{\"activate_3ds\":\"N\",\"3ds_settings\":{\"force_challenge\":0},\"terminal")))
+        .contains("\"processor_response_code\":\"000\"");
+  }
+
+  @Test
   void a_terminal_name_other_than_the_app_keys_is_refused_401_20002() {
     TranzilaOperationResult refused =
         wired.create(TranzilaWire.aDebit().replace("myterminal", "otherterminal"));

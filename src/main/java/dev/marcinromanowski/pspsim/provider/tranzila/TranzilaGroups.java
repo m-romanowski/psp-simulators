@@ -34,19 +34,32 @@ final class TranzilaGroups {
     return paymentsOf(inArrivalOrder).stream().findFirst();
   }
 
-  static List<ArrivalOf<TranzilaPayment>> inTheOrderOf(
-      List<ArrivalOf<Long>> roots, List<TranzilaTransaction> members) {
-    Map<Long, TranzilaPayment> byRoot = new LinkedHashMap<>();
-    for (TranzilaPayment payment : paymentsOf(members)) {
-      byRoot.put(Long.valueOf(payment.root().transactionId()), payment);
-    }
-    List<ArrivalOf<TranzilaPayment>> ordered = new ArrayList<>();
-    for (ArrivalOf<Long> root : roots) {
-      TranzilaPayment payment = byRoot.get(root.row());
-      if (payment != null) {
-        ordered.add(new ArrivalOf<>(root.arrival(), payment));
-      }
+  static List<ArrivalOf<TranzilaObject>> inTheOrderOf(
+      List<ArrivalOf<Long>> listed, List<TranzilaTransaction> members) {
+    return theObjectsOf(listed, paymentsOf(members));
+  }
+
+  static List<ArrivalOf<TranzilaObject>> theObjectsOf(
+      List<ArrivalOf<Long>> listed, List<TranzilaPayment> payments) {
+    List<ArrivalOf<TranzilaObject>> ordered = new ArrayList<>();
+    for (ArrivalOf<Long> named : listed) {
+      payments.stream()
+          .flatMap(payment -> TranzilaObject.of(payment, named.row().longValue()).stream())
+          .findFirst()
+          .ifPresent(found -> ordered.add(new ArrivalOf<>(named.arrival(), found)));
     }
     return List.copyOf(ordered);
+  }
+
+  static List<TranzilaObject> theObjectsNamed(List<Long> named, List<TranzilaPayment> payments) {
+    List<TranzilaObject> found = new ArrayList<>();
+    for (Long transactionId : named) {
+      payments.stream()
+          .flatMap(payment -> TranzilaObject.of(payment, transactionId.longValue()).stream())
+          .findFirst()
+          .filter(object -> !found.contains(object))
+          .ifPresent(found::add);
+    }
+    return List.copyOf(found);
   }
 }

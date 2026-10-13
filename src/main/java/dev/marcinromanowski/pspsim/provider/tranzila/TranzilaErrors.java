@@ -16,6 +16,16 @@ final class TranzilaErrors {
 
   static final String METHOD_NOT_ALLOWED = "405";
 
+  static final String NOT_SERVED = "501";
+
+  static final String THREE_D_SECURE_IS_NOT_SERVED =
+      "activate_3ds Y asks for 3-D Secure, which this simulator does not perform on this route;"
+          + " nothing was charged";
+
+  static final String ALREADY_CREDITED_TEXT = "Already Credited this transaction id";
+
+  static final String SUM_IS_LARGER_TEXT = "Sum is larger than the original debit transaction";
+
   static final String AUTHENTICATION_FAILED_TEXT = "Authentication failed";
 
   static final String INVALID_JSON_FORMAT_TEXT = "Invalid JSON Format";
@@ -55,7 +65,7 @@ final class TranzilaErrors {
       case AUTHORIZATION_NUMBER_EMPTY -> "Empty authorization number";
       case INVALID_DC_DISABLE -> "Invalid DCdisable";
       case ALREADY_CANCELED -> "Attempting to credit a transaction that has already been canceled";
-      case ALREADY_CREDITED -> "Sum is larger than the original debit transaction";
+      case ALREADY_CREDITED -> SUM_IS_LARGER_TEXT;
       default ->
           throw new IllegalArgumentException(
               applicationErrorCode + " is no application error code this simulator answers");

@@ -113,6 +113,10 @@ create unique index tranzila_transaction_closes_a_hold_once
     on tranzila_transaction (test_run_id, reference_txn_id)
     where txn_type in ('force', 'reversal') and processor_response_code = '000';
 
+create unique index tranzila_transaction_credits_once
+    on tranzila_transaction (test_run_id, reference_txn_id)
+    where txn_type = 'credit' and processor_response_code = '000';
+
 create unique index tranzila_transaction_cancels_once
     on tranzila_transaction (test_run_id, reference_txn_id)
     where txn_type = 'cancel' and processor_response_code = '000';

@@ -1,7 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
 
@@ -64,9 +63,5 @@ final class TranzilaResponseCodes {
 
   static int asAnErrorCode(String code) {
     return Integer.parseInt(code);
-  }
-
-  static Map<String, String> declinesInOrder() {
-    return THE_DECLINES_A_SCENARIO_MAY_NAME;
   }
 }

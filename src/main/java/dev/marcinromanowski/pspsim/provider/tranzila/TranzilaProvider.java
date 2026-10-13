@@ -14,6 +14,8 @@ import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
+import dev.marcinromanowski.pspsim.kernel.money.Amount;
+import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.smoke.CheckJson;
 import dev.marcinromanowski.pspsim.kernel.smoke.ContractCheck;
@@ -38,6 +40,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfiguration;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfigurationRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderKeyMechanisms;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectPage;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectPages;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectQuery;
@@ -78,6 +81,8 @@ final class TranzilaProvider implements SimulatorProvider {
       "provider tranzila's card API charges a card number or a token the merchant already holds"
           + " and keeps no object waiting for a payer; its payer page is the DirectNG iframe at"
           + " /{terminal}/iframenew.php, which this module does not serve";
+
+  static final String HOLD_EXPIRES_AT = "hold_expires_at";
 
   private final TranzilaTerminals terminals;
   private final TranzilaTransactions transactions;
@@ -255,8 +260,12 @@ final class TranzilaProvider implements SimulatorProvider {
   public Optional<ProviderObjectState> state(TestRunId testRunId, String providerObjectId) {
     Instant now = clock.now(testRunId);
     return TranzilaIdentifiers.transactionIdIn(providerObjectId)
-        .flatMap(id -> transactions.paymentHolding(testRunId, id.longValue()))
-        .map(payment -> stateOf(payment, now));
+        .flatMap(
+            id ->
+                transactions
+                    .paymentHolding(testRunId, id.longValue())
+                    .flatMap(payment -> TranzilaObject.of(payment, id.longValue())))
+        .map(object -> stateOf(object, now));
   }
 
   @Override
@@ -268,8 +277,9 @@ final class TranzilaProvider implements SimulatorProvider {
             .flatMap(Optional::stream)
             .toList();
     Instant now = clock.now(testRunId);
-    return transactions.paymentsHolding(testRunId, asked).stream()
-        .map(payment -> stateOf(payment, now))
+    return TranzilaGroups.theObjectsNamed(asked, transactions.paymentsHolding(testRunId, asked))
+        .stream()
+        .map(object -> stateOf(object, now))
         .toList();
   }
 
@@ -281,27 +291,32 @@ final class TranzilaProvider implements SimulatorProvider {
   @Override
   public ObjectActionOutcome act(ObjectActionRequest request) {
     TestRunId testRunId = request.testRunId();
-    Optional<TranzilaPayment> found =
+    Optional<TranzilaObject> found =
         TranzilaIdentifiers.transactionIdIn(request.providerObjectId())
-            .flatMap(id -> transactions.paymentHolding(testRunId, id.longValue()));
+            .flatMap(
+                id ->
+                    transactions
+                        .paymentHolding(testRunId, id.longValue())
+                        .flatMap(payment -> TranzilaObject.of(payment, id.longValue())));
     if (found.isEmpty()) {
       return new ObjectActionOutcome.NoSuchObject();
     }
-    TranzilaPayment payment = found.get();
+    TranzilaObject object = found.get();
+    TranzilaPayment payment = object.payment();
     Optional<TranzilaTerminal> terminal = terminals.find(testRunId, payment.root().accountId());
     if (terminal.isEmpty()) {
-      return TranzilaObjectActions.theRunConfiguresNoTerminalFor(payment);
+      return TranzilaObjectActions.theRunConfiguresNoTerminal();
     }
     Instant now = clock.now(testRunId);
     TranzilaOperationResult result =
         createTransaction.handle(
-            TranzilaObjectActions.callOf(request, payment, terminal.get(), now),
+            TranzilaObjectActions.callOf(request, object, terminal.get(), now),
             Map.of(),
             testRunId,
             terminal.get(),
             now,
             request.askedBy());
-    return TranzilaObjectActions.outcomeOf(result, payment);
+    return TranzilaObjectActions.outcomeOf(result, object);
   }
 
   @Override
@@ -358,13 +373,13 @@ final class TranzilaProvider implements SimulatorProvider {
     }
     Instant now = clock.now(testRunId);
     List<PlacedProviderObject> placed = new ArrayList<>();
-    for (ArrivalOf<TranzilaPayment> arrived :
+    for (ArrivalOf<TranzilaObject> arrived :
         transactions.newestFirst(testRunId, after, query.limit())) {
-      TranzilaPayment payment = arrived.row();
+      TranzilaObject object = arrived.row();
       placed.add(
           new PlacedProviderObject(
-              new ProviderObjectCursor(arrived.arrival(), payment.paymentId()),
-              stateOf(payment, now)));
+              new ProviderObjectCursor(arrived.arrival(), object.objectId()),
+              stateOf(object, now)));
     }
     return ProviderObjectPages.newestFirst(placed, query.limit());
   }
@@ -379,43 +394,51 @@ final class TranzilaProvider implements SimulatorProvider {
     throw new WebhookNotSchedulableException(NO_WEBHOOK_LEAVES_THIS_ROUTE);
   }
 
-  static ProviderObjectState stateOf(TranzilaPayment payment, Instant now) {
-    TranzilaTransaction root = payment.root();
-    boolean held = payment.isAJ5StillHeldAt(now);
+  static ProviderObjectState stateOf(TranzilaObject object, Instant now) {
+    TranzilaTransaction subject = object.subject();
+    TranzilaPayment payment = object.payment();
+    boolean original = object.isTheOriginal();
+    boolean held = original && payment.isAJ5StillHeldAt(now);
     return new ProviderObjectState(
-        payment.identity(),
-        TranzilaObjectKinds.of(payment),
-        payment.nativeStatus(),
-        payment.normalizedStatusAt(now),
-        dev.marcinromanowski.pspsim.kernel.money.Amount.of(root.amount()),
-        root.currencyCode(),
-        payment.ledger(),
+        ProviderObjectIdentity.of(object.objectId()),
+        TranzilaObjectKinds.of(subject),
+        object.nativeStatus(),
+        object.normalizedStatusAt(now),
+        Amount.of(subject.amount()),
+        subject.currencyCode(),
+        original ? payment.ledger() : Ledger.empty(),
         held,
         held,
-        payment.refundsAccepted(),
-        relatedObjectsOf(payment),
-        root.origin(),
-        payment.updatedAt());
+        original && payment.refundsAccepted(),
+        relatedObjectsOf(object),
+        subject.origin(),
+        object.updatedAt());
   }
 
-  static Map<String, String> relatedObjectsOf(TranzilaPayment payment) {
-    TranzilaTransaction root = payment.root();
+  static Map<String, String> relatedObjectsOf(TranzilaObject object) {
+    TranzilaTransaction subject = object.subject();
     Map<String, String> related = new LinkedHashMap<>();
-    related.put(TranzilaTerminal.TERMINAL_NAME_PROPERTY, root.terminalName());
-    related.put(TranzilaFields.CARD_MASK, root.card().cardMask());
-    String authNumber = root.authNumber();
+    related.put(TranzilaTerminal.TERMINAL_NAME_PROPERTY, subject.terminalName());
+    related.put(TranzilaFields.CARD_MASK, subject.card().cardMask());
+    String authNumber = subject.authNumber();
     if (authNumber != null) {
       related.put(TranzilaFields.AUTH_NUMBER, authNumber);
     }
-    Instant expires = root.holdExpiresAt();
+    Instant expires = subject.holdExpiresAt();
     if (expires != null) {
-      related.put("hold_expires_at", expires.toString());
+      related.put(HOLD_EXPIRES_AT, expires.toString());
+    }
+    Long reference = subject.referenceTxnId();
+    if (reference != null) {
+      related.put(TranzilaFields.REFERENCE_TXN_ID, reference.toString());
     }
     Map<String, Integer> seen = new LinkedHashMap<>();
-    for (TranzilaTransaction followOn : payment.followOns()) {
-      String type = followOn.type().wire();
-      int nth = seen.merge(type, 1, Integer::sum);
-      related.put(nth == 1 ? type : type + " " + nth, followOn.transactionIdAsText());
+    for (TranzilaTransaction followOn : object.payment().followOns()) {
+      if (followOn.references(subject.transactionId())) {
+        String type = followOn.type().wire();
+        int nth = seen.merge(type, 1, Integer::sum);
+        related.put(nth == 1 ? type : type + " " + nth, followOn.transactionIdAsText());
+      }
     }
     return related;
   }

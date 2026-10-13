@@ -28,6 +28,9 @@ class TranzilaFollowOnTest {
       "{\"error_code\":23001,\"message\":\"Attempting to credit a transaction that has already been"
           + " canceled\"}";
 
+  private static final String ALREADY_CREDITED =
+      "{\"error_code\":23002,\"message\":\"Already Credited this transaction id\"}";
+
   private static final String CREDITED_ABOVE =
       "{\"error_code\":23002,\"message\":\"Sum is larger than the original debit transaction\"}";
 
@@ -302,23 +305,54 @@ class TranzilaFollowOnTest {
   }
 
   @Test
-  void partial_and_repeated_credits_of_a_debit_are_approved_while_their_total_fits() {
+  void a_partial_credit_of_a_debit_is_approved_and_a_second_credit_of_it_is_refused_23002() {
     Charged debit = aDebitOf("100");
 
     String first =
         wired.answered(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "40"));
-    String second =
-        wired.answered(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "60"));
-    String third =
-        wired.answered(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "0.01"));
+    TranzilaOperationResult second =
+        wired.create(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "1"));
 
     assertThat(first)
+        .contains("\"error_code\":0")
         .contains("\"processor_response_code\":\"000\"")
         .contains("\"amount\":40,\"txn_type\":\"credit\",\"tranmode\":\"C\"");
-    assertThat(second).contains("\"processor_response_code\":\"000\"");
-    assertThat(third).isEqualTo(CREDITED_ABOVE);
+    assertThat(second.body().text()).isEqualTo(ALREADY_CREDITED);
+    assertThat(second.refusal()).isEqualTo(RefusalSubject.theObject(Long.toString(debit.id())));
+    assertThat(wired.thePaymentOf(debit.id()).normalizedStatusAt(TranzilaWiring.NOW))
+        .isEqualTo(NormalizedStatus.PARTIALLY_REFUNDED);
+  }
+
+  @Test
+  void a_credit_of_the_whole_debit_refunds_it() {
+    Charged debit = aDebitOf("100");
+
+    wired.create(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "100"));
+
     assertThat(wired.thePaymentOf(debit.id()).normalizedStatusAt(TranzilaWiring.NOW))
         .isEqualTo(NormalizedStatus.REFUNDED);
+  }
+
+  @Test
+  void a_cancelled_credit_still_counts_as_the_one_credit_of_its_original() {
+    Charged debit = aDebitOf("100");
+    wired.create(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "10"));
+    TranzilaTransaction credit = wired.theLastStored();
+    wired.create(TranzilaWire.aCancel(credit.transactionId(), String.valueOf(credit.authNumber())));
+
+    assertThat(wired.answered(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "10")))
+        .isEqualTo(ALREADY_CREDITED);
+  }
+
+  @Test
+  void a_declined_credit_leaves_the_original_creditable() {
+    Charged debit = aDebitOf("100");
+    wired.writes(TranzilaOperations.CREDIT, new ScenarioAction.TerminalFailure("004"));
+    wired.create(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "10"));
+    wired.rules.clear(TranzilaApi.TRANZILA, TranzilaWiring.RUN);
+
+    assertThat(wired.answered(TranzilaWire.aCredit(debit.id(), debit.auth(), debit.token(), "10")))
+        .contains("\"processor_response_code\":\"000\"");
   }
 
   @Test
