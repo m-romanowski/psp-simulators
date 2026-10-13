@@ -28,8 +28,8 @@ final class TranzilaPersonas {
 
   static final String HOW_A_TOKEN_IS_MINTED =
       "the token is minted the way an approved transaction of this simulator mints one: a"
-          + " letter, fourteen hexadecimal characters and the card's last four digits, as the"
-          + " tokens tranzila prints end in the card's last four";
+          + " letter, fourteen hexadecimal characters and the card's last four digits, the way the"
+          + " Hosted Fields response example's token ends in the last four digits it answers";
 
   static final String THE_CARD_FACTS_ARE_THE_PUBLISHED_SAMPLE =
       "the card facts are the published create example's, a Visa ending 4245; its funding is "

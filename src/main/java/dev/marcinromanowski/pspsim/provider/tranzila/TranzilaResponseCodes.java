@@ -33,18 +33,29 @@ final class TranzilaResponseCodes {
           + " or CVV, 012 card not authorised for the terminal, 015 expired, 016 unauthorised"
           + " currency or 017 unauthorised credit type. Three digits, as the table writes them";
 
+  static final String BLOCKED =
+      "Blocked confiscate card." + " Please check and enter the credit number again.";
+
+  static final String STOLEN =
+      "Stolen confiscate card." + " Please check and enter the credit number again.";
+
+  static final String REFUSAL =
+      "Refusal." + " Please contact the card owner to check the reason with his credit company.";
+
+  static final String EXPIRED = "Expired card." + " Please check the expiration date again.";
+
   private static SequencedMap<String, String> declines() {
     SequencedMap<String, String> published = new LinkedHashMap<>();
-    published.put("001", "Blocked card.");
-    published.put("002", "Stolen card.");
-    published.put("003", "Call the credit company.");
-    published.put("004", "Refusal.");
-    published.put("005", "Forged card.");
-    published.put("006", "Incorrect ID or CVV.");
-    published.put("012", "The card is not authorised for this terminal.");
-    published.put("015", "Expired card.");
-    published.put("016", "Unauthorised currency.");
-    published.put("017", "Unauthorised credit type.");
+    published.put("001", BLOCKED);
+    published.put("002", STOLEN);
+    published.put("003", "Contact credit company to approve the transaction.");
+    published.put("004", REFUSAL);
+    published.put("005", "Forged confiscate card.");
+    published.put("006", "Incorrect identity number or CVV.");
+    published.put("012", "Unauthorized card for this terminal.");
+    published.put("015", EXPIRED);
+    published.put("016", "Unauthorized currency.");
+    published.put("017", "Unauthorized credit type for this transaction.");
     return published;
   }
 

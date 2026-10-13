@@ -18,7 +18,7 @@ final class TranzilaIdentifiers {
   private TranzilaIdentifiers() {}
 
   static long aTransactionId(IdGenerator ids) {
-    return Long.parseLong(ids.digits(TRANSACTION_ID_DIGITS));
+    return Math.max(1L, Long.parseLong(ids.digits(TRANSACTION_ID_DIGITS)));
   }
 
   static String anAuthNumber(IdGenerator ids) {

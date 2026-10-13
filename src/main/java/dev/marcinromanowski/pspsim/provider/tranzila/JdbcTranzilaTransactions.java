@@ -10,26 +10,43 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionTemplate;
 
 final class JdbcTranzilaTransactions implements TranzilaTransactions {
 
   private final JdbcClient jdbc;
+  private final TransactionTemplate transactions;
 
-  JdbcTranzilaTransactions(JdbcClient jdbc) {
+  JdbcTranzilaTransactions(JdbcClient jdbc, TransactionTemplate transactions) {
     this.jdbc = jdbc;
+    this.transactions = transactions;
   }
 
   @Override
   public TranzilaInsert insert(TranzilaTransaction transaction) {
-    try {
-      return TranzilaInsert.ofTheRowsWritten(written(transaction));
-    } catch (DuplicateKeyException anotherRequestClosedItFirst) {
-      return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
-    }
+    return TranzilaInsert.ofTheRowsWritten(written(transaction), holding(transaction));
+  }
+
+  @Override
+  public <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision) {
+    return Objects.requireNonNull(
+        transactions.execute(
+            status -> {
+              jdbc.sql(
+                      """
+                      select count(*) from (select pg_advisory_xact_lock(?, ?)) as taken
+                      """)
+                  .params(TranzilaDcDisableKey.LOCK_SPACE, key.lock())
+                  .query(Long.class)
+                  .single();
+              return decision.get();
+            }),
+        "the unit of work answered nothing where its callback answers on every path");
   }
 
   private int written(TranzilaTransaction transaction) {
@@ -39,9 +56,10 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
                 (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
                  verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
                  auth_number, token, card_mask, card_type, expiry_month, expiry_year,
-                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict (test_run_id, transaction_id) do nothing
+                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at,
+                 card_fingerprint)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            on conflict do nothing
             """)
         .param(transaction.testRunId().value())
         .param(Long.valueOf(transaction.transactionId()))
@@ -66,7 +84,20 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         .param(TranzilaStoredForm.timestampOf(transaction.holdExpiresAt()))
         .param(transaction.origin().name())
         .param(transaction.createdAt().atOffset(ZoneOffset.UTC))
+        .param(transaction.card().fingerprint())
         .update();
+  }
+
+  private int holding(TranzilaTransaction transaction) {
+    return jdbc.sql(
+            """
+            select count(*) from tranzila_transaction
+            where test_run_id = ? and transaction_id = ?
+            """)
+        .params(transaction.testRunId().value(), Long.valueOf(transaction.transactionId()))
+        .query(Integer.class)
+        .single()
+        .intValue();
   }
 
   @Override
@@ -117,15 +148,21 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
 
   @Override
   public Optional<TranzilaTransaction> approvedUnderDcDisable(
-      TestRunId testRunId, String accountId, String dcDisable, Instant since) {
+      TranzilaDcDisableKey key, Instant since) {
     return jdbc.sql(
             """
             select * from tranzila_transaction
-            where test_run_id = ? and account_id = ? and dc_disable = ?
+            where test_run_id = ? and account_id = ? and dc_disable = ? and txn_type = ?
+              and verify_mode is not distinct from ?
               and processor_response_code in ('000', '777') and created_at > ?
             order by arrival limit 1
             """)
-        .params(testRunId.value(), accountId, dcDisable, since.atOffset(ZoneOffset.UTC))
+        .param(key.testRunId().value())
+        .param(key.accountId())
+        .param(key.dcDisable())
+        .param(key.type().wire())
+        .param(key.verifyMode())
+        .param(since.atOffset(ZoneOffset.UTC))
         .query(JdbcTranzilaTransactions::toTransaction)
         .optional();
   }
@@ -210,7 +247,8 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
             rs.getString("card_mask"),
             rs.getInt("card_type"),
             rs.getInt("expiry_month"),
-            rs.getInt("expiry_year")),
+            rs.getInt("expiry_year"),
+            rs.getString("card_fingerprint")),
         rs.getString("response_cvv"),
         rs.getString("response_id"),
         rs.getString("dc_disable"),

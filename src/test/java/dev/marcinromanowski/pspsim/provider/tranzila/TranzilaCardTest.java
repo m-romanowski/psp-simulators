@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -31,7 +32,7 @@ class TranzilaCardTest {
   })
   void a_card_number_answers_the_card_type_of_the_payment_pages_table(
       String pan, int cardType, String name) {
-    TranzilaCard card = TranzilaCard.ofThePan(pan, 7, 2030);
+    TranzilaCard card = TranzilaCard.ofThePan(TranzilaWiring.RUN, pan, 7, 2030);
 
     assertThat(card.cardType()).isEqualTo(cardType);
     assertThat(card.cardTypeName()).isEqualTo(name);
@@ -47,13 +48,34 @@ class TranzilaCardTest {
 
   @Test
   void a_card_keeps_a_two_digit_expiry_year_and_its_last_four() {
-    TranzilaCard card = TranzilaCard.ofThePan("4580210000004245", 7, 2030);
+    TranzilaCard card = TranzilaCard.ofThePan(TranzilaWiring.RUN, "4580210000004245", 7, 2030);
 
     assertThat(card.expiryYear()).isEqualTo(30);
     assertThat(card.expiryMonth()).isEqualTo(7);
     assertThat(card.last4()).isEqualTo("4245");
-    assertThat(card.isTheSameCardAs(TranzilaCard.ofThePan("4580210000004245", 1, 2031))).isTrue();
-    assertThat(card.isTheSameCardAs(TranzilaCard.ofThePan("4580220000004245", 7, 2030))).isFalse();
+    assertThat(
+            card.isTheSameCardAs(
+                TranzilaCard.ofThePan(TranzilaWiring.RUN, "4580210000004245", 1, 2031)))
+        .isTrue();
+    assertThat(
+            card.isTheSameCardAs(
+                TranzilaCard.ofThePan(TranzilaWiring.RUN, "4580210000014245", 7, 2030)))
+        .as("two card numbers under one mask are two cards")
+        .isFalse();
+    assertThat(
+            card.isTheSameCardAs(
+                TranzilaCard.ofThePan(TestRunId.of("another-run"), "4580210000004245", 7, 2030)))
+        .isFalse();
+    assertThat(card.fingerprint())
+        .isEqualTo("24069a25d176bbdeb1e9fac7c660f2350ac7fb1a592b2cceda24343d8b0bf691");
+    assertThat(card.expiringIn(1, 2031))
+        .isEqualTo(
+            new TranzilaCard(
+                "458021xxxxxx4245",
+                2,
+                1,
+                31,
+                "24069a25d176bbdeb1e9fac7c660f2350ac7fb1a592b2cceda24343d8b0bf691"));
   }
 
   @Test
@@ -70,14 +92,20 @@ class TranzilaCardTest {
   @Test
   void a_seeded_card_is_masked_to_its_last_four_and_typed_by_its_brand() {
     TranzilaCard card =
-        TranzilaPayerCards.theCardOf(new FixtureCard("diners", "0004", 3, 2032, "credit"));
+        TranzilaPayerCards.theCardOf(
+            TranzilaWiring.RUN,
+            "seededtoken0005",
+            new FixtureCard("diners", "0004", 3, 2032, "credit"));
 
     assertThat(card.cardMask()).isEqualTo("xxxxxxxxxxxx0004");
     assertThat(card.cardType()).isEqualTo(3);
     assertThat(card.expiryMonth()).isEqualTo(3);
     assertThat(card.expiryYear()).isEqualTo(32);
+    assertThat(card.fingerprint())
+        .isEqualTo("c5119ec035407bc7eb68c36ae173a489def19512a60bdb2421f0b7b23c1676a0");
     assertThat(
-            TranzilaPayerCards.theCardOf(new FixtureCard("other", "0004", 3, 2032, "credit"))
+            TranzilaPayerCards.theCardOf(
+                    TranzilaWiring.RUN, "t", new FixtureCard("other", "0004", 3, 2032, "credit"))
                 .cardType())
         .isEqualTo(2);
   }

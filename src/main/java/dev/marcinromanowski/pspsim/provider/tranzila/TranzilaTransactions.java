@@ -6,6 +6,7 @@ import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
 interface TranzilaTransactions {
@@ -19,8 +20,9 @@ interface TranzilaTransactions {
   Optional<TranzilaTransaction> carryingTheToken(
       TestRunId testRunId, String accountId, String token);
 
-  Optional<TranzilaTransaction> approvedUnderDcDisable(
-      TestRunId testRunId, String accountId, String dcDisable, Instant since);
+  Optional<TranzilaTransaction> approvedUnderDcDisable(TranzilaDcDisableKey key, Instant since);
+
+  <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision);
 
   Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, long transactionId);
 

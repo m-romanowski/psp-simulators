@@ -5,16 +5,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.GeneralSecurityException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -177,6 +187,61 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void two_debits_sent_at_once_under_one_dc_disable_charge_the_card_once() throws Exception {
+    String body =
+        aDebit(",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"race-1\"}]");
+
+    List<HttpResponse<String>> answers = atOnce(List.of(body, body, body, body));
+
+    assertThat(answers).allSatisfy(answer -> assertThat(answer.statusCode()).isEqualTo(200));
+    assertThat(answers)
+        .filteredOn(answer -> answer.body().contains("\"message\":\"success\""))
+        .hasSize(1);
+    assertThat(answers)
+        .filteredOn(answer -> answer.body().contains("already been made"))
+        .hasSize(3);
+    assertThat(objects()).hasSize(1);
+  }
+
+  @Test
+  void a_credit_and_a_cancel_of_one_debit_sent_at_once_settle_it_once() throws Exception {
+    for (int round = 0; round < 5; round++) {
+      HttpResponse<String> charged = signed(aDebit(""));
+      long debit = Long.parseLong(valueIn(charged.body(), "transaction_id"));
+      String auth = textIn(charged.body(), "auth_number");
+      String credit =
+          "{\"terminal_name\":\"myterminal\",\"txn_type\":\"credit\",\"reference_txn_id\":"
+              + debit
+              + ",\"authorization_number\":\""
+              + auth
+              + "\",\"card_number\":\""
+              + A_VISA
+              + "\",\"expire_month\":7,\"expire_year\":2030,"
+              + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":1}]}";
+      String cancel =
+          "{\"terminal_name\":\"myterminal\",\"txn_type\":\"cancel\",\"reference_txn_id\":"
+              + debit
+              + ",\"authorization_number\":\""
+              + auth
+              + "\"}";
+
+      List<HttpResponse<String>> answers = atOnce(List.of(credit, cancel));
+
+      assertThat(answers)
+          .as("round %s: %s", round, answers.stream().map(HttpResponse::body).toList())
+          .filteredOn(answer -> answer.body().contains("\"processor_response_code\":\"000\""))
+          .hasSize(1);
+      assertThat(answers)
+          .as("round %s: %s", round, answers.stream().map(HttpResponse::body).toList())
+          .filteredOn(
+              answer ->
+                  answer.body().contains("\"error_code\":23001")
+                      || answer.body().contains("\"error_code\":20112"))
+          .hasSize(1);
+    }
+  }
+
+  @Test
   void a_wrong_access_token_and_a_reused_nonce_are_answered_401_20000() {
     String nonce = "nonce-" + NONCES.incrementAndGet();
     String requestTime = Long.toString(FIXED_NOW.getEpochSecond());
@@ -212,6 +277,30 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
     assertThat(worldline.body()).contains("ACCESS_TO_MERCHANT_NOT_ALLOWED");
   }
 
+  private List<HttpResponse<String>> atOnce(List<String> bodies) throws Exception {
+    ExecutorService senders = Executors.newFixedThreadPool(bodies.size());
+    CountDownLatch start = new CountDownLatch(1);
+    try {
+      List<Future<HttpResponse<String>>> sent = new ArrayList<>();
+      for (String body : bodies) {
+        sent.add(
+            senders.submit(
+                () -> {
+                  start.await();
+                  return signed(body);
+                }));
+      }
+      start.countDown();
+      List<HttpResponse<String>> answers = new ArrayList<>();
+      for (Future<HttpResponse<String>> answer : sent) {
+        answers.add(answer.get(30, TimeUnit.SECONDS));
+      }
+      return answers;
+    } finally {
+      senders.shutdownNow();
+    }
+  }
+
   private static String aDebit(String extra) {
     return "{\"terminal_name\":\"myterminal\",\"card_number\":\""
         + A_VISA
@@ -229,12 +318,10 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
 
   private static String tokenFor(String requestTime, String nonce) {
     try {
-      javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-      mac.init(
-          new javax.crypto.spec.SecretKeySpec(
-              (APP_SECRET + requestTime + nonce).getBytes(UTF_8), "HmacSHA256"));
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec((APP_SECRET + requestTime + nonce).getBytes(UTF_8), "HmacSHA256"));
       return HexFormat.of().formatHex(mac.doFinal(APP_KEY.getBytes(UTF_8)));
-    } catch (java.security.GeneralSecurityException unavailable) {
+    } catch (GeneralSecurityException unavailable) {
       throw new IllegalStateException(unavailable);
     }
   }
@@ -262,7 +349,7 @@ class TranzilaApiIntegrationTest extends PostgresBackedTest {
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException(interrupted);
-    } catch (java.io.IOException unreachable) {
+    } catch (IOException unreachable) {
       throw new IllegalStateException(unreachable);
     }
   }

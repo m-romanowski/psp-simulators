@@ -3,16 +3,23 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
+import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import java.time.Duration;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class TranzilaFollowOnTest {
 
   private static final String NOT_FOUND =
       "{\"error_code\":20112,\"message\":\"Original transaction not found\"}";
+
+  private static final String UNCREDITABLE =
+      "{\"error_code\":20112,\"message\":\"An origin transaction index is linked to an"
+          + " uncreditable origin transaction (e.g., rejected or non-existent index) or an attempt"
+          + " to credit a different card than the one originally charged.\"}";
 
   private static final String INDEX_EMPTY =
       "{\"error_code\":21101,\"message\":\"Provided index was empty\"}";
@@ -25,14 +32,15 @@ class TranzilaFollowOnTest {
       "{\"error_code\":22101,\"message\":\"Empty authorization number\"}";
 
   private static final String ALREADY_CANCELED =
-      "{\"error_code\":23001,\"message\":\"Attempting to credit a transaction that has already been"
-          + " canceled\"}";
+      "{\"error_code\":23001,\"message\":\"id 1 - Attempting to credit a transaction that has"
+          + " already been canceled\"}";
 
   private static final String ALREADY_CREDITED =
       "{\"error_code\":23002,\"message\":\"Already Credited this transaction id\"}";
 
   private static final String CREDITED_ABOVE =
-      "{\"error_code\":23002,\"message\":\"Sum is larger than the original debit transaction\"}";
+      "{\"error_code\":23002,\"message\":\"id 4 - sum is larger than the original debit"
+          + " transaction\"}";
 
   private final TranzilaWiring wired = new TranzilaWiring();
 
@@ -52,7 +60,7 @@ class TranzilaFollowOnTest {
     assertThat(wired.thePaymentOf(held.id()).normalizedStatusAt(TranzilaWiring.NOW))
         .isEqualTo(NormalizedStatus.SUCCEEDED);
     assertThat(wired.answered(TranzilaWire.aForce(held.id(), held.token(), "10")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -102,7 +110,7 @@ class TranzilaFollowOnTest {
     TranzilaOperationResult refused =
         wired.create(TranzilaWire.aForce(debit, TranzilaWire.A_VISA, "1"));
 
-    assertThat(refused.body().text()).isEqualTo(NOT_FOUND);
+    assertThat(refused.body().text()).isEqualTo(UNCREDITABLE);
     assertThat(refused.refusal()).isEqualTo(RefusalSubject.theObject(Long.toString(debit)));
   }
 
@@ -111,7 +119,7 @@ class TranzilaFollowOnTest {
     long j2 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ2()));
 
     assertThat(wired.answered(TranzilaWire.aForce(j2, TranzilaWire.A_VISA, "1")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -121,7 +129,8 @@ class TranzilaFollowOnTest {
         TranzilaWire.transactionIdIn(
             wired.answered(TranzilaWire.aForce(held.id(), held.token(), "10")));
 
-    assertThat(wired.answered(TranzilaWire.aForce(force, held.token(), "1"))).isEqualTo(NOT_FOUND);
+    assertThat(wired.answered(TranzilaWire.aForce(force, held.token(), "1")))
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -130,7 +139,7 @@ class TranzilaFollowOnTest {
     long j5 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ5("100")));
 
     assertThat(wired.answered(TranzilaWire.aForce(j5, TranzilaWire.A_VISA, "10")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -165,7 +174,7 @@ class TranzilaFollowOnTest {
     wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofDays(7)));
 
     assertThat(wired.answered(TranzilaWire.aForce(expired.id(), expired.token(), "1")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
     wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofDays(7)).minusSeconds(1));
     assertThat(wired.answered(TranzilaWire.aForce(live.id(), live.token(), "1")))
         .contains("\"processor_response_code\":\"000\"");
@@ -179,7 +188,7 @@ class TranzilaFollowOnTest {
     TranzilaOperationResult refused =
         wired.create(TranzilaWire.aForce(held.id(), held.token(), "10"));
 
-    assertThat(refused.body().text()).isEqualTo(NOT_FOUND);
+    assertThat(refused.body().text()).isEqualTo(UNCREDITABLE);
     assertThat(refused.refusal()).isEqualTo(RefusalSubject.theObject(Long.toString(held.id())));
   }
 
@@ -227,8 +236,9 @@ class TranzilaFollowOnTest {
     assertThat(wired.thePaymentOf(held.id()).normalizedStatusAt(TranzilaWiring.NOW))
         .isEqualTo(NormalizedStatus.CANCELLED);
     assertThat(wired.answered(TranzilaWire.aForce(held.id(), held.token(), "1")))
-        .isEqualTo(NOT_FOUND);
-    assertThat(wired.answered(TranzilaWire.aReversal(held.id(), held.auth()))).isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
+    assertThat(wired.answered(TranzilaWire.aReversal(held.id(), held.auth())))
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -279,12 +289,12 @@ class TranzilaFollowOnTest {
     Held expired = aJ5Of("100");
     wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofDays(8)));
 
-    assertThat(wired.answered(TranzilaWire.aReversal(debit, debitAuth))).isEqualTo(NOT_FOUND);
+    assertThat(wired.answered(TranzilaWire.aReversal(debit, debitAuth))).isEqualTo(UNCREDITABLE);
     assertThat(wired.answered(TranzilaWire.aReversal(forced.id(), forced.auth())))
-        .isEqualTo(NOT_FOUND);
-    assertThat(wired.answered(TranzilaWire.aReversal(force, forceAuth))).isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
+    assertThat(wired.answered(TranzilaWire.aReversal(force, forceAuth))).isEqualTo(UNCREDITABLE);
     assertThat(wired.answered(TranzilaWire.aReversal(expired.id(), expired.auth())))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -292,7 +302,7 @@ class TranzilaFollowOnTest {
     long j2 = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aJ2()));
     String auth = String.valueOf(wired.theLastStored().authNumber());
 
-    assertThat(wired.answered(TranzilaWire.aReversal(j2, auth))).isEqualTo(NOT_FOUND);
+    assertThat(wired.answered(TranzilaWire.aReversal(j2, auth))).isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -301,7 +311,8 @@ class TranzilaFollowOnTest {
     wired.create(TranzilaWire.aForce(held.id(), held.token(), "1000"));
     long declined = wired.theLastStored().transactionId();
 
-    assertThat(wired.answered(TranzilaWire.aReversal(declined, held.auth()))).isEqualTo(NOT_FOUND);
+    assertThat(wired.answered(TranzilaWire.aReversal(declined, held.auth())))
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -379,7 +390,7 @@ class TranzilaFollowOnTest {
 
     assertThat(ofTheForce).contains("\"processor_response_code\":\"000\"");
     assertThat(wired.theLastStored().rootTxnId()).isEqualTo(held.id());
-    assertThat(ofTheJ5).isEqualTo(NOT_FOUND);
+    assertThat(ofTheJ5).isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -398,7 +409,7 @@ class TranzilaFollowOnTest {
     assertThat(
             wired.answered(
                 TranzilaWire.aCredit(debit.id(), debit.auth(), TranzilaWire.A_MASTERCARD, "1")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -424,7 +435,7 @@ class TranzilaFollowOnTest {
                     String.valueOf(credit.authNumber()),
                     debit.token(),
                     "1")))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -453,11 +464,12 @@ class TranzilaFollowOnTest {
         .contains("\"token\":\"" + debit.token() + "\"");
     assertThat(wired.thePaymentOf(debit.id()).normalizedStatusAt(TranzilaWiring.NOW))
         .isEqualTo(NormalizedStatus.CANCELLED);
-    assertThat(wired.answered(TranzilaWire.aCancel(debit.id(), debit.auth()))).isEqualTo(NOT_FOUND);
+    assertThat(wired.answered(TranzilaWire.aCancel(debit.id(), debit.auth())))
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
-  void a_cancel_of_a_force_and_of_a_credit_are_approved() {
+  void a_cancel_of_a_credit_is_approved_and_leaves_the_force_it_credited_uncancellable() {
     Held held = aJ5Of("100");
     wired.create(TranzilaWire.aForce(held.id(), held.token(), "60"));
     TranzilaTransaction force = wired.theLastStored();
@@ -474,6 +486,19 @@ class TranzilaFollowOnTest {
             TranzilaWire.aCancel(force.transactionId(), String.valueOf(force.authNumber())));
 
     assertThat(ofTheCredit).contains("\"amount\":10,\"txn_type\":\"cancel\"");
+    assertThat(ofTheForce).isEqualTo(UNCREDITABLE);
+  }
+
+  @Test
+  void a_cancel_of_a_force_nothing_credited_cancels_its_j5() {
+    Held held = aJ5Of("100");
+    wired.create(TranzilaWire.aForce(held.id(), held.token(), "60"));
+    TranzilaTransaction force = wired.theLastStored();
+
+    String ofTheForce =
+        wired.answered(
+            TranzilaWire.aCancel(force.transactionId(), String.valueOf(force.authNumber())));
+
     assertThat(ofTheForce).contains("\"amount\":60,\"txn_type\":\"cancel\"");
     assertThat(wired.thePaymentOf(held.id()).normalizedStatusAt(TranzilaWiring.NOW))
         .isEqualTo(NormalizedStatus.CANCELLED);
@@ -486,12 +511,12 @@ class TranzilaFollowOnTest {
     wired.create(TranzilaWire.aReversal(held.id(), held.auth()));
     TranzilaTransaction reversal = wired.theLastStored();
 
-    assertThat(ofTheJ5).isEqualTo(NOT_FOUND);
+    assertThat(ofTheJ5).isEqualTo(UNCREDITABLE);
     assertThat(
             wired.answered(
                 TranzilaWire.aCancel(
                     reversal.transactionId(), String.valueOf(reversal.authNumber()))))
-        .isEqualTo(NOT_FOUND);
+        .isEqualTo(UNCREDITABLE);
   }
 
   @Test
@@ -512,7 +537,7 @@ class TranzilaFollowOnTest {
             TranzilaWiring.RUN,
             "account-2",
             "otherterminal",
-            java.util.Map.of(
+            Map.of(
                 TranzilaAuthentication.SETTING,
                 TranzilaAuthentication.THE_ACCESS_TOKEN_IS_NOT_VERIFIED.name())));
 
@@ -521,14 +546,14 @@ class TranzilaFollowOnTest {
             TranzilaApiCall.of(
                 "POST",
                 TranzilaApiController.CREATE,
-                java.util.Map.of(),
+                Map.of(),
                 TranzilaWire.aCancel(debit.id(), debit.auth())
                     .replace("myterminal", "otherterminal")),
-            java.util.Map.of(),
+            Map.of(),
             TranzilaWiring.RUN,
             wired.terminals.find(TranzilaWiring.RUN, "account-2").orElseThrow(),
             TranzilaWiring.NOW,
-            dev.marcinromanowski.pspsim.kernel.ObjectOrigin.PROVIDER_API);
+            ObjectOrigin.PROVIDER_API);
 
     assertThat(refused.body().text()).isEqualTo(NOT_FOUND);
   }

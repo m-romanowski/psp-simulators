@@ -1,6 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -25,6 +27,8 @@ import org.jspecify.annotations.Nullable;
 final class CreateTransaction {
 
   static final int TRANSACTION_ID_ATTEMPTS = 5;
+
+  static final int OBSERVATION_ATTEMPTS = 5;
 
   static final int LONGEST_DC_DISABLE = 254;
 
@@ -104,14 +108,14 @@ final class CreateTransaction {
     } catch (TranzilaSchemaMismatch notTheSchema) {
       return TranzilaAnswers.refusedSchema(notTheSchema.why());
     }
-    if (request.asksFor3ds()) {
-      return TranzilaAnswers.notServed(TranzilaErrors.THREE_D_SECURE_IS_NOT_SERVED);
-    }
     if (!request.terminalName().equals(terminal.terminalName())) {
       return TranzilaAnswers.refusedCredential(
           TranzilaErrors.AUTHORIZATION_FAILED,
           TranzilaErrors.AUTHORIZATION_FAILED_TEXT,
           ANOTHER_TERMINAL);
+    }
+    if (request.asksFor3ds()) {
+      return TranzilaAnswers.refusedSchema(TranzilaErrors.THREE_D_SECURE_IS_NOT_SERVED);
     }
     Asked asked =
         new Asked(
@@ -131,20 +135,26 @@ final class CreateTransaction {
       return TranzilaAnswers.applicationError(
           TranzilaErrors.INVALID_DC_DISABLE, TranzilaRefusals.theBodyWasRefused());
     }
+    TranzilaDcDisableKey key =
+        new TranzilaDcDisableKey(
+            testRunId, terminal.accountId(), dcDisable, request.type(), request.verifyMode());
+    return transactions.oneAtATimeUnder(key, () -> underTheDcDisable(asked, key));
+  }
+
+  private TranzilaOperationResult underTheDcDisable(Asked asked, TranzilaDcDisableKey key) {
     boolean seen =
         exchanges.howOftenSeen(
-                testRunId, terminal.accountId(), TranzilaFields.DC_DISABLE, dcDisable)
+                asked.testRunId(), asked.accountId(), TranzilaFields.DC_DISABLE, key.dcDisable())
             > 0;
     Optional<TranzilaTransaction> original =
-        transactions.approvedUnderDcDisable(
-            testRunId, terminal.accountId(), dcDisable, now.minus(THE_DUPLICATE_CHECK_LOOKS_BACK));
+        transactions.approvedUnderDcDisable(key, asked.now().minus(THE_DUPLICATE_CHECK_LOOKS_BACK));
     if (original.isPresent()) {
       Answered duplicate =
           Answered.refused(TranzilaAnswers.aDuplicateOf(original.get(), asked.originalRequest()));
       observe(
           asked,
           TranzilaFields.DC_DISABLE,
-          dcDisable,
+          key.dcDisable(),
           ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
           duplicate);
       return duplicate.result();
@@ -153,7 +163,7 @@ final class CreateTransaction {
     observe(
         asked,
         TranzilaFields.DC_DISABLE,
-        dcDisable,
+        key.dcDisable(),
         seen ? ExchangeVerdict.REPEAT_ADMITTED : ExchangeVerdict.FIRST_REQUEST,
         answered);
     return observedUnderTheReference(asked, answered);
@@ -184,7 +194,7 @@ final class CreateTransaction {
       return;
     }
     TranzilaBody body = result.body();
-    exchanges.observed(
+    TranzilaObservedRequest observed =
         new TranzilaObservedRequest(
             asked.testRunId(),
             asked.accountId(),
@@ -201,7 +211,11 @@ final class CreateTransaction {
             body.text(),
             result.providerObjectId(),
             answered.stored(),
-            asked.now()));
+            asked.now());
+    int attempt = 1;
+    while (exchanges.observed(observed) != 1 && attempt < OBSERVATION_ATTEMPTS) {
+      attempt++;
+    }
   }
 
   private Answered answered(Asked asked) {
@@ -291,7 +305,10 @@ final class CreateTransaction {
     TranzilaPayment payment = found.get();
     TranzilaTransaction hold = payment.root();
     if (hold.transactionId() != reference.longValue() || !hold.isAJ5() || !hold.approved()) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, reference.longValue());
+      return uncreditable(reference.longValue());
+    }
+    if (!request.isInTheCurrencyOf(hold)) {
+      return anotherCurrency(hold);
     }
     String authorization = request.authorizationNumber();
     if (authorization != null
@@ -300,7 +317,7 @@ final class CreateTransaction {
       return refusedOn(TranzilaErrors.AUTHORIZATION_NUMBER_DIFFERS, reference.longValue());
     }
     if (!payment.isAJ5StillHeldAt(asked.now())) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, reference.longValue());
+      return uncreditable(reference.longValue());
     }
     String amount = String.valueOf(request.amount());
     TranzilaCard card = presented.get().card();
@@ -375,7 +392,7 @@ final class CreateTransaction {
 
   private Answered aReversalOf(Asked asked, TranzilaPayment payment, TranzilaTransaction hold) {
     if (!hold.isTheOriginal() || !hold.isAJ5() || !payment.isAJ5StillHeldAt(asked.now())) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, hold.transactionId());
+      return uncreditable(hold.transactionId());
     }
     return aFollowOnOf(asked, payment, hold, hold.amount(), hold.card(), hold.token());
   }
@@ -398,20 +415,16 @@ final class CreateTransaction {
         (original.isTheOriginal() && original.type() == TranzilaTxnType.DEBIT)
             || original.type() == TranzilaTxnType.FORCE;
     if (!creditable) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, original.transactionId());
+      return uncreditable(original.transactionId());
     }
     if (payment.isCancelled(original)) {
       return refusedOn(TranzilaErrors.ALREADY_CANCELED, original.transactionId());
     }
     if (!presented.card().isTheSameCardAs(original.card())) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, original.transactionId());
+      return uncreditable(original.transactionId());
     }
     if (payment.theCreditOf(original).isPresent()) {
-      return Answered.refused(
-          TranzilaAnswers.applicationError(
-              TranzilaErrors.ALREADY_CREDITED,
-              TranzilaErrors.ALREADY_CREDITED_TEXT,
-              TranzilaRefusals.theTransaction(original.transactionId())));
+      return alreadyCredited(original.transactionId());
     }
     String amount = String.valueOf(asked.request().amount());
     if (TranzilaAmounts.isAbove(amount, original.amount())) {
@@ -432,8 +445,8 @@ final class CreateTransaction {
         (target.isTheOriginal() && target.type() == TranzilaTxnType.DEBIT)
             || target.type() == TranzilaTxnType.FORCE
             || target.type() == TranzilaTxnType.CREDIT;
-    if (!cancellable || payment.isCancelled(target)) {
-      return refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, target.transactionId());
+    if (!cancellable || payment.isCancelled(target) || payment.theCreditOf(target).isPresent()) {
+      return uncreditable(target.transactionId());
     }
     return aFollowOnOf(asked, payment, target, target.amount(), target.card(), target.token());
   }
@@ -445,6 +458,9 @@ final class CreateTransaction {
       String amount,
       TranzilaCard card,
       @Nullable String token) {
+    if (!asked.request().isInTheCurrencyOf(target)) {
+      return anotherCurrency(target);
+    }
     long drawn = TranzilaIdentifiers.aTransactionId(ids);
     long root = payment.root().transactionId();
     Long reference = Long.valueOf(target.transactionId());
@@ -502,8 +518,7 @@ final class CreateTransaction {
     }
     TranzilaTransaction target = found.get().transaction(reference.longValue()).orElseThrow();
     if (!target.approved()) {
-      return new Reference.Refused(
-          refusedOn(TranzilaErrors.ORIGINAL_NOT_FOUND, reference.longValue()));
+      return new Reference.Refused(uncreditable(reference.longValue()));
     }
     if (!authorization.equals(target.authNumber())) {
       return new Reference.Refused(
@@ -536,20 +551,18 @@ final class CreateTransaction {
   private Optional<Presented> thePresentedCard(Asked asked) {
     TranzilaCreateRequest request = asked.request();
     String cardNumber = String.valueOf(request.cardNumber());
-    int month = java.util.Objects.requireNonNull(request.expireMonth()).intValue();
-    int year = java.util.Objects.requireNonNull(request.expireYear()).intValue();
+    int month = Objects.requireNonNull(request.expireMonth()).intValue();
+    int year = Objects.requireNonNull(request.expireYear()).intValue();
     if (!request.namesAToken()) {
-      return Optional.of(new Presented(TranzilaCard.ofThePan(cardNumber, month, year), null));
+      return Optional.of(
+          new Presented(TranzilaCard.ofThePan(asked.testRunId(), cardNumber, month, year), null));
     }
     Optional<TranzilaCard> known =
         transactions
             .carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
             .map(TranzilaTransaction::card)
             .or(() -> cards.holdingTheToken(asked.testRunId(), cardNumber));
-    return known.map(
-        card ->
-            new Presented(
-                new TranzilaCard(card.cardMask(), card.cardType(), month, year % 100), cardNumber));
+    return known.map(card -> new Presented(card.expiringIn(month, year), cardNumber));
   }
 
   private Answered decided(
@@ -598,6 +611,14 @@ final class CreateTransaction {
 
   private Answered stored(
       Asked asked, long drawn, LongFunction<TranzilaTransaction> transactionOf) {
+    return stored(asked, drawn, transactionOf, id -> theLoserOfARace(asked, id));
+  }
+
+  private Answered stored(
+      Asked asked,
+      long drawn,
+      LongFunction<TranzilaTransaction> transactionOf,
+      LongFunction<Answered> closedMeanwhile) {
     long id = drawn;
     for (int attempt = 0; attempt < TRANSACTION_ID_ATTEMPTS; attempt++) {
       TranzilaTransaction transaction = transactionOf.apply(id);
@@ -610,9 +631,7 @@ final class CreateTransaction {
             true);
       }
       if (inserted == TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST) {
-        Long reference = transaction.referenceTxnId();
-        return refusedOn(
-            TranzilaErrors.ORIGINAL_NOT_FOUND, reference == null ? id : reference.longValue());
+        return closedMeanwhile.apply(id);
       }
       id = TranzilaIdentifiers.aTransactionId(ids);
     }
@@ -656,6 +675,49 @@ final class CreateTransaction {
         asked.now());
   }
 
+  private Answered theLoserOfARace(Asked asked, long drawn) {
+    Long reference = asked.request().referenceTxnId();
+    if (reference == null) {
+      return uncreditable(drawn);
+    }
+    if (asked.request().type() != TranzilaTxnType.CREDIT) {
+      return uncreditable(reference.longValue());
+    }
+    boolean cancelled =
+        thePaymentHolding(asked, reference.longValue())
+            .flatMap(
+                payment -> payment.transaction(reference.longValue()).flatMap(payment::theCancelOf))
+            .isPresent();
+    return cancelled
+        ? refusedOn(TranzilaErrors.ALREADY_CANCELED, reference.longValue())
+        : alreadyCredited(reference.longValue());
+  }
+
+  private static Answered anotherCurrency(TranzilaTransaction original) {
+    return Answered.refused(
+        TranzilaAnswers.refusedSchema(
+            TranzilaFields.TXN_CURRENCY_CODE
+                + " must be "
+                + original.currencyCode()
+                + ", the currency of the transaction reference_txn_id names"));
+  }
+
+  private static Answered alreadyCredited(long transactionId) {
+    return Answered.refused(
+        TranzilaAnswers.applicationError(
+            TranzilaErrors.ALREADY_CREDITED,
+            TranzilaErrors.ALREADY_CREDITED_TEXT,
+            TranzilaRefusals.theTransaction(transactionId)));
+  }
+
+  private static Answered uncreditable(long transactionId) {
+    return Answered.refused(
+        TranzilaAnswers.applicationError(
+            TranzilaErrors.ORIGINAL_NOT_FOUND,
+            TranzilaErrors.AN_UNCREDITABLE_ORIGIN_TEXT,
+            TranzilaRefusals.theTransaction(transactionId)));
+  }
+
   private static Answered theTokenIsUnknown() {
     return applicationError(
         TranzilaErrors.TOKEN_CHECK_FAILURE, TranzilaRefusals.theBodyWasRefused());
@@ -670,8 +732,7 @@ final class CreateTransaction {
     return applicationError(code, TranzilaRefusals.theTransaction(transactionId));
   }
 
-  private static Answered applicationError(
-      int code, dev.marcinromanowski.pspsim.kernel.RefusalSubject refusal) {
+  private static Answered applicationError(int code, RefusalSubject refusal) {
     return Answered.refused(TranzilaAnswers.applicationError(code, refusal));
   }
 }

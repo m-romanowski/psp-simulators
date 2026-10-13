@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
@@ -200,14 +202,97 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void the_terminal_store_takes_the_published_constructions_and_authentications_only() {
+    String noSuchConstruction =
+        "insert into "
+            + SCHEMA
+            + ".tranzila_terminal (test_run_id, account_id, terminal_name, app_key, app_secret,"
+            + " access_token, authentication, verification_approval_code, j5_validity)"
+            + " values ('"
+            + RUN
+            + "', 'a-8', 'terminaleight', 'k-8', 's', 'AS_SOMEONE_SIGNS_IT',"
+            + " 'THE_ACCESS_TOKEN_IS_VERIFIED', '777', 'PT168H')";
+    String noSuchAuthentication =
+        noSuchConstruction
+            .replace("AS_SOMEONE_SIGNS_IT", "AS_THE_QUICKSTART_SIGNS_IT")
+            .replace("THE_ACCESS_TOKEN_IS_VERIFIED", "NOBODY_CHECKS");
+
+    assertThatThrownBy(() -> jdbc.update(noSuchConstruction))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("tranzila_terminal_access_token");
+    assertThatThrownBy(() -> jdbc.update(noSuchAuthentication))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("tranzila_terminal_authentication");
+  }
+
+  @Test
+  void every_check_of_the_transaction_store_refuses_the_value_it_was_written_against() {
+    for (String[] refused :
+        new String[][] {
+          {"transaction_id", "-1", "tranzila_transaction_id_is_positive", "root_txn_id", "-1"},
+          {
+            "processor_response_code",
+            "'00A'",
+            "tranzila_transaction_processor_code_is_three_digits",
+            "auth_number",
+            "null"
+          },
+          {"token", "'t-1'", "tranzila_transaction_token_is_alphanumeric"},
+          {"card_type", "7", "tranzila_transaction_card_type"},
+          {"expiry_month", "13", "tranzila_transaction_expiry"},
+          {"expiry_year", "100", "tranzila_transaction_expiry"},
+          {"response_cvv", "'4'", "tranzila_transaction_response_cvv"},
+          {"response_id", "'4'", "tranzila_transaction_response_id"},
+          {"root_txn_id", "77", "tranzila_transaction_an_original_references_nothing"}
+        }) {
+      String statement =
+          refused.length > 3
+              ? aRow(refused[0], refused[1], refused[3], refused[4])
+              : aRow(refused[0], refused[1]);
+      assertThatThrownBy(() -> jdbc.update(statement))
+          .as(refused[0])
+          .isInstanceOf(DataIntegrityViolationException.class)
+          .hasMessageContaining(refused[2]);
+    }
+    assertThatCode(() -> jdbc.update(aRow("token", "'t1'"))).doesNotThrowAnyException();
+  }
+
+  @Test
+  void one_arrival_names_one_transaction_of_a_run() {
+    String first = aRow("arrival", "424242");
+    String second = first.replace(", 1, 1, 'a-1'", ", 2, 2, 'a-1'");
+    jdbc.update(first);
+
+    assertThatThrownBy(() -> jdbc.update(second))
+        .isInstanceOf(DuplicateKeyException.class)
+        .hasMessageContaining("tranzila_transaction_by_arrival");
+  }
+
+  @Test
+  void an_exchange_answers_with_status_type_and_body_together_or_with_none_of_them() {
+    String halfAnAnswer =
+        exchange("FIRST_REQUEST", 0)
+            .replace("verdict, state_changed, at)", "verdict, http_status, state_changed, at)")
+            .replace("'FIRST_REQUEST', true", "'FIRST_REQUEST', 200, true");
+
+    assertThatThrownBy(() -> jdbc.update(halfAnAnswer))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("tranzila_keyed_exchange_answers_in_full_or_not_at_all");
+  }
+
+  @Test
   void the_keyed_exchange_store_takes_the_four_verdicts_this_provider_records_and_no_other() {
-    String statement11 = exchange("FIRST_REQUEST", 0);
-    String statement12 = exchange("DUPLICATE_KEY_REFUSAL", 1);
+    for (String verdict :
+        new String[] {
+          "FIRST_REQUEST", "DUPLICATE_KEY_REFUSAL", "REPEAT_ADMITTED", "CORRELATED_RETRY"
+        }) {
+      String statement = exchange(verdict, 0).replace("'v'", "'" + verdict + "'");
+      assertThatCode(() -> jdbc.update(statement)).as(verdict).doesNotThrowAnyException();
+    }
     String statement13 = exchange("TRUE_IDEMPOTENT_REPLAY", 2);
-    assertThatCode(() -> jdbc.update(statement11)).doesNotThrowAnyException();
-    assertThatCode(() -> jdbc.update(statement12)).doesNotThrowAnyException();
     assertThatThrownBy(() -> jdbc.update(statement13))
-        .isInstanceOf(DataIntegrityViolationException.class);
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("tranzila_keyed_exchange_verdict");
   }
 
   private void aTerminal(
@@ -283,6 +368,42 @@ class TranzilaMigrationIntegrationTest extends PostgresBackedTest {
         + ", null, '458021xxxxxx4245', 2, 7, 30, '0', '0', null, "
         + (expires == null ? "null" : "timestamptz '" + expires + "'")
         + ", 'PROVIDER_API', timestamptz '2026-10-13T12:00:00Z')";
+  }
+
+  private String aRow(String column, String value) {
+    return aRow(column, value, column, value);
+  }
+
+  private String aRow(String column, String value, String another, String itsValue) {
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put("test_run_id", "'" + RUN + "'");
+    values.put("transaction_id", "1");
+    values.put("root_txn_id", "1");
+    values.put("account_id", "'a-1'");
+    values.put("terminal_name", "'myterminal'");
+    values.put("txn_type", "'debit'");
+    values.put("processor_response_code", "'000'");
+    values.put("amount", "'1'");
+    values.put("currency_code", "'ILS'");
+    values.put("auth_number", "'1000001'");
+    values.put("token", "null");
+    values.put("card_mask", "'458021xxxxxx4245'");
+    values.put("card_type", "2");
+    values.put("expiry_month", "7");
+    values.put("expiry_year", "30");
+    values.put("response_cvv", "'0'");
+    values.put("response_id", "'0'");
+    values.put("origin", "'PROVIDER_API'");
+    values.put("created_at", "timestamptz '2026-10-13T12:00:00Z'");
+    values.put(column, value);
+    values.put(another, itsValue);
+    return "insert into "
+        + SCHEMA
+        + ".tranzila_transaction ("
+        + String.join(", ", values.keySet())
+        + ") values ("
+        + String.join(", ", values.values())
+        + ")";
   }
 
   private String nonce(String value) {

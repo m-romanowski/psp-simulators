@@ -16,6 +16,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Configuration(proxyBeanMethods = false)
 public class TranzilaModule {
@@ -31,8 +33,9 @@ public class TranzilaModule {
   }
 
   @Bean
-  TranzilaTransactions tranzilaTransactions(JdbcClient jdbc) {
-    return new JdbcTranzilaTransactions(jdbc);
+  TranzilaTransactions tranzilaTransactions(
+      JdbcClient jdbc, PlatformTransactionManager transactionManager) {
+    return new JdbcTranzilaTransactions(jdbc, new TransactionTemplate(transactionManager));
   }
 
   @Bean

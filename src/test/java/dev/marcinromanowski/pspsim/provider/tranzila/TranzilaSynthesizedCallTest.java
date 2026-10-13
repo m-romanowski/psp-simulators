@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectAction;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.OriginationRequest;
@@ -151,8 +152,30 @@ class TranzilaSynthesizedCallTest {
 
   @Test
   void one_row_written_is_a_stored_transaction_and_none_is_an_id_another_holds() {
-    assertThat(TranzilaInsert.ofTheRowsWritten(1)).isEqualTo(TranzilaInsert.STORED);
-    assertThat(TranzilaInsert.ofTheRowsWritten(0)).isEqualTo(TranzilaInsert.ID_TAKEN);
+    assertThat(TranzilaInsert.ofTheRowsWritten(1, 1)).isEqualTo(TranzilaInsert.STORED);
+    assertThat(TranzilaInsert.ofTheRowsWritten(0, 1)).isEqualTo(TranzilaInsert.ID_TAKEN);
+    assertThat(TranzilaInsert.ofTheRowsWritten(0, 0))
+        .isEqualTo(TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST);
+  }
+
+  @Test
+  void a_transaction_id_is_never_drawn_as_zero() {
+    IdGenerator zeros =
+        new IdGenerator() {
+          @Override
+          public String hex(int length) {
+            return "0".repeat(length);
+          }
+
+          @Override
+          public String digits(int length) {
+            return "0".repeat(length);
+          }
+        };
+
+    assertThat(TranzilaIdentifiers.aTransactionId(zeros)).isEqualTo(1L);
+    assertThat(TranzilaIdentifiers.aTransactionId(new TranzilaDoubles.CountingIds()))
+        .isEqualTo(10000001L);
   }
 
   @Test

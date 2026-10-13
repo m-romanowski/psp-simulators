@@ -35,8 +35,8 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
   }
 
   @Override
-  public void observed(TranzilaObservedRequest request) {
-    jdbc.sql(
+  public int observed(TranzilaObservedRequest request) {
+    return jdbc.sql(
             """
             insert into tranzila_keyed_exchange
                 (test_run_id, account_id, key_name, key_value, seq, operation, fingerprint,
@@ -44,6 +44,7 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
             select ?, ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?
             from tranzila_keyed_exchange
             where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
+            on conflict do nothing
             """)
         .param(request.testRunId().value())
         .param(request.accountId())

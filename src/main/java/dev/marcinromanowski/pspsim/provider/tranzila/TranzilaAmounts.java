@@ -1,6 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 final class TranzilaAmounts {
 
@@ -20,7 +21,7 @@ final class TranzilaAmounts {
 
   static BigDecimal withVat(BigDecimal net, String vatPercent) {
     return net.multiply(BigDecimal.ONE.add(new BigDecimal(vatPercent).divide(HUNDRED)))
-        .setScale(2, java.math.RoundingMode.HALF_UP);
+        .setScale(2, RoundingMode.HALF_UP);
   }
 
   static boolean isAbove(String amount, String ceiling) {

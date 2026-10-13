@@ -25,9 +25,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
 final class TranzilaDoubles {
@@ -126,6 +128,13 @@ final class TranzilaDoubles {
       return this;
     }
 
+    private @Nullable TranzilaTransaction theWinner;
+
+    Transactions closedFirstBy(TranzilaTransaction winner) {
+      theWinner = winner;
+      return this;
+    }
+
     List<TranzilaTransaction> all() {
       return List.copyOf(stored);
     }
@@ -137,6 +146,12 @@ final class TranzilaDoubles {
         return TranzilaInsert.ID_TAKEN;
       }
       if (closedByAnotherRequestFirst) {
+        return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
+      }
+      TranzilaTransaction winner = theWinner;
+      if (winner != null) {
+        theWinner = null;
+        insert(winner);
         return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
       }
       stored.add(transaction);
@@ -191,14 +206,28 @@ final class TranzilaDoubles {
 
     @Override
     public Optional<TranzilaTransaction> approvedUnderDcDisable(
-        TestRunId testRunId, String accountId, String dcDisable, Instant since) {
+        TranzilaDcDisableKey key, Instant since) {
       return stored.stream()
-          .filter(held -> held.testRunId().equals(testRunId))
-          .filter(held -> held.accountId().equals(accountId))
-          .filter(held -> dcDisable.equals(held.dcDisable()))
+          .filter(held -> held.testRunId().equals(key.testRunId()))
+          .filter(held -> held.accountId().equals(key.accountId()))
+          .filter(held -> key.dcDisable().equals(held.dcDisable()))
+          .filter(held -> held.type() == key.type())
+          .filter(held -> Objects.equals(held.verifyMode(), key.verifyMode()))
           .filter(TranzilaTransaction::approved)
           .filter(held -> held.createdAt().isAfter(since))
           .findFirst();
+    }
+
+    @Override
+    public synchronized <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision) {
+      held.add(key);
+      return decision.get();
+    }
+
+    private final List<TranzilaDcDisableKey> held = new ArrayList<>();
+
+    List<TranzilaDcDisableKey> theKeysHeld() {
+      return List.copyOf(held);
     }
 
     @Override
@@ -292,8 +321,20 @@ final class TranzilaDoubles {
     }
 
     @Override
-    public void observed(TranzilaObservedRequest request) {
+    public int observed(TranzilaObservedRequest request) {
+      if (refusals > 0) {
+        refusals--;
+        return 0;
+      }
       observed.add(request);
+      return 1;
+    }
+
+    private int refusals;
+
+    Exchanges takenMeanwhile(int howOften) {
+      refusals = howOften;
+      return this;
     }
 
     @Override

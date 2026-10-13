@@ -9,11 +9,15 @@ import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 
 class TranzilaApiTest {
@@ -118,15 +122,15 @@ class TranzilaApiTest {
   }
 
   @Test
-  void a_nonce_used_again_within_five_minutes_is_refused_and_after_them_is_answered() {
+  void a_nonce_used_again_within_ten_minutes_is_refused_and_after_them_is_answered() {
     Map<String, List<String>> headers = signedHeaders(SECONDS, "n-12");
     TranzilaApiResponse first = call(headers);
     TranzilaApiResponse reused = call(headers);
-    wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(5)).plusSeconds(1));
+    wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(10)).plusSeconds(1));
     TranzilaApiResponse later =
         call(
             signedHeaders(
-                Long.toString(TranzilaWiring.NOW.plus(Duration.ofMinutes(5)).getEpochSecond()),
+                Long.toString(TranzilaWiring.NOW.plus(Duration.ofMinutes(10)).getEpochSecond()),
                 "n-12"));
 
     assertThat(first.httpStatus()).isEqualTo(200);
@@ -137,6 +141,32 @@ class TranzilaApiTest {
                 + TranzilaApi.THE_NONCE_WAS_USED.replace("\"", "\\\"")
                 + "\"}");
     assertThat(later.httpStatus()).isEqualTo(200);
+  }
+
+  @Test
+  void a_nonce_is_refused_again_for_as_long_as_the_request_time_it_came_with_is_accepted() {
+    String lateButAccepted = Long.toString(TranzilaWiring.NOW.getEpochSecond() + 300);
+    Map<String, List<String>> headers = signedHeaders(lateButAccepted, "n-replay");
+
+    assertThat(call(headers).httpStatus()).isEqualTo(200);
+    for (long after : List.of(301L, 450L, 600L)) {
+      wired.clock.moveTo(TranzilaWiring.NOW.plusSeconds(after));
+      TranzilaApiResponse replayed = call(headers);
+      assertThat(replayed.httpStatus()).as("replayed at T+%s", after).isEqualTo(401);
+      assertThat(bodyOf(replayed)).contains("already used by a call of this account");
+    }
+  }
+
+  @Test
+  void a_request_time_in_milliseconds_is_accepted_up_to_five_minutes_from_the_run_clock() {
+    wired.configuring(
+        Map.of(TranzilaAccessToken.SETTING, TranzilaAccessToken.AS_THE_QUICKSTART_SIGNS_IT.name()));
+    long now = TranzilaWiring.NOW.toEpochMilli();
+
+    assertThat(call(quickstart(Long.toString(now + 300_000), "q-1")).httpStatus()).isEqualTo(200);
+    assertThat(call(quickstart(Long.toString(now - 300_000), "q-2")).httpStatus()).isEqualTo(200);
+    assertThat(call(quickstart(Long.toString(now + 301_000), "q-3")).httpStatus()).isEqualTo(401);
+    assertThat(call(quickstart(Long.toString(now - 301_000), "q-4")).httpStatus()).isEqualTo(401);
   }
 
   @Test
@@ -289,6 +319,15 @@ class TranzilaApiTest {
         TranzilaApiCall.of("POST", TranzilaApiController.CREATE, headers, TranzilaWire.aDebit()));
   }
 
+  private static Map<String, List<String>> quickstart(String requestTime, String nonce) {
+    Map<String, List<String>> headers = new LinkedHashMap<>();
+    headers.put(TranzilaFields.APP_KEY, List.of(APP_KEY));
+    headers.put(TranzilaFields.REQUEST_TIME, List.of(requestTime));
+    headers.put(TranzilaFields.NONCE, List.of(nonce));
+    headers.put(TranzilaFields.ACCESS_TOKEN, List.of(hmac(SECRET, APP_KEY + requestTime + nonce)));
+    return headers;
+  }
+
   private static Map<String, List<String>> signedHeaders(String requestTime, String nonce) {
     Map<String, List<String>> headers = new LinkedHashMap<>();
     headers.put(TranzilaFields.APP_KEY, List.of(APP_KEY));
@@ -300,12 +339,10 @@ class TranzilaApiTest {
 
   private static String hmac(String key, String message) {
     try {
-      javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-      mac.init(
-          new javax.crypto.spec.SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-      return java.util.HexFormat.of()
-          .formatHex(mac.doFinal(message.getBytes(StandardCharsets.UTF_8)));
-    } catch (java.security.GeneralSecurityException unavailable) {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+      return HexFormat.of().formatHex(mac.doFinal(message.getBytes(StandardCharsets.UTF_8)));
+    } catch (GeneralSecurityException unavailable) {
       throw new AssertionError(unavailable);
     }
   }

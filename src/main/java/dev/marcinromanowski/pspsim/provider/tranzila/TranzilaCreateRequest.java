@@ -20,7 +20,8 @@ record TranzilaCreateRequest(
     @Nullable Long referenceTxnId,
     @Nullable String authorizationNumber,
     @Nullable String dcDisable,
-    boolean asksFor3ds) {
+    boolean asksFor3ds,
+    @Nullable String sentCurrency) {
 
   static final String THE_DEFAULT_CURRENCY = "ILS";
 
@@ -117,7 +118,13 @@ record TranzilaCreateRequest(
         integer(body, TranzilaFields.REFERENCE_TXN_ID).orElse(null),
         text(body, TranzilaFields.AUTHORIZATION_NUMBER).orElse(null),
         dcDisableIn(body),
-        body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent());
+        body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent(),
+        body.has(TranzilaFields.TXN_CURRENCY_CODE) ? currencyCode : null);
+  }
+
+  boolean isInTheCurrencyOf(TranzilaTransaction original) {
+    String sent = sentCurrency;
+    return sent == null || sent.equals(original.currencyCode());
   }
 
   private static TranzilaTxnType typeIn(TranzilaJson.JsonObject body) {

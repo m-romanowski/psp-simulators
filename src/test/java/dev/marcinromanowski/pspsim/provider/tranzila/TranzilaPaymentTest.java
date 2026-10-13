@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.assertj.core.groups.Tuple;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +22,8 @@ class TranzilaPaymentTest {
 
   private static final Instant LATER = AT.plusSeconds(60);
 
-  private static final TranzilaCard CARD = TranzilaCard.ofThePan("4580210000004245", 7, 2030);
+  private static final TranzilaCard CARD =
+      TranzilaCard.ofThePan(TranzilaWiring.RUN, "4580210000004245", 7, 2030);
 
   @Test
   void an_approved_debit_succeeded_charged_its_amount_and_takes_credits() {
@@ -131,7 +133,7 @@ class TranzilaPaymentTest {
             MonetaryOperation::normalizedStatus,
             MonetaryOperation::at)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(
+            Tuple.tuple(
                 OperationKind.AUTHORIZATION,
                 Amount.of("100"),
                 false,
@@ -139,7 +141,7 @@ class TranzilaPaymentTest {
                 "verify 5 777",
                 NormalizedStatus.READY_FOR_CAPTURE,
                 AT),
-            org.assertj.core.groups.Tuple.tuple(
+            Tuple.tuple(
                 OperationKind.CAPTURE,
                 Amount.of("60"),
                 true,
@@ -147,7 +149,7 @@ class TranzilaPaymentTest {
                 "force 000",
                 NormalizedStatus.SUCCEEDED,
                 LATER),
-            org.assertj.core.groups.Tuple.tuple(
+            Tuple.tuple(
                 OperationKind.REFUND,
                 Amount.of("20"),
                 null,
@@ -330,9 +332,7 @@ class TranzilaPaymentTest {
             new TranzilaPayment(second, List.of()));
     assertThat(ordered)
         .extracting(ArrivalOf::arrival, arrived -> arrived.row().objectId())
-        .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(20L, "2"),
-            org.assertj.core.groups.Tuple.tuple(10L, "1"));
+        .containsExactly(Tuple.tuple(20L, "2"), Tuple.tuple(10L, "1"));
     assertThat(
             TranzilaGroups.theObjectsNamed(List.of(3L, 1L, 3L, 9L), grouped).stream()
                 .map(TranzilaObject::objectId)

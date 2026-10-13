@@ -8,7 +8,7 @@ interface TranzilaExchanges {
 
   int howOftenSeen(TestRunId testRunId, String accountId, String keyName, String keyValue);
 
-  void observed(TranzilaObservedRequest request);
+  int observed(TranzilaObservedRequest request);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

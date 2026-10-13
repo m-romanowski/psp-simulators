@@ -17,6 +17,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Set;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 
 class CreateTransactionTest {
@@ -216,7 +217,8 @@ class CreateTransactionTest {
 
     assertThat(declined.body().text())
         .isEqualTo(
-            "{\"error_code\":4,\"message\":\"Refusal.\",\"transaction_result\":{"
+            "{\"error_code\":4,\"message\":\"Refusal. Please contact the card owner to check the"
+                + " reason with his credit company.\",\"transaction_result\":{"
                 + "\"processor_response_code\":\"004\",\"transaction_id\":10000001}}");
     assertThat(declined.outcome()).isEqualTo(ProviderOutcome.FAILURE);
     assertThat(declined.scenarioId()).isNotNull();
@@ -225,6 +227,33 @@ class CreateTransactionTest {
     assertThat(stored.processorResponseCode()).isEqualTo("004");
     assertThat(stored.authNumber()).isNull();
     assertThat(stored.token()).isNull();
+  }
+
+  @Test
+  void every_decline_a_scenario_may_name_is_answered_in_the_published_english_words() {
+    assertThat(TranzilaResponseCodes.THE_DECLINES_A_SCENARIO_MAY_NAME)
+        .containsExactly(
+            Map.entry(
+                "001", "Blocked confiscate card. Please check and enter the credit number again."),
+            Map.entry(
+                "002", "Stolen confiscate card. Please check and enter the credit number again."),
+            Map.entry("003", "Contact credit company to approve the transaction."),
+            Map.entry(
+                "004",
+                "Refusal. Please contact the card owner to check the reason with his credit"
+                    + " company."),
+            Map.entry("005", "Forged confiscate card."),
+            Map.entry("006", "Incorrect identity number or CVV."),
+            Map.entry("012", "Unauthorized card for this terminal."),
+            Map.entry("015", "Expired card. Please check the expiration date again."),
+            Map.entry("016", "Unauthorized currency."),
+            Map.entry("017", "Unauthorized credit type for this transaction."));
+    assertThat(TranzilaResponseCodes.theTextOf("000")).isEqualTo("Transaction approved.");
+    assertThat(TranzilaResponseCodes.theTextOf("507"))
+        .isEqualTo("actual transaction amount higher than the approved amount");
+    assertThat(TranzilaResponseCodes.theTextOf("777"))
+        .startsWith("operation completed (success code for operations");
+    assertThat(TranzilaResponseCodes.theTextOf("999")).isEqualTo("999");
   }
 
   @Test
@@ -315,18 +344,31 @@ class CreateTransactionTest {
   }
 
   @Test
-  void a_request_asking_for_3_d_secure_is_answered_501_and_charges_nothing() {
+  void a_request_asking_for_3_d_secure_is_refused_400_20004_and_charges_nothing() {
     TranzilaOperationResult answered =
         wired.create(
             TranzilaWire.aDebit().replace("{\"terminal", "{\"activate_3ds\":\"Y\",\"terminal"));
 
-    assertThat(answered.body().httpStatus()).isEqualTo(501);
+    assertThat(answered.body().httpStatus()).isEqualTo(400);
     assertThat(answered.body().text())
         .isEqualTo(
-            "{\"error_code\":\"501\",\"message\":\"activate_3ds Y asks for 3-D Secure, which"
-                + " this simulator does not perform on this route; nothing was charged\"}");
+            "{\"error_code\":\"20004\",\"message\":\"JSON Schema mismatch: activate_3ds Y asks"
+                + " for 3-D Secure, which this simulator does not perform on this route; nothing"
+                + " was charged\"}");
     assertThat(answered.outcome()).isEqualTo(ProviderOutcome.FAILURE);
     assertThat(wired.stored()).isEmpty();
+  }
+
+  @Test
+  void a_request_for_another_terminal_is_refused_401_before_its_3_d_secure_is_read() {
+    TranzilaOperationResult answered =
+        wired.create(
+            TranzilaWire.aDebit()
+                .replace("{\"terminal", "{\"activate_3ds\":\"Y\",\"terminal")
+                .replace("myterminal", "otherterminal"));
+
+    assertThat(answered.body().httpStatus()).isEqualTo(401);
+    assertThat(answered.body().text()).contains("\"error_code\":\"20002\"");
   }
 
   @Test
@@ -385,8 +427,8 @@ class CreateTransactionTest {
     assertThat(wired.exchanges.everythingItObserved())
         .extracting(TranzilaObservedRequest::verdict, TranzilaObservedRequest::stateChanged)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(ExchangeVerdict.FIRST_REQUEST, true),
-            org.assertj.core.groups.Tuple.tuple(ExchangeVerdict.DUPLICATE_KEY_REFUSAL, false));
+            Tuple.tuple(ExchangeVerdict.FIRST_REQUEST, true),
+            Tuple.tuple(ExchangeVerdict.DUPLICATE_KEY_REFUSAL, false));
   }
 
   @Test
@@ -441,6 +483,18 @@ class CreateTransactionTest {
   }
 
   @Test
+  void an_observation_another_request_took_the_place_of_is_written_again_up_to_five_times() {
+    wired.exchanges.takenMeanwhile(4);
+    wired.answered(underDcDisable("order-8"));
+    TranzilaWiring giving = new TranzilaWiring();
+    giving.exchanges.takenMeanwhile(5);
+    giving.answered(underDcDisable("order-8"));
+
+    assertThat(wired.exchanges.everythingItObserved()).hasSize(1);
+    assertThat(giving.exchanges.everythingItObserved()).isEmpty();
+  }
+
+  @Test
   void a_refused_request_under_a_dc_disable_is_observed_as_changing_nothing() {
     wired.create(
         TranzilaWire.withCard("\"txn_type\":\"debit\"", "tunknowntoken4245", "2")
@@ -477,10 +531,8 @@ class CreateTransactionTest {
             TranzilaObservedRequest::keyValue,
             TranzilaObservedRequest::verdict)
         .containsExactly(
-            org.assertj.core.groups.Tuple.tuple(
-                "reference_txn_id", Long.toString(j5), ExchangeVerdict.FIRST_REQUEST),
-            org.assertj.core.groups.Tuple.tuple(
-                "reference_txn_id", Long.toString(j5), ExchangeVerdict.CORRELATED_RETRY));
+            Tuple.tuple("reference_txn_id", Long.toString(j5), ExchangeVerdict.FIRST_REQUEST),
+            Tuple.tuple("reference_txn_id", Long.toString(j5), ExchangeVerdict.CORRELATED_RETRY));
   }
 
   @Test

@@ -10,6 +10,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 
 record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> followOns) {
 
@@ -172,8 +174,8 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
       List<MonetaryOperation> before,
       OperationKind kind,
       String amount,
-      @org.jspecify.annotations.Nullable Boolean closesAuthorization,
-      @org.jspecify.annotations.Nullable String createdObjectId,
+      @Nullable Boolean closesAuthorization,
+      @Nullable String createdObjectId,
       TranzilaTransaction by,
       NormalizedStatus status) {
     return new MonetaryOperation(
@@ -188,7 +190,10 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
   }
 
   boolean refundsAccepted() {
-    return refundableRemainder().signum() > 0;
+    return whatACreditIsAgainst()
+        .filter(original -> !isCancelled(original))
+        .filter(original -> theCreditOf(original).isEmpty())
+        .isPresent();
   }
 
   Instant updatedAt() {
@@ -201,7 +206,7 @@ record TranzilaPayment(TranzilaTransaction root, List<TranzilaTransaction> follo
     return latest;
   }
 
-  private java.util.stream.Stream<TranzilaTransaction> approvedOfType(TranzilaTxnType type) {
+  private Stream<TranzilaTransaction> approvedOfType(TranzilaTxnType type) {
     return followOns.stream()
         .filter(held -> held.type() == type)
         .filter(TranzilaTransaction::approved);

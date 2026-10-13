@@ -8,6 +8,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
 import dev.marcinromanowski.pspsim.kernel.spi.DisclosedAccount;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfigurationRejectedException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -201,9 +202,9 @@ class TranzilaTerminalTest {
   void the_request_time_is_read_in_the_unit_each_construction_publishes() {
     assertThat(
             TranzilaAccessToken.AS_THE_AUTHENTICATION_PAGES_PUBLISH_IT.requestTimeIn("1700000000"))
-        .contains(java.time.Instant.ofEpochSecond(1700000000L));
+        .contains(Instant.ofEpochSecond(1700000000L));
     assertThat(TranzilaAccessToken.AS_THE_QUICKSTART_SIGNS_IT.requestTimeIn("1700000000123"))
-        .contains(java.time.Instant.ofEpochMilli(1700000000123L));
+        .contains(Instant.ofEpochMilli(1700000000123L));
     assertThat(TranzilaAccessToken.AS_THE_QUICKSTART_SIGNS_IT.theUnitOfTheRequestTime())
         .isEqualTo("Unix milliseconds");
     assertThat(TranzilaAccessToken.AS_THE_AUTHENTICATION_PAGES_PUBLISH_IT.theUnitOfTheRequestTime())

@@ -33,6 +33,8 @@ public final class TranzilaApi {
 
   static final Duration THE_REQUEST_TIME_TOLERANCE = Duration.ofMinutes(5);
 
+  static final Duration A_NONCE_IS_REMEMBERED_FOR = THE_REQUEST_TIME_TOLERANCE.multipliedBy(2);
+
   static final String NO_ACCOUNT_ANSWERS_TO_THAT_APP_KEY =
       "the X-tranzila-api-app-key header names no app key this test run configures";
 
@@ -52,8 +54,9 @@ public final class TranzilaApi {
           + " key, request time and nonce under the construction this account names in ";
 
   static final String THE_NONCE_WAS_USED =
-      "X-tranzila-api-nonce was already used by a call of this account within the last five"
-          + " minutes, and the authentication page says the token is there to \"prevent"
+      "X-tranzila-api-nonce was already used by a call of this account within the last ten"
+          + " minutes, as long as a request time it came with could still be accepted, and the"
+          + " authentication page says the token is there to \"prevent"
           + " processing of the same request more than once\"";
 
   private static final int AUDIT_ID_LENGTH = 24;
@@ -149,7 +152,7 @@ public final class TranzilaApi {
             terminal.accountId(),
             nonce.get(),
             now,
-            now.minus(THE_REQUEST_TIME_TOLERANCE))
+            now.minus(A_NONCE_IS_REMEMBERED_FOR))
         != 1) {
       return Optional.of(refused(THE_NONCE_WAS_USED));
     }

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -66,8 +68,8 @@ class TranzilaWireRequestTest {
 
   @Test
   void the_headers_a_call_carries_cannot_be_changed_after_it_was_made() {
-    java.util.Map<String, List<String>> sent = new java.util.LinkedHashMap<>();
-    sent.put("A", new java.util.ArrayList<>(List.of("1")));
+    Map<String, List<String>> sent = new LinkedHashMap<>();
+    sent.put("A", new ArrayList<>(List.of("1")));
     TranzilaApiCall call = TranzilaApiCall.of("POST", "/", sent, "");
     sent.get("A").add("2");
     sent.put("B", List.of("3"));

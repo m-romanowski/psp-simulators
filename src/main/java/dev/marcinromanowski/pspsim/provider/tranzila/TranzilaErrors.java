@@ -16,15 +16,19 @@ final class TranzilaErrors {
 
   static final String METHOD_NOT_ALLOWED = "405";
 
-  static final String NOT_SERVED = "501";
-
   static final String THREE_D_SECURE_IS_NOT_SERVED =
       "activate_3ds Y asks for 3-D Secure, which this simulator does not perform on this route;"
           + " nothing was charged";
 
   static final String ALREADY_CREDITED_TEXT = "Already Credited this transaction id";
 
-  static final String SUM_IS_LARGER_TEXT = "Sum is larger than the original debit transaction";
+  static final String SUM_IS_LARGER_TEXT =
+      "id 4 - sum is larger than the original debit transaction";
+
+  static final String AN_UNCREDITABLE_ORIGIN_TEXT =
+      "An origin transaction index is linked to an uncreditable origin transaction (e.g.,"
+          + " rejected or non-existent index) or an attempt to credit a different card than the"
+          + " one originally charged.";
 
   static final String AUTHENTICATION_FAILED_TEXT = "Authentication failed";
 
@@ -64,7 +68,8 @@ final class TranzilaErrors {
           "Authorization number is not equal to the transaction value";
       case AUTHORIZATION_NUMBER_EMPTY -> "Empty authorization number";
       case INVALID_DC_DISABLE -> "Invalid DCdisable";
-      case ALREADY_CANCELED -> "Attempting to credit a transaction that has already been canceled";
+      case ALREADY_CANCELED ->
+          "id 1 - Attempting to credit a transaction that has already been canceled";
       case ALREADY_CREDITED -> SUM_IS_LARGER_TEXT;
       default ->
           throw new IllegalArgumentException(

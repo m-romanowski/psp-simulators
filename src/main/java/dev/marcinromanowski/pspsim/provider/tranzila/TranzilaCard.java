@@ -1,9 +1,15 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
 
-record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYear) {
+record TranzilaCard(
+    String cardMask, int cardType, int expiryMonth, int expiryYear, String fingerprint) {
 
   static final int MASTERCARD = 1;
 
@@ -23,8 +29,29 @@ record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYe
 
   static final String CARD_LOCALITY = "domestic";
 
-  static TranzilaCard ofThePan(String pan, int expiryMonth, int expiryYear) {
-    return new TranzilaCard(maskOf(pan), cardTypeOf(pan), expiryMonth, expiryYear % 100);
+  static final String DIGEST = "SHA-256";
+
+  static TranzilaCard ofThePan(TestRunId testRunId, String pan, int expiryMonth, int expiryYear) {
+    return new TranzilaCard(
+        maskOf(pan),
+        cardTypeOf(pan),
+        expiryMonth,
+        expiryYear % 100,
+        fingerprintOf(testRunId.value() + ":" + pan));
+  }
+
+  static String fingerprintOf(String material) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance(DIGEST).digest(material.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException unavailable) {
+      throw new IllegalStateException("a card fingerprint needs " + DIGEST, unavailable);
+    }
+  }
+
+  TranzilaCard expiringIn(int month, int year) {
+    return new TranzilaCard(cardMask, cardType, month, year % 100, fingerprint);
   }
 
   static String maskOf(String cardNumber) {
@@ -84,6 +111,6 @@ record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYe
   }
 
   boolean isTheSameCardAs(TranzilaCard other) {
-    return cardMask.equals(other.cardMask);
+    return fingerprint.equals(other.fingerprint);
   }
 }

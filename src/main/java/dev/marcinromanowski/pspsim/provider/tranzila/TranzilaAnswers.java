@@ -16,8 +16,6 @@ final class TranzilaAnswers {
 
   static final int METHOD_NOT_ALLOWED = 405;
 
-  static final int NOT_IMPLEMENTED = 501;
-
   static final String SUCCESS = "success";
 
   private TranzilaAnswers() {}
@@ -37,12 +35,6 @@ final class TranzilaAnswers {
   static TranzilaOperationResult refusedSchema(String why) {
     return refusedBody(
         TranzilaErrors.JSON_SCHEMA_MISMATCH, TranzilaErrors.JSON_SCHEMA_MISMATCH_TEXT, why);
-  }
-
-  static TranzilaOperationResult notServed(String why) {
-    return TranzilaOperationResult.failed(
-        TranzilaRefusals.theBodyWasRefused(),
-        TranzilaBody.of(NOT_IMPLEMENTED, theErrorSchema(TranzilaErrors.NOT_SERVED, why)));
   }
 
   static TranzilaOperationResult applicationError(int code, RefusalSubject refusal) {

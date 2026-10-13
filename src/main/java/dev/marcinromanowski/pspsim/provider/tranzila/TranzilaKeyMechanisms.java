@@ -12,8 +12,9 @@ final class TranzilaKeyMechanisms {
 
   static final String SCOPED_BY_THE_TERMINAL_AND_A_DAY =
       "the DCdisable value a create carries in user_defined_fields, which provider tranzila"
-          + " compares \"up to 24 hours back\" and \"at the parent terminal level\". A repeat"
-          + " within that window of an approved original runs nothing and is answered error_code"
+          + " compares \"up to 24 hours back\" and \"at the parent terminal level\", against"
+          + " transactions of the same txn_type and verify_mode. A repeat within that window of an"
+          + " approved original runs nothing and is answered error_code"
           + " 0 with \"This payment has already been made, please contact the business\" and the"
           + " original's transaction_result, so a client that retried after a lost answer reads"
           + " the transaction it already made; \"If the original transaction failed, DCdisable"
@@ -26,12 +27,19 @@ final class TranzilaKeyMechanisms {
           + " naming it is answered from what that transaction holds now and is neither replayed"
           + " nor refused as a duplicate";
 
-  static final KeyClaim NOTHING_IS_CLAIMED_IN_ADVANCE =
+  static final KeyClaim ONE_REQUEST_AT_A_TIME_UNDER_A_DC_DISABLE =
+      new KeyClaim.ClaimedBeforeTheOperationRuns(
+          "this simulator holds a DCdisable of one terminal, transaction type and verify mode"
+              + " while the request carrying it runs, so a second request carrying it waits rather"
+              + " than charging the card twice, and is then answered as a duplicate of the first"
+              + " if that one was approved, or let through if it was not. Tranzila publishes no"
+              + " answer for a request meeting a DCdisable in flight, so none is refused for it");
+
+  static final KeyClaim THE_ORIGINAL_IS_NEVER_CLAIMED =
       new KeyClaim.NeverHeldByARequest(
-          "provider tranzila publishes no claim taken before a transaction is processed: the"
-              + " DCdisable check compares against transactions already approved, and"
-              + " reference_txn_id addresses one that already exists, so no request under either"
-              + " key can find it held by a request that has not answered");
+          "provider tranzila claims nothing when a call names its original in reference_txn_id:"
+              + " that transaction already exists, and a second follow-on of it is refused on what"
+              + " it holds now, not because another request is still holding it");
 
   static final String NO_IDEMPOTENCY_KEY =
       "provider tranzila publishes no idempotency key or header. Its one duplicate protection is"
@@ -47,13 +55,13 @@ final class TranzilaKeyMechanisms {
                   KeyRole.DUPLICATE_DETECTION_KEY,
                   KeyCarriage.REQUEST_FIELD,
                   SCOPED_BY_THE_TERMINAL_AND_A_DAY,
-                  NOTHING_IS_CLAIMED_IN_ADVANCE),
+                  ONE_REQUEST_AT_A_TIME_UNDER_A_DC_DISABLE),
               new DeclaredKey(
                   TranzilaFields.REFERENCE_TXN_ID,
                   KeyRole.CORRELATION_KEY,
                   KeyCarriage.REQUEST_FIELD,
                   SCOPED_BY_THE_ORIGINAL,
-                  NOTHING_IS_CLAIMED_IN_ADVANCE)),
+                  THE_ORIGINAL_IS_NEVER_CLAIMED)),
           Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY));
 
   private TranzilaKeyMechanisms() {}

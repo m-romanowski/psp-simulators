@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderFixtureRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderPaymentMethodFields;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 final class TranzilaFixtureCards {
 
@@ -82,7 +83,7 @@ final class TranzilaFixtureCards {
     return PaymentMethodFixturePlan.storingNothingOfItsOwn();
   }
 
-  static boolean isAToken(@org.jspecify.annotations.Nullable String token) {
+  static boolean isAToken(@Nullable String token) {
     return token != null && token.matches("(?=.*[A-Za-z])[0-9A-Za-z]{8,19}");
   }
 }

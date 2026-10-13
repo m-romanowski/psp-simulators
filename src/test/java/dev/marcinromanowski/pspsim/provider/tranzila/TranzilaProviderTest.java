@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.audit.AuditDirection;
+import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
@@ -41,6 +43,7 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 
 class TranzilaProviderTest {
@@ -260,7 +263,7 @@ class TranzilaProviderTest {
   }
 
   @Test
-  void a_debit_is_related_to_its_credit_and_its_cancel_and_the_credit_to_its_own_cancel() {
+  void a_debit_is_related_to_its_credit_and_the_credit_to_its_own_cancel() {
     String answered = wired.answered(TranzilaWire.aDebit());
     long debit = TranzilaWire.transactionIdIn(answered);
     String auth = TranzilaWire.textIn(answered, "auth_number");
@@ -268,8 +271,6 @@ class TranzilaProviderTest {
     TranzilaTransaction credit = wired.theLastStored();
     wired.create(TranzilaWire.aCancel(credit.transactionId(), String.valueOf(credit.authNumber())));
     long ofTheCredit = wired.theLastStored().transactionId();
-    wired.create(TranzilaWire.aCancel(debit, auth));
-    long ofTheDebit = wired.theLastStored().transactionId();
 
     ProviderObjectState theDebit =
         provider.state(TranzilaWiring.RUN, Long.toString(debit)).orElseThrow();
@@ -279,10 +280,11 @@ class TranzilaProviderTest {
     assertThat(theDebit.kind()).isEqualTo(TranzilaObjectKinds.A_DEBIT);
     assertThat(theDebit.relatedObjects())
         .containsEntry("credit", credit.transactionIdAsText())
-        .containsEntry("cancel", Long.toString(ofTheDebit))
+        .doesNotContainKey("cancel")
         .doesNotContainKey("hold_expires_at")
         .doesNotContainKey("reference_txn_id");
-    assertThat(theDebit.normalizedStatus()).isEqualTo(NormalizedStatus.CANCELLED);
+    assertThat(theDebit.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(theDebit.refundsAccepted()).isFalse();
     assertThat(theCredit.kind()).isEqualTo(TranzilaObjectKinds.A_CREDIT);
     assertThat(theCredit.normalizedStatus()).isEqualTo(NormalizedStatus.CANCELLED);
     assertThat(theCredit.relatedObjects()).containsEntry("cancel", Long.toString(ofTheCredit));
@@ -439,8 +441,8 @@ class TranzilaProviderTest {
     assertThat(outcome)
         .isEqualTo(
             new ObjectActionOutcome.RefusedByTheProvider(
-                "provider tranzila answered HTTP 200 with error_code=23002 and message=Sum is"
-                    + " larger than the original debit transaction",
+                "provider tranzila answered HTTP 200 with error_code=23002 and message=id 4 -"
+                    + " sum is larger than the original debit transaction",
                 null));
   }
 
@@ -452,7 +454,9 @@ class TranzilaProviderTest {
         .isEqualTo(
             new ObjectActionOutcome.RefusedByTheProvider(
                 "provider tranzila answered HTTP 200 with error_code=20112 and"
-                    + " message=Original transaction not found",
+                    + " message=An origin transaction index is linked to an uncreditable origin"
+                    + " transaction (e.g., rejected or non-existent index) or an attempt to"
+                    + " credit a different card than the one originally charged.",
                 null));
   }
 
@@ -589,14 +593,14 @@ class TranzilaProviderTest {
                 "}]}", "}],\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"d\"}]}"));
     wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.FixedSuccess());
     wired.audit.record(
-        new dev.marcinromanowski.pspsim.kernel.audit.AuditRecord(
+        new AuditRecord(
             "aud_1",
             TranzilaWiring.RUN,
             null,
             TranzilaApi.TRANZILA,
             null,
             ObjectOrigin.PROVIDER_API,
-            dev.marcinromanowski.pspsim.kernel.audit.AuditDirection.INBOUND_REQUEST,
+            AuditDirection.INBOUND_REQUEST,
             null,
             "POST",
             "/",
@@ -724,7 +728,7 @@ class TranzilaProviderTest {
     String token = fixture.mint().get("token");
     assertThat(token).isEqualTo("t000000000000014245");
     assertThat(TranzilaFixtureCards.isAToken(token)).isTrue();
-    assertThat(TranzilaCard.cardTypeNamed(java.util.Objects.requireNonNull(fixture.card()).brand()))
+    assertThat(TranzilaCard.cardTypeNamed(Objects.requireNonNull(fixture.card()).brand()))
         .contains(2);
   }
 
