@@ -36,7 +36,6 @@ import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
-import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -793,10 +792,5 @@ class TranzilaProviderTest {
             TranzilaTerminal.TERMINAL_NAME_PROPERTY, terminal,
             TranzilaTerminal.APP_KEY_PROPERTY, appKey,
             TranzilaTerminal.APP_SECRET_PROPERTY, "s"));
-  }
-
-  @SuppressWarnings("unused")
-  private static TestRunId another() {
-    return TestRunId.of("another");
   }
 }
