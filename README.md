@@ -1,6 +1,6 @@
 # PSP Simulators
 
-A standalone simulator for six payment service providers. Point an application at it instead of the real PSP and it
+A standalone simulator of payment service providers. Point an application at it instead of the real PSP and it
 answers in the vendor's own shapes: the same routes, payloads, error envelopes and callbacks. A payment journey can be
 driven end to end with no sandbox account, no real card and no network nobody controls.
 
@@ -51,15 +51,15 @@ A first payment is [`doc/quickstart.md`](doc/quickstart.md). To work on the simu
   rule rather than by card number, and a run's setup as one exportable document.
 - **Testers and support engineers**, who do the same from screens.
 
-## The six providers
+## The providers
 
-| Provider         | What it answers                                                                                                                                                  | Contract                               |
-|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
-| Grow / Meshulam  | the hosted payment process and its payer page, the stored-card charge, settlement, refund, the callback handshake and resend, and three reconciliation lookups | [`doc/grow.md`](doc/grow.md)           |
-| Azericard        | the gateway form post: authorization, pre-authorization, sales completion, both reversals, the status inquiry and card storage, signed both ways                 | [`doc/azericard.md`](doc/azericard.md) |
-| Stripe           | PaymentIntents, Charges, Refunds, Customers, PaymentMethods, SetupIntents and ephemeral keys, with Stripe's idempotency and signed webhooks                      | [`doc/stripe.md`](doc/stripe.md)       |
-| Autra            | the OAuth token, the acquiring session, the pre-authorization with capture and void, Pix checkout, and the hosted card session with the direct sale             | [`doc/autra.md`](doc/autra.md)         |
-| Worldline Direct | hosted tokenization, the pre-authorization hold with capture and cancel, the charge of a stored token, and HMAC signing                                         | [`doc/worldline.md`](doc/worldline.md) |
+| Provider         | What it answers                                                                                                                                                           | Contract                               |
+|------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
+| Grow / Meshulam  | the hosted payment process and its payer page, the stored-card charge, settlement, refund, the callback handshake and resend, and three reconciliation lookups            | [`doc/grow.md`](doc/grow.md)           |
+| Azericard        | the gateway form post: authorization, pre-authorization, sales completion, both reversals, the status inquiry and card storage, signed both ways                          | [`doc/azericard.md`](doc/azericard.md) |
+| Stripe           | PaymentIntents, Charges, Refunds, Customers, PaymentMethods, SetupIntents and ephemeral keys, with Stripe's idempotency and signed webhooks                               | [`doc/stripe.md`](doc/stripe.md)       |
+| Autra            | the OAuth token, the acquiring session, the pre-authorization with capture and void, Pix checkout, and the hosted card session with the direct sale                       | [`doc/autra.md`](doc/autra.md)         |
+| Worldline Direct | hosted tokenization, the pre-authorization hold with capture and cancel, the charge of a stored token, and HMAC signing                                                   | [`doc/worldline.md`](doc/worldline.md) |
 | Tranzila         | the card transaction API (debit, J2/J5 verification, force, reversal, credit, cancel, 3-D Secure), Handshake V2, the DirectNG payment page, Hosted Fields and two lookups | [`doc/tranzila.md`](doc/tranzila.md)   |
 
 [`doc/README.md`](doc/README.md) is the contract: each provider's surface, the whole control API and the shared rules.
@@ -233,18 +233,18 @@ beside the stack [Run it](#run-it) brings up on 8080 rather than taking its port
 
 ## Where to go next
 
-| Document                                                                                                                                                                       | What it is                                                                         |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [`doc/README.md`](doc/README.md)                                                                                                                                               | the contract: provider surfaces, the control API and the shared rules              |
-| [`doc/quickstart.md`](doc/quickstart.md)                                                                                                                                       | a first payment, by call and by clicking                                           |
-| [`doc/grow.md`](doc/grow.md), [`doc/azericard.md`](doc/azericard.md), [`doc/stripe.md`](doc/stripe.md), [`doc/autra.md`](doc/autra.md), [`doc/worldline.md`](doc/worldline.md), [`doc/tranzila.md`](doc/tranzila.md) | one per provider: the vendor's contract and where the simulator departs from it    |
-| [`doc/testing-support-features.md`](doc/testing-support-features.md)                                                                                                           | presets, faults, time travel, bundles and inspectors, and their gaps               |
-| [`doc/technical-ui-requirements.md`](doc/technical-ui-requirements.md)                                                                                                         | what the screens must be, and the security model                                   |
-| [`doc/design-constraints.md`](doc/design-constraints.md)                                                                                                                       | the constraints the kernel imposes on every provider                               |
-| [`doc/contributing-a-screen.md`](doc/contributing-a-screen.md)                                                                                                                  | the one file a provider-specific screen is, and what the core insists on           |
-| [`e2e-example/README.md`](e2e-example/README.md)                                                                                                                               | an outside-in Cucumber suite over two providers                                    |
-| [`browser-e2e/README.md`](browser-e2e/README.md)                                                                                                                               | the journeys and the layout, through a real browser                                |
-| [`demo-shop/README.md`](demo-shop/README.md)                                                                                                                                   | a Stripe shop started by one `docker compose up --build`, linking each step to `/ui` |
+| Document                                                                                                                                                                                                             | What it is                                                                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| [`doc/README.md`](doc/README.md)                                                                                                                                                                                     | the contract: provider surfaces, the control API and the shared rules                |
+| [`doc/quickstart.md`](doc/quickstart.md)                                                                                                                                                                             | a first payment, by call and by clicking                                             |
+| [`doc/grow.md`](doc/grow.md), [`doc/azericard.md`](doc/azericard.md), [`doc/stripe.md`](doc/stripe.md), [`doc/autra.md`](doc/autra.md), [`doc/worldline.md`](doc/worldline.md), [`doc/tranzila.md`](doc/tranzila.md) | one per provider: the vendor's contract and where the simulator departs from it      |
+| [`doc/testing-support-features.md`](doc/testing-support-features.md)                                                                                                                                                 | presets, faults, time travel, bundles and inspectors, and their gaps                 |
+| [`doc/technical-ui-requirements.md`](doc/technical-ui-requirements.md)                                                                                                                                               | what the screens must be, and the security model                                     |
+| [`doc/design-constraints.md`](doc/design-constraints.md)                                                                                                                                                             | the constraints the kernel imposes on every provider                                 |
+| [`doc/contributing-a-screen.md`](doc/contributing-a-screen.md)                                                                                                                                                       | the one file a provider-specific screen is, and what the core insists on             |
+| [`e2e-example/README.md`](e2e-example/README.md)                                                                                                                                                                     | an outside-in Cucumber suite over two providers                                      |
+| [`browser-e2e/README.md`](browser-e2e/README.md)                                                                                                                                                                     | the journeys and the layout, through a real browser                                  |
+| [`demo-shop/README.md`](demo-shop/README.md)                                                                                                                                                                         | a Stripe shop started by one `docker compose up --build`, linking each step to `/ui` |
 
 The tests are the specification. Where a document and the code disagree, the tests decide.
 

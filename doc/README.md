@@ -1,7 +1,7 @@
 # PSP Simulator API Contracts
 
-The contract of this simulator: the surface each provider serves, the provider-neutral control API, and the rules the
-five providers share. Each provider file holds the vendor's own contract and every place the simulator departs from it.
+The contract of this simulator: the surface each provider serves, the provider-neutral control API, and the rules every
+provider shares. Each provider file holds the vendor's own contract and every place the simulator departs from it.
 
 Every request and response schema of the control API is in the generated OpenAPI documents, browsable at
 `/openapi/index.html` (sources under `src/main/resources/static/openapi/`). `verifyOpenApi` fails the build when they
@@ -618,4 +618,9 @@ Every vendor sample, and every statement in a provider file, names its class:
   manifest.
 
 Provider files also mark an **inference** (read off the wording) and a **simulator decision** (a choice with no vendor
-source). Where a provider's rule and example disagree, the file records both.
+source), and may name two classes no vendor sample can carry (`kernel/smoke/EvidenceClass` admits only the four above):
+
+- **vendor script**: the provider's own published JavaScript, read for its public API and wire shapes,
+- **vendor correspondence**: the provider's written answer to a merchant, not published. The weakest class.
+
+Where a provider's rule and example disagree, the file records both.

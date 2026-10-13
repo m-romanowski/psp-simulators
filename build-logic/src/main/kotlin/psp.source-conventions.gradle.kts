@@ -17,6 +17,7 @@ val pathsGitIgnoresOrTracksAsBinary =
         ".git",
         ".git/**",
         ".claude/**",
+        ".tmp/**",
         ".idea/**",
         ".vscode/**",
         ".settings/**",

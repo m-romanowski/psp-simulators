@@ -45,6 +45,7 @@ val pathsGitIgnoresOrThisBuildGenerates =
     listOf(
         ".git/**",
         ".claude/**",
+        ".tmp/**",
         ".idea/**",
         "**/.gradle/**",
         "**/build/**",

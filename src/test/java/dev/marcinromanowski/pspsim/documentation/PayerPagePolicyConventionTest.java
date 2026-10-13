@@ -43,7 +43,7 @@ class PayerPagePolicyConventionTest {
         .as("one policy read out of each page, and no page declaring two of them")
         .isEqualTo(5);
     assertThat(PayerPagePolicyConvention.howManyCarryTheirOwnStyle(pages))
-        .as("four of the five carry their own style; azericard's error page carries none")
+        .as("every page but azericard's error page carries its own style")
         .isEqualTo(4);
     assertThat(PayerPagePolicyConvention.theProvidersOf(pages))
         .containsExactly("autra", "azericard", "grow", "worldline");
