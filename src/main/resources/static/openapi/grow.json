@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "PSP simulator provider grow",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "description": "Provider grow answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/grow.md describes the shapes it really answers."
   },
   "servers": [
