@@ -153,7 +153,7 @@ Simulator decision: an out-of-scope value the schema admits (`sto`, `verify_mode
 refused `20004`, so a client learns it was not performed instead of reading a success.
 
 Simulator decision: a body field outside both the Transactions API schema and the 3DS schema, other than the
-top-level `auth_3ds_redirect` ("3-D Secure"), is a schema mismatch, refused `20004`, so `verfiy_mode` (the hidden page's spelling) is refused rather than silently read. Every schema
+top-level `auth_3ds_redirect` and `force_txn_on_3ds_fail` ("3-D Secure"), is a schema mismatch, refused `20004`, so `verfiy_mode` (the hidden page's spelling) is refused rather than silently read. Every schema
 violation answers `20004`; `20003` is never answered.
 
 Success (published schema, `200`; field names published, values illustrative):
@@ -280,7 +280,7 @@ application error codes, response code will be **success (200)**". The simulator
 | `015` | "Expired card. Please check the expiration date again."                                              | a scenario's decline                          |
 | `016` | "Unauthorized currency."                                                                             | a scenario's decline                          |
 | `017` | "Unauthorized credit type for this transaction."                                                     | a scenario's decline                          |
-| `900`–`928`, `930` | "Transaction failed at 3D Secure authentication stage." … (3DS Errors tab); `900` answered with the API's own "Transaction failed during 3D Secure validation" | a failed 3-D Secure authentication ("3-D Secure"), or a scenario's decline |
+| `900`–`928`, `930` | "Transaction failed at 3D Secure authentication stage." … (3DS Errors tab); `900` answered with the API's own "Transaction failed during 3D Secure validation" | a failed 3-D Secure authentication ("3-D Secure"), or a scenario's failure of operation `3ds` |
 
 `shva` ("Pending SHVA response.") and `010` ("Partial confirmation") are never answered: no published read resolves a
 pending answer, and no published field carries a partially confirmed amount.
@@ -366,12 +366,27 @@ with string values (`transaction_id: "372803"`, `card_type: "2"`, `expiry_month:
 | a challenge whose `DCdisable` an approved transaction took meanwhile | the duplicate answer ("Duplicates and DCdisable"), naming that transaction |
 
 A J5 completed from a challenge is held `tranzila.j5-validity` from its completion. The idempotency inspector keeps
-`track_id` as a duplicate-detection key: the completion that ran, and each later one refused `900`.
+`track_id` as a duplicate-detection key: the completion that ran, and each later one refused `900`. A complete
+retried after its first answer was lost (a fault after the transaction was made) is answered `900` as completed, so
+that `900` does not mean nothing was charged: the lookups ("Transaction Lookups") read whether the transaction was
+made. The transaction a completion makes carries the `items` and `user_defined_fields` the create sent, read back
+from its `original_request`, so the lookups answer them as for any create; its `xid`, `cavv` and `eci` there are
+empty, because `xid` and `cavv` are never stored.
+
+A challenge keeps the create's `original_request`, `card_holder_id` included, and for the Hosted Fields the charge's
+`user_form_data`, until it is completed or its test run is reset. Neither is shown on the challenge's own state; the
+trail and the idempotency inspector withhold `card_holder_id`, the values of identity-named `user_defined_fields` and
+the identity keys of `user_form_data` wherever an answer carries them.
 
 Which card takes which outcome: the published test cards (`PB/hosted-fields`, "Test Credit Card Numbers for 3DS"),
 by the number sent, or for a token by its card's first six and last four; otherwise the run's scenario on the
 operation `3ds`: a failure code of the 3DS table (`900`–`928`, `930`) fails the authentication with that code, a
-success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly.
+success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly. A 3DS code belongs
+to `3ds` alone and a processor decline to the transaction types alone: a rule failing an operation with a code of the
+other table is admitted (the vocabulary judges codes, not operations) and refused when it fires, answered `500`
+`text/plain` naming the operation and the code, nothing made. When `force_txn_on_3ds_fail` `Y` lets a failed
+authentication through, the answer names the rule that decided the transaction's own operation if one did, and the
+`3ds` rule otherwise; a trail row names one rule.
 
 | Card               | Published outcome                  |
 |--------------------|------------------------------------|
@@ -819,7 +834,7 @@ and `google_pay` are ignored).
 | field types                    | `transaction_id` integer, `auth_number` string (API schema)                            | strings `"372803"` (3DS complete), `"97588"` (Hosted Fields)                                       | each route as its example                  |
 | `force_txn_on_3ds_fail` default | `Y` (Hosted Fields)                                                                   | `N` (3DS schema)                                                                                   | each surface as published                  |
 | Hosted Fields challenge frame  | "an iframe (400x600)" (prose)                                                          | 400×650 in a 410×650 holder (vendor script)                                                        | the vendor script's                        |
-| `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only |
+| `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only; a top-level `force_txn_on_3ds_fail` is admitted, and `3ds_settings.force_txn_on_3ds_fail` wins when both are sent |
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |
 | Hosted Fields errors           | `errors[{code, param, message}]`, codes `10000`–`10016` (table)                        | `err.messages[]` (prose, vendor script)                                                            | client-side `err`, server `errors`         |
