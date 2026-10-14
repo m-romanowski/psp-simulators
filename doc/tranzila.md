@@ -17,7 +17,7 @@ inference, simulator decision. No live probe: no sandbox host, test terminal or 
 | `POST /v2/handshake/create`                                    | mints a `thtk` bound to terminal and `sum`, 20 minutes                                                         |                                                                                                          |
 | `POST /v1/transactions`                                        | lookup by `transaction_index` or date range                                                                   | amounts in minor units, as strings (inference)                                                           |
 | `GET`/`POST /tranzila/directng/{terminal}/iframenew.php`       | the payer page: tranmodes `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; browser return and notify                      | the page is the simulator's own; notify unsigned; wallet buttons not served                              |
-| `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           |                                                                                                          |
+| `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           | `card_mask` keeps only the last four; which refusal answers which code is a simulator decision; no notify |
 | `POST /tranzila/report/v1/transaction`                         | lookup by `transaction_index` or date range, amounts in minor units                                           | `ufields`, `dfields` refused                                                                             |
 | STO / My Billing, Bit, PayPal, MASAV, invoices, EMV PinPad, payment requests, legacy CGI, `direct.tranzila.com`, Handshake V1, instalments | **not served** |                                                                                     |
 
@@ -70,8 +70,8 @@ Where the two card API pages disagree, the visible Transactions API page governs
 Simulator decision: the three non-API hosts sit under a prefix because the payment page's first path segment is the
 terminal name, which at the root would shadow every other route. The pairing screen publishes one base URL per host,
 and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs. Pairing publishes
-`TRANZILA_API_BASE_URL` (`/v1`), `TRANZILA_API_V2_BASE_URL` (`/v2`) and `TRANZILA_DIRECTNG_BASE_URL`
-(`/tranzila/directng`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
+`TRANZILA_API_BASE_URL` (`/v1`), `TRANZILA_API_V2_BASE_URL` (`/v2`), `TRANZILA_DIRECTNG_BASE_URL`
+(`/tranzila/directng`) and `TRANZILA_HF_BASE_URL` (`/tranzila/hf`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
 the simulator's page and not a vendor address.
 
 At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and the one route
@@ -465,9 +465,18 @@ The simulator serves its own implementation of the documented `TzlaHostedFields`
 
 | Served                                              | What                                                                                         |
 |-----------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `GET /tranzila/hf/assets/js/thostedf.js`            | `TzlaHostedFields.create({sandbox, fields, styles})`, `fields.onEvent`, `fields.charge(params, callback)` |
-| field frames under `/tranzila/hf/`                  | `credit_card_number`, `cvv`, `expiry`, `card_holder_id_number` (vendor script field ids)      |
+| `GET /tranzila/hf/assets/js/thostedf.js`            | `TzlaHostedFields.create({sandbox, fields, styles})`, `fields.onEvent`, `fields.charge(params, callback)`; `text/javascript`, `Cache-Control: no-cache`; the frames' addresses are taken from the address the script was loaded from |
+| `GET /tranzila/hf/assets/js/hfields_depend/genfield.php` | a field frame: `field_name` `credit_card_number`, `cvv`, `expiry`, `card_holder_id_number` (vendor script field ids), `instance_identifier`, `placeholder`; `expiry` with `version` `2` is a month and a year list |
+| `GET /tranzila/hf/assets/js/hfields_depend/controlfields.html` | the hidden frame the charge is posted from                                         |
 | `POST /tranzila/hf/process/ajax_process_transaction` | the charge; form-encoded, as the vendor script posts it                                     |
+
+Simulator decision, the frames: a field frame shares what the payer types only with frames of its own origin, and
+the merchant's page receives events and the charge answer, never a card field. A frame names no `frame-ancestors`,
+because any merchant page frames it; its policy otherwise admits its one inline script by hash, and the hidden frame
+also `connect-src 'self'`. The hidden frame answers a charge only to the page that framed it, at that page's origin.
+A charge the hidden frame refuses before posting calls back `err` with the vendor script's codes
+(`terminal_name_invalid`, `credit_card_number_invalid`, `expiry_invalid`, `cvv_invalid`,
+`card_holder_id_number_invalid`) and the simulator's own messages.
 
 - Events (published rule): `ready`, `validityChange`, `cardTypeChange`, `focus`, `blur`, `submit`; CSS classes
   `hosted-fields-invalid`, `hosted-fields-valid`. Messages between page and frames are JSON strings (vendor script).
@@ -526,15 +535,51 @@ The simulator serves its own implementation of the documented `TzlaHostedFields`
 ```
 
 - `transaction_id`, `amount` and `card_type` are strings and `currency_code` is numeric, unlike the API.
+- The charge is the API's: `A` a `debit`, `V` a `verify` `5`, `N` a `verify` `2`, with the API's transaction rows,
+  scenario rules, `DCdisable` (a charge key, echoed in `user_form_data`) and duplicate answer (the original
+  transaction). An approved charge renews the `thtk` for 20 minutes.
+- The typed card (simulator decision): a number naming a payment-method fixture of the run, by last four and card
+  type, is charged as that fixture's token; any other number passing Luhn is charged as a new card under a new token.
+  Only the last four and the card type are kept, so `card_mask` is `*` for every digit but the last four, unlike the
+  published example; the number, the CVV and the ID are never stored, answered or written to the trail.
+- `token` is answered only when `tokenize` is `true`; `cvv_status` and `id_status` are `1` when the field was filled
+  and `0` when not; `card_issuer` is `1`; `error` is `null` on approval and the processor code's text on a decline,
+  with `success` `false` (simulator decisions).
+- `user_form_data`: every key the charge sent other than the ones it reads, in the order received, as strings
+  (simulator decision). `notify_url` is echoed there; no notify is sent.
 - `response_hash` = HMAC-SHA256, lowercase hex, over the response JSON without `response_hash`, serialised with no space
   after `,` or `:`, keyed by the account secret (published rule and example, "Response Hash"; the per-user secret for
-  `requested_by_user` is not modelled).
+  `requested_by_user` is not modelled). The simulator writes characters outside ASCII as `\uXXXX` and `/` unescaped,
+  as the published Python sample re-serialises, and `response_hash` is the last key, so the answer less
+  `,"response_hash":"…"` is the hashed text.
 - Errors: client-side validation calls back `err` as `{error:"invalid_resource", error_description, messages:[{code,
   message, param}]}` (vendor script; the prose's `error.messages.forEach` agrees); a server refusal answers
   `errors:[{code, param, message}]` with codes `10000`–`10016` (published rule, "Error Messages").
 - 3-D Secure: a `challengeUrl` in the answer opens the simulator's challenge page in a frame; on success the script
   posts `{track_id, supplier}` to the process route and the result reaches the `charge` callback (vendor script).
 - No server-side verification of a Hosted Fields result is published; `response_hash` is the only proof.
+
+Server refusals answer `200` `{"errors":[{code, param, message}],"transaction_response":null,"response_hash":…}`,
+`code` an integer and `message` the table's text; nothing is charged. Every key refused is answered together; the
+terminal and the handshake are checked once every key is admitted. `response_hash` is `null` when the charge names
+no terminal of the run, since no secret is named then. Which condition answers which code is a simulator decision:
+
+| Condition                                                                         | `code`, `param`                     |
+|-----------------------------------------------------------------------------------|-------------------------------------|
+| `terminal_name`, `thtk`, `amount`, `credit_card_number`, `expiry_month` or `expiry_year` missing or empty | `10000`, the key |
+| `amount` not a positive decimal of at most 13 whole digits and 2 places            | `10006`, `amount`                   |
+| `currency_code` other than `ILS`, `USD`, `EUR`                                    | `10012`, `currency_code`            |
+| `tran_mode` other than `A`, `V`, `N`                                              | `10014`, `tran_mode`                |
+| `payment_plan` other than `1`                                                     | `10007`, `payment_plan`             |
+| `credit_card_number` not 8–19 digits passing Luhn (spaces dropped)                | `10002`, `credit_card_number`       |
+| `cvv` not 3–4 digits                                                              | `10003`, `cvv`                      |
+| `expiry_month` not 1–12; `expiry_year` not four digits                            | `10004`, `expiry_month`; `10005`, `expiry_year` |
+| `card_holder_id_number` not 1–9 digits                                            | `10011`, `card_holder_id_number`    |
+| `DCdisable` over 254 characters                                                   | `22103`, `DCdisable`, "Invalid DCdisable" |
+| `terminal_name` names no terminal of the run                                       | `10013`, `terminal_name`            |
+| `thtk` names no live handshake of this terminal locking `amount`                  | `912791`, `thtk`, "Illegal Operation 912791" (the published handshake refusal) |
+
+`10001`, `10008`–`10010`, `10015` and `10016` are never answered: no rule above leaves them a condition.
 
 ## Status Mapping
 
@@ -576,7 +621,8 @@ not count. An original whose `credit` was cancelled returns to its normalized st
 | `/v2/handshake/create`                | `400`, `401`                                | `error_code` equal to the HTTP status                                                      | published example              |
 | under `/v2/handshake/create`          | unknown address `404`; wrong method `405`  | the handshake's shape, `{"error_code":404,"message":"The specified resource was not found"}`, `405` with "This address does not answer this HTTP method" | simulator decision |
 | `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}` | published example |
-| payment page, Hosted Fields frames    | refusal                                     | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng`: `404` no such terminal or page, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed | simulator decision |
+| payment page, Hosted Fields frames    | refusal                                     | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng` and `/tranzila/hf`: `404` no such terminal or page, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed | simulator decision |
+| Hosted Fields charge                  | refusal                                     | `200`, `errors` ("Hosted Fields")                                                          | published rule, simulator decision |
 
 The `Error` schema's `'response '` key (trailing space) is not answered: it is not required.
 
@@ -632,3 +678,4 @@ and `google_pay` are ignored).
 | API `card_type` ("shva card type") values                    | the page's `cardtype` table (`1` Mastercard … `6` Maestro)     |
 | token format                                                 | `t`, 14 hex digits, the card's last four                       |
 | `/v1/transactions` amount units                              | minor units, as a string (inference from `amount: '500'`)      |
+| Hosted Fields: which code a condition answers, the refusal envelope, a `thtk` not locking the amount | "Hosted Fields"; `912791` |
