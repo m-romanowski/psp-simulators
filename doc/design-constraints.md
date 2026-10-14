@@ -323,6 +323,11 @@ build, and the rows marked `live probe` are the ones measured rather than decide
 what this application answers off its routes reads exactly these. "Status nothing else chose" is the status the container
 had already set when the mechanism was asked.
 
+A provider's own envelope may carry headers beside its body, such as a payer page's policy and `Cache-Control:
+no-store`. Their names are tokens and their values one line; `Content-Type` and `Content-Length` are never among them,
+because the body and its media type decide them, nor `Set-Cookie` and `Transfer-Encoding`, which no answer off a route
+decides.
+
 | Where it was asked | Fault | What it answers | Evidence |
 |---|---|---|---|
 | a provider's namespace | one its contract publishes an answer for | that provider's own envelope: the seven shapes above | published rule |

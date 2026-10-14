@@ -108,6 +108,43 @@ class WhatAProviderAnswersOffItsRoutesTest {
   }
 
   @Test
+  void a_header_beside_a_page_is_a_token_named_one_line_value_set_once_and_no_framing_or_cookie() {
+    java.util.Map<String, String> missing = new java.util.HashMap<>();
+    missing.put("X-A", null);
+    java.util.Map<String, String> twice = new java.util.LinkedHashMap<>();
+    twice.put("X-A", "1");
+    twice.put("x-a", "2");
+
+    for (Map<String, String> refused :
+        List.of(
+            Map.of("a b", "1"),
+            Map.of("X:A", "1"),
+            Map.of("", "1"),
+            Map.of("X-A", "1\r\nSet-Cookie: s=1"),
+            Map.of("X-A", "1\n"),
+            Map.of("X-A", "1\u0000"),
+            Map.of("Set-Cookie", "s=1"),
+            Map.of("TRANSFER-ENCODING", "chunked"),
+            twice,
+            missing)) {
+      assertThatThrownBy(
+              () ->
+                  new ProviderWireAnswer.InThisProvidersOwnWords(
+                      200, "text/html", new byte[0], refused))
+          .as(refused.toString())
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+    assertThat(
+            new ProviderWireAnswer.InThisProvidersOwnWords(
+                    200,
+                    "text/html",
+                    new byte[0],
+                    Map.of("Cache-Control", "no-store", "Content-Security-Policy", "a 'b'; c"))
+                .headers())
+        .hasSize(2);
+  }
+
+  @Test
   void
       a_provider_that_publishes_nothing_is_answered_in_this_simulators_own_voice_and_not_its_own() {
     WireAnswer answered =
