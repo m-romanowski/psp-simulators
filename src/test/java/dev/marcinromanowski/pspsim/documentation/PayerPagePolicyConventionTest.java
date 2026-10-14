@@ -89,8 +89,8 @@ class PayerPagePolicyConventionTest {
             "base-uri 'none'",
             "connect-src 'self'",
             "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
-            "script-src 'sha256-cmIfa4FE3Shcfk/QkepTTnscL6p+yQaVec8jhpavvOg='",
-            "script-src 'sha256-jE2jqTmX1v5XxWSNjjsE/Q/RufFDrh+Sw473E4TtH5I='");
+            "script-src 'sha256-gAFRQ+4dLZN5jnsgAhf+aPVF1XZZmSqC3xcGr5zMRv4='",
+            "script-src 'sha256-0TKOdY0iR2Ag9nQD1ziosya2RBnuq2SkJMKeding214='");
     assertThat(PayerPagePolicyConvention.thePagesThatRegisterADirective())
         .containsExactly(
             "dev.marcinromanowski.pspsim.provider.autra.AutraCardPage",

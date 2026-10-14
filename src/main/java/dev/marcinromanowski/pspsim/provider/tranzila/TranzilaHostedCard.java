@@ -19,7 +19,10 @@ final class TranzilaHostedCard {
   }
 
   int cardType() {
-    return TranzilaCard.cardTypeOf(number);
+    return TranzilaHostedFieldsRequest.passesLuhn(number)
+            || !TranzilaHostedFieldsRequest.isAnIsracardNumber(number)
+        ? TranzilaCard.cardTypeOf(number)
+        : TranzilaCard.ISRACARD;
   }
 
   TranzilaCard withoutItsNumber(int expiryMonth, int expiryYear) {

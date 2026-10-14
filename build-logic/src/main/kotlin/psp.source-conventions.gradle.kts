@@ -22,6 +22,7 @@ val pathsGitIgnoresOrTracksAsBinary =
         ".vscode/**",
         ".settings/**",
         "**/.gradle/**",
+        "**/node_modules/**",
         "**/build/**",
         "**/bin/**",
         "**/out/**",

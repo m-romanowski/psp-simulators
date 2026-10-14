@@ -13,6 +13,7 @@ val theDirectoriesGitIgnoresOrThisBuildGenerates =
         ".tmp",
         ".idea",
         "**/.gradle",
+        "**/node_modules",
         "**/build",
         "**/bin",
         "**/out",

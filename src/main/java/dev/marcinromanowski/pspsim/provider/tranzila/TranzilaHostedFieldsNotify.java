@@ -19,7 +19,14 @@ final class TranzilaHostedFieldsNotify {
     fields.put(TranzilaFields.SUM, request.amount());
     fields.put(TranzilaFields.CURRENCY, request.currency().numeric());
     fields.put(TranzilaFields.RESPONSE, transaction.processorResponseCode());
-    fields.putAll(request.userFormData());
+    request
+        .userFormData()
+        .forEach(
+            (name, value) -> {
+              if (!TranzilaBrowserReturn.THE_NAMES_THE_RETURN_SETS.contains(name)) {
+                fields.put(name, value);
+              }
+            });
     fields.put(TranzilaFields.TRANSACTION_ID, transaction.transactionIdAsText());
     fields.put(TranzilaFields.INDEX, transaction.transactionIdAsText());
     fields.put(TranzilaFields.CCNO, card.last4());

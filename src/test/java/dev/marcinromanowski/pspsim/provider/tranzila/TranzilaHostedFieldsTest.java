@@ -538,12 +538,20 @@ class TranzilaHostedFieldsTest {
   void a_declined_charge_is_notified_without_a_token_and_a_duplicate_is_not_notified() {
     wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
     aHandshake("10");
-    charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true"));
-    charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true"));
+    String first =
+        bodyOf(charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true")));
+    String duplicate =
+        bodyOf(charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true")));
     wired.writes(TranzilaOperations.VERIFY, new ScenarioAction.TerminalFailure("004"));
 
     charge(aCharge("10", "tran_mode", "V", "tokenize", "true"));
 
+    assertThat(duplicate)
+        .as("the duplicate answers the original transaction, which was notified once")
+        .startsWith(
+            "{\"errors\":null,\"transaction_response\":{\"success\":true,\"error\":null,"
+                + "\"processor_response_code\":\"777\",\"transaction_id\":\"10000001\",")
+        .isEqualTo(first);
     assertThat(wired.posted).hasSize(2);
     assertThat(wired.posted.get(0))
         .contains("&Response=777&")
@@ -581,6 +589,54 @@ class TranzilaHostedFieldsTest {
                 + "\"}],\"transaction_response\":null,");
     assertThat(wired.stored()).isEmpty();
     assertThat(wired.posted).isEmpty();
+  }
+
+  @Test
+  void the_notify_sets_its_own_fields_over_any_the_merchant_sent_under_the_same_names() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+    wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("004"));
+
+    charge(
+        aCharge(
+            "10",
+            "sum",
+            "999",
+            "Response",
+            "000",
+            "ccno",
+            "1111",
+            "TranzilaTK",
+            "forged",
+            "ConfirmationCode",
+            "7777777",
+            "contact",
+            "Dana"));
+
+    assertThat(wired.posted)
+        .containsExactly(
+            A_NOTIFY_URL
+                + " supplier=myterminal&sum=10&currency=1&Response=004&contact=Dana"
+                + "&transaction_id=10000001&index=10000001&ccno=9022&Responsecv=1&Responseid=0"
+                + "&cardtype=2&cardissuer=1&cardacquirer=2&txn_type=debit&tranmode=A");
+  }
+
+  @Test
+  void a_number_only_the_isracard_check_accepts_is_charged_and_answered_as_an_isracard() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+    Map<String, List<String>> asked = aCharge("10");
+    asked.put("credit_card_number", List.of("40000001"));
+
+    String answered = bodyOf(charge(asked));
+
+    assertThat(answered)
+        .contains("\"credit_card_last_4_digits\":\"0001\"")
+        .contains("\"card_type\":\"5\",\"card_mask\":\"****0001\"")
+        .contains("\"card_type_name\":\"Isracard\"");
+    assertThat(wired.theLastStored().card())
+        .isEqualTo(new TranzilaCard("xxxx0001", TranzilaCard.ISRACARD, 12, 30));
+    assertThat(wired.posted.get(0)).contains("&cardtype=5&cardissuer=1&cardacquirer=1&");
   }
 
   @Test

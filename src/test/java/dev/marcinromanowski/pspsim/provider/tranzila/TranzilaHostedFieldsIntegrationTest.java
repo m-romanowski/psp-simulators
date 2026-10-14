@@ -190,7 +190,18 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
           .containsEntry("TranzilaTK", textIn(charged.body(), "token"))
           .containsEntry("txn_type", "verify")
           .containsEntry("tranmode", "V");
-      assertThat(notified.body()).doesNotContain(THE_PUBLISHED_CARD).doesNotContain(A_CVV + "&");
+      Map<String, String> minted = new LinkedHashMap<>(notified.fields());
+      minted
+          .keySet()
+          .retainAll(List.of("transaction_id", "index", "TranzilaTK", "ConfirmationCode"));
+      String withoutWhatTheSimulatorMinted = notified.body();
+      for (String value : minted.values()) {
+        withoutWhatTheSimulatorMinted = withoutWhatTheSimulatorMinted.replace(value, "");
+      }
+      assertThat(notified.body()).doesNotContain(THE_PUBLISHED_CARD).doesNotContain("490763");
+      assertThat(withoutWhatTheSimulatorMinted)
+          .as("the CVV appears nowhere once the identifiers this simulator drew are set aside")
+          .doesNotContain(A_CVV);
       String deliveries = deliveries();
       assertThat(deliveries)
           .contains("[redacted]")

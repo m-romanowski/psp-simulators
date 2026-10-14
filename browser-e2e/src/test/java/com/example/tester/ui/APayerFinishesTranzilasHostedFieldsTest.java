@@ -27,6 +27,8 @@ class APayerFinishesTranzilasHostedFieldsTest extends AJourneyInAMobileAppsWebvi
 
   private static final String ITS_CVV = "737";
 
+  private static final String AN_ISRACARD_NUMBER_LUHN_REFUSES = "40000001";
+
   private static final Duration A_NOTIFY_ARRIVES_WITHIN = Duration.ofSeconds(20);
 
   private TranzilaShopBackend shop;
@@ -61,6 +63,7 @@ class APayerFinishesTranzilasHostedFieldsTest extends AJourneyInAMobileAppsWebvi
     String thtk = shop.aHandshakeLocking(testRunId(), CHARGED, "{\"order_id\":\"ORD-77\"}");
     theCheckoutIsOpenedFor(thtk, CHARGED);
 
+    PlaywrightAssertions.assertThat(theWidgetsEar()).containsText(TheMerchant.A_PROBE);
     pay();
     PlaywrightAssertions.assertThat(page().getByText(TheMerchant.NOT_MADE)).isVisible();
     assertThat(merchant().theLatestHostedFieldsAnswer())
@@ -149,9 +152,11 @@ class APayerFinishesTranzilasHostedFieldsTest extends AJourneyInAMobileAppsWebvi
                     .doesNotContain(THE_CARD_THE_PAYER_TYPES)
                     .doesNotContain("4907 6399")
                     .doesNotContain(ITS_FIRST_SIX)
-                    .doesNotContain("\"" + ITS_CVV + "\"")
-                    .doesNotContain("=" + ITS_CVV + "&")
-                    .doesNotContain("value=\"" + ITS_CVV));
+                    .doesNotContain(ITS_FIRST_SIX)
+                    .satisfies(
+                        text ->
+                            assertThat(withoutWhatTheSimulatorMinted(text, transaction))
+                                .doesNotContain(ITS_CVV)));
     assertThat(String.join("\n", providerApi().everyAnswerItGot()))
         .doesNotContain(THE_CARD_THE_PAYER_TYPES)
         .doesNotContain(ITS_FIRST_SIX);
@@ -182,6 +187,56 @@ class APayerFinishesTranzilasHostedFieldsTest extends AJourneyInAMobileAppsWebvi
     assertThat(shop.verifies(answered)).isTrue();
     assertThat(merchant().callbacksReceived()).isEmpty();
     theWebviewSawNothingGoWrong();
+  }
+
+  @Test
+  @DisplayName(
+      "a payer types an isracard number Luhn refuses and the isracard check accepts, and it is"
+          + " charged and answered as an isracard")
+  void aPayerPaysWithAnIsracardNumberLuhnRefuses() {
+    String thtk = shop.aHandshakeLocking(testRunId(), CHARGED, "{\"order_id\":\"ORD-79\"}");
+    theCheckoutIsOpenedFor(thtk, CHARGED);
+
+    theField("Card number").fill(AN_ISRACARD_NUMBER_LUHN_REFUSES);
+    theField("Expiry").fill(ITS_EXPIRY);
+    theField("CVV").fill(ITS_CVV);
+    PlaywrightAssertions.assertThat(theField("Card number")).hasValue("4000 0001");
+    PlaywrightAssertions.assertThat(theField("Card number"))
+        .hasClass(Pattern.compile("\\bhosted-fields-valid\\b"));
+    pay();
+
+    PlaywrightAssertions.assertThat(page().getByText(TheMerchant.THANKS)).isVisible();
+    String answered = merchant().theLatestHostedFieldsAnswer();
+    assertThat(answered)
+        .contains("\"credit_card_last_4_digits\":\"0001\"")
+        .contains("\"card_type\":\"5\",\"card_mask\":\"****0001\"")
+        .contains("\"card_type_name\":\"Isracard\"");
+    assertThat(shop.verifies(answered)).isTrue();
+    assertThat(theEventsTheShopsPageHeard()).contains("cardTypeChange:isracard");
+    Map<String, String> notified =
+        merchant()
+            .theCallbackNaming(
+                "transaction_id",
+                TranzilaShopBackend.theTextIn(answered, "transaction_id"),
+                A_NOTIFY_ARRIVES_WITHIN);
+    assertThat(notified).containsEntry("cardtype", "5").containsEntry("cardacquirer", "1");
+    theWebviewSawNothingGoWrong();
+  }
+
+  private static String withoutWhatTheSimulatorMinted(String text, String transaction) {
+    return text.replace(transaction, "")
+        .replaceAll("(:|%3A)[0-9]{2,5}", "")
+        .replaceAll("[0-9a-f]{14,}", "")
+        .replaceAll("\"(auth_number|ConfirmationCode)\":\"[0-9]+\"", "")
+        .replaceAll("ConfirmationCode=[0-9]+", "")
+        .replaceAll("\"(transaction_id|index)\":\"?[0-9]+\"?", "")
+        .replaceAll("(transaction_id|index)=[0-9]+", "")
+        .replaceAll("\"timestamp\":[0-9]+", "")
+        .replaceAll("reference_txn_id\":[0-9]+", "");
+  }
+
+  private Locator theWidgetsEar() {
+    return page().frameLocator("iframe[title='a third party widget']").locator("#heard");
   }
 
   private void theCheckoutIsOpenedFor(String thtk, String amount) {

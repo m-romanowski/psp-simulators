@@ -167,6 +167,24 @@ class TranzilaHostedFieldsRequestTest {
   }
 
   @Test
+  void a_number_only_the_isracard_check_accepts_is_typed_isracard_whatever_its_prefix() {
+    assertThat(new TranzilaHostedCard("40000001", false, false).cardType())
+        .isEqualTo(TranzilaCard.ISRACARD);
+    assertThat(new TranzilaHostedCard("10000003", false, false).cardType())
+        .isEqualTo(TranzilaCard.ISRACARD);
+    assertThat(new TranzilaHostedCard("40000002", false, false).cardType())
+        .as("a number Luhn accepts is typed by its prefix")
+        .isEqualTo(TranzilaCard.VISA);
+    assertThat(new TranzilaHostedCard("4907639999909022", false, false).cardType())
+        .isEqualTo(TranzilaCard.VISA);
+    assertThat(new TranzilaHostedCard("5326100000002716", false, false).cardType())
+        .as("a number neither check accepts is typed by its prefix")
+        .isEqualTo(TranzilaCard.MASTERCARD);
+    assertThat(new TranzilaHostedCard("40000001", false, false).withoutItsNumber(1, 2031))
+        .isEqualTo(new TranzilaCard("xxxx0001", TranzilaCard.ISRACARD, 1, 31));
+  }
+
+  @Test
   void a_cvv_when_sent_is_three_or_four_digits() {
     assertThat(refusalsWith("cvv", "12")).containsExactly("10003 cvv INVALID CVV");
     assertThat(refusalsWith("cvv", "12345")).hasSize(1);

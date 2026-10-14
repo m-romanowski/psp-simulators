@@ -80,7 +80,7 @@ public final class PayerPagePolicyConvention {
                   + " this page, which is why it names no frame-ancestors"),
           new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
-              "script-src 'sha256-jE2jqTmX1v5XxWSNjjsE/Q/RufFDrh+Sw473E4TtH5I='",
+              "script-src 'sha256-0TKOdY0iR2Ag9nQD1ziosya2RBnuq2SkJMKeding214='",
               "the one inline script of the hidden frame tranzila's hosted fields charge from: it"
                   + " keeps what the card fields share with it and posts the charge to this origin;"
                   + " the hash admits that script and nothing else, and the frame names no"
@@ -92,7 +92,7 @@ public final class PayerPagePolicyConvention {
                   + " tranzila's own frame posts it to its own host, and reads the answer back"),
           new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
-              "script-src 'sha256-cmIfa4FE3Shcfk/QkepTTnscL6p+yQaVec8jhpavvOg='",
+              "script-src 'sha256-gAFRQ+4dLZN5jnsgAhf+aPVF1XZZmSqC3xcGr5zMRv4='",
               "the one inline script of a card field frame: it builds the field the payer types"
                   + " into and shares its value with the hidden frame of this origin only; the"
                   + " hash admits that script and nothing else, and the frame names no"

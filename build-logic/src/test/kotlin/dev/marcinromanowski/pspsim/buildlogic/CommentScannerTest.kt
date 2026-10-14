@@ -50,6 +50,53 @@ class CommentScannerTest {
     }
 
     @Test
+    fun `a regex after the parentheses of an if, a while or a for is no division`() {
+        assertEquals(
+            emptyList<String>(),
+            kinds(
+                "if (a) /x\\//.test(b); while (c) /y*//.exec(d); for (;;) /z*/.test(e);\n",
+                CommentDialect.JAVASCRIPT,
+            ),
+        )
+    }
+
+    @Test
+    fun `a slash after the parentheses of a call is a division and a comment after it is found`() {
+        assertEquals(
+            listOf("line comment"),
+            kinds("var a = f(b) / 2; // half\n", CommentDialect.JAVASCRIPT),
+        )
+    }
+
+    @Test
+    fun `a slash after a postfix increment or decrement is a division, so a comment after it is found`() {
+        assertEquals(
+            listOf("line comment", "block comment"),
+            kinds(
+                "var a = b++ / 2; // one\nvar c = d-- / 2; /* two */\n",
+                CommentDialect.JAVASCRIPT,
+            ),
+        )
+    }
+
+    @Test
+    fun `a template literal nesting a template in a substitution ends where it ends`() {
+        val source = "var t = `a ${'$'}{ f(`//${'$'}{ {b: 1}.b }`) } c //`; // after\n"
+        assertEquals(
+            listOf(source.indexOf("// after") to "line comment"),
+            CommentScanner.commentsIn(source, CommentDialect.JAVASCRIPT),
+        )
+    }
+
+    @Test
+    fun `a comment inside a substitution is found`() {
+        assertEquals(
+            listOf("block comment"),
+            kinds("var t = `${'$'}{ /* inside */ a }`;\n", CommentDialect.JAVASCRIPT),
+        )
+    }
+
+    @Test
     fun `a slash after a value is a division and the comment that follows is still found`() {
         assertEquals(
             listOf("block comment"),

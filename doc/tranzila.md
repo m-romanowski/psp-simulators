@@ -483,10 +483,14 @@ nothing, since a frame cannot address an answer to it.
 
 The fields as the vendor script types them: the card number keeps digits only, grouped as its card type is (4-6-5
 for `ae`, 4-6-4 for `diners`, fours otherwise) and cut at that type's longest length; the expiry keeps digits only and
-is shown `MM/YY`; the CVV keeps up to four digits; the ID up to nine, padded with leading zeros to nine when the payer
-leaves the field. A card number is valid for the frame when its type is known, its length is one of that type's and
-it passes Luhn, or, for `isracard`, eight to ten digits whose weighted sum is a multiple of 11; an expiry is valid
-until its month ends. `styles` is applied as a stylesheet in each field frame, every key a selector (`input`,
+is shown `MM/YY`; the CVV keeps up to four digits; the ID up to nine, shown padded with leading zeros to nine when the
+payer leaves the field and posted as typed. A card number's type is the vendor script's: it is tried against `ae`,
+`diners`, `mc`, `visa` and `isracard` in that order, each with the number padded with `1`s to that type's length;
+the first that fits is its type, unless the number is 8–10 digits that fail that type's own check and pass the
+Isracard check (weighted sum a multiple of 11), which makes it `isracard`; an empty number or one fitting none is
+`unknown`, and `cardTypeChange` is sent whenever that type changes. The field calls a number valid when its length is
+one of its type's and it passes its type's check (Luhn, which the vendor script also passes for any 8 or 9 digits, or
+the Isracard check); the hidden frame posts what the server accepts (below). An expiry is valid until its month ends. `styles` is applied as a stylesheet in each field frame, every key a selector (`input`,
 `input:focus`, `::placeholder`, `.hosted-fields-invalid`), and the `hosted-fields-valid` / `hosted-fields-invalid`
 classes are set on the input in the frame as well as on the merchant's container.
 
@@ -558,7 +562,7 @@ classes are set on the input in the frame as well as on the merchant's container
 - The typed card (simulator decision): a number naming a payment-method fixture of the run, by last four and card
   type, is charged as that fixture's token; any other number passing Luhn is charged as a new card under a new token.
   Only the last four and the card type are kept, so `card_mask` is `*` for every digit but the last four, unlike the
-  published example; the number, the CVV and the ID are never stored, answered or written to the trail.
+  published example. A number only the Isracard check accepts is typed Isracard (`5`) whatever its prefix; the number, the CVV and the ID are never stored, answered or written to the trail.
 - `token` is answered only when `tokenize` is `true`; `cvv_status` and `id_status` are `1` when the field was filled
   and `0` when not; `card_issuer` is `1`; `error` is `null` on approval and the processor code's text on a decline,
   with `success` `false` (simulator decisions).
@@ -568,8 +572,9 @@ classes are set on the input in the frame as well as on the merchant's container
   page's notify is, because no Hosted Fields notify format is published: a form `POST` acknowledged by `200` `OK`
   and retried otherwise, sent for an approved or a declined charge and not for a `DCdisable` duplicate, carrying
   `supplier`, `sum` as sent, `currency` numeric, `Response`, the `user_form_data` fields, `transaction_id`, `index`,
-  `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK` when `tokenize` is
-  `true`, `txn_type`, `tranmode`, the handshake's `request_params` and `ConfirmationCode`. The address follows the
+  `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK` when the charge was
+  approved and `tokenize` is `true`, `txn_type`, `tranmode`, the handshake's `request_params` and `ConfirmationCode`;
+  a key the charge sent under one of the notify's own names is not echoed, as on the page. The address follows the
   page's rule: a `notify_url` must be a callback target configured for the terminal's account, else the charge is
   refused; without one, the account's one configured target stands in, and with none or several nothing is sent.
   `TranzilaTK` and `identity_number` are withheld from the trail.

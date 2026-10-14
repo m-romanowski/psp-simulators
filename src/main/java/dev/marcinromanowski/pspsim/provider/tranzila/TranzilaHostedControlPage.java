@@ -35,6 +35,16 @@ final class TranzilaHostedControlPage {
           + "}"
           + "return sum % 10 === 0;"
           + "}"
+          + "function isracardChecks(digits) {"
+          + "if (!/^[0-9]{8,10}$/.test(digits)) {"
+          + "return false;"
+          + "}"
+          + "var sum = 0;"
+          + "for (var at = 0; at < digits.length; at++) {"
+          + "sum = sum + Number(digits.charAt(at)) * (digits.length - at);"
+          + "}"
+          + "return sum % 11 === 0;"
+          + "}"
           + "function expiresLater(value) {"
           + "var parts = value.split(\"/\");"
           + "if (parts.length !== 2 || !/^[0-9]{1,2}$/.test(parts[0]) || !/^([0-9]{2}|[0-9]{4})$/.test(parts[1])) {"
@@ -61,7 +71,7 @@ final class TranzilaHostedControlPage {
           + "refused.push(refusal(\"terminal_name_invalid\", \"A terminal name is required\", \"terminal_name\"));"
           + "}"
           + "var number = values.credit_card_number || \"\";"
-          + "if (!/^[0-9]{8,19}$/.test(number) || !luhn(number)) {"
+          + "if (!/^[0-9]{8,19}$/.test(number) || !(luhn(number) || isracardChecks(number))) {"
           + "refused.push(refusal(\"credit_card_number_invalid\", \"The card number is not valid\", \"credit_card_number\"));"
           + "}"
           + "if (!expiresLater(theExpiry(params))) {"
@@ -143,7 +153,7 @@ final class TranzilaHostedControlPage {
 
   static final String WHAT_IT_PERMITS =
       WhatAPayerPageMayLoad.NOTHING_BUT_THE_PAGES_OWN_STYLE
-          + "; script-src 'sha256-jE2jqTmX1v5XxWSNjjsE/Q/RufFDrh+Sw473E4TtH5I='; connect-src 'self'";
+          + "; script-src 'sha256-0TKOdY0iR2Ag9nQD1ziosya2RBnuq2SkJMKeding214='; connect-src 'self'";
 
   static final Map<String, List<String>> DEFENCE_HEADERS =
       WhatAPayerPageMayLoad.eachOnADocumentDeclaring(WHAT_IT_PERMITS);

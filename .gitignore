@@ -30,3 +30,4 @@ bin/
 .claude/
 .tmp/
 
+node_modules/

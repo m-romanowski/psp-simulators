@@ -25,6 +25,8 @@ public final class TheMerchant implements AutoCloseable {
 
   public static final String NOT_MADE = "The payment was not made";
 
+  public static final String A_PROBE = "a probe the shop posts to the widget";
+
   private static final String PAID = "/paid";
 
   private static final String ABANDONED = "/abandoned";
@@ -260,7 +262,7 @@ public final class TheMerchant implements AutoCloseable {
                   + "<div class=\"field\" id=\"expiry\"></div>"
                   + "<label for=\"cvv\">CVV</label><div class=\"field\" id=\"cvv\"></div>"
                   + "<button type=\"submit\">Pay</button></form><p id=\"outcome\"></p>"
-                  + "<iframe title=\"a third party widget\" src=\""
+                  + "<iframe id=\"widget\" title=\"a third party widget\" src=\""
                   + attribute(asked.get("spy"))
                   + "\" width=\"300\" height=\"40\"></iframe>"
                   + "<script>"
@@ -281,6 +283,10 @@ public final class TheMerchant implements AutoCloseable {
           + "window.shopEvents = [];"
           + "window.addEventListener('message', function (e) {"
           + "window.shopSaw.push(typeof e.data === 'string' ? e.data : JSON.stringify(e.data));});"
+          + "document.getElementById('widget').addEventListener('load', function () {"
+          + "document.getElementById('widget').contentWindow.postMessage('"
+          + A_PROBE
+          + "', '*');});"
           + "var fields = TzlaHostedFields.create({sandbox: false, fields: {"
           + "credit_card_number: {selector: '#credit_card_number', placeholder: 'Card number',"
           + " tabindex: 1},"
