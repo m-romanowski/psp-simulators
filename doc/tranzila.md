@@ -133,7 +133,7 @@ Fields read:
 | `terminal_name`             | string                                                                                        | must name the account the app key names, else `401` `20002`                 |
 | `txn_type`                  | `debit`, `credit`, `verify`, `force`, `cancel`, `reversal`, `sto`; default `debit`            | `sto` refused `20004`                                                       |
 | `verify_mode`               | integer `2`, `5`, `6`                                                                         | `6` refused `20004`; required with `verify`                                 |
-| `card_number`               | string, 8–19; a token goes here: "A Tranzila token replaces **only the full card number**"    | digits only: a card number, and a new token is minted; with a letter: a token, which must be one this run minted, else `20111` |
+| `card_number`               | string, 8–19; a token goes here: "A Tranzila token replaces **only the full card number**"    | digits only: a card number, and a new token is minted; with a letter: a token, which must be one this run minted (a payment page's `TranzilaTK` included) or a seeded fixture's, else `20111` |
 | `expire_month`, `expire_year` | integer 1–12; integer, example `2025`                                                       | required, as the schema says, also with a token; not on `cancel`            |
 | `cvv`                       | string 3–4, "can be null"                                                                     | optional; answered in `Responsecvv`                                         |
 | `card_holder_id`            | string, length 9                                                                              | optional; answered in `Responseid`                                          |
@@ -353,8 +353,9 @@ required (published schema).
 | `401`  | `{"error_code":401,"message":"Unauthorized"}`                                        |
 
 - `thtk`: `w` and 41 lowercase hex digits, the length of the published example (simulator decision).
-- A body outside the schema (`terminal_name` a string, `sum` a JSON number above zero written as at most 15 digits
-  with at most 6 decimals and no exponent, `request_params` an object, no other field) is answered `400`; a `terminal_name` other than the app key's terminal, a missing or wrong
+- A body outside the schema (`terminal_name` a string, `sum` a JSON number above zero, `request_params` an object, no
+  other field) is answered `400`, and so is a `sum` of more than 15 digits, more than 6 decimals or written with an
+  exponent (simulator decision: no bound is published, and the bound keeps an absurd number from being expanded); a `terminal_name` other than the app key's terminal, a missing or wrong
   authentication header, or an app key no account holds is answered `401` (simulator decision: the published bodies
   carry no reason).
 - "Handshake data is retained for **20 minutes** to allow for direct retries. A successful charge resets the timer."
@@ -419,8 +420,9 @@ of a parameter is a page of the simulator's own words ("Error Shape") and opens 
 | pays under a `DCdisable` already approved | no transaction, no return and no notify; the page shows "This payment has already been paid. Please contact customer service." and stays open |
 | leaves                                  | the page ends with no transaction, no return and no notify (no cancel return is published)                 |
 
-`published-9022` is the page's own: its token charges nothing on the card API (`20111`) unless a page charge of the
-same run made a transaction carrying it.
+`published-9022` is the page's own, and its token is not one the card API knows by itself: it charges on the card API
+of a run once a page of that run returned it as `TranzilaTK`, whether a transaction carries it or a `K` page saved it,
+and answers `20111` in any other run.
 
 `myid` is the payer's national ID, the page's counterpart of the API's `card_holder_id`: it travels to the shop in the
 return and the notify and is withheld from every row of the trail, inbound, outbound and the notify's. It is kept
@@ -445,7 +447,7 @@ cardtype=1, cardissuer=1, cardacquirer=2, TranzilaTK, txn_type=debit, tranmode=A
 |--------------------------------------------------------------------------------------------------------|-----------------------------------|----------------------------------------------------------------------------|
 | return method is a terminal setting ("Return Method"); guides set POST                                 | published rule                    | a `POST` form to `success_url_address` (approved) or `fail_url_address` (declined), submitted by one inline script the page's policy admits by its hash; with no address for the outcome, the page shows the fields itself, `TranzilaTK` withheld |
 | `Response` `000` = success; `ccno` last 4; `TranzilaTK` "if tokenization is enabled"                   | published rule                    | `TranzilaTK` on every approved attempt; J2, J5 and `K` `Response` per `tranzila.verification-approval-code` (for `K`, inference from the `777` text) |
-| `cardissuer`, `cardacquirer`                                                                           | published tables ("Key Response Fields") | simulator decision, by card type: Isracard issuer `1` and acquirer `1`; Amex issuer `1` (Isracard) and acquirer `4`; Diners issuer `2` (C.A.L) and acquirer `3`; every other card issuer `2` and acquirer `2` (Visa Cal) |
+| `cardissuer`, `cardacquirer`                                                                           | published tables ("Key Response Fields") | simulator decision: `cardissuer` `1` for every card, as the one published sample has it (`cardtype=1`, `cardissuer=1`, `cardacquirer=2`); `cardacquirer` by card type from the published table, `1` Isracard, `3` Diners, `4` Amex and `2` (Visa Cal) for every other |
 | `Responsecv`, `Responseid`                                                                             | published example                 | `0`: the page collects neither                                             |
 | fields returned                                                                                        | published example; "Data Retrieval": "the response from the credit card companies, along with the parameters entered on the payment page" (published rule) | `supplier`, `sum`, `currency` as sent, `Response`, every other parameter the page received but `thtk` and the names the return sets itself, `transaction_id` and `index` (none for `K`), `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK`, `txn_type` (none for `K`), `tranmode` as sent, then the handshake's `request_params`; the return's own value wins a name both carry |
 | notify: `application/x-www-form-urlencoded` `POST`                                                     | published rule (notify guides)    | as published                                                               |
