@@ -34,6 +34,10 @@ final class TranzilaHostedFields {
 
   static final int OK = 200;
 
+  static final String A_SPACE = " ";
+
+  static final String BETWEEN_REFUSALS = "; ";
+
   static final String SCRIPT_CONTENT_TYPE = "text/javascript; charset=utf-8";
 
   static final String ANSWER_CONTENT_TYPE = "application/json";
@@ -51,6 +55,7 @@ final class TranzilaHostedFields {
   private final TranzilaTransactions transactions;
   private final CreateTransaction createTransaction;
   private final TranzilaHostedCards cards;
+  private final TranzilaNotify notify;
   private final TestRuns testRuns;
   private final AuditTrail audit;
   private final SimulatorClock clock;
@@ -64,6 +69,7 @@ final class TranzilaHostedFields {
       TranzilaTransactions transactions,
       CreateTransaction createTransaction,
       TranzilaHostedCards cards,
+      TranzilaNotify notify,
       TestRuns testRuns,
       AuditTrail audit,
       SimulatorClock clock,
@@ -75,6 +81,7 @@ final class TranzilaHostedFields {
     this.transactions = transactions;
     this.createTransaction = createTransaction;
     this.cards = cards;
+    this.notify = notify;
     this.testRuns = testRuns;
     this.audit = audit;
     this.clock = clock;
@@ -179,14 +186,20 @@ final class TranzilaHostedFields {
 
   Charged chargedOn(TranzilaTerminal terminal, TranzilaHostedFieldsRequest request, Instant now) {
     TestRunId testRunId = terminal.testRunId();
-    boolean locked =
+    Optional<TranzilaHandshake> locking =
         handshakes
             .find(testRunId, request.thtk())
             .filter(handshake -> handshake.isLiveAt(now))
-            .filter(handshake -> handshake.locks(terminal.terminalName(), request.theAmount()))
-            .isPresent();
-    if (!locked) {
+            .filter(handshake -> handshake.locks(terminal.terminalName(), request.theAmount()));
+    if (locking.isEmpty()) {
       return new Charged.Refused(List.of(TranzilaHostedFieldsErrors.theHandshakeDoesNotLockIt()));
+    }
+    TranzilaNotify.Target target =
+        notify.targetOf(testRunId, terminal.accountId(), request.notifyUrl());
+    if (target instanceof TranzilaNotify.Target.Unaddressable unaddressable) {
+      return new Charged.Refused(
+          List.of(
+              TranzilaHostedFieldsErrors.theNotifyUrlIsNoTarget(unaddressable.inItsOwnWords())));
     }
     TranzilaHostedCards.Named card =
         cards.theCardNamedBy(
@@ -213,9 +226,18 @@ final class TranzilaHostedFields {
                         .flatMap(payment -> payment.transaction(id.longValue())));
     TranzilaTransaction transaction =
         made.orElseThrow(() -> theCardApiRefusedWhatItAdmitted(result));
-    if (transaction.approved() && !TranzilaAnswers.isADuplicate(result)) {
-      handshakes.retainUntil(
-          testRunId, request.thtk(), now.plus(TranzilaHandshake.IT_IS_RETAINED_FOR));
+    if (!TranzilaAnswers.isADuplicate(result)) {
+      if (transaction.approved()) {
+        handshakes.retainUntil(
+            testRunId, request.thtk(), now.plus(TranzilaHandshake.IT_IS_RETAINED_FOR));
+      }
+      notify.deliverOnce(
+          testRunId,
+          terminal.accountId(),
+          transaction.transactionIdAsText(),
+          TranzilaHostedFieldsNotify.theFieldsOf(
+              transaction, request, locking.get().requestParams()),
+          target);
     }
     return new Charged.Made(transaction, request, result.fault(), result.scenarioId());
   }
@@ -275,9 +297,10 @@ final class TranzilaHostedFields {
   static String theWordsOf(List<TranzilaHostedFieldsRequest.Refusal> refusals) {
     List<String> words = new ArrayList<>();
     for (TranzilaHostedFieldsRequest.Refusal refusal : refusals) {
-      words.add(refusal.code() + " " + refusal.param() + " " + refusal.message());
+      words.add(
+          String.join(A_SPACE, String.valueOf(refusal.code()), refusal.param(), refusal.message()));
     }
-    return String.join("; ", words);
+    return String.join(BETWEEN_REFUSALS, words);
   }
 
   private TranzilaApiResponse answeredInstead(

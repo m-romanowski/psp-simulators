@@ -22,6 +22,7 @@ record TranzilaHostedFieldsRequest(
     int expiryMonth,
     int expiryYear,
     @Nullable String dcDisable,
+    @Nullable String notifyUrl,
     SequencedMap<String, String> userFormData) {
 
   static final String EXPIRY_MONTH = "expiry_month";
@@ -29,6 +30,8 @@ record TranzilaHostedFieldsRequest(
   static final String EXPIRY_YEAR = "expiry_year";
 
   static final String CURRENCY_CODE = "currency_code";
+
+  static final String NOTIFY_URL = "notify_url";
 
   static final String THE_ONE_PAYMENT_PLAN_SERVED = "1";
 
@@ -69,6 +72,10 @@ record TranzilaHostedFieldsRequest(
   static final String A_CARD_NUMBER = "[0-9]{8,19}";
 
   static final String A_CVV = "[0-9]{3,4}";
+
+  static final String AN_ISRACARD_NUMBER = "[0-9]{8,10}";
+
+  static final int ISRACARD_MODULUS = 11;
 
   static final String A_MONTH = "[0-9]{1,2}";
 
@@ -189,6 +196,7 @@ record TranzilaHostedFieldsRequest(
             Integer.parseInt(String.valueOf(month)),
             Integer.parseInt(String.valueOf(year)),
             dcDisable,
+            first(sent, NOTIFY_URL),
             theUserFormDataIn(sent)));
   }
 
@@ -201,7 +209,18 @@ record TranzilaHostedFieldsRequest(
   }
 
   static boolean isACardNumber(String sent) {
-    return sent.matches(A_CARD_NUMBER) && passesLuhn(sent);
+    return sent.matches(A_CARD_NUMBER) && (passesLuhn(sent) || isAnIsracardNumber(sent));
+  }
+
+  static boolean isAnIsracardNumber(String digits) {
+    if (!digits.matches(AN_ISRACARD_NUMBER)) {
+      return false;
+    }
+    int sum = 0;
+    for (int at = 0; at < digits.length(); at++) {
+      sum += (digits.charAt(at) - '0') * (digits.length() - at);
+    }
+    return sum % ISRACARD_MODULUS == 0;
   }
 
   static boolean isAMonth(String sent) {

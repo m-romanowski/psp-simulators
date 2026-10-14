@@ -61,14 +61,14 @@
     "reference": "tranzila.md, Hosted Fields",
     "body": "hosted-fields-charged.json"
   },
-  "hosted-fields-payment-plan": {
+  "hosted-fields-missing-key": {
     "evidence": "published rule",
-    "note": "the Error Messages table of Hosted Fields: 10007 INVALID PAYMENT PLAN, answered in errors as code, param and message",
+    "note": "thtk is mandatory in the Request Keys table, and the Error Messages table publishes 10000 as MANDATORY KEY IS MISSING, answered in errors as code, param and message",
     "source": "https://docs.tranzila.com/docs/payments-and-billing/hosted-fields",
     "reference": "tranzila.md, Hosted Fields",
     "rules": {
-      "code": "10007",
-      "message": "INVALID PAYMENT PLAN"
+      "code": "10000",
+      "message": "MANDATORY KEY IS MISSING"
     }
   }
 }

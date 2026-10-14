@@ -79,7 +79,7 @@ class TranzilaCompatibilityChecksTest {
             "transaction_response.tranmode=A",
             "transaction_response.payment_plan=1");
     assertThat(expectedBy(checks.get(8)))
-        .containsExactly("code=10007", "message=INVALID PAYMENT PLAN");
+        .containsExactly("code=10000", "message=MANDATORY KEY IS MISSING");
     assertThat(checks)
         .extracting(ContractCheck::operation)
         .containsExactly(
@@ -91,7 +91,7 @@ class TranzilaCompatibilityChecksTest {
             TranzilaCompatibilityChecks.THE_HANDSHAKE_REFUSES_A_TOKEN,
             TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER,
             TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_CHARGE,
-            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_PLAN);
+            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY);
   }
 
   @Test
@@ -392,11 +392,11 @@ class TranzilaCompatibilityChecksTest {
   }
 
   @Test
-  void the_hosted_fields_refusal_of_a_plan_holds_on_10007_and_fails_on_another_code() {
+  void the_hosted_fields_refusal_of_a_missing_thtk_holds_on_10000_and_fails_on_another_code() {
     String created = "{\"error_code\":0,\"message\":\"Success\",\"thtk\":\"w1\"}";
     String refused =
-        "{\"errors\":[{\"code\":10007,\"param\":\"payment_plan\","
-            + "\"message\":\"INVALID PAYMENT PLAN\"}],\"transaction_response\":null}";
+        "{\"errors\":[{\"code\":10000,\"param\":\"thtk\","
+            + "\"message\":\"MANDATORY KEY IS MISSING\"}],\"transaction_response\":null}";
     CannedTransport transport =
         prepared()
             .answering("POST", HANDSHAKE, 200, created)
@@ -406,13 +406,13 @@ class TranzilaCompatibilityChecksTest {
         .singleElement()
         .isInstanceOf(SmokeVerdict.Passed.class);
     assertThat(String.valueOf(transport.sent().get(transport.sent().size() - 1).body()))
-        .endsWith("&expiry_year=2030&payment_plan=6");
+        .startsWith("terminal_name=smoketerminal&thtk=&amount=10.53");
     assertThat(
             failedField(
                 8,
                 prepared()
                     .answering("POST", HANDSHAKE, 200, created)
-                    .answering("POST", PROCESS, 200, refused.replace("10007", "10006"))))
+                    .answering("POST", PROCESS, 200, refused.replace("10000", "10006"))))
         .isEqualTo("code");
   }
 

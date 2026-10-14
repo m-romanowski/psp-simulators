@@ -32,6 +32,8 @@ final class TranzilaHostedFieldsErrors {
 
   static final String ILLEGAL_OPERATION_TEXT = "Illegal Operation 912791";
 
+  static final int THE_NOTIFY_URL_IS_NO_TARGET = 400;
+
   static final SequencedMap<Integer, String> THE_PUBLISHED_TABLE = published();
 
   private TranzilaHostedFieldsErrors() {}
@@ -65,6 +67,11 @@ final class TranzilaHostedFieldsErrors {
           code + " is no code of the hosted fields error table tranzila publishes");
     }
     return new TranzilaHostedFieldsRequest.Refusal(code, param, published);
+  }
+
+  static TranzilaHostedFieldsRequest.Refusal theNotifyUrlIsNoTarget(String inItsOwnWords) {
+    return new TranzilaHostedFieldsRequest.Refusal(
+        THE_NOTIFY_URL_IS_NO_TARGET, TranzilaHostedFieldsRequest.NOTIFY_URL, inItsOwnWords);
   }
 
   static TranzilaHostedFieldsRequest.Refusal theHandshakeDoesNotLockIt() {

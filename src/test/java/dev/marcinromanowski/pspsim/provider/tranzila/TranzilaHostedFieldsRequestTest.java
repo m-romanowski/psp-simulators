@@ -153,6 +153,20 @@ class TranzilaHostedFieldsRequestTest {
   }
 
   @Test
+  void an_isracard_number_of_eight_to_ten_digits_checks_by_its_weighted_sum_modulo_eleven() {
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("10000003")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("100000002")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("1000000001")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("10000004")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("12345674")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("1000004")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("20000000000")).isFalse();
+    assertThat(refusalsWith("credit_card_number", "10000003")).isEmpty();
+    assertThat(refusalsWith("credit_card_number", "10000004"))
+        .containsExactly("10002 credit_card_number INVALID CREDIT CARD NUMBER");
+  }
+
+  @Test
   void a_cvv_when_sent_is_three_or_four_digits() {
     assertThat(refusalsWith("cvv", "12")).containsExactly("10003 cvv INVALID CVV");
     assertThat(refusalsWith("cvv", "12345")).hasSize(1);

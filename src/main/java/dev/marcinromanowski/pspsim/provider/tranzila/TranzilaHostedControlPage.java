@@ -98,7 +98,10 @@ final class TranzilaHostedControlPage {
           + "}"
           + "function answer(arrived, requestId, err, response) {"
           + "var reply = JSON.stringify({type: \"chargeResponse\", requestId: requestId, err: err, response: response});"
-          + "arrived.source.postMessage(reply, arrived.origin === \"null\" ? \"*\" : arrived.origin);"
+          + "arrived.source.postMessage(reply, arrived.origin);"
+          + "}"
+          + "function aNetworkError(described) {"
+          + "return {error: \"network_error\", error_description: described};"
           + "}"
           + "function charge(message, arrived) {"
           + "var params = message.params && typeof message.params === \"object\" ? message.params : {};"
@@ -109,12 +112,17 @@ final class TranzilaHostedControlPage {
           + "}"
           + "fetch(base + \"/process/ajax_process_transaction\", {method: \"POST\", body: theForm(params), credentials: \"omit\"})"
           + ".then(function (answered) {"
-          + "return answered.json();"
-          + "})"
-          + ".then(function (response) {"
-          + "answer(arrived, message.requestId, null, response);"
-          + "}, function (failed) {"
-          + "answer(arrived, message.requestId, {error: \"network_error\", error_description: String(failed)}, null);"
+          + "if (!answered.ok) {"
+          + "answer(arrived, message.requestId, aNetworkError(\"error\"), null);"
+          + "return;"
+          + "}"
+          + "answered.json().then(function (response) {"
+          + "answer(arrived, message.requestId, false, response);"
+          + "}, function () {"
+          + "answer(arrived, message.requestId, aNetworkError(\"parsererror\"), null);"
+          + "});"
+          + "}, function () {"
+          + "answer(arrived, message.requestId, aNetworkError(\"error\"), null);"
           + "});"
           + "}"
           + "window.addEventListener(\"message\", function (arrived) {"
@@ -126,8 +134,8 @@ final class TranzilaHostedControlPage {
           + "return;"
           + "}"
           + "if (message.type === \"update\" && arrived.origin === location.origin && message.instance === instance && hosted[message.fieldName] === true && typeof message.data === \"string\") {"
-          + "values[message.fieldName] = message.data;"
-          + "} else if (message.type === \"charge\" && arrived.source === parent) {"
+          + "values[message.fieldName] = message.fieldName === \"credit_card_number\" ? message.data.replace(/\\s/g, \"\") : message.data;"
+          + "} else if (message.type === \"charge\" && arrived.source === parent && arrived.origin !== \"null\") {"
           + "charge(message, arrived);"
           + "}"
           + "});"
@@ -135,7 +143,7 @@ final class TranzilaHostedControlPage {
 
   static final String WHAT_IT_PERMITS =
       WhatAPayerPageMayLoad.NOTHING_BUT_THE_PAGES_OWN_STYLE
-          + "; script-src 'sha256-bhdK+jHv3z6Q3Gp3dR7aH9MtJSKXJ40xFuHmNzAVKk4='; connect-src 'self'";
+          + "; script-src 'sha256-jE2jqTmX1v5XxWSNjjsE/Q/RufFDrh+Sw473E4TtH5I='; connect-src 'self'";
 
   static final Map<String, List<String>> DEFENCE_HEADERS =
       WhatAPayerPageMayLoad.eachOnADocumentDeclaring(WHAT_IT_PERMITS);

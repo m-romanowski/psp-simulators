@@ -213,7 +213,7 @@ final class TranzilaFields {
           TRANSACTION_RESPONSE + "." + TOKEN,
           TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER);
 
-  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID);
+  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID, IDENTITY_NUMBER);
 
   static final Set<String> WHAT_THE_PAYERS_OWN_PAGE_WITHHOLDS = Set.of(TRANZILA_TK);
 }

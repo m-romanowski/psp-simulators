@@ -126,6 +126,12 @@ var TzlaHostedFields = (function () {
       if (declared.placeholder) {
         address += "&placeholder=" + encodeURIComponent(declared.placeholder);
       }
+      if (declared.label) {
+        address += "&label=" + encodeURIComponent(declared.label);
+      }
+      if (config.autocomplete) {
+        address += "&autocomplete=" + encodeURIComponent(String(config.autocomplete));
+      }
       if (declared.version) {
         address += "&version=" + encodeURIComponent(declared.version);
       }
@@ -192,7 +198,7 @@ var TzlaHostedFields = (function () {
         trigger({type: "validityChange", field: message.fieldName, isValid: message.valid, timestamp: now()});
       } else if (message.type === "cardTypeChange") {
         trigger({type: "cardTypeChange", cardType: message.cardType, timestamp: now()});
-      } else if (message.type === "focus" || message.type === "blur" || message.type === "submit") {
+      } else {
         trigger({type: message.type, field: message.fieldName, timestamp: now()});
       }
     });

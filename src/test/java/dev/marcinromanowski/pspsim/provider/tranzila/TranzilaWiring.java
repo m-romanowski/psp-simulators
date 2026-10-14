@@ -110,6 +110,7 @@ final class TranzilaWiring {
           transactions,
           create,
           new TranzilaHostedCards(fixtures, ids),
+          notify,
           new TranzilaDoubles.Runs(RUN),
           audit,
           clock,

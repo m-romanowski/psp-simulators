@@ -33,8 +33,10 @@ final class TranzilaNotify {
       "no tranzila payment page and no transaction with that providerObjectId in this test run";
 
   static final String NOT_A_PAGE_ATTEMPT =
-      "this transaction was not made on the payment page, and the notify is the payment page's:"
-          + " the card API answers every transaction synchronously and notifies nobody";
+      "this transaction was not made on the payment page, and a notify is sent again only for a"
+          + " page: the card API answers every transaction synchronously and notifies nobody, and"
+          + " a hosted fields charge's notify is sent once when it is made and retried, and is not"
+          + " kept to be sent again";
 
   static final String NO_ATTEMPT_FINISHED =
       "this payment page has no finished attempt to report: a notify is sent for an approved or a"
@@ -152,9 +154,39 @@ final class TranzilaNotify {
         .flatMap(payment -> payment.transaction(made));
   }
 
+  List<ScheduledWebhook> deliverOnce(
+      TestRunId testRunId,
+      String accountId,
+      String objectId,
+      Map<String, String> fields,
+      Target target) {
+    if (target instanceof Target.Addressed addressed) {
+      return deliver(testRunId, accountId, objectId, fields, addressed.url(), null, null);
+    }
+    return List.of();
+  }
+
   private List<ScheduledWebhook> deliver(
       TranzilaPage page,
       @Nullable TranzilaTransaction transaction,
+      String url,
+      @Nullable String reuseEventId,
+      @Nullable Duration delay) {
+    return deliver(
+        page.testRunId(),
+        page.accountId(),
+        transaction == null ? page.pageId() : transaction.transactionIdAsText(),
+        TranzilaBrowserReturn.theNotifyOf(page, transaction),
+        url,
+        reuseEventId,
+        delay);
+  }
+
+  private List<ScheduledWebhook> deliver(
+      TestRunId testRunId,
+      String accountId,
+      String objectId,
+      Map<String, String> fields,
       String url,
       @Nullable String reuseEventId,
       @Nullable Duration delay) {
@@ -162,12 +194,12 @@ final class TranzilaNotify {
         dispatcher.schedule(
             new WebhookDeliveryRequest(
                 TranzilaApi.TRANZILA,
-                page.testRunId(),
-                page.accountId(),
+                testRunId,
+                accountId,
                 null,
-                transaction == null ? page.pageId() : transaction.transactionIdAsText(),
+                objectId,
                 url,
-                payloadOf(page, transaction),
+                payloadOf(fields),
                 reuseEventId,
                 null,
                 delay));
@@ -179,14 +211,16 @@ final class TranzilaNotify {
   }
 
   static WebhookPayload payloadOf(TranzilaPage page, @Nullable TranzilaTransaction transaction) {
+    return payloadOf(TranzilaBrowserReturn.theNotifyOf(page, transaction));
+  }
+
+  static WebhookPayload payloadOf(Map<String, String> fields) {
     Map<String, List<String>> sent = new LinkedHashMap<>();
-    TranzilaBrowserReturn.theNotifyOf(page, transaction)
-        .forEach((name, value) -> sent.put(name, List.of(value)));
+    fields.forEach((name, value) -> sent.put(name, List.of(value)));
     return new WebhookPayload(
         TranzilaFields.FORM,
         Map.of(),
-        TranzilaStoredForm.encoded(TranzilaBrowserReturn.theNotifyOf(page, transaction))
-            .getBytes(StandardCharsets.UTF_8),
+        TranzilaStoredForm.encoded(fields).getBytes(StandardCharsets.UTF_8),
         Redaction.redact(sent, TranzilaFields.SENSITIVE_DELIVERY_FIELDS));
   }
 }

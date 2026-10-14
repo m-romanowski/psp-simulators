@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.webhook.LocalMerchantServer;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -102,7 +103,7 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
         .matches(
             "\\{\"errors\":null,\"transaction_response\":\\{\"success\":true,\"error\":null,"
                 + "\"processor_response_code\":\"000\",\"transaction_id\":\"[1-9][0-9]{7}\","
-                + "\"auth_number\":\"[0-9]{7}\",\"amount\":\"42\",\"currency_code\":1,"
+                + "\"auth_number\":\"[0-9]{7}\",\"amount\":\"42.00\",\"currency_code\":1,"
                 + "\"credit_card_last_4_digits\":\"9022\",\"expiry_month\":\"12\","
                 + "\"expiry_year\":\"30\",\"user_form_data\":\\{\"contact\":\"Dana Levi\"},"
                 + "\"card_type\":\"2\",\"card_mask\":\"\\*{12}9022\","
@@ -135,6 +136,87 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
         .contains("[redacted]")
         .doesNotContain("\"" + A_CVV + "\"")
         .doesNotContain(token);
+  }
+
+  @Test
+  void a_charge_naming_its_notify_url_posts_the_transaction_data_there_as_the_page_does()
+      throws InterruptedException {
+    try (LocalMerchantServer merchant = new LocalMerchantServer()) {
+      configure(List.of(anAccount()), List.of(Map.of("accountId", ACCOUNT, "url", merchant.url())));
+      String thtk = aHandshakeLocking("42");
+
+      HttpResponse<String> charged =
+          post(
+              PROCESS,
+              aCharge(
+                  thtk,
+                  "42",
+                  "V",
+                  "notify_url",
+                  merchant.url(),
+                  "tokenize",
+                  "true",
+                  "identity_number",
+                  "987654321"));
+      String transaction = textIn(charged.body(), "transaction_id");
+      LocalMerchantServer.ReceivedCallback notified = theNotifyNaming(merchant, transaction);
+
+      assertThat(notified.contentType()).isEqualTo("application/x-www-form-urlencoded");
+      assertThat(notified.fieldOrder())
+          .containsExactly(
+              "supplier",
+              "sum",
+              "currency",
+              "Response",
+              "notify_url",
+              "identity_number",
+              "transaction_id",
+              "index",
+              "ccno",
+              "Responsecv",
+              "Responseid",
+              "cardtype",
+              "cardissuer",
+              "cardacquirer",
+              "TranzilaTK",
+              "txn_type",
+              "tranmode",
+              "ConfirmationCode");
+      assertThat(notified.fields())
+          .containsEntry("supplier", TERMINAL)
+          .containsEntry("sum", "42")
+          .containsEntry("Response", "777")
+          .containsEntry("ccno", "9022")
+          .containsEntry("TranzilaTK", textIn(charged.body(), "token"))
+          .containsEntry("txn_type", "verify")
+          .containsEntry("tranmode", "V");
+      assertThat(notified.body()).doesNotContain(THE_PUBLISHED_CARD).doesNotContain(A_CVV + "&");
+      String deliveries = deliveries();
+      assertThat(deliveries)
+          .contains("[redacted]")
+          .doesNotContain("987654321")
+          .doesNotContain(textIn(charged.body(), "token"));
+    }
+  }
+
+  private LocalMerchantServer.ReceivedCallback theNotifyNaming(
+      LocalMerchantServer merchant, String transactionId) throws InterruptedException {
+    for (int attempt = 0; attempt < 100; attempt++) {
+      for (LocalMerchantServer.ReceivedCallback received : merchant.received()) {
+        if (transactionId.equals(received.fields().get("transaction_id"))) {
+          return received;
+        }
+      }
+      Thread.sleep(100);
+    }
+    throw new AssertionError("no notify named transaction " + transactionId);
+  }
+
+  private String deliveries() {
+    return http.get()
+        .uri("/__simulator/tranzila/webhooks?testRunId=" + RUN.value())
+        .retrieve()
+        .body(String.class);
   }
 
   @Test
@@ -341,6 +423,10 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
   }
 
   private void configure(List<Map<String, Object>> accounts) {
+    configure(accounts, List.of());
+  }
+
+  private void configure(List<Map<String, Object>> accounts, List<Map<String, String>> webhooks) {
     http.put()
         .uri("/__simulator/tranzila/config")
         .contentType(MediaType.APPLICATION_JSON)
@@ -353,7 +439,7 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
                 "accounts",
                 accounts,
                 "webhooks",
-                List.of()))
+                webhooks))
         .retrieve()
         .toBodilessEntity();
   }

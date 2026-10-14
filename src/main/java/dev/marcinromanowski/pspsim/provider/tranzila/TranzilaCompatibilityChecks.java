@@ -47,8 +47,8 @@ public final class TranzilaCompatibilityChecks {
   static final String THE_HOSTED_FIELDS_CHARGE =
       "POST /tranzila/hf/process/ajax_process_transaction tran_mode A, a published test card";
 
-  static final String THE_HOSTED_FIELDS_REFUSE_A_PLAN =
-      "POST /tranzila/hf/process/ajax_process_transaction payment_plan 6";
+  static final String THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY =
+      "POST /tranzila/hf/process/ajax_process_transaction without the mandatory thtk";
 
   static final List<String> THE_RESPONSE_FIELDS_THE_HOSTED_FIELDS_SAMPLE_PUBLISHES =
       List.of(
@@ -116,7 +116,7 @@ public final class TranzilaCompatibilityChecks {
         handshakeRefused(),
         pageReturn(),
         hostedFieldsCharge(),
-        hostedFieldsRefuseAPlan());
+        hostedFieldsRefuseAMissingKey());
   }
 
   private ContractCheck charge() {
@@ -316,19 +316,18 @@ public final class TranzilaCompatibilityChecks {
         });
   }
 
-  private ContractCheck hostedFieldsRefuseAPlan() {
-    VendorSample published = tranzila.sample("hosted-fields-payment-plan");
+  private ContractCheck hostedFieldsRefuseAMissingKey() {
+    VendorSample published = tranzila.sample("hosted-fields-missing-key");
     return DeclaredCheck.applying(
         TRANZILA,
-        THE_HOSTED_FIELDS_REFUSE_A_PLAN,
+        THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY,
         published.provenance(),
         List.of(
             new ContractExpectation("code", published.rule("code")),
             new ContractExpectation(
                 TranzilaFields.MESSAGE, published.rule(TranzilaFields.MESSAGE))),
         transport -> {
-          CheckResponse refused =
-              aHostedFieldsCharge(transport, Map.of(TranzilaFields.PAYMENT_PLAN, "6"));
+          CheckResponse refused = aHostedFieldsCharge(transport, Map.of(TranzilaFields.THTK, ""));
           Map<String, String> read = new LinkedHashMap<>();
           Observed.put(read, "code", json.at(refused.body(), "/errors/0/code"));
           Observed.put(read, TranzilaFields.MESSAGE, json.at(refused.body(), "/errors/0/message"));

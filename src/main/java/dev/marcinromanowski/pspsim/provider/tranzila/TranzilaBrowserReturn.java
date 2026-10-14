@@ -129,8 +129,11 @@ final class TranzilaBrowserReturn {
   }
 
   static SequencedMap<String, String> theRequestParamsOf(TranzilaPage page) {
+    return theRequestParamsIn(page.requestParams());
+  }
+
+  static SequencedMap<String, String> theRequestParamsIn(@Nullable String stored) {
     SequencedMap<String, String> echoed = new LinkedHashMap<>();
-    String stored = page.requestParams();
     if (stored == null) {
       return echoed;
     }

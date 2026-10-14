@@ -35,6 +35,8 @@ class TranzilaHostedFieldsTest {
 
   private static final String A_CVV = "737";
 
+  private static final String A_NOTIFY_URL = "https://shop.example/notify";
+
   private final TranzilaWiring wired = new TranzilaWiring();
 
   @Test
@@ -53,7 +55,7 @@ class TranzilaHostedFieldsTest {
         .isEqualTo(
             "{\"errors\":null,\"transaction_response\":{\"success\":true,\"error\":null,"
                 + "\"processor_response_code\":\"000\",\"transaction_id\":\"10000001\","
-                + "\"auth_number\":\"1000001\",\"amount\":\"10.5\",\"currency_code\":1,"
+                + "\"auth_number\":\"1000001\",\"amount\":\"10.50\",\"currency_code\":1,"
                 + "\"credit_card_last_4_digits\":\"9022\",\"expiry_month\":\"12\","
                 + "\"expiry_year\":\"30\",\"user_form_data\":{\"contact\":\"Dana Levi\"},"
                 + "\"card_type\":\"2\",\"card_mask\":\"************9022\","
@@ -61,7 +63,7 @@ class TranzilaHostedFieldsTest {
                 + "\"card_type_name\":\"Visa\",\"cvv_status\":\"1\",\"id_status\":\"0\","
                 + "\"card_issuer\":\"1\",\"token\":\"t000000000000019022\",\"payment_plan\":1,"
                 + "\"total_installments_number\":null},"
-                + "\"response_hash\":\"f3758466f0b9172b7c7d72a4f5af0f570a92f34fba18c137406fae023cc34014\"}");
+                + "\"response_hash\":\"20a2c647df59919439f8eb3dccea2f99f79b004d4f84141ee83591723843eeb9\"}");
     assertThat(answered.outcome()).isEqualTo(ProviderOutcome.SUCCESS);
     assertThat(answered.providerObjectId()).isEqualTo("10000001");
     TranzilaTransaction made = wired.theLastStored();
@@ -485,6 +487,126 @@ class TranzilaHostedFieldsTest {
     assertThat(wired.theLastStored().accountId()).isEqualTo("account-2");
     assertThat(theRow(AuditDirection.INBOUND_REQUEST).testRunId()).isEqualTo(other);
     assertThat(bodyOf(answered)).contains("\"success\":true");
+  }
+
+  @Test
+  void the_hash_is_written_over_what_json_dumps_with_ensure_ascii_writes() {
+    TranzilaJson.JsonObject response =
+        TranzilaJson.object(Map.of("contact", TranzilaJson.text("Dana\u007fL\u00e9vi \u05d3")));
+
+    String answered =
+        TranzilaJsonWriter.toText(
+            TranzilaHostedFieldsAnswer.answered(null, response, "secret-account-1"));
+
+    assertThat(answered)
+        .as(
+            "DEL and every character above it are escaped as Python's json.dumps escapes them,"
+                + " so a shop re-serialising in Python recomputes the same hash")
+        .isEqualTo(
+            "{\"errors\":null,\"transaction_response\":{\"contact\":\"Dana\\u007fL\\u00e9vi"
+                + " \\u05d3\"},\"response_hash\":"
+                + "\"4461467fb37ea16d208895a30a163a88b32d3b8e77ee9b0b60c9a9ec87815265\"}");
+  }
+
+  @Test
+  void an_amount_is_answered_in_two_places_as_every_published_example_writes_it() {
+    assertThat(TranzilaHostedFieldsAnswer.inTwoPlaces("10")).isEqualTo("10.00");
+    assertThat(TranzilaHostedFieldsAnswer.inTwoPlaces("42.5")).isEqualTo("42.50");
+    assertThat(TranzilaHostedFieldsAnswer.inTwoPlaces("0.01")).isEqualTo("0.01");
+    assertThat(TranzilaHostedFieldsAnswer.inTwoPlaces("1234567890123.99"))
+        .isEqualTo("1234567890123.99");
+  }
+
+  @Test
+  void a_charge_notifies_its_notify_url_in_the_payment_pages_format() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshakeWith("10.5", "{\"order_id\":\"ORD-1\",\"contact\":\"from the handshake\"}");
+
+    charge(aCharge("10.5", "contact", "Dana Levi", "notify_url", A_NOTIFY_URL, "tokenize", "true"));
+
+    assertThat(wired.posted)
+        .containsExactly(
+            A_NOTIFY_URL
+                + " supplier=myterminal&sum=10.5&currency=1&Response=000&contact=Dana+Levi"
+                + "&notify_url=https%3A%2F%2Fshop.example%2Fnotify&transaction_id=10000001"
+                + "&index=10000001&ccno=9022&Responsecv=1&Responseid=0&cardtype=2&cardissuer=1"
+                + "&cardacquirer=2&TranzilaTK=t000000000000019022&txn_type=debit&tranmode=A"
+                + "&order_id=ORD-1&ConfirmationCode=1000001");
+  }
+
+  @Test
+  void a_declined_charge_is_notified_without_a_token_and_a_duplicate_is_not_notified() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+    charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true"));
+    charge(aCharge("10", "DCdisable", "order-1", "tran_mode", "V", "tokenize", "true"));
+    wired.writes(TranzilaOperations.VERIFY, new ScenarioAction.TerminalFailure("004"));
+
+    charge(aCharge("10", "tran_mode", "V", "tokenize", "true"));
+
+    assertThat(wired.posted).hasSize(2);
+    assertThat(wired.posted.get(0))
+        .contains("&Response=777&")
+        .contains("&TranzilaTK=t000000000000019022&txn_type=verify&tranmode=V&");
+    assertThat(wired.posted.get(1))
+        .contains("&Response=004&")
+        .doesNotContain("TranzilaTK")
+        .doesNotContain("ConfirmationCode")
+        .endsWith("&txn_type=verify&tranmode=V");
+  }
+
+  @Test
+  void a_charge_without_tokenize_notifies_no_token_and_one_account_target_stands_in() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+
+    charge(aCharge("10"));
+
+    assertThat(wired.posted).singleElement().asString().startsWith(A_NOTIFY_URL + " supplier=");
+    assertThat(wired.posted.get(0)).doesNotContain("TranzilaTK");
+  }
+
+  @Test
+  void a_notify_url_no_callback_target_of_the_account_names_is_refused_and_charges_nothing() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+
+    String answered =
+        bodyOf(charge(aCharge("10", "notify_url", "https://elsewhere.example/notify")));
+
+    assertThat(answered)
+        .startsWith(
+            "{\"errors\":[{\"code\":400,\"param\":\"notify_url\",\"message\":\""
+                + TranzilaNotify.NOT_A_TARGET_OF_THE_ACCOUNT
+                + "\"}],\"transaction_response\":null,");
+    assertThat(wired.stored()).isEmpty();
+    assertThat(wired.posted).isEmpty();
+  }
+
+  @Test
+  void the_notify_withholds_the_token_and_the_id_it_carries() {
+    Map<String, String> fields = new LinkedHashMap<>();
+    fields.put("TranzilaTK", "t1");
+    fields.put("identity_number", "987654321");
+    fields.put("contact", "Dana");
+
+    assertThat(TranzilaNotify.payloadOf(fields).sanitizedBody())
+        .containsEntry("TranzilaTK", List.of(Redaction.REDACTED))
+        .containsEntry("identity_number", List.of(Redaction.REDACTED))
+        .containsEntry("contact", List.of("Dana"));
+  }
+
+  private void aHandshakeWith(String sum, String requestParams) {
+    wired.handshakes.insert(
+        new TranzilaHandshake(
+            A_THTK,
+            TranzilaWiring.RUN,
+            TranzilaWiring.ACCOUNT,
+            TranzilaWiring.TERMINAL,
+            sum,
+            requestParams,
+            TranzilaWiring.NOW,
+            TranzilaWiring.NOW.plus(Duration.ofMinutes(20))));
   }
 
   private void aHandshake(String sum) {

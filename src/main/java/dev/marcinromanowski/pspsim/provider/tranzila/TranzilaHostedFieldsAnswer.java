@@ -1,5 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,7 +53,7 @@ final class TranzilaHostedFieldsAnswer {
     String authNumber = transaction.authNumber();
     response.put(
         TranzilaFields.AUTH_NUMBER, authNumber == null ? nothing() : TranzilaJson.text(authNumber));
-    response.put(TranzilaFields.AMOUNT, TranzilaJson.text(transaction.amount()));
+    response.put(TranzilaFields.AMOUNT, TranzilaJson.text(inTwoPlaces(transaction.amount())));
     response.put(
         TranzilaFields.CURRENCY_CODE,
         TranzilaJson.number(
@@ -90,6 +92,10 @@ final class TranzilaHostedFieldsAnswer {
     response.put(TranzilaFields.PAYMENT_PLAN, TranzilaJson.number(THE_ONE_PAYMENT_PLAN));
     response.put(TOTAL_INSTALLMENTS_NUMBER, nothing());
     return TranzilaJson.object(response);
+  }
+
+  static String inTwoPlaces(String amount) {
+    return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).toPlainString();
   }
 
   static TranzilaJson.JsonObject theUserFormDataOf(TranzilaHostedFieldsRequest request) {
