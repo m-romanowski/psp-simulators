@@ -436,6 +436,38 @@ Duplicate handling differs by provider in its key, its storage and its outcome, 
 
 The per-provider key table is in `testing-support-features.md`, "Retry, Idempotency and Correlation Inspector".
 
+### A keyed exchange is recorded by the kernel, never by a provider's own insert
+
+A provider hands `KeyedExchangeLog` a `KeyedObservation`: the request it fingerprints, the verdict it decided and the
+fields of its answer. It never hands a fingerprint or a body text. The reason: when each provider wrote its own insert,
+each one got the race, the verdict or the redaction wrong.
+
+- Numbering. A row takes the next free `seq` under its key and is inserted with `on conflict (<primary key>) do
+  nothing`. `SequencedTable` writes that statement, so the conflict target is always the whole primary key and any other
+  violated constraint still fails the request. A row that lost its number is inserted again, up to
+  `SequencedRows.ATTEMPTS` times, and then the request fails. Autra's payment timeline is numbered by the same helper.
+- Verdict. The verdict of a request that ran the operation is decided by the insert from the rows it follows: a first
+  request only where no request that ran precedes it, otherwise the repeat its key's role names (`REPEAT_ADMITTED` for a
+  duplicate check, `CORRELATED_RETRY` for a correlation key, a first request for a true idempotency key, where it means
+  the provider forgot the key). The reason: a separate read before the insert let concurrent requests all record a
+  first request.
+- Order. Rows are numbered in the order they are recorded. A refusal keeps its verdict wherever it lands, so a
+  duplicate refusal may precede the request that ran: azericard's payer page claims a trace and records nothing under
+  it, and a claim is visible to a duplicate before its claimant records. A replay and a conflict answer from a stored
+  answer and never precede the request that ran, because stripe and worldline record that request before storing its
+  answer. `KeyedExchange` refuses a page whose earliest request that ran or replayed is not a first request.
+- Body. The stored body is the answer's fields after the provider's `ProviderKeyMechanisms.withholding`, the redaction
+  its `OUTBOUND_RESPONSE` rows apply, written as JSON of each field to its values. `EveryKeyedExchangeIsWithheldTest`
+  reads every module's `SENSITIVE_RESPONSE_FIELDS` and fails when that module's withholding keeps any of them.
+  Rows recorded before this rule keep the body text they were recorded with until their run is reset.
+- Fingerprint. `RequestFingerprint` is HMAC-SHA256 keyed with the run's `FingerprintKey`: 256 bits from `IdGenerator`,
+  minted on first use, kept in `simulator_test_run.fingerprint_key` and forgotten with the run. The key is never
+  displayed, exported or logged, so a fingerprint compares two requests of one run and can be checked against no
+  guessed input. The reason: an unkeyed digest of a card number, a CVV or an account secret is a dictionary oracle.
+  Fingerprints stored before the key existed were rehashed with a salt the migration discarded: equal ones stay equal,
+  none can be recomputed, and none matches a fingerprint minted after it, so a key claimed before the upgrade compares
+  a repeat as different parameters.
+
 ### Webhook delivery is not "2xx means delivered"
 
 Acknowledgement belongs to the provider and may need a separate inbound call. Grow can hold a delivery until
