@@ -36,6 +36,7 @@ final class TranzilaWiring {
 
   final TranzilaDoubles.Terminals terminals = new TranzilaDoubles.Terminals();
   final TranzilaDoubles.Transactions transactions = new TranzilaDoubles.Transactions();
+  final TranzilaDoubles.Records records = new TranzilaDoubles.Records(transactions);
   final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
   final TranzilaDoubles.Nonces nonces = new TranzilaDoubles.Nonces();
   final TranzilaDoubles.Exchanges exchanges = new TranzilaDoubles.Exchanges();
@@ -102,7 +103,8 @@ final class TranzilaWiring {
           ids,
           RUN,
           create,
-          new CreateHandshake(handshakes, ids));
+          new CreateHandshake(handshakes, ids),
+          new TranzilaLookups(records));
   final TranzilaHostedFields hostedFields =
       new TranzilaHostedFields(
           terminals,

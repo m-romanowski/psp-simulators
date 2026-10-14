@@ -44,6 +44,11 @@ public class TranzilaModule {
   }
 
   @Bean
+  TranzilaRecords tranzilaRecords(JdbcClient jdbc) {
+    return new JdbcTranzilaRecords(jdbc);
+  }
+
+  @Bean
   TranzilaNonces tranzilaNonces(JdbcClient jdbc) {
     return new JdbcTranzilaNonces(jdbc);
   }
@@ -131,6 +136,7 @@ public class TranzilaModule {
       IdGenerator ids,
       CreateTransaction createTransaction,
       TranzilaHandshakes handshakes,
+      TranzilaRecords records,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new TranzilaApi(
         terminals,
@@ -141,7 +147,8 @@ public class TranzilaModule {
         ids,
         TestRunId.of(defaultTestRunId),
         createTransaction,
-        new CreateHandshake(handshakes, ids));
+        new CreateHandshake(handshakes, ids),
+        new TranzilaLookups(records));
   }
 
   @Bean

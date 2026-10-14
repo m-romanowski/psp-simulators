@@ -13,6 +13,11 @@ interface TranzilaTransactions {
 
   TranzilaInsert insert(TranzilaTransaction transaction);
 
+  void describe(
+      TranzilaTransaction transaction,
+      List<TranzilaUserField> userDefinedFields,
+      List<TranzilaItem> items);
+
   Optional<TranzilaPayment> paymentHolding(TestRunId testRunId, long transactionId);
 
   List<TranzilaPayment> paymentsHolding(TestRunId testRunId, List<Long> transactionIds);

@@ -1,0 +1,4 @@
+{
+  "error": "Unauthorized",
+  "message": "Invalid access token. Verify your HMAC signature and that your timestamp is current."
+}

@@ -35,6 +35,9 @@ final class TranzilaPairing {
                   "TRANZILA_HF_BASE_URL",
                   new PairingValue.AnAddressOfThisSimulator(TranzilaHostedFieldsPage.HOST)),
               new PairingSetting(
+                  "TRANZILA_REPORT_BASE_URL",
+                  new PairingValue.AnAddressOfThisSimulator(TranzilaReportController.HOST)),
+              new PairingSetting(
                   "TRANZILA_TERMINAL_NAME",
                   new PairingValue.FromAccountField(TranzilaTerminal.TERMINAL_NAME_PROPERTY)),
               new PairingSetting(

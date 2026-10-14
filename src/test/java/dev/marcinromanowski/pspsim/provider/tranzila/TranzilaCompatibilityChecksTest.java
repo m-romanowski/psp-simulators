@@ -22,6 +22,10 @@ class TranzilaCompatibilityChecksTest {
 
   private static final String CONFIG = "/__simulator/tranzila/config";
 
+  private static final String TRANSACTIONS = "/v1/transactions";
+
+  private static final String REPORT = "/tranzila/report/v1/transaction";
+
   private static final String HANDSHAKE = "/v2/handshake/create";
 
   private static final String PAGE = "/tranzila/directng/smoketerminal/iframenew.php";
@@ -91,7 +95,128 @@ class TranzilaCompatibilityChecksTest {
             TranzilaCompatibilityChecks.THE_HANDSHAKE_REFUSES_A_TOKEN,
             TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER,
             TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_CHARGE,
-            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY);
+            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY,
+            TranzilaCompatibilityChecks.THE_API_FINDS_A_DEBIT,
+            TranzilaCompatibilityChecks.THE_REPORT_FINDS_A_DEBIT,
+            TranzilaCompatibilityChecks.THE_REPORT_REFUSES_A_TOKEN,
+            TranzilaCompatibilityChecks.THE_REPORT_ASKS_FOR_A_TERMINAL);
+  }
+
+  @Test
+  void every_value_a_lookup_check_expects_is_the_one_the_lookup_samples_publish() {
+    assertThat(expectedBy(checks.get(9)))
+        .containsExactly(
+            "/transactions/0/processor_response_code=000",
+            "/transactions/0/tranmode=A",
+            "/transactions/0/currency=1",
+            "/transactions/0/payment_plan=1",
+            "/user_defined/0/MANDATORY=N",
+            "/user_defined/0/DATA_TYPE=string",
+            "/rows=1");
+    assertThat(expectedBy(checks.get(10)))
+        .containsExactly(
+            "/transactions/0/processor_response_code=000",
+            "/transactions/0/currency=1",
+            "/transactions/0/payment_plan=1",
+            "/transactions/0/txn_payment_method=CC",
+            "/transactions/0/processor=SHVA",
+            "/transactions/0/items/0/quantity=1.00",
+            "/transactions/0/items/0/item_type=I",
+            "/rows=1");
+    assertThat(expectedBy(checks.get(11))).containsExactly("httpStatus=401", "error=Unauthorized");
+    assertThat(expectedBy(checks.get(12)))
+        .containsExactly(
+            "httpStatus=400", "error=Bad Request", "message=terminal_name is required.");
+  }
+
+  @Test
+  void the_api_lookup_holds_on_the_published_row_and_reads_the_day_the_debit_was_made_on() {
+    String found =
+        "{\"transactions\":[{\"processor_response_code\":\"000\",\"tranmode\":\"A\","
+            + "\"currency\":\"1\",\"payment_plan\":\"1\"}],\"user_defined\":[{"
+            + "\"MANDATORY\":\"N\",\"DATA_TYPE\":\"string\"}],\"total\":\"1\",\"rows\":1}";
+    CannedTransport transport =
+        prepared()
+            .answering("POST", CREATE, 200, A_DEBIT)
+            .answering("POST", TRANSACTIONS, 200, found);
+
+    assertThat(run(9, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    List<CheckRequest> sent = transport.sent();
+    assertThat(String.valueOf(sent.get(sent.size() - 2).body()))
+        .contains("\"user_defined_fields\":[{\"name\":\"email\",");
+    assertThat(String.valueOf(sent.get(sent.size() - 1).body()))
+        .isEqualTo(
+            "{\"terminal_name\":\"smoketerminal\",\"transaction_start_date\":\"2026-10-13\","
+                + "\"transaction_end_date\":\"2026-10-13\"}");
+    assertThat(
+            failedField(
+                9,
+                prepared()
+                    .answering("POST", CREATE, 200, A_DEBIT)
+                    .answering("POST", TRANSACTIONS, 200, found.replace("\"A\"", "\"V\""))))
+        .isEqualTo("/transactions/0/tranmode");
+    assertThat(
+            failedField(
+                9,
+                prepared()
+                    .answering("POST", CREATE, 200, A_DEBIT)
+                    .answering(
+                        "POST", TRANSACTIONS, 200, found.replace("\"rows\":1", "\"rows\":2"))))
+        .isEqualTo("/rows");
+  }
+
+  @Test
+  void the_report_lookup_asks_for_items_and_fails_naming_what_differs() {
+    String found =
+        "{\"transactions\":[{\"processor_response_code\":\"000\",\"currency\":\"1\","
+            + "\"payment_plan\":1,\"txn_payment_method\":\"CC\",\"processor\":\"SHVA\","
+            + "\"items\":[{\"quantity\":\"1.00\",\"item_type\":\"I\"}]}],\"rows\":1}";
+    CannedTransport transport =
+        prepared().answering("POST", CREATE, 200, A_DEBIT).answering("POST", REPORT, 200, found);
+
+    assertThat(run(10, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    List<CheckRequest> sent = transport.sent();
+    assertThat(String.valueOf(sent.get(sent.size() - 1).body())).endsWith(",\"detailed\":\"Y\"}");
+    assertThat(
+            failedField(
+                10,
+                prepared()
+                    .answering("POST", CREATE, 200, A_DEBIT)
+                    .answering("POST", REPORT, 200, found.replace("\"I\"", "\"S\""))))
+        .isEqualTo("/transactions/0/items/0/item_type");
+  }
+
+  @Test
+  void the_report_refusals_hold_on_the_published_bodies_and_fail_on_another_status() {
+    String refused = "{\"error\":\"Unauthorized\",\"message\":\"x\"}";
+    String bad = "{\"error\":\"Bad Request\",\"message\":\"terminal_name is required.\"}";
+    CannedTransport refusing = prepared().answering("POST", REPORT, 401, refused);
+
+    assertThat(run(11, refusing).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(
+            refusing
+                .sent()
+                .get(refusing.sent().size() - 1)
+                .headers()
+                .get(TranzilaFields.ACCESS_TOKEN))
+        .isEqualTo("not-the-access-token");
+    assertThat(failedField(11, prepared().answering("POST", REPORT, 403, refused)))
+        .isEqualTo("httpStatus");
+    CannedTransport asking = prepared().answering("POST", REPORT, 400, bad);
+    assertThat(run(12, asking).verdicts()).singleElement().isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(String.valueOf(asking.sent().get(asking.sent().size() - 1).body()))
+        .isEqualTo("{\"transaction_index\":1}");
+    assertThat(
+            failedField(
+                12,
+                prepared().answering("POST", REPORT, 400, bad.replace("terminal_name", "page"))))
+        .isEqualTo("message");
   }
 
   @Test

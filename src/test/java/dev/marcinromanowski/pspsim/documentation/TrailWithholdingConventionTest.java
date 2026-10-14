@@ -87,6 +87,7 @@ class TrailWithholdingConventionTest {
           "tranzila TRANZILA_API_V2_BASE_URL",
           "tranzila TRANZILA_DIRECTNG_BASE_URL",
           "tranzila TRANZILA_HF_BASE_URL",
+          "tranzila TRANZILA_REPORT_BASE_URL",
           "tranzila fail_url",
           "tranzila fail_url_address",
           "tranzila notify_url",
@@ -98,7 +99,7 @@ class TrailWithholdingConventionTest {
           "worldline hostedTokenizationUrl",
           "worldline partialRedirectUrl");
 
-  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 85;
+  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 88;
 
   private static final String A_PROVIDER_PACKAGE_OF_ITS_OWN =
       "dev.marcinromanowski.pspsim.provider.sixth";
@@ -226,7 +227,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineFields");
     assertThat(TrailWithholdingConvention.howManyFieldsAreWithheld(build.modules()))
         .as("the second denominator: the fields these declarations name between them")
-        .isEqualTo(20);
+        .isEqualTo(22);
     assertThat(TrailWithholdingConvention.verdictOn(COMPILED_MAIN).offences())
         .as("the build under test keeps the rule this gate enforces")
         .isEmpty();
@@ -256,7 +257,9 @@ class TrailWithholdingConventionTest {
             "TranzilaTK",
             "myid",
             "transaction_response.token",
-            "transaction_response.user_form_data.identity_number");
+            "transaction_response.user_form_data.identity_number",
+            "transactions.credit_card_token",
+            "transactions.credit_card_owner_id");
     assertThat(theModuleOf("azericard").theFieldsItWithholds())
         .as("azericard answers no address for the page it serves and withholds nothing")
         .isEmpty();
@@ -294,10 +297,10 @@ class TrailWithholdingConventionTest {
             "the fourth denominator: the names the floor was compared against, named one by one"
                 + " so a sweep that stopped matching could not pass as a clean tree")
         .containsExactlyElementsOf(THE_ADDRESSES_THIS_BUILD_PUBLISHES);
-    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(30);
+    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(31);
     assertThat(TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR)
         .as("the registry is the whole of what any module answers in the clear")
-        .hasSize(26)
+        .hasSize(27)
         .allSatisfy(admitted -> assertThat(admitted.why()).isNotBlank());
     assertThat(TrailWithholdingConvention.theModulesThatRegisterAnAddress())
         .containsExactlyElementsOf(THE_MODULES_THIS_SIMULATOR_SERVES);
@@ -323,9 +326,9 @@ class TrailWithholdingConventionTest {
                 + " SENSITIVE_RESPONSE_FIELDS")
         .contains("leaves " + THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE + " name(s)")
         .contains("dev.marcinromanowski.pspsim.provider.autra.AutraPixEvent FINANCIAL_TRANSACTION");
-    assertThat(read.get(2)).contains("read 20 withheld response field(s)");
-    assertThat(read.get(3)).contains("examined 30 published name(s) that read as an address");
-    assertThat(read.get(4)).contains("26 of those address(es) are registered").contains("over 6");
+    assertThat(read.get(2)).contains("read 22 withheld response field(s)");
+    assertThat(read.get(3)).contains("examined 31 published name(s) that read as an address");
+    assertThat(read.get(4)).contains("27 of those address(es) are registered").contains("over 6");
     assertThat(read.get(5))
         .as("the response declaration of stripe is the one this build hands to no whole-key reader")
         .contains("stripe matches not a whole key")
@@ -552,9 +555,9 @@ class TrailWithholdingConventionTest {
 
     assertThat(TrailWithholdingConvention.theRegistrationsNoModuleUses(List.of(module)))
         .as(
-            "a build holding grow alone, publishing no address, leaves all 26 addresses and the"
+            "a build holding grow alone, publishing no address, leaves all 27 addresses and the"
                 + " one page registered against nothing")
-        .hasSize(27)
+        .hasSize(28)
         .anySatisfy(
             offence ->
                 assertThat(offence)
@@ -711,16 +714,16 @@ class TrailWithholdingConventionTest {
 
     assertThat(excused.asAnEntryOfItsOwnDeclaration())
         .as(
-            "the 20 response entries and the 8 delivered entries the declarations of this build"
+            "the 22 response entries and the 8 delivered entries the declarations of this build"
                 + " name, each excused in the initializer that stores it")
-        .isEqualTo(28);
-    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(204);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(564);
+        .isEqualTo(30);
+    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(206);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(594);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(796);
+        .isEqualTo(830);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"

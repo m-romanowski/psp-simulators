@@ -211,7 +211,9 @@ final class TranzilaFields {
           TRANZILA_TK,
           MYID,
           TRANSACTION_RESPONSE + "." + TOKEN,
-          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER);
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER,
+          TranzilaLookupAnswers.TRANSACTIONS + "." + TranzilaLookupAnswers.CREDIT_CARD_TOKEN,
+          TranzilaLookupAnswers.TRANSACTIONS + "." + TranzilaLookupAnswers.CREDIT_CARD_OWNER_ID);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID, IDENTITY_NUMBER);
 

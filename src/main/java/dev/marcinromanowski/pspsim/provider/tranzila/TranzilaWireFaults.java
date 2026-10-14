@@ -13,7 +13,9 @@ final class TranzilaWireFaults {
           TranzilaApi.TRANZILA,
           List.of(
               TranzilaApiController.TRANSACTION,
+              TranzilaApiController.TRANSACTIONS,
               TranzilaApiController.CREATE_HANDSHAKE,
+              TranzilaReportController.HOST,
               TranzilaDirectNgPage.HOST,
               TranzilaHostedFieldsPage.HOST));
 
@@ -43,6 +45,15 @@ final class TranzilaWireFaults {
           + " so a body in tranzila's field names would tell a client that tranzila answered when"
           + " this simulator is what failed";
 
+  static final String WHAT_THE_REPORT_HOST_PUBLISHES_FOR_A_FAILURE_INSIDE_IT =
+      "a body of error and message for 400 and 401 only. It publishes no 5xx at all, and a body"
+          + " in tranzila's field names would tell a client that tranzila answered when this"
+          + " simulator is what failed";
+
+  static final String NOT_FOUND = "Not Found";
+
+  static final String METHOD_NOT_ALLOWED = "Method Not Allowed";
+
   private TranzilaWireFaults() {}
 
   static ProviderWireAnswer theAnswerTo(WireFault fault, String address) {
@@ -51,6 +62,9 @@ final class TranzilaWireFaults {
     }
     if (address.startsWith(TranzilaDirectNgPage.HOST)) {
       return thePagesAnswerTo(fault);
+    }
+    if (address.startsWith(TranzilaReportController.HOST)) {
+      return theReportHostsAnswerTo(fault);
     }
     if (address.startsWith(TranzilaHostedFieldsPage.HOST)) {
       return theHostedFieldsAnswerTo(fault);
@@ -83,6 +97,29 @@ final class TranzilaWireFaults {
           new ProviderWireAnswer.NothingThisContractPublishes(
               WHAT_THE_HANDSHAKE_PUBLISHES_FOR_A_FAILURE_INSIDE_IT);
     };
+  }
+
+  static ProviderWireAnswer theReportHostsAnswerTo(WireFault fault) {
+    return switch (fault) {
+      case AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE ->
+          theReportsShape(
+              TranzilaAnswers.NOT_FOUND, NOT_FOUND, TranzilaErrors.RESOURCE_NOT_FOUND_TEXT);
+      case A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER ->
+          theReportsShape(
+              TranzilaAnswers.METHOD_NOT_ALLOWED,
+              METHOD_NOT_ALLOWED,
+              THE_ADDRESS_DOES_NOT_ANSWER_THIS_METHOD);
+      case A_FAILURE_NOTHING_ELSE_ANSWERED ->
+          new ProviderWireAnswer.NothingThisContractPublishes(
+              WHAT_THE_REPORT_HOST_PUBLISHES_FOR_A_FAILURE_INSIDE_IT);
+    };
+  }
+
+  private static ProviderWireAnswer theReportsShape(int httpStatus, String error, String message) {
+    return new ProviderWireAnswer.InThisProvidersOwnWords(
+        httpStatus,
+        TranzilaFields.JSON,
+        TranzilaJsonWriter.toBytes(TranzilaLookups.theReportsError(error, message)));
   }
 
   static ProviderWireAnswer thePagesAnswerTo(WireFault fault) {

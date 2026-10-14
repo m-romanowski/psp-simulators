@@ -1,6 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -21,7 +22,14 @@ record TranzilaCreateRequest(
     @Nullable String authorizationNumber,
     @Nullable String dcDisable,
     boolean asksFor3ds,
-    @Nullable String sentCurrency) {
+    @Nullable String sentCurrency,
+    List<TranzilaUserField> userDefinedFields,
+    List<TranzilaItem> items) {
+
+  TranzilaCreateRequest {
+    userDefinedFields = List.copyOf(userDefinedFields);
+    items = List.copyOf(items);
+  }
 
   static final String THE_DEFAULT_CURRENCY = "ILS";
 
@@ -104,6 +112,7 @@ record TranzilaCreateRequest(
     }
     String currencyCode = currencyIn(body);
     String amount = amountIn(body, type, verifyMode, currencyCode);
+    List<TranzilaUserField> userDefinedFields = userDefinedFieldsIn(body);
     return new TranzilaCreateRequest(
         terminalName,
         type,
@@ -117,9 +126,11 @@ record TranzilaCreateRequest(
         amount,
         integer(body, TranzilaFields.REFERENCE_TXN_ID).orElse(null),
         text(body, TranzilaFields.AUTHORIZATION_NUMBER).orElse(null),
-        dcDisableIn(body),
+        dcDisableIn(userDefinedFields),
         body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent(),
-        body.has(TranzilaFields.TXN_CURRENCY_CODE) ? currencyCode : null);
+        body.has(TranzilaFields.TXN_CURRENCY_CODE) ? currencyCode : null,
+        userDefinedFields,
+        itemsIn(body));
   }
 
   boolean isInTheCurrencyOf(TranzilaTransaction original) {
@@ -360,9 +371,9 @@ record TranzilaCreateRequest(
                         + " must be a number that is not negative"));
   }
 
-  private static @Nullable String dcDisableIn(TranzilaJson.JsonObject body) {
+  private static List<TranzilaUserField> userDefinedFieldsIn(TranzilaJson.JsonObject body) {
     if (!body.has(TranzilaFields.USER_DEFINED_FIELDS)) {
-      return null;
+      return List.of();
     }
     List<TranzilaJson> fields =
         body.array(TranzilaFields.USER_DEFINED_FIELDS)
@@ -371,7 +382,7 @@ record TranzilaCreateRequest(
                 () ->
                     new TranzilaSchemaMismatch(
                         TranzilaFields.USER_DEFINED_FIELDS + " must be an array"));
-    String dcDisable = null;
+    List<TranzilaUserField> read = new ArrayList<>();
     for (TranzilaJson field : fields) {
       if (!(field instanceof TranzilaJson.JsonObject named)) {
         throw new TranzilaSchemaMismatch(
@@ -386,11 +397,40 @@ record TranzilaCreateRequest(
               .scalar(TranzilaFields.VALUE)
               .orElseThrow(
                   () -> required(TranzilaFields.USER_DEFINED_FIELDS + "." + TranzilaFields.VALUE));
-      if (TranzilaFields.DC_DISABLE.equals(name)) {
-        dcDisable = value;
+      read.add(new TranzilaUserField(name, value));
+    }
+    return List.copyOf(read);
+  }
+
+  static @Nullable String dcDisableIn(List<TranzilaUserField> fields) {
+    String dcDisable = null;
+    for (TranzilaUserField field : fields) {
+      if (TranzilaFields.DC_DISABLE.equals(field.name())) {
+        dcDisable = field.value();
       }
     }
     return dcDisable;
+  }
+
+  private static List<TranzilaItem> itemsIn(TranzilaJson.JsonObject body) {
+    List<TranzilaItem> read = new ArrayList<>();
+    for (TranzilaJson item :
+        body.array(TranzilaFields.ITEMS).map(TranzilaJson.JsonArray::elements).orElse(List.of())) {
+      if (item instanceof TranzilaJson.JsonObject described) {
+        read.add(anItem(described));
+      }
+    }
+    return List.copyOf(read);
+  }
+
+  static TranzilaItem anItem(TranzilaJson.JsonObject item) {
+    BigDecimal price = new BigDecimal(item.number(TranzilaFields.UNIT_PRICE).orElseThrow());
+    return new TranzilaItem(
+        item.text(TranzilaFields.NAME).orElseThrow(),
+        integer(item, TranzilaFields.UNITS_NUMBER).orElseThrow().longValue(),
+        TranzilaAmounts.lexicalOf(
+            isNet(item) ? TranzilaAmounts.withVat(price, vatPercentOf(item)) : price),
+        item.text(TranzilaFields.TYPE).orElse(TranzilaItem.A_PRODUCT));
   }
 
   private static Optional<String> text(TranzilaJson.JsonObject body, String field) {

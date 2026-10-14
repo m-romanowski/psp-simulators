@@ -637,6 +637,8 @@ final class CreateTransaction {
       TranzilaTransaction transaction = transactionOf.apply(id);
       TranzilaInsert inserted = transactions.insert(transaction);
       if (inserted == TranzilaInsert.STORED) {
+        transactions.describe(
+            transaction, asked.request().userDefinedFields(), asked.request().items());
         return new Answered(
             transaction.approved()
                 ? TranzilaAnswers.approved(transaction, asked.originalRequest())

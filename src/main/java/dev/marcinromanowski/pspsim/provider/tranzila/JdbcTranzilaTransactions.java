@@ -33,6 +33,41 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
   }
 
   @Override
+  public void describe(
+      TranzilaTransaction transaction,
+      List<TranzilaUserField> userDefinedFields,
+      List<TranzilaItem> items) {
+    jdbc.sql(
+            """
+            insert into tranzila_transaction_user_field
+                (test_run_id, transaction_id, position, name, value)
+            select ?, ?, listed.position - 1, listed.name, listed.value
+            from unnest(?::text[], ?::text[]) with ordinality as listed (name, value, position)
+            """)
+        .param(transaction.testRunId().value())
+        .param(Long.valueOf(transaction.transactionId()))
+        .param(userDefinedFields.stream().map(TranzilaUserField::name).toArray(String[]::new))
+        .param(userDefinedFields.stream().map(TranzilaUserField::value).toArray(String[]::new))
+        .update();
+    jdbc.sql(
+            """
+            insert into tranzila_transaction_item
+                (test_run_id, transaction_id, position, name, units_number, unit_price, item_type)
+            select ?, ?, listed.position - 1, listed.name, listed.units_number, listed.unit_price,
+                   listed.item_type
+            from unnest(?::text[], ?::bigint[], ?::text[], ?::text[]) with ordinality
+                as listed (name, units_number, unit_price, item_type, position)
+            """)
+        .param(transaction.testRunId().value())
+        .param(Long.valueOf(transaction.transactionId()))
+        .param(items.stream().map(TranzilaItem::name).toArray(String[]::new))
+        .param(items.stream().map(item -> Long.valueOf(item.unitsNumber())).toArray(Long[]::new))
+        .param(items.stream().map(TranzilaItem::unitPrice).toArray(String[]::new))
+        .param(items.stream().map(TranzilaItem::itemType).toArray(String[]::new))
+        .update();
+  }
+
+  @Override
   public <T> T together(Supplier<T> work) {
     return Objects.requireNonNull(
         transactions.execute(status -> work.get()),
@@ -233,7 +268,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
     return new ArrivalOf<>(rs.getLong("arrival"), Long.valueOf(rs.getLong("transaction_id")));
   }
 
-  private static TranzilaTransaction toTransaction(ResultSet rs, int row) throws SQLException {
+  static TranzilaTransaction toTransaction(ResultSet rs, int row) throws SQLException {
     return new TranzilaTransaction(
         TestRunId.storedNamespace(rs.getString("test_run_id")),
         rs.getLong("transaction_id"),
