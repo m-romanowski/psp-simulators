@@ -73,7 +73,7 @@ terminal name, which at the root would shadow every other route. The 3-D Secure 
 because Tranzila publishes only that its address arrives in `challengeUrl`. The pairing screen publishes one base URL per host,
 and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs. Pairing publishes
 `TRANZILA_API_BASE_URL` (`/v1`), `TRANZILA_API_V2_BASE_URL` (`/v2`), `TRANZILA_DIRECTNG_BASE_URL`
-(`/tranzila/directng`) and `TRANZILA_HF_BASE_URL` (`/tranzila/hf`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
+(`/tranzila/directng`), `TRANZILA_HF_BASE_URL` (`/tranzila/hf`) and `TRANZILA_REPORT_BASE_URL` (`/tranzila/report`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
 the simulator's page and not a vendor address.
 
 At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and the one route
@@ -419,15 +419,92 @@ required (published schema).
 | Route                                   | Request (published schema)                                                                                               | Simulator                                                                                         |
 |-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
 | `POST /v1/transactions`                 | `terminal_name`; `transaction_index`, or `transaction_start_date` + `transaction_end_date` (`YYYY-MM-DD`); `page`; ≤1000 rows | every field a string; `amount` in minor units (inference: the published example `amount: '500'` matches the reports' minor units); `user_defined_1`..`20`; `user_defined[]` metadata |
-| `POST /tranzila/report/v1/transaction`  | as above, plus `detailed` `Y`/`N`, `page_results` 1–1000, `order_direction`, `ufields[]`, `dfields[]`                     | typed fields; `user_defined_1`..`25`; `items[]`; `ufields`/`dfields` refused `400`                |
+| `POST /tranzila/report/v1/transaction`  | as above, plus `detailed` `Y`/`N`, `page_results` 1–1000, `order_direction`, `ufields[]`, `dfields[]`                     | typed fields; `user_defined_1`..`25`; `items[]` when `detailed` is `Y`; `ufields`/`dfields` refused `400` |
 
-Response `{transactions:[…], total:"<string>", rows:<int>}`. Both answer the transactions of this run's terminal; no
-match is `{"transactions":[],"total":"0","rows":0}` (simulator decision).
+Response `{transactions:[…], user_defined:[…], total:"<string>", rows:<int>}` on both routes. Both answer the
+transactions of this run's terminal: every transaction of the card API, the payment page and Hosted Fields, approved
+or declined, a transaction whose answer a scenario fault kept from the client included. A page `K` records none. No
+match is `{"transactions":[],"user_defined":[…],"total":"0","rows":0}`, `user_defined` listing the terminal's slots
+(simulator decision).
 
-- `tranmode` → `txn_type` (published schema): `A` debit, `C` credit, `F` force, `V` verify, `N` j2, `D` cancel; reports
-  `txn_type` is upper case (`DEBIT`, `FORCE`, `J2`, …). `transtatus` `1` ok, `0` failed. `currency` `1`, `2`, `978`.
-- Simulator decision: `ufields` and `dfields` are refused rather than ignored, because an ignored filter answers rows
-  the caller excluded.
+| Rule                                         | Evidence                                   | Simulator                                                                                       |
+|----------------------------------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------|
+| `transaction_index` or the two dates         | "mutually exclusive" (reports)             | both refused on both routes, and so is neither or one date alone; an index is answered on page 1 |
+| dates                                        | `YYYY-MM-DD`; end "inclusive" (reports)    | calendar dates from `0001-01-01`, both ends inclusive, read on the run clock in UTC; a start after the end finds nothing |
+| `page`                                       | "the next 1000 rows" (`/v1/transactions`); `minimum: 1` (reports) | 1 to 2147483647, default 1                                                  |
+| rows a page                                  | 1000 (`/v1/transactions`); `page_results` 1–1000, default 1000 (reports) | as published                                                   |
+| order                                        | "by transaction date", default `desc` (reports); unpublished for `/v1/transactions` | reports as published; `/v1/transactions` oldest first, so a page read keeps its rows as transactions arrive (simulator decision); equal times oldest first in arrival order, and newest first in reverse arrival order under `desc` |
+| `total`, `rows`                              | "across all pages", "in this response page" (reports) | as published                                                                    |
+| any other body field                         | schema                                     | refused: `/v1/transactions` `400` `20004`, reports `400`                                       |
+| a lookup                                     | a read                                     | recorded in the trail both ways; no keyed exchange; no scenario rule applies to it (simulator decision) |
+
+Fields (`/v1/transactions` as strings; the report host typed as its schema, `null` where it publishes `nullable`):
+
+| Field                                                    | Simulator                                                                                         |
+|----------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| `index`                                                  | `transaction_id`                                                                                  |
+| `transaction_date`, `transaction_time`                   | when the transaction was made, on the run clock in UTC (simulator decision: no zone is published) |
+| `amount`                                                 | minor units, rounded half up                                                                      |
+| `credit_card_token`                                      | the transaction's token; empty for a decline                                                       |
+| `expiration_month`, `expiration_year`                    | two digits each                                                                                   |
+| `card_type` (`/v1/transactions`), `card_issuer` (reports) | `1`, as the page's `cardissuer`                                                                  |
+| `card_description`, `card_brand`                         | the API's `card_type_name` and `card_type` (the published descriptions are Hebrew and no table is published) |
+| `clearing_processor`                                     | the page's `cardacquirer`                                                                         |
+| `stars`, `is_foreign`                                    | `0`                                                                                               |
+| `authorization_number`                                   | the auth number; empty for a decline                                                               |
+| `payment_plan`, `currency`                               | `1`; the numeric currency (`1`, `2`, `978`, `826`)                                                |
+| `number_of_payments`, `first_payment_amount`, `other_payment_amount` | `0`                                                                                   |
+| `processor_response_code`                                | as on create                                                                                      |
+| `tranmode`                                               | `A` debit, `V` J5, `N` J2, `F` force, `C` credit, `D` cancel; empty for a reversal, which the table does not name |
+| `txn_type`                                               | `debit`, `verify`, `j2`, `force`, `credit`, `cancel`, `reversal`; upper case on the report host   |
+| `transtatus`                                             | `1` approved (`000`, `777`), `0` declined                                                          |
+| `telauthability`, `txn_payment_method`, `processor`      | `1`, `CC`, `SHVA`                                                                                 |
+| `child_terminal`                                         | the terminal name                                                                                 |
+| `credit_card_owner_id`, `club_number`, `host_ip`, `refnr`, `tempref`, `xid`, `cavv`, `eci`, `uid`, `broker`, `broker_product`, `pan_entry_mode` | empty: the simulator keeps none of them |
+| `bank`, `bank_branch`, `bank_account`                    | empty on `/v1/transactions`, `null` on the report host ("`null` for card transactions")           |
+| `txnfdid`, `cancelfdid`, `txnfdnumber`, `cancelfdnumber` | `null` (no invoice is served)                                                                      |
+
+User-defined fields (simulator decisions): Tranzila configures a terminal's slots in its settings and publishes
+`POST /v1/terminals/settings/fields/list` to read them, which is not served here; the simulator has no terminal field
+configuration, so a name takes a slot the first time a transaction carries it.
+
+- Kept per transaction, in the order sent: on create, every `user_defined_fields` entry, `DCdisable` included; on the
+  payment page, its `DCdisable` and then every parameter it echoes except those it reads, displays or keeps as a
+  setting: `sum`, `currency`, `tranmode`, `cred_type`, the three addresses, `DCdisable`, `thtk`, `myid`, `pdesc`,
+  `lang`, `accessibility`, `opensum`, `trBgColor`, `trTextColor`, `trButtonColor`, `buttonLabel`, `hidesum`, `nologo`,
+  `hide_cc`, `apple_pay`, `google_pay`, `bit_pay`, `ppnewwin`, `recur_payments`, `recur_start_date`, `recur_sum`,
+  `recur_transaction`, `npay`, `fpay`, `spay`, `maxpay`, `Ilang`, `IMaam`, `Z_field`, `business_id`,
+  `json_purchase_data`, and the names the return sets itself (`supplier`, `Response`, `transaction_id`, `index`,
+  `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK`, `txn_type`,
+  `ConfirmationCode`); on Hosted Fields, its `DCdisable` and then every `user_form_data` key but `notify_url`, `pdesc`,
+  `json_purchase_data`, `force_txn_on_3ds_fail` and `force_challenge`. The published example lists the page's own
+  `email` and `contact` as user-defined fields.
+- No slot keeps a name the trail withholds as an identity (`card_number`, `cvv`, `card_holder_id`, `myid`,
+  `credit_card_number`, `card_holder_id_number`, `identity_number`), compared without regard to case, from any of the
+  three.
+- A terminal of a run numbers each name once, when the first transaction carrying it is recorded, in the order that
+  transaction sent its new names; two transactions recorded at once number their names one after the other, never
+  interleaved. A terminal holds 25 slots; a name arriving after the 25th is not kept. A name a transaction carries
+  twice answers its last value.
+- `/v1/transactions` answers slots 1–20, the report host 1–25. `user_defined` describes each slot answered, highest
+  `FIELD_ID` first as both published lists order them: `TERMINAL_ID` the terminal, `FIELD_ID` (a string on
+  `/v1/transactions` as its example, an integer on the report host as `UserDefinedFieldMeta`), `API_PARAMETER_NAME`
+  and `CAPTION` the name, `DEFAULT_VALUE` and `DISPLAY_ORDER` `null`, `MANDATORY` `N`, `DATA_TYPE` `string`,
+  `UPDATE_DATE` when the name was first recorded (`YYYY-MM-DD HH:MM:SS`, UTC).
+
+`items` (report host, `detailed` `Y`): each item a create charged, in order: `item_id` the simulator's own number,
+`item_name`, `quantity` the units with two decimals, `price` the unit price in minor units (an `N` item's with its VAT
+added), `item_type` the item's `type` or `I`. A page payment and a Hosted Fields charge carry one item named
+`simulator` at the amount; a `cancel` or `reversal` carries none, even when sent with items, since its amount is the
+transaction it acts on.
+
+`transactions.credit_card_token` and `transactions.credit_card_owner_id` are withheld from the trail, and so is each of
+the seven identity names above wherever it appears as a field of any trail row: a request, a page's return, a Hosted
+Fields answer's `user_form_data`, or a notify. A `user_defined_fields` entry whose `name` is one of them, in any case,
+has its `value` withheld from the request row, from `original_request` in the response row and from the keyed exchange
+answer, and a duplicate check's fingerprint does not read it; every other entry's value stays readable. Simulator
+decision: `ufields` and `dfields` are refused rather than ignored, because an ignored filter answers rows the caller
+excluded; an empty array filters nothing and is accepted.
 
 ## The Payment Page (DirectNG)
 
@@ -704,9 +781,10 @@ not count. An original whose `credit` was cancelled returns to its normalized st
 | `api.tranzila.com` create, complete   | `401` `20000` Authentication failed, `20002` Authorization failed | `Error` schema                                                       | published schema               |
 | `api.tranzila.com` under Tranzila's namespaces | unknown address `404`; wrong method `405` | `{"error_code":"404","message":"The specified resource was not found"}`; `{"error_code":"405","message":"This address does not answer this HTTP method"}` | simulator decision: the `404` text is the one declared on the create operation; no `405` is published |
 | `/v1/transactions`                    | auth, schema                                | as create (only `200` is declared)                                                         | simulator decision             |
+| `report.tranzila.com`                 | unknown address `404`; wrong method `405`   | `{"error":"Not Found","message":"The specified resource was not found"}`; `{"error":"Method Not Allowed","message":"This address does not answer this HTTP method"}` | simulator decision |
 | `/v2/handshake/create`                | `400`, `401`                                | `error_code` equal to the HTTP status                                                      | published example              |
 | under `/v2/handshake/create`          | unknown address `404`; wrong method `405`  | the handshake's shape, `{"error_code":404,"message":"The specified resource was not found"}`, `405` with "This address does not answer this HTTP method" | simulator decision |
-| `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}` | published example |
+| `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}`; another `400` names its reason in `message`, and a `401` adds its reason after the published sentence | published example; the other messages simulator decision |
 | payment page, Hosted Fields frames, 3-D Secure challenge | refusal                  | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng`, `/tranzila/hf` and `/tranzila/3ds`: `404` no such terminal, page or challenge, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed or a challenge already answered | simulator decision |
 | Hosted Fields charge                  | refusal                                     | `200`, `errors` ("Hosted Fields")                                                          | published rule, simulator decision |
 
@@ -747,6 +825,12 @@ and `google_pay` are ignored).
 | Hosted Fields errors           | `errors[{code, param, message}]`, codes `10000`–`10016` (table)                        | `err.messages[]` (prose, vendor script)                                                            | client-side `err`, server `errors`         |
 | Hosted Fields Enter key        | `submit` "request upon Enter key in hosted fields" (prose)                             | `inputSubmitRequest` (vendor script)                                                               | both sent                                  |
 | user-defined slots             | 25 (Transactions API, reports)                                                         | 20 (`/v1/transactions`)                                                                            | each lookup as published                   |
+| `transtatus`                   | `'0'` beside `processor_response_code` `'000'` (`/v1/transactions` example)              | "`1` = transaction successful / settled, `0` = failed or declined" (reports)                        | `1` approved, `0` declined, on both        |
+| `credit_card_token`            | `'2312'`, four digits (`/v1/transactions` example)                                     | "Tranzila token representing the card" (reports)                                                   | the token on both                          |
+| `/v1/transactions` `txn_type`  | `''` (example)                                                                         | the `tranmode` table's names (`debit`, `j2`, …)                                                    | the table's name                           |
+| `user_defined` metadata        | in the `/v1/transactions` example; `UserDefinedFieldMeta` "Returned in the `user_defined` array of the `/v1/transaction` response" (reports) | absent from the reports' response schema and example                     | answered on both                           |
+| card issuer of a Visa          | `card_issuer` `2` (C.A.L) for a Visa (reports example)                                  | `cardissuer=1` beside `cardtype=1` (DirectNG return sample)                                        | `1` for every card on the page and both lookups |
+| date range                     | end "inclusive" (reports)                                                              | an example whose start (`2023-11-12`) follows its end (`2023-08-31`) (`/v1/transactions`)          | accepted; such a range finds nothing       |
 
 ## What This Contract Could Not Settle
 
@@ -768,4 +852,6 @@ and `google_pay` are ignored).
 | API `card_type` ("shva card type") values                    | the page's `cardtype` table (`1` Mastercard … `6` Maestro)     |
 | token format                                                 | `t`, 14 hex digits, the card's last four                       |
 | `/v1/transactions` amount units                              | minor units, as a string (inference from `amount: '500'`)      |
+| lookup dates and times: zone                                 | UTC on the run clock                                           |
+| which slot a user-defined field takes; `/v1/transactions` order | the order a terminal first recorded the name; oldest first  |
 | Hosted Fields: which code a condition answers, the refusal envelope, a `thtk` not locking the amount | "Hosted Fields"; `912791` |

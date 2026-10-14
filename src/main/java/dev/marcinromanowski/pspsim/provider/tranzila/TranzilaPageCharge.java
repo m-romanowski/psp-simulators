@@ -1,12 +1,92 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 final class TranzilaPageCharge {
 
+  static final Set<String> THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS =
+      Set.of(
+          TranzilaFields.SUM,
+          TranzilaFields.CURRENCY,
+          TranzilaFields.TRANMODE,
+          TranzilaFields.CRED_TYPE,
+          TranzilaFields.SUCCESS_URL_ADDRESS,
+          TranzilaFields.FAIL_URL_ADDRESS,
+          TranzilaFields.NOTIFY_URL_ADDRESS,
+          TranzilaFields.DC_DISABLE,
+          TranzilaFields.THTK,
+          TranzilaFields.MYID,
+          "pdesc",
+          "lang",
+          "accessibility",
+          "opensum",
+          "trBgColor",
+          "trTextColor",
+          "trButtonColor",
+          "buttonLabel",
+          "hidesum",
+          "nologo",
+          "hide_cc",
+          "apple_pay",
+          "google_pay",
+          "bit_pay",
+          "ppnewwin",
+          "recur_payments",
+          "recur_start_date",
+          "recur_sum",
+          "recur_transaction",
+          "npay",
+          "fpay",
+          "spay",
+          "maxpay",
+          "Ilang",
+          "IMaam",
+          "Z_field",
+          "business_id",
+          "json_purchase_data");
+
+  static final Set<String> THE_PARAMETERS_NO_SLOT_KEEPS = noSlotKeeps();
+
   private TranzilaPageCharge() {}
+
+  private static Set<String> noSlotKeeps() {
+    Set<String> none = new LinkedHashSet<>(THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS);
+    none.addAll(TranzilaPageRequest.NEVER_ECHOED);
+    return Collections.unmodifiableSet(none);
+  }
+
+  static List<TranzilaUserField> theUserDefinedFieldsOf(
+      @Nullable String dcDisable, Map<String, String> sent, Set<String> read) {
+    List<TranzilaUserField> fields = new ArrayList<>();
+    if (dcDisable != null) {
+      fields.add(new TranzilaUserField(TranzilaFields.DC_DISABLE, dcDisable));
+    }
+    sent.forEach(
+        (name, value) -> {
+          if (!read.contains(name)) {
+            fields.add(new TranzilaUserField(name, value));
+          }
+        });
+    return TranzilaUserField.theOnesASlotKeeps(fields);
+  }
+
+  static TranzilaJson asSent(List<TranzilaUserField> fields) {
+    List<TranzilaJson> sent = new ArrayList<>();
+    for (TranzilaUserField field : fields) {
+      Map<String, TranzilaJson> named = new LinkedHashMap<>();
+      named.put(TranzilaFields.NAME, TranzilaJson.text(field.name()));
+      named.put(TranzilaFields.VALUE, TranzilaJson.text(field.value()));
+      sent.add(TranzilaJson.object(named));
+    }
+    return TranzilaJson.array(sent);
+  }
 
   static TranzilaApiCall callOf(TranzilaPage page, TranzilaPageCards.Offered card) {
     TranzilaTxnType type =
@@ -31,14 +111,10 @@ final class TranzilaPageCharge {
     body.put(TranzilaFields.EXPIRE_YEAR, TranzilaJson.number(Integer.toString(card.expiryYear())));
     body.put(TranzilaFields.TXN_CURRENCY_CODE, TranzilaJson.text(page.currency().alpha()));
     body.put(TranzilaFields.ITEMS, TranzilaObjectActions.itemsOf(page.sum()));
-    String dcDisable = page.dcDisable();
-    if (dcDisable != null) {
-      Map<String, TranzilaJson> field = new LinkedHashMap<>();
-      field.put(TranzilaFields.NAME, TranzilaJson.text(TranzilaFields.DC_DISABLE));
-      field.put(TranzilaFields.VALUE, TranzilaJson.text(dcDisable));
-      body.put(
-          TranzilaFields.USER_DEFINED_FIELDS,
-          TranzilaJson.array(List.of(TranzilaJson.object(field))));
+    List<TranzilaUserField> userDefined =
+        theUserDefinedFieldsOf(page.dcDisable(), page.echoed(), THE_PARAMETERS_NO_SLOT_KEEPS);
+    if (!userDefined.isEmpty()) {
+      body.put(TranzilaFields.USER_DEFINED_FIELDS, asSent(userDefined));
     }
     return TranzilaApiCall.of(
         TranzilaObjectActions.WIRE_METHOD,

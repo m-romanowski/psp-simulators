@@ -11,6 +11,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +40,7 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
             () ->
                 transactions.together(
                     () -> {
-                      transactions.insert(aDebit());
+                      transactions.insert(aDebit(), List.of(), List.of());
                       exchanges.observed(anExchange());
                       throw new IllegalStateException("the exchange could not be recorded");
                     }))
@@ -53,7 +54,7 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
   void a_transaction_and_its_exchange_written_together_both_stay_when_the_work_succeeds() {
     transactions.together(
         () -> {
-          transactions.insert(aDebit());
+          transactions.insert(aDebit(), List.of(), List.of());
           exchanges.observed(anExchange());
           return aDebit();
         });

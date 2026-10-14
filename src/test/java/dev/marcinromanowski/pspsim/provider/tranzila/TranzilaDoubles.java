@@ -25,6 +25,8 @@ import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -123,6 +125,69 @@ final class TranzilaDoubles {
     }
   }
 
+  static final class Records implements TranzilaRecords {
+
+    private final Transactions transactions;
+
+    Records(Transactions transactions) {
+      this.transactions = transactions;
+    }
+
+    private List<TranzilaTransaction> of(TestRunId testRunId, String accountId) {
+      return transactions.all().stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> held.accountId().equals(accountId))
+          .toList();
+    }
+
+    private static boolean within(TranzilaTransaction held, LocalDate start, LocalDate end) {
+      LocalDate on = LocalDate.ofInstant(held.createdAt(), ZoneOffset.UTC);
+      return !on.isBefore(start) && !on.isAfter(end);
+    }
+
+    @Override
+    public Optional<TranzilaRecorded> byIndex(
+        TestRunId testRunId, String accountId, long transactionId) {
+      return of(testRunId, accountId).stream()
+          .filter(held -> held.transactionId() == transactionId)
+          .findFirst()
+          .map(transactions::recordedOf);
+    }
+
+    @Override
+    public List<TranzilaRecorded> between(
+        TestRunId testRunId, String accountId, TranzilaLookup.Window window) {
+      List<TranzilaTransaction> listed = new ArrayList<>(of(testRunId, accountId));
+      Map<TranzilaTransaction, Integer> arrival = new HashMap<>();
+      for (int at = 0; at < listed.size(); at++) {
+        arrival.put(listed.get(at), Integer.valueOf(at));
+      }
+      return listed.stream()
+          .filter(held -> within(held, window.start(), window.end()))
+          .sorted(
+              (one, other) -> {
+                int byTime = one.createdAt().compareTo(other.createdAt());
+                int ordered = byTime != 0 ? byTime : arrival.get(one).compareTo(arrival.get(other));
+                return ordered * window.direction();
+              })
+          .skip(window.offset())
+          .limit(window.limit())
+          .map(transactions::recordedOf)
+          .toList();
+    }
+
+    @Override
+    public long countedBetween(
+        TestRunId testRunId, String accountId, LocalDate start, LocalDate end) {
+      return of(testRunId, accountId).stream().filter(held -> within(held, start, end)).count();
+    }
+
+    @Override
+    public List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId) {
+      return transactions.slotsOf(testRunId, accountId);
+    }
+  }
+
   static final class Transactions implements TranzilaTransactions {
 
     private final List<TranzilaTransaction> stored = new ArrayList<>();
@@ -148,12 +213,63 @@ final class TranzilaDoubles {
       return this;
     }
 
+    private final Map<String, List<TranzilaUserField>> described = new HashMap<>();
+    private final Map<String, List<TranzilaRecorded.Item>> itemized = new HashMap<>();
+    private long itemIds;
+
     List<TranzilaTransaction> all() {
       return List.copyOf(stored);
     }
 
+    private final Map<String, Map<String, TranzilaUserSlot>> slots = new HashMap<>();
+
+    private void describe(
+        TranzilaTransaction transaction,
+        List<TranzilaUserField> userDefinedFields,
+        List<TranzilaItem> items) {
+      String key = keyOf(transaction.testRunId(), transaction.transactionId());
+      Map<String, TranzilaUserSlot> held =
+          slots.computeIfAbsent(
+              transaction.testRunId().value() + '\u0000' + transaction.accountId(),
+              absent -> new LinkedHashMap<>());
+      List<TranzilaUserField> kept = new ArrayList<>();
+      for (TranzilaUserField field : TranzilaUserField.theOnesASlotKeeps(userDefinedFields)) {
+        if (!held.containsKey(field.name()) && held.size() < TranzilaUserSlot.THE_MOST_SLOTS) {
+          held.put(
+              field.name(),
+              new TranzilaUserSlot(held.size() + 1, field.name(), transaction.createdAt()));
+        }
+        if (held.containsKey(field.name())) {
+          kept.add(field);
+        }
+      }
+      described.put(key, List.copyOf(kept));
+      List<TranzilaRecorded.Item> numbered = new ArrayList<>();
+      for (TranzilaItem item : items) {
+        itemIds++;
+        numbered.add(new TranzilaRecorded.Item(itemIds, item));
+      }
+      itemized.put(key, List.copyOf(numbered));
+    }
+
+    List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId) {
+      return List.copyOf(
+          slots.getOrDefault(testRunId.value() + '\u0000' + accountId, Map.of()).values());
+    }
+
+    TranzilaRecorded recordedOf(TranzilaTransaction transaction) {
+      String key = keyOf(transaction.testRunId(), transaction.transactionId());
+      return new TranzilaRecorded(
+          transaction,
+          described.getOrDefault(key, List.of()),
+          itemized.getOrDefault(key, List.of()));
+    }
+
     @Override
-    public TranzilaInsert insert(TranzilaTransaction transaction) {
+    public TranzilaInsert insert(
+        TranzilaTransaction transaction,
+        List<TranzilaUserField> userDefinedFields,
+        List<TranzilaItem> items) {
       if (takenIds > 0) {
         takenIds--;
         return TranzilaInsert.ID_TAKEN;
@@ -164,10 +280,11 @@ final class TranzilaDoubles {
       TranzilaTransaction winner = theWinner;
       if (winner != null) {
         theWinner = null;
-        insert(winner);
+        insert(winner, List.of(), List.of());
         return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
       }
       stored.add(transaction);
+      describe(transaction, userDefinedFields, items);
       arrivedAt.put(
           keyOf(transaction.testRunId(), transaction.transactionId()), Long.valueOf(nextArrival()));
       return TranzilaInsert.STORED;

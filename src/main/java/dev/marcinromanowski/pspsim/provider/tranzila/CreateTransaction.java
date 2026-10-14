@@ -247,7 +247,11 @@ final class CreateTransaction {
 
   static Map<String, List<String>> theFieldsAFingerprintReads(TranzilaApiCall call) {
     Map<String, List<String>> read =
-        new LinkedHashMap<>(call.body().map(TranzilaJson::flatten).orElseGet(Map::of));
+        new LinkedHashMap<>(
+            call.body()
+                .map(TranzilaUserField::withTheIdentitiesWithheld)
+                .map(TranzilaJson::flatten)
+                .orElseGet(Map::of));
     read.keySet().removeAll(THE_CARD_FIELDS_NO_FINGERPRINT_READS);
     return read;
   }
@@ -487,18 +491,15 @@ final class CreateTransaction {
       TranzilaTerminal terminal,
       TranzilaChallenge challenge,
       Instant now) {
+    TranzilaJson.JsonObject originalRequest = CompleteThreeDSecure.theOriginalRequestOf(challenge);
     Asked asked =
         new Asked(
             call,
             headers,
             challenge.testRunId(),
             terminal,
-            TranzilaCreateRequest.ofTheChallenge(challenge),
-            TranzilaJsonReader.objectIn(challenge.originalRequest())
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "the store holds an original_request that is no JSON object")),
+            TranzilaCreateRequest.ofTheChallenge(challenge, originalRequest),
+            originalRequest,
             now,
             challenge.origin(),
             Map.of(challenge.token(), challenge.card()),
@@ -861,7 +862,9 @@ final class CreateTransaction {
     long id = drawn;
     for (int attempt = 0; attempt < TRANSACTION_ID_ATTEMPTS; attempt++) {
       TranzilaTransaction transaction = transactionOf.apply(id);
-      TranzilaInsert inserted = transactions.insert(transaction);
+      TranzilaInsert inserted =
+          transactions.insert(
+              transaction, asked.request().userDefinedFields(), asked.request().items());
       if (inserted == TranzilaInsert.STORED) {
         return new Answered(
             transaction.approved()

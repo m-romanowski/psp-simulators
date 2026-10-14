@@ -64,12 +64,18 @@ class TranzilaProviderTest {
     assertThat(provider.wireRoutes().namespaces())
         .containsExactly(
             "/v1/transaction",
+            "/v1/transactions",
             "/v2/handshake/create",
+            "/tranzila/report",
             "/tranzila/directng",
             "/tranzila/hf",
             "/tranzila/3ds");
     assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/create")).isTrue();
-    assertThat(provider.wireRoutes().covers("/v1/transactions")).isFalse();
+    assertThat(provider.wireRoutes().covers("/v1/transactions")).isTrue();
+    assertThat(provider.wireRoutes().covers("/v1/transactions/more")).isTrue();
+    assertThat(provider.wireRoutes().covers("/v1/transactionsx")).isFalse();
+    assertThat(provider.wireRoutes().covers("/tranzila/report/v1/transaction")).isTrue();
+    assertThat(provider.wireRoutes().covers("/tranzila/reports")).isFalse();
     assertThat(provider.wireRoutes().covers("/v1/payment_intents")).isFalse();
     assertThat(provider.wireRoutes().covers("/v2/handshake/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v2/handshakes")).isFalse();
@@ -200,7 +206,7 @@ class TranzilaProviderTest {
             TranzilaOrigination.A_DEBIT,
             TranzilaOrigination.A_J5,
             TranzilaOrigination.A_PAGE_PAYMENT);
-    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(11);
+    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(15);
   }
 
   @Test

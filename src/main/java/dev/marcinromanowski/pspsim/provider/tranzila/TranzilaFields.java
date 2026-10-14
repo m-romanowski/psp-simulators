@@ -209,14 +209,37 @@ final class TranzilaFields {
           ORIGINAL_REQUEST + "." + CARD_NUMBER,
           ORIGINAL_REQUEST + "." + CARD_HOLDER_ID,
           TRANZILA_TK,
+          CARD_NUMBER,
+          CVV,
+          CARD_HOLDER_ID,
           MYID,
+          CREDIT_CARD_NUMBER,
+          CARD_HOLDER_ID_NUMBER,
+          IDENTITY_NUMBER,
           TRANSACTION_RESPONSE + "." + TOKEN,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + CARD_NUMBER,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + CVV,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + CARD_HOLDER_ID,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + MYID,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + CREDIT_CARD_NUMBER,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + CARD_HOLDER_ID_NUMBER,
           TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER,
+          TranzilaLookupAnswers.TRANSACTIONS + "." + TranzilaLookupAnswers.CREDIT_CARD_TOKEN,
+          TranzilaLookupAnswers.TRANSACTIONS + "." + TranzilaLookupAnswers.CREDIT_CARD_OWNER_ID,
           TranzilaThreeDSecureAnswers.CHALLENGE_URL,
           TranzilaThreeDSecureAnswers.T3DS_DATA + "." + TranzilaThreeDSecureAnswers.CAVV,
           TranzilaThreeDSecureAnswers.T3DS_DATA + "." + TranzilaThreeDSecureAnswers.XID);
 
-  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID, IDENTITY_NUMBER);
+  static final Set<String> SENSITIVE_DELIVERY_FIELDS =
+      Set.of(
+          TRANZILA_TK,
+          CARD_NUMBER,
+          CVV,
+          CARD_HOLDER_ID,
+          MYID,
+          CREDIT_CARD_NUMBER,
+          CARD_HOLDER_ID_NUMBER,
+          IDENTITY_NUMBER);
 
   static final Set<String> WHAT_THE_PAYERS_OWN_PAGE_WITHHOLDS = Set.of(TRANZILA_TK);
 }

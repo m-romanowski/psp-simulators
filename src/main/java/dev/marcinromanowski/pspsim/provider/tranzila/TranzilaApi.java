@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.UnaryOperator;
+import java.util.function.Function;
 import org.jspecify.annotations.Nullable;
 
 public final class TranzilaApi {
@@ -72,6 +72,7 @@ public final class TranzilaApi {
   private final CreateTransaction createTransaction;
   private final CreateHandshake createHandshake;
   private final CompleteThreeDSecure completeThreeDSecure;
+  private final TranzilaLookups lookups;
 
   TranzilaApi(
       TranzilaTerminals terminals,
@@ -83,7 +84,8 @@ public final class TranzilaApi {
       TestRunId defaultTestRun,
       CreateTransaction createTransaction,
       CreateHandshake createHandshake,
-      CompleteThreeDSecure completeThreeDSecure) {
+      CompleteThreeDSecure completeThreeDSecure,
+      TranzilaLookups lookups) {
     this.terminals = terminals;
     this.nonces = nonces;
     this.testRuns = testRuns;
@@ -94,12 +96,14 @@ public final class TranzilaApi {
     this.createTransaction = createTransaction;
     this.createHandshake = createHandshake;
     this.completeThreeDSecure = completeThreeDSecure;
+    this.lookups = lookups;
   }
 
   public TranzilaApiResponse create(TranzilaApiCall call) {
     return answered(
         call,
-        refusal -> refusal,
+        ANonce.IS_SPENT,
+        TranzilaApi::refused,
         (testRunId, terminal, now) ->
             createTransaction.handle(
                 call, call.headers(), testRunId, terminal, now, ObjectOrigin.PROVIDER_API));
@@ -108,15 +112,39 @@ public final class TranzilaApi {
   public TranzilaApiResponse complete(TranzilaApiCall call) {
     return answered(
         call,
-        refusal -> refusal,
+        ANonce.IS_SPENT,
+        TranzilaApi::refused,
         (testRunId, terminal, now) -> completeThreeDSecure.handle(call, testRunId, terminal, now));
   }
 
   public TranzilaApiResponse handshake(TranzilaApiCall call) {
     return answered(
         call,
+        ANonce.IS_SPENT,
         _ -> CreateHandshake.refusedCredential(),
         (testRunId, terminal, now) -> createHandshake.handle(call, testRunId, terminal, now));
+  }
+
+  public TranzilaApiResponse transactions(TranzilaApiCall call) {
+    return answered(
+        call,
+        ANonce.IS_SPENT,
+        TranzilaApi::refused,
+        (testRunId, terminal, now) -> lookups.ofTheApi(call, terminal));
+  }
+
+  public TranzilaApiResponse report(TranzilaApiCall call) {
+    return answered(
+        call,
+        ANonce.MAY_BE_REUSED,
+        TranzilaLookups::unauthorized,
+        (testRunId, terminal, now) -> lookups.ofTheReport(call, terminal));
+  }
+
+  enum ANonce {
+    IS_SPENT,
+
+    MAY_BE_REUSED
   }
 
   interface AnOperation {
@@ -126,7 +154,8 @@ public final class TranzilaApi {
 
   private TranzilaApiResponse answered(
       TranzilaApiCall call,
-      UnaryOperator<TranzilaOperationResult> asThisRouteRefuses,
+      ANonce nonceRule,
+      Function<String, TranzilaOperationResult> asThisRouteRefuses,
       AnOperation operation) {
     Optional<String> appKey = call.header(TranzilaFields.APP_KEY);
     List<TranzilaTerminal> byCredential = appKey.map(terminals::byAppKey).orElseGet(List::of);
@@ -139,15 +168,15 @@ public final class TranzilaApi {
     recordInbound(call, resolution, account, now);
     TranzilaOperationResult result =
         terminal.isEmpty()
-            ? asThisRouteRefuses.apply(refused(NO_ACCOUNT_ANSWERS_TO_THAT_APP_KEY))
-            : theRefusalOfTheAccessToken(call, terminal.get(), now)
+            ? asThisRouteRefuses.apply(NO_ACCOUNT_ANSWERS_TO_THAT_APP_KEY)
+            : theRefusalOfTheAccessToken(call, terminal.get(), now, nonceRule)
                 .map(asThisRouteRefuses)
                 .orElseGet(() -> operation.handle(testRunId, terminal.get(), now));
     return delivered(call, resolution, account, now, result);
   }
 
-  Optional<TranzilaOperationResult> theRefusalOfTheAccessToken(
-      TranzilaApiCall call, TranzilaTerminal terminal, Instant now) {
+  Optional<String> theRefusalOfTheAccessToken(
+      TranzilaApiCall call, TranzilaTerminal terminal, Instant now, ANonce nonceRule) {
     if (!terminal.authentication().verifiesTheAccessToken()) {
       return Optional.empty();
     }
@@ -155,37 +184,37 @@ public final class TranzilaApi {
     Optional<String> nonce = call.header(TranzilaFields.NONCE);
     Optional<String> presented = call.header(TranzilaFields.ACCESS_TOKEN);
     if (requestTime.isEmpty()) {
-      return Optional.of(refused(TranzilaFields.REQUEST_TIME + A_HEADER_IS_MISSING));
+      return Optional.of(TranzilaFields.REQUEST_TIME + A_HEADER_IS_MISSING);
     }
     if (nonce.isEmpty()) {
-      return Optional.of(refused(TranzilaFields.NONCE + A_HEADER_IS_MISSING));
+      return Optional.of(TranzilaFields.NONCE + A_HEADER_IS_MISSING);
     }
     if (presented.isEmpty()) {
-      return Optional.of(refused(TranzilaFields.ACCESS_TOKEN + A_HEADER_IS_MISSING));
+      return Optional.of(TranzilaFields.ACCESS_TOKEN + A_HEADER_IS_MISSING);
     }
     TranzilaAccessToken construction = terminal.accessToken();
     Optional<Instant> sentAt = construction.requestTimeIn(requestTime.get());
     if (sentAt.isEmpty()) {
-      return Optional.of(
-          refused(THE_REQUEST_TIME_IS_NOT_A_NUMBER + construction.theUnitOfTheRequestTime()));
+      return Optional.of(THE_REQUEST_TIME_IS_NOT_A_NUMBER + construction.theUnitOfTheRequestTime());
     }
     if (Duration.between(sentAt.get(), now).abs().compareTo(THE_REQUEST_TIME_TOLERANCE) > 0) {
-      return Optional.of(refused(THE_REQUEST_TIME_IS_OUT_OF_THE_WINDOW));
+      return Optional.of(THE_REQUEST_TIME_IS_OUT_OF_THE_WINDOW);
     }
     String expected =
         construction.expectedFor(
             terminal.appKey(), terminal.appSecret(), requestTime.get(), nonce.get());
     if (!expected.equalsIgnoreCase(presented.get())) {
-      return Optional.of(refused(THE_ACCESS_TOKEN_DOES_NOT_MATCH + TranzilaAccessToken.SETTING));
+      return Optional.of(THE_ACCESS_TOKEN_DOES_NOT_MATCH + TranzilaAccessToken.SETTING);
     }
-    if (nonces.claim(
-            terminal.testRunId(),
-            terminal.accountId(),
-            nonce.get(),
-            now,
-            now.minus(A_NONCE_IS_REMEMBERED_FOR))
-        != 1) {
-      return Optional.of(refused(THE_NONCE_WAS_USED));
+    if (nonceRule == ANonce.IS_SPENT
+        && nonces.claim(
+                terminal.testRunId(),
+                terminal.accountId(),
+                nonce.get(),
+                now,
+                now.minus(A_NONCE_IS_REMEMBERED_FOR))
+            != 1) {
+      return Optional.of(THE_NONCE_WAS_USED);
     }
     return Optional.empty();
   }
@@ -256,7 +285,10 @@ public final class TranzilaApi {
   }
 
   static Map<String, List<String>> theRequestFieldsOf(TranzilaApiCall call) {
-    return call.body().map(TranzilaJson::flatten).orElseGet(Map::of);
+    return call.body()
+        .map(TranzilaUserField::withTheIdentitiesWithheld)
+        .map(TranzilaJson::flatten)
+        .orElseGet(Map::of);
   }
 
   private void recordOutbound(

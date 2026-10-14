@@ -50,6 +50,39 @@ public final class TranzilaCompatibilityChecks {
   static final String THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY =
       "POST /tranzila/hf/process/ajax_process_transaction without the mandatory thtk";
 
+  static final String THE_API_FINDS_A_DEBIT =
+      "POST /v1/transactions by the date of a debit carrying a user-defined field";
+
+  static final String THE_REPORT_FINDS_A_DEBIT =
+      "POST /tranzila/report/v1/transaction detailed, by the date of a debit";
+
+  static final String THE_REPORT_REFUSES_A_TOKEN =
+      "POST /tranzila/report/v1/transaction with a wrong access token";
+
+  static final String THE_REPORT_ASKS_FOR_A_TERMINAL =
+      "POST /tranzila/report/v1/transaction without terminal_name";
+
+  static final List<String> THE_FIELDS_THE_LOOKUP_SAMPLE_PUBLISHES =
+      List.of(
+          "/transactions/0/processor_response_code",
+          "/transactions/0/tranmode",
+          "/transactions/0/currency",
+          "/transactions/0/payment_plan",
+          "/user_defined/0/MANDATORY",
+          "/user_defined/0/DATA_TYPE",
+          "/rows");
+
+  static final List<String> THE_FIELDS_THE_REPORT_SAMPLE_PUBLISHES =
+      List.of(
+          "/transactions/0/processor_response_code",
+          "/transactions/0/currency",
+          "/transactions/0/payment_plan",
+          "/transactions/0/txn_payment_method",
+          "/transactions/0/processor",
+          "/transactions/0/items/0/quantity",
+          "/transactions/0/items/0/item_type",
+          "/rows");
+
   static final String THE_API_FAILS_THE_AUTHENTICATION =
       "POST /v1/transaction/credit_card/create activate_3ds Y, the published frictionless fail card";
 
@@ -116,6 +149,11 @@ public final class TranzilaCompatibilityChecks {
 
   private static final String AN_UNKNOWN_ORIGINAL = "99999999";
 
+  private static final String ERROR = "error";
+
+  private static final String A_USER_DEFINED_FIELD =
+      "\"user_defined_fields\":[{\"name\":\"email\",\"value\":\"payer@shop.invalid\"}]";
+
   private final CheckJson json;
   private final IdGenerator ids;
   private final SimulatorClock clock;
@@ -141,6 +179,10 @@ public final class TranzilaCompatibilityChecks {
         pageReturn(),
         hostedFieldsCharge(),
         hostedFieldsRefuseAMissingKey(),
+        theApiFindsADebit(),
+        theReportFindsADebit(),
+        theReportRefusesAToken(),
+        theReportAsksForATerminal(),
         authenticationFailed(),
         challengeCompleted());
   }
@@ -226,6 +268,130 @@ public final class TranzilaCompatibilityChecks {
         "POST",
         TranzilaApiController.COMPLETE,
         "{\"track_id\":\"" + trackId + "\",\"terminal_name\":\"" + TERMINAL + "\"}");
+  }
+
+  private ContractCheck theApiFindsADebit() {
+    return aLookupCheck(
+        "transactions-found",
+        THE_API_FINDS_A_DEBIT,
+        TranzilaApiController.TRANSACTIONS,
+        "",
+        THE_FIELDS_THE_LOOKUP_SAMPLE_PUBLISHES);
+  }
+
+  private ContractCheck theReportFindsADebit() {
+    return aLookupCheck(
+        "report-found",
+        THE_REPORT_FINDS_A_DEBIT,
+        TranzilaReportController.TRANSACTION,
+        ",\"detailed\":\"Y\"",
+        THE_FIELDS_THE_REPORT_SAMPLE_PUBLISHES);
+  }
+
+  private ContractCheck aLookupCheck(
+      String sample, String operation, String path, String more, List<String> fields) {
+    VendorSample published = tranzila.sample(sample);
+    List<ContractExpectation> expected = new ArrayList<>();
+    for (String field : fields) {
+      expected.add(new ContractExpectation(field, published.json(field)));
+    }
+    return DeclaredCheck.applying(
+        TRANZILA,
+        operation,
+        published.provenance(),
+        expected,
+        transport -> {
+          Credentials credentials = prepare(transport);
+          String day = aDay();
+          transport.send(signed(aDebitCarrying(A_USER_DEFINED_FIELD), credentials));
+          CheckResponse found =
+              transport.send(
+                  signed(
+                      CheckRequest.json(
+                          "POST",
+                          path,
+                          "{\"terminal_name\":\""
+                              + TERMINAL
+                              + "\",\"transaction_start_date\":\""
+                              + day
+                              + "\",\"transaction_end_date\":\""
+                              + day
+                              + "\""
+                              + more
+                              + "}"),
+                      credentials));
+          Map<String, String> read = new LinkedHashMap<>();
+          for (String field : fields) {
+            Observed.put(read, field, json.at(found.body(), field));
+          }
+          return read;
+        });
+  }
+
+  private ContractCheck theReportRefusesAToken() {
+    VendorSample published = tranzila.sample("report-unauthorized");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_REPORT_REFUSES_A_TOKEN,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("httpStatus", published.status()),
+            new ContractExpectation(ERROR, published.json("/" + ERROR))),
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse refused =
+              transport.send(
+                  aReportOfIndexOne(TERMINAL)
+                      .carrying(TranzilaFields.APP_KEY, credentials.appKey())
+                      .carrying(TranzilaFields.REQUEST_TIME, aRequestTime())
+                      .carrying(TranzilaFields.NONCE, ids.hex(NONCE_LENGTH))
+                      .carrying(TranzilaFields.ACCESS_TOKEN, A_TOKEN_NO_SECRET_PRODUCED));
+          Map<String, String> read = new LinkedHashMap<>();
+          read.put("httpStatus", String.valueOf(refused.status()));
+          Observed.put(read, ERROR, json.at(refused.body(), "/" + ERROR));
+          return read;
+        });
+  }
+
+  private ContractCheck theReportAsksForATerminal() {
+    VendorSample published = tranzila.sample("report-bad-request");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_REPORT_ASKS_FOR_A_TERMINAL,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("httpStatus", published.status()),
+            new ContractExpectation(ERROR, published.json("/" + ERROR)),
+            new ContractExpectation(
+                TranzilaFields.MESSAGE, published.json("/" + TranzilaFields.MESSAGE))),
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse refused =
+              transport.send(
+                  signed(
+                      CheckRequest.json(
+                          "POST",
+                          TranzilaReportController.TRANSACTION,
+                          "{\"transaction_index\":1}"),
+                      credentials));
+          Map<String, String> read = new LinkedHashMap<>();
+          read.put("httpStatus", String.valueOf(refused.status()));
+          Observed.put(read, ERROR, json.at(refused.body(), "/" + ERROR));
+          Observed.put(
+              read, TranzilaFields.MESSAGE, json.at(refused.body(), "/" + TranzilaFields.MESSAGE));
+          return read;
+        });
+  }
+
+  private static CheckRequest aReportOfIndexOne(String terminal) {
+    return CheckRequest.json(
+        "POST",
+        TranzilaReportController.TRANSACTION,
+        "{\"terminal_name\":\"" + terminal + "\",\"transaction_index\":1}");
+  }
+
+  private String aDay() {
+    return TranzilaLookupAnswers.THE_DATE.format(clock.now(SmokeNamespace.RUN));
   }
 
   private ContractCheck charge() {
@@ -516,6 +682,20 @@ public final class TranzilaCompatibilityChecks {
                 + credentials.appSecret()
                 + "\"}}],\"webhooks\":[]}"));
     return credentials;
+  }
+
+  private static CheckRequest aDebitCarrying(String userDefinedFields) {
+    return CheckRequest.json(
+        "POST",
+        TranzilaApiController.CREATE,
+        "{\"terminal_name\":\""
+            + TERMINAL
+            + "\",\"txn_type\":\"debit\",\"card_number\":\""
+            + A_CARD
+            + "\",\"expire_month\":7,\"expire_year\":2030,\"items\":[{\"name\":\"smoke\","
+            + "\"units_number\":1,\"unit_price\":10.53}],"
+            + userDefinedFields
+            + "}");
   }
 
   private static CheckRequest aDebit() {

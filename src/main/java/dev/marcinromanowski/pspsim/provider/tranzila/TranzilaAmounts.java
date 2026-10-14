@@ -24,6 +24,13 @@ final class TranzilaAmounts {
         .setScale(2, RoundingMode.HALF_UP);
   }
 
+  static String inMinorUnits(String amount) {
+    return new BigDecimal(amount)
+        .movePointRight(2)
+        .setScale(0, RoundingMode.HALF_UP)
+        .toPlainString();
+  }
+
   static boolean isAbove(String amount, String ceiling) {
     return new BigDecimal(amount).compareTo(new BigDecimal(ceiling)) > 0;
   }

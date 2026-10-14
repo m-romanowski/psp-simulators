@@ -103,9 +103,17 @@ class TranzilaThreeDSecurePartsTest {
 
   @Test
   void a_request_rebuilt_from_a_challenge_carries_what_its_transaction_records() {
-    TranzilaCreateRequest entered = TranzilaCreateRequest.ofTheChallenge(aChallenge());
+    TranzilaJson.JsonObject sent =
+        TranzilaJsonReader.objectIn(
+                "{\"card_number\":\"491891xxxxxx5005\",\"items\":[{\"name\":\"seat\","
+                    + "\"units_number\":2,\"unit_price\":5.25}],\"user_defined_fields\":"
+                    + "[{\"name\":\"order\",\"value\":\"o-1\"}]}")
+            .orElseThrow();
+    TranzilaCreateRequest entered = TranzilaCreateRequest.ofTheChallenge(aChallenge(), sent);
     TranzilaChallenge nothingEntered = withTheEntries(aChallenge(), "0", "0");
-    TranzilaCreateRequest none = TranzilaCreateRequest.ofTheChallenge(nothingEntered);
+    TranzilaCreateRequest none =
+        TranzilaCreateRequest.ofTheChallenge(
+            nothingEntered, TranzilaJsonReader.objectIn("{}").orElseThrow());
 
     assertThat(entered.cvv()).isEqualTo("000");
     assertThat(entered.cardHolderId()).isEqualTo("000000000");
@@ -119,6 +127,10 @@ class TranzilaThreeDSecurePartsTest {
     assertThat(entered.dcDisable()).isEqualTo("order-1");
     assertThat(entered.currencyCode()).isEqualTo("EUR");
     assertThat(entered.threeDSecure()).isNull();
+    assertThat(entered.items()).containsExactly(new TranzilaItem("seat", 2, "5.25", "I"));
+    assertThat(entered.userDefinedFields()).containsExactly(new TranzilaUserField("order", "o-1"));
+    assertThat(none.items()).isEmpty();
+    assertThat(none.userDefinedFields()).isEmpty();
     assertThat(none.cvv()).isNull();
     assertThat(none.cardHolderId()).isNull();
   }

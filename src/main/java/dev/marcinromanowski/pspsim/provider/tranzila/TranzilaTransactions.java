@@ -11,7 +11,10 @@ import org.jspecify.annotations.Nullable;
 
 interface TranzilaTransactions {
 
-  TranzilaInsert insert(TranzilaTransaction transaction);
+  TranzilaInsert insert(
+      TranzilaTransaction transaction,
+      List<TranzilaUserField> userDefinedFields,
+      List<TranzilaItem> items);
 
   Optional<TranzilaPayment> paymentHolding(TestRunId testRunId, long transactionId);
 

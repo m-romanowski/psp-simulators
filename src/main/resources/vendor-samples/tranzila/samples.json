@@ -88,5 +88,36 @@
       "httpStatus": "200",
       "error_code": "900"
     }
+  },
+  "transactions-found": {
+    "evidence": "published example",
+    "note": "the Success Example of get transaction information: every transaction field a string, user_defined metadata beside the rows, total a string and rows an integer; values illustrative",
+    "source": "https://docs.tranzila.com/docs/reports/track-transaction-data/get-transaction-information",
+    "reference": "tranzila.md, Transaction Lookups",
+    "body": "transactions-found.json"
+  },
+  "report-found": {
+    "evidence": "published example",
+    "note": "the success_with_items response of getTransactions: typed fields, txn_type upper case and the items of a detailed answer; values illustrative",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Transaction Lookups",
+    "status": 200,
+    "body": "report-found.json"
+  },
+  "report-unauthorized": {
+    "evidence": "published example",
+    "note": "the 401 response of getTransactions, in the report host's error shape",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Error Shape",
+    "status": 401,
+    "body": "report-unauthorized.json"
+  },
+  "report-bad-request": {
+    "evidence": "published example",
+    "note": "the 400 response of getTransactions for a body without terminal_name",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Error Shape",
+    "status": 400,
+    "body": "report-bad-request.json"
   }
 }

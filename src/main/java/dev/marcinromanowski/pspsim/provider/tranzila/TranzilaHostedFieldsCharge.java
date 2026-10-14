@@ -3,12 +3,22 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class TranzilaHostedFieldsCharge {
 
   static final String AN_ENTERED_CVV_NOT_CARRIED = "000";
 
   static final String AN_ENTERED_ID_NOT_CARRIED = "000000000";
+
+  static final Set<String> THE_KEYS_NO_SLOT_KEEPS =
+      Set.of(
+          TranzilaFields.DC_DISABLE,
+          TranzilaHostedFieldsRequest.NOTIFY_URL,
+          "pdesc",
+          "json_purchase_data",
+          "force_txn_on_3ds_fail",
+          "force_challenge");
 
   private TranzilaHostedFieldsCharge() {}
 
@@ -36,14 +46,11 @@ final class TranzilaHostedFieldsCharge {
     }
     body.put(TranzilaFields.TXN_CURRENCY_CODE, TranzilaJson.text(request.currency().alpha()));
     body.put(TranzilaFields.ITEMS, TranzilaObjectActions.itemsOf(request.amount()));
-    String dcDisable = request.dcDisable();
-    if (dcDisable != null) {
-      Map<String, TranzilaJson> field = new LinkedHashMap<>();
-      field.put(TranzilaFields.NAME, TranzilaJson.text(TranzilaFields.DC_DISABLE));
-      field.put(TranzilaFields.VALUE, TranzilaJson.text(dcDisable));
-      body.put(
-          TranzilaFields.USER_DEFINED_FIELDS,
-          TranzilaJson.array(List.of(TranzilaJson.object(field))));
+    List<TranzilaUserField> userDefined =
+        TranzilaPageCharge.theUserDefinedFieldsOf(
+            request.dcDisable(), request.userFormData(), THE_KEYS_NO_SLOT_KEEPS);
+    if (!userDefined.isEmpty()) {
+      body.put(TranzilaFields.USER_DEFINED_FIELDS, TranzilaPageCharge.asSent(userDefined));
     }
     TranzilaThreeDSecure secure = request.threeDSecure();
     Map<String, TranzilaJson> settings = new LinkedHashMap<>();
