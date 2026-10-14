@@ -54,6 +54,7 @@ final class CreateTransaction {
   static final String NOT_ENTERED = "0";
 
   private final TranzilaTransactions transactions;
+  private final TranzilaPages pages;
   private final TranzilaPayerCards cards;
   private final TranzilaExchanges exchanges;
   private final IdGenerator ids;
@@ -61,11 +62,13 @@ final class CreateTransaction {
 
   CreateTransaction(
       TranzilaTransactions transactions,
+      TranzilaPages pages,
       TranzilaPayerCards cards,
       TranzilaExchanges exchanges,
       IdGenerator ids,
       ScenarioEngine scenarios) {
     this.transactions = transactions;
+    this.pages = pages;
     this.cards = cards;
     this.exchanges = exchanges;
     this.ids = ids;
@@ -595,6 +598,11 @@ final class CreateTransaction {
             .carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
             .map(TranzilaTransaction::card)
             .or(() -> Optional.ofNullable(asked.cardsThePageOffers().get(cardNumber)))
+            .or(
+                () ->
+                    pages
+                        .savingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
+                        .flatMap(page -> TranzilaBrowserReturn.theCardOf(page, null)))
             .or(() -> cards.holdingTheToken(asked.testRunId(), cardNumber));
     return known.map(card -> new Presented(card.expiringIn(month, year), cardNumber));
   }

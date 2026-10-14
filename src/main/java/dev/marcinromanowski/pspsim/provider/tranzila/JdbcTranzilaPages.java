@@ -89,6 +89,20 @@ final class JdbcTranzilaPages implements TranzilaPages {
   }
 
   @Override
+  public Optional<TranzilaPage> savingTheToken(
+      TestRunId testRunId, String accountId, String token) {
+    return jdbc.sql(
+            """
+            select * from tranzila_page
+            where test_run_id = ? and account_id = ? and token = ? and card_mask is not null
+            order by arrival desc limit 1
+            """)
+        .params(testRunId.value(), accountId, token)
+        .query(JdbcTranzilaPages::toPage)
+        .optional();
+  }
+
+  @Override
   public List<TranzilaPage> allById(TestRunId testRunId, List<String> pageIds) {
     return jdbc.sql(
             """

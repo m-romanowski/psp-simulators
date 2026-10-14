@@ -29,9 +29,7 @@ final class TranzilaBrowserReturn {
           TranzilaFields.TRANMODE,
           TranzilaFields.CONFIRMATION_CODE);
 
-  static final String ISRACARD_ISSUES = "1";
-
-  static final String CAL_ISSUES = "2";
+  static final String THE_SAMPLES_ISSUER = "1";
 
   static final String ISRACARD_ACQUIRES = "1";
 
@@ -68,7 +66,7 @@ final class TranzilaBrowserReturn {
                   TranzilaFields.RESPONSE_ID,
                   transaction == null ? NOT_ENTERED : transaction.responseId());
               fields.put(TranzilaFields.CARDTYPE, Integer.toString(card.cardType()));
-              fields.put(TranzilaFields.CARDISSUER, theIssuerOf(card.cardType()));
+              fields.put(TranzilaFields.CARDISSUER, THE_SAMPLES_ISSUER);
               fields.put(TranzilaFields.CARDACQUIRER, theAcquirerOf(card.cardType()));
             });
     theTokenOf(page, transaction).ifPresent(token -> fields.put(TranzilaFields.TRANZILA_TK, token));
@@ -88,13 +86,6 @@ final class TranzilaBrowserReturn {
       fields.put(TranzilaFields.CONFIRMATION_CODE, authNumber);
     }
     return Collections.unmodifiableSequencedMap(fields);
-  }
-
-  static String theIssuerOf(int cardType) {
-    return switch (cardType) {
-      case TranzilaCard.ISRACARD, TranzilaCard.AMEX -> ISRACARD_ISSUES;
-      default -> CAL_ISSUES;
-    };
   }
 
   static String theAcquirerOf(int cardType) {

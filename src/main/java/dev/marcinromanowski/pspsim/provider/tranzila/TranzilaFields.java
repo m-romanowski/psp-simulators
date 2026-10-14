@@ -187,4 +187,6 @@ final class TranzilaFields {
           MYID);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID);
+
+  static final Set<String> WHAT_THE_PAYERS_OWN_PAGE_WITHHOLDS = Set.of(TRANZILA_TK);
 }

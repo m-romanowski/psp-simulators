@@ -35,13 +35,18 @@ class TranzilaPagePartsTest {
     Map<String, String> fields = new LinkedHashMap<>();
     fields.put("contact", "Dana \"D\" <Levi>");
     fields.put("sum", "10");
+    fields.put("submit", "1");
+    fields.put("action", "elsewhere");
+    fields.put("method", "get");
 
     String page = TranzilaReturnPage.posting("https://shop.example/ok?a=1&b=2", fields);
     String hash =
         Base64.getEncoder()
             .encodeToString(
                 MessageDigest.getInstance("SHA-256")
-                    .digest("document.forms[0].submit();".getBytes(StandardCharsets.UTF_8)));
+                    .digest(
+                        "HTMLFormElement.prototype.submit.call(document.forms[0]);"
+                            .getBytes(StandardCharsets.UTF_8)));
 
     assertThat(page)
         .startsWith("<!DOCTYPE html>")
@@ -49,15 +54,23 @@ class TranzilaPagePartsTest {
         .contains(
             "<input type=\"hidden\" name=\"contact\" value=\"Dana &quot;D&quot; &lt;Levi&gt;\">")
         .contains("<input type=\"hidden\" name=\"sum\" value=\"10\">")
+        .contains("<input type=\"hidden\" name=\"submit\" value=\"1\">")
+        .contains("<input type=\"hidden\" name=\"action\" value=\"elsewhere\">")
         .contains("<button type=\"submit\">Continue to the shop</button>")
-        .endsWith("<script>document.forms[0].submit();</script></body></html>");
-    assertThat(TranzilaReturnPage.THE_SCRIPT).isEqualTo("document.forms[0].submit();");
+        .endsWith(
+            "<script>HTMLFormElement.prototype.submit.call(document.forms[0]);</script>"
+                + "</body></html>");
+    assertThat(hash).isEqualTo("Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8=");
     assertThat(TranzilaReturnPage.WHAT_THIS_PAGE_PERMITS)
         .isEqualTo(
-            "default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-" + hash + "'");
+            "default-src 'none'; style-src 'unsafe-inline';"
+                + " script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='");
     assertThat(TranzilaReturnPage.DEFENCE_HEADERS)
         .containsEntry(
-            "Content-Security-Policy", List.of(TranzilaReturnPage.WHAT_THIS_PAGE_PERMITS))
+            "Content-Security-Policy",
+            List.of(
+                "default-src 'none'; style-src 'unsafe-inline';"
+                    + " script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='"))
         .containsEntry("Cache-Control", List.of("no-store"));
   }
 
@@ -318,7 +331,9 @@ class TranzilaPagePartsTest {
         .isEqualTo(
             "{\"error_code\":405,\"message\":\"This address does not answer this HTTP method\"}");
     assertThat(pageUnknown.headers())
-        .containsEntry("Content-Security-Policy", TranzilaDirectNgPage.WHAT_THIS_PAGE_PERMITS)
+        .containsEntry(
+            "Content-Security-Policy",
+            "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'")
         .containsEntry("Cache-Control", "no-store");
     assertThat(handshakeUnknown.headers()).isEmpty();
     assertThat(pageUnknown.httpStatus()).isEqualTo(404);

@@ -171,7 +171,7 @@ final class TranzilaDirectNgPage {
     Map<String, List<String>> answered = new LinkedHashMap<>();
     fields.forEach((name, value) -> answered.put(name, List.of(value)));
     StringBuilder shown = new StringBuilder("<dl>");
-    Redaction.redact(answered, TranzilaFields.SENSITIVE_DELIVERY_FIELDS)
+    Redaction.redact(answered, TranzilaFields.WHAT_THE_PAYERS_OWN_PAGE_WITHHOLDS)
         .forEach(
             (name, values) ->
                 shown

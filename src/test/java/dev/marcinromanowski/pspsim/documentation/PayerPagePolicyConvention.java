@@ -80,7 +80,7 @@ public final class PayerPagePolicyConvention {
                   + " this page, which is why it names no frame-ancestors"),
           new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
-              "script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='",
+              "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
               "the one inline script that submits the return form to the shop's own address, as"
                   + " tranzila returns a payer with a POST; the hash admits that script and"
                   + " nothing else, and the form names no form-action because it posts off this"

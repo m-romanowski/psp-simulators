@@ -7,11 +7,11 @@ import org.springframework.web.util.HtmlUtils;
 
 final class TranzilaReturnPage {
 
-  static final String THE_SCRIPT = "document.forms[0].submit();";
+  static final String THE_SCRIPT = "HTMLFormElement.prototype.submit.call(document.forms[0]);";
 
   static final String WHAT_THIS_PAGE_PERMITS =
       WhatAPayerPageMayLoad.NOTHING_BUT_THE_PAGES_OWN_STYLE
-          + "; script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='";
+          + "; script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='";
 
   static final Map<String, List<String>> DEFENCE_HEADERS =
       WhatAPayerPageMayLoad.eachOnADocumentDeclaring(WHAT_THIS_PAGE_PERMITS);

@@ -110,12 +110,13 @@ public class TranzilaModule {
   @Bean
   CreateTransaction tranzilaCreateTransaction(
       TranzilaTransactions transactions,
+      TranzilaPages pages,
       PaymentMethodFixtures fixtures,
       TranzilaExchanges exchanges,
       IdGenerator ids,
       ScenarioEngine scenarios) {
     return new CreateTransaction(
-        transactions, new TranzilaPayerCards(fixtures), exchanges, ids, scenarios);
+        transactions, pages, new TranzilaPayerCards(fixtures), exchanges, ids, scenarios);
   }
 
   @Bean

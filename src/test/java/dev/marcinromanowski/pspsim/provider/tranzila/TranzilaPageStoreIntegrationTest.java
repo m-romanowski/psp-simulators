@@ -81,9 +81,15 @@ class TranzilaPageStoreIntegrationTest extends PostgresBackedTest {
             new TranzilaCard("xxxxxxxxxxxx9022", TranzilaCard.VISA, 12, 30),
             AT);
 
+    TranzilaPage open = aPage(RUN, "8", new LinkedHashMap<>(), TranzilaTranmode.K);
+    pages.open(open);
     pages.settle(saved);
 
     assertThat(pages.find(RUN, opened.pageId())).contains(saved);
+    assertThat(pages.savingTheToken(RUN, "account-1", "t5d55d2922ca4029022")).contains(saved);
+    assertThat(pages.savingTheToken(RUN, "account-2", "t5d55d2922ca4029022")).isEmpty();
+    assertThat(pages.savingTheToken(ANOTHER, "account-1", "t5d55d2922ca4029022")).isEmpty();
+    assertThat(pages.savingTheToken(RUN, "account-1", "another1234")).isEmpty();
   }
 
   @Test

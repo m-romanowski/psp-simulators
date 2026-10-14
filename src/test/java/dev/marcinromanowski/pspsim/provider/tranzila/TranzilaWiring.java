@@ -34,6 +34,7 @@ final class TranzilaWiring {
 
   final TranzilaDoubles.Terminals terminals = new TranzilaDoubles.Terminals();
   final TranzilaDoubles.Transactions transactions = new TranzilaDoubles.Transactions();
+  final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
   final TranzilaDoubles.Nonces nonces = new TranzilaDoubles.Nonces();
   final TranzilaDoubles.Exchanges exchanges = new TranzilaDoubles.Exchanges();
   final TranzilaDoubles.Audit audit = new TranzilaDoubles.Audit();
@@ -45,12 +46,12 @@ final class TranzilaWiring {
   final CreateTransaction create =
       new CreateTransaction(
           transactions,
+          pages,
           new TranzilaPayerCards(fixtures),
           exchanges,
           ids,
           new ScenarioEngine(rules));
   final RecordedUnitsOfWork units = new RecordedUnitsOfWork();
-  final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
   final TranzilaDoubles.Handshakes handshakes = new TranzilaDoubles.Handshakes();
   final TranzilaDoubles.Accounts accounts = new TranzilaDoubles.Accounts();
   final List<String> posted = new ArrayList<>();

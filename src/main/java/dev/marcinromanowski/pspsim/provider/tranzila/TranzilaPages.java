@@ -19,6 +19,8 @@ interface TranzilaPages {
 
   Optional<TranzilaPage> ofTheTransaction(TestRunId testRunId, long transactionId);
 
+  Optional<TranzilaPage> savingTheToken(TestRunId testRunId, String accountId, String token);
+
   List<TranzilaPage> allById(TestRunId testRunId, List<String> pageIds);
 
   void settle(TranzilaPage settled);

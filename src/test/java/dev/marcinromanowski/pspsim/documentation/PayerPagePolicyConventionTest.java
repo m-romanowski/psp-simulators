@@ -82,7 +82,7 @@ class PayerPagePolicyConventionTest {
             "form-action 'self'",
             "frame-ancestors 'none'",
             "base-uri 'none'",
-            "script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='");
+            "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='");
     assertThat(PayerPagePolicyConvention.thePagesThatRegisterADirective())
         .containsExactly(
             "dev.marcinromanowski.pspsim.provider.autra.AutraCardPage",
@@ -263,8 +263,8 @@ class PayerPagePolicyConventionTest {
 
   @Test
   void an_inline_script_is_admitted_only_by_a_policy_naming_the_hash_of_exactly_its_text() {
-    String script = "document.forms[0].submit();";
-    String itsHash = "'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='";
+    String script = "HTMLFormElement.prototype.submit.call(document.forms[0]);";
+    String itsHash = "'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='";
     String carrying = "<p>x</p><script>" + script + "</script></body></html>";
     APage unhashed = new APage("a.Page", List.of(A_STYLED_DOCUMENT, carrying, THE_FLOOR));
     APage hashed =

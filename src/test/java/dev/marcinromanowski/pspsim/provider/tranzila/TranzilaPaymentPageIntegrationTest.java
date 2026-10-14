@@ -137,7 +137,7 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
     assertThat(returned.headers().firstValue("Content-Security-Policy").orElseThrow())
         .isEqualTo(
             "default-src 'none'; style-src 'unsafe-inline';"
-                + " script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='");
+                + " script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='");
     assertThat(List.copyOf(fields.keySet()))
         .containsExactly(
             "supplier",
@@ -177,7 +177,7 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
         .containsEntry("Responsecv", "0")
         .containsEntry("Responseid", "0")
         .containsEntry("cardtype", "2")
-        .containsEntry("cardissuer", "2")
+        .containsEntry("cardissuer", "1")
         .containsEntry("cardacquirer", "2")
         .containsEntry("TranzilaTK", "t5d55d2922ca4029022")
         .containsEntry("txn_type", "verify")

@@ -623,6 +623,17 @@ final class TranzilaDoubles {
     }
 
     @Override
+    public Optional<TranzilaPage> savingTheToken(
+        TestRunId testRunId, String accountId, String token) {
+      return stored.reversed().stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> held.accountId().equals(accountId))
+          .filter(held -> token.equals(held.token()))
+          .filter(held -> held.cardMask() != null)
+          .findFirst();
+    }
+
+    @Override
     public List<TranzilaPage> allById(TestRunId testRunId, List<String> pageIds) {
       return stored.stream()
           .filter(held -> held.testRunId().equals(testRunId))

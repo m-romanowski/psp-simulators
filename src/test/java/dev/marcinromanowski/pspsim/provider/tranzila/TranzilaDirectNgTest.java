@@ -118,6 +118,91 @@ class TranzilaDirectNgTest {
   }
 
   @Test
+  void a_token_a_k_page_returned_charges_on_the_api_of_its_run_and_nowhere_else() {
+    open(parameters("1", "K"));
+    pay(thePage().pageId(), THE_PUBLISHED_CARD);
+    TranzilaWiring anotherRun = new TranzilaWiring();
+
+    String charged =
+        wired.answered(TranzilaWire.withCard("\"txn_type\":\"debit\"", THE_PUBLISHED_TOKEN, "5"));
+    String refused =
+        anotherRun.answered(
+            TranzilaWire.withCard("\"txn_type\":\"debit\"", THE_PUBLISHED_TOKEN, "5"));
+
+    assertThat(charged)
+        .contains("\"processor_response_code\":\"000\"")
+        .contains("\"token\":\"t5d55d2922ca4029022\"")
+        .contains("\"card_mask\":\"xxxxxxxxxxxx9022\"")
+        .contains("\"expiry_month\":7");
+    assertThat(refused)
+        .isEqualTo("{\"error_code\":20111,\"message\":\"Provided token check failure\"}");
+  }
+
+  @Test
+  void a_return_field_a_shop_forged_as_a_parameter_comes_back_with_the_real_value() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, NOTIFY);
+    String[] forged = {
+      "Response", "999",
+      "TranzilaTK", "forgedtoken1",
+      "ccno", "0000",
+      "supplier", "another",
+      "index", "1",
+      "ConfirmationCode", "0000000",
+      "orderid", "SHOP-1"
+    };
+    open(parameters("10", "A", forged));
+    pay(thePage().pageId(), THE_PUBLISHED_CARD);
+    TranzilaTransaction approved = wired.theLastStored();
+    wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("004"));
+    open(parameters("10", "A", forged));
+
+    TranzilaApiResponse declined = pay(thePage().pageId(), THE_PUBLISHED_CARD);
+
+    assertThat(wired.posted.get(0))
+        .contains("supplier=myterminal&")
+        .contains("&Response=000&")
+        .contains("&orderid=SHOP-1&")
+        .contains("&index=" + approved.transactionIdAsText() + "&")
+        .contains("&ccno=9022&")
+        .contains("&TranzilaTK=t5d55d2922ca4029022&")
+        .endsWith("&ConfirmationCode=" + approved.authNumber())
+        .doesNotContain("999")
+        .doesNotContain("forgedtoken1")
+        .doesNotContain("another")
+        .doesNotContain("ConfirmationCode=0000000");
+    assertThat(bodyOf(declined))
+        .contains("name=\"Response\" value=\"004\"")
+        .contains("name=\"supplier\" value=\"myterminal\"")
+        .contains("name=\"ccno\" value=\"9022\"")
+        .contains("name=\"orderid\" value=\"SHOP-1\"")
+        .doesNotContain("TranzilaTK")
+        .doesNotContain("ConfirmationCode")
+        .doesNotContain("999")
+        .doesNotContain("another");
+    assertThat(wired.posted.get(1))
+        .contains("&Response=004&")
+        .doesNotContain("TranzilaTK")
+        .doesNotContain("ConfirmationCode")
+        .doesNotContain("index=1&");
+  }
+
+  @Test
+  void the_page_shown_without_a_return_address_prints_the_payers_own_id_and_withholds_the_token() {
+    open(
+        Map.of(
+            "sum", List.of("5"),
+            "currency", List.of("1"),
+            "tranmode", List.of("A"),
+            "myid", List.of("123456789")));
+
+    TranzilaApiResponse answered = pay(thePage().pageId(), THE_PUBLISHED_CARD);
+
+    assertThat(bodyOf(answered))
+        .contains("<dt>myid</dt><dd>123456789</dd>")
+        .contains("<dt>TranzilaTK</dt><dd>[redacted]</dd>");
+  }
+
+  @Test
   void a_terminal_no_run_configures_is_answered_404_and_opens_nothing() {
     TranzilaApiResponse answered =
         wired.directNg.open(
@@ -224,12 +309,12 @@ class TranzilaDirectNgTest {
     assertThat(answered.headers().get("Content-Security-Policy"))
         .containsExactly(
             "default-src 'none'; style-src 'unsafe-inline';"
-                + " script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='");
+                + " script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='");
     assertThat(bodyOf(answered))
         .contains("<form method=\"post\" action=\"https://shop.example/ok\">")
         .contains("<input type=\"hidden\" name=\"Response\" value=\"000\">")
         .contains("<input type=\"hidden\" name=\"TranzilaTK\" value=\"t5d55d2922ca4029022\">")
-        .contains("<script>document.forms[0].submit();</script>");
+        .contains("<script>HTMLFormElement.prototype.submit.call(document.forms[0]);</script>");
     TranzilaPage settled = thePage();
     assertThat(settled.outcome()).isEqualTo(PayerOutcome.PAID);
     assertThat(settled.transactionId()).isEqualTo(Long.valueOf(made.transactionId()));

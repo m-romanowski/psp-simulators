@@ -6,6 +6,7 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookPayload;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +40,7 @@ class TranzilaBrowserReturnTest {
             Map.entry("Responsecv", "1"),
             Map.entry("Responseid", "0"),
             Map.entry("cardtype", "2"),
-            Map.entry("cardissuer", "2"),
+            Map.entry("cardissuer", "1"),
             Map.entry("cardacquirer", "2"),
             Map.entry("TranzilaTK", "t5d55d2922ca4024245"),
             Map.entry("txn_type", "debit"),
@@ -51,19 +52,99 @@ class TranzilaBrowserReturnTest {
   void
       the_notify_adds_the_authorization_number_as_the_confirmation_code_after_every_return_field() {
     TranzilaPage page = aPage(TranzilaTranmode.A, new LinkedHashMap<>(), null);
+    SequencedMap<String, String> notified =
+        TranzilaBrowserReturn.theNotifyOf(page, aDebit("000", "0587923", "tok12345678"));
 
-    assertThat(TranzilaBrowserReturn.theNotifyOf(page, aDebit("000", "0587923", "tok12345678")))
+    assertThat(notified)
         .containsAllEntriesOf(
             TranzilaBrowserReturn.theFieldsOf(page, aDebit("000", "0587923", "tok12345678")))
         .containsEntry("ConfirmationCode", "0587923")
         .hasSize(16)
         .isUnmodifiable();
+    assertThat(notified.lastEntry()).isEqualTo(Map.entry("ConfirmationCode", "0587923"));
+  }
+
+  @Test
+  void the_issuer_is_the_samples_for_every_card_and_the_acquirer_is_read_off_the_card_type() {
+    List<String> read = new ArrayList<>();
+    for (int cardType = 1; cardType <= 6; cardType++) {
+      TranzilaPage saved =
+          aPage(TranzilaTranmode.K, new LinkedHashMap<>(), null)
+              .settledAs(
+                  PayerOutcome.PAID,
+                  null,
+                  "777",
+                  "tok12345678",
+                  new TranzilaCard("xxxxxxxxxxxx1111", cardType, 1, 30),
+                  TranzilaWiring.NOW);
+      SequencedMap<String, String> fields = TranzilaBrowserReturn.theFieldsOf(saved, null);
+      read.add(cardType + " " + fields.get("cardissuer") + " " + fields.get("cardacquirer"));
+    }
+
+    assertThat(read).containsExactly("1 1 2", "2 1 2", "3 1 3", "4 1 4", "5 1 1", "6 1 2");
+  }
+
+  @Test
+  void the_names_never_echoed_are_exactly_the_names_a_full_return_and_its_notify_set_and_thtk() {
+    TranzilaPage page = aPage(TranzilaTranmode.AK, new LinkedHashMap<>(), null);
+
+    assertThat(TranzilaPageRequest.NEVER_ECHOED)
+        .containsExactlyInAnyOrder(
+            "supplier",
+            "sum",
+            "currency",
+            "Response",
+            "transaction_id",
+            "index",
+            "ccno",
+            "Responsecv",
+            "Responseid",
+            "cardtype",
+            "cardissuer",
+            "cardacquirer",
+            "TranzilaTK",
+            "txn_type",
+            "tranmode",
+            "ConfirmationCode",
+            "thtk");
     assertThat(
-            List.copyOf(
-                    TranzilaBrowserReturn.theNotifyOf(page, aDebit("000", "0587923", "tok12345678"))
-                        .keySet())
-                .getLast())
-        .isEqualTo("ConfirmationCode");
+            TranzilaBrowserReturn.theNotifyOf(page, aDebit("000", "0587923", "tok12345678"))
+                .keySet())
+        .containsExactlyInAnyOrderElementsOf(TranzilaBrowserReturn.THE_NAMES_THE_RETURN_SETS);
+  }
+
+  @Test
+  void every_parameter_the_page_received_comes_back_but_the_thtk_and_the_names_the_return_sets() {
+    Map<String, List<String>> sent = new LinkedHashMap<>();
+    sent.put("orderid", List.of("A-77"));
+    sent.put("sum", List.of("10.53"));
+    sent.put("currency", List.of("978"));
+    sent.put("tranmode", List.of("AK"));
+    sent.put("thtk", List.of("w123"));
+    sent.put("Response", List.of("999"));
+    sent.put("TranzilaTK", List.of("forged"));
+    sent.put("myid", List.of("123456789"));
+    sent.put("lang", List.of("il"));
+    sent.put("empty", List.of(""));
+    TranzilaPage page =
+        aPage(TranzilaTranmode.AK, TranzilaPageRequest.theEchoedFieldsOf(sent), null);
+
+    SequencedMap<String, String> returned =
+        TranzilaBrowserReturn.theFieldsOf(page, aDebit("000", "0587923", "real1234567"));
+
+    assertThat(page.echoed())
+        .containsExactly(
+            Map.entry("orderid", "A-77"), Map.entry("myid", "123456789"), Map.entry("lang", "il"));
+    assertThat(returned)
+        .containsEntry("orderid", "A-77")
+        .containsEntry("myid", "123456789")
+        .containsEntry("Response", "000")
+        .containsEntry("TranzilaTK", "real1234567")
+        .doesNotContainKey("thtk");
+    assertThat(
+            TranzilaNotify.payloadOf(page, aDebit("000", "0587923", "real1234567")).sanitizedBody())
+        .containsEntry("myid", List.of("[redacted]"))
+        .containsEntry("orderid", List.of("A-77"));
   }
 
   @Test
@@ -158,7 +239,7 @@ class TranzilaBrowserReturnTest {
     assertThat(new String(payload.body(), StandardCharsets.UTF_8))
         .isEqualTo(
             "supplier=myterminal&sum=10.53&currency=978&Response=000&transaction_id=41044"
-                + "&index=41044&ccno=4245&Responsecv=1&Responseid=0&cardtype=2&cardissuer=2"
+                + "&index=41044&ccno=4245&Responsecv=1&Responseid=0&cardtype=2&cardissuer=1"
                 + "&cardacquirer=2&TranzilaTK=t5d55d2922ca4024245&txn_type=debit&tranmode=A"
                 + "&ConfirmationCode=0587923");
     assertThat(payload.sanitizedBody())
