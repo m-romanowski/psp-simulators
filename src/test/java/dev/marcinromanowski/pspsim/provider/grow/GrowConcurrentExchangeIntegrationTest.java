@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
@@ -103,6 +104,31 @@ class GrowConcurrentExchangeIntegrationTest extends PostgresBackedTest {
             jdbc, TABLE, GrowKeyMechanisms.UNIQUE_IDENTIFIER, "1001", RUN.value()),
         CONCURRENT,
         Set.of(ExchangeVerdict.DUPLICATE_KEY_REFUSAL));
+    TheRequestsUnderOneKey.isReadableOnTheInspector(http, "grow", RUN.value());
+  }
+
+  @Test
+  void charges_sent_at_once_under_one_group_are_numbered_after_the_one_that_charged()
+      throws Exception {
+    String card = aRegisteredCard();
+    AtomicInteger unique = new AtomicInteger(2000);
+
+    List<Integer> statuses =
+        AtOnce.sent(
+            CONCURRENT,
+            () -> {
+              MultiValueMap<String, Object> charge =
+                  aChargeOf(card, String.valueOf(unique.incrementAndGet()));
+              charge.add("transactionGroupIdentifier", "basket-7");
+              return charge(charge).getStatusCode().value();
+            });
+
+    assertThat(statuses).hasSize(CONCURRENT).containsOnly(200);
+    TheRequestsUnderOneKey.areNumberedAfterTheOneThatClaimedTheKey(
+        TheRequestsUnderOneKey.recordedUnderTheName(
+            jdbc, TABLE, GrowKeyMechanisms.GROUP_IDENTIFIER, "basket-7", RUN.value()),
+        CONCURRENT,
+        Set.of(ExchangeVerdict.DUPLICATE_KEY_REFUSAL, ExchangeVerdict.REPEAT_ADMITTED));
     TheRequestsUnderOneKey.isReadableOnTheInspector(http, "grow", RUN.value());
   }
 

@@ -1,6 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
@@ -118,6 +119,28 @@ class WorldlineIdempotenceTest {
             under(
                 WorldlineFields.IDEMPOTENCY_KEY_AS_THE_MANUAL_AUTHENTICATION_PAGE_SPELLS_IT, KEY));
     assertThat(repeat.providerObjectId()).isEqualTo(first.providerObjectId());
+  }
+
+  @Test
+  void a_first_request_whose_exchange_could_not_be_recorded_leaves_its_answer_to_replay() {
+    String body = WorldlineWire.aPaymentBody(5000L, "PLN", aStoredToken(), "SALE");
+    keys.failingTheNextObservation();
+
+    assertThatThrownBy(
+            () ->
+                create(
+                    body,
+                    under(
+                        WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT,
+                        KEY)))
+        .isInstanceOf(IllegalStateException.class);
+    WorldlineApiResponse retried =
+        create(
+            body,
+            under(WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT, KEY));
+
+    assertThat(retried.httpStatus()).isEqualTo(201);
+    assertThat(retried.headers()).containsKey(WorldlineFields.IDEMPOTENCE_REQUEST_TIMESTAMP);
   }
 
   @Test

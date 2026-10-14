@@ -3,8 +3,8 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDecision;
@@ -164,12 +164,13 @@ final class CreateTransaction {
           asked,
           key.exchangeKeyName(),
           key.dcDisable(),
-          ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+          KeyedOutcome.REFUSED_AS_A_DUPLICATE,
           duplicate);
       return duplicate.result();
     }
     Answered answered = answered(asked);
-    observe(asked, key.exchangeKeyName(), key.dcDisable(), ExchangeVerdict.FIRST_REQUEST, answered);
+    observe(
+        asked, key.exchangeKeyName(), key.dcDisable(), KeyedOutcome.RAN_THE_OPERATION, answered);
     return observedUnderTheReference(asked, answered);
   }
 
@@ -178,13 +179,13 @@ final class CreateTransaction {
     if (reference != null) {
       String named = reference.toString();
       observe(
-          asked, TranzilaFields.REFERENCE_TXN_ID, named, ExchangeVerdict.FIRST_REQUEST, answered);
+          asked, TranzilaFields.REFERENCE_TXN_ID, named, KeyedOutcome.RAN_THE_OPERATION, answered);
     }
     return answered.result();
   }
 
   private void observe(
-      Asked asked, String keyName, String keyValue, ExchangeVerdict verdict, Answered answered) {
+      Asked asked, String keyName, String keyValue, KeyedOutcome outcome, Answered answered) {
     TranzilaOperationResult result = answered.result();
     if (result.outcome() == ProviderOutcome.UNKNOWN) {
       return;
@@ -196,7 +197,7 @@ final class CreateTransaction {
             keyName,
             keyValue,
             asked.request().type().wire(),
-            verdict,
+            outcome,
             new FingerprintedRequest(
                 asked.call().method(),
                 asked.request().type().wire(),

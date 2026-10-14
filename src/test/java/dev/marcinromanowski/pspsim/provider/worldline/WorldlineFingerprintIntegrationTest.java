@@ -81,7 +81,7 @@ class WorldlineFingerprintIntegrationTest extends PostgresBackedTest {
             .query(String.class)
             .list();
     String secret =
-        jdbc.sql("select fingerprint_key from simulator_test_run where test_run_id = ?")
+        jdbc.sql("select fingerprint_key from simulator_fingerprint_key where test_run_id = ?")
             .param(RUN.value())
             .query(String.class)
             .single();

@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -105,27 +105,30 @@ final class WorldlineIdempotentCall {
       return answered;
     }
     WorldlineBody body = answered.body();
-    record(
-        keys,
-        testRunId,
-        merchant,
-        key,
-        operation,
-        request,
-        ExchangeVerdict.FIRST_REQUEST,
-        body.asAKeyedAnswer(),
-        answered.providerObjectId(),
-        answered.outcome() == ProviderOutcome.SUCCESS,
-        now);
-    keys.completed(
-        testRunId,
-        merchant.accountId(),
-        key.value(),
-        new WorldlineStoredAnswer(
-            body.httpStatus(),
-            String.valueOf(body.contentType()),
-            body.text(),
-            answered.providerObjectId()));
+    try {
+      record(
+          keys,
+          testRunId,
+          merchant,
+          key,
+          operation,
+          request,
+          KeyedOutcome.RAN_THE_OPERATION,
+          body.asAKeyedAnswer(),
+          answered.providerObjectId(),
+          answered.outcome() == ProviderOutcome.SUCCESS,
+          now);
+    } finally {
+      keys.completed(
+          testRunId,
+          merchant.accountId(),
+          key.value(),
+          new WorldlineStoredAnswer(
+              body.httpStatus(),
+              String.valueOf(body.contentType()),
+              body.text(),
+              answered.providerObjectId()));
+    }
     return answered;
   }
 
@@ -162,7 +165,7 @@ final class WorldlineIdempotentCall {
         key,
         operation,
         request,
-        ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY,
+        KeyedOutcome.REPLAYED,
         body.asAKeyedAnswer(),
         answer.providerObjectId(),
         false,
@@ -187,7 +190,7 @@ final class WorldlineIdempotentCall {
         key,
         operation,
         request,
-        ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD,
+        KeyedOutcome.REFUSED_WHILE_THE_KEY_WAS_HELD,
         refused.body().asAKeyedAnswer(),
         null,
         false,
@@ -202,7 +205,7 @@ final class WorldlineIdempotentCall {
       WorldlineIdempotence.Sent key,
       String operation,
       FingerprintedRequest request,
-      ExchangeVerdict verdict,
+      KeyedOutcome outcome,
       @Nullable KeyedAnswer answer,
       @Nullable String providerObjectId,
       boolean stateChanged,
@@ -214,7 +217,7 @@ final class WorldlineIdempotentCall {
             WorldlineKeyMechanisms.IDEMPOTENCE_KEY,
             key.value(),
             operation,
-            verdict,
+            outcome,
             request,
             answer,
             providerObjectId,

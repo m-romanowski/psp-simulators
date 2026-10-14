@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -100,9 +100,9 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
         TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.DEBIT, null),
         "order-1",
         "debit",
-        ExchangeVerdict.FIRST_REQUEST,
+        KeyedOutcome.RAN_THE_OPERATION,
         new FingerprintedRequest("POST", "debit", Map.of()),
-        new KeyedAnswer(200, "application/json", Map.of()),
+        new KeyedAnswer(200, Map.of()),
         "7001",
         true,
         null,

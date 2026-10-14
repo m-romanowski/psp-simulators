@@ -30,6 +30,10 @@ final class AzericardOrderTrace {
     return order.substring(order.length() - TRACE_LENGTH);
   }
 
+  static String exchangeKeyOf(String order, Instant at) {
+    return dayOf(at) + " " + of(order);
+  }
+
   static LocalDate dayOf(Instant at) {
     return at.atOffset(ZoneOffset.UTC).toLocalDate();
   }

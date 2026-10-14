@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.grow;
 
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
@@ -94,13 +94,10 @@ final class GetTransactionInfo {
             GrowKeyMechanisms.TRANSACTION_ID,
             transactionId,
             GrowOperations.GET_TRANSACTION_INFO,
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             new FingerprintedRequest(
                 GrowLightApi.WIRE_METHOD, GrowOperations.GET_TRANSACTION_INFO, form.values()),
-            new KeyedAnswer(
-                GrowLightApi.GROW_HTTP_STATUS,
-                account.wireForm().contentType(),
-                result.body().flatten()),
+            new KeyedAnswer(GrowLightApi.GROW_HTTP_STATUS, result.body().flatten()),
             transactionId,
             false,
             null,

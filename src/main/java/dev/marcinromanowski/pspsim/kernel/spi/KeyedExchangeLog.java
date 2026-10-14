@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.kernel.spi;
 
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import dev.marcinromanowski.pspsim.kernel.testrun.FingerprintKeys;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -10,6 +10,8 @@ import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.ObjectMapper;
 
 public final class KeyedExchangeLog {
+
+  public static final String THE_BODY_IS = "application/json";
 
   private final ProviderKeyMechanisms mechanisms;
   private final FingerprintKeys keys;
@@ -36,7 +38,7 @@ public final class KeyedExchangeLog {
 
   public void record(KeyedObservation observed) {
     KeyRole role = mechanisms.roleOf(observed.keyName());
-    ExchangeVerdict decided = observed.verdict();
+    KeyedOutcome outcome = observed.outcome();
     KeyedAnswer answer = observed.answer();
     KeyedExchangeRow row =
         new KeyedExchangeRow(
@@ -46,10 +48,10 @@ public final class KeyedExchangeLog {
             observed.keyValue(),
             observed.operation(),
             fingerprintOf(observed.testRunId(), observed.request()),
-            decided.recordedWhereNoRequestClaimedTheKey(),
-            decided.recordedAfterTheRequestThatClaimedTheKey(role),
+            outcome.recordedWhereNoRequestRanTheOperation(),
+            outcome.recordedAfterTheRequestThatRanTheOperation(role),
             answer == null ? null : answer.httpStatus(),
-            answer == null ? null : answer.contentType(),
+            answer == null ? null : THE_BODY_IS,
             withheldBodyOf(answer),
             observed.providerObjectId(),
             observed.stateChanged(),

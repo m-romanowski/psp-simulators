@@ -489,8 +489,19 @@ final class WorldlineDoubles {
       return exchanged.logOf(WorldlineKeyMechanisms.MECHANISMS).fingerprintOf(testRunId, request);
     }
 
+    private int observationsToFail;
+
+    Keys failingTheNextObservation() {
+      observationsToFail = 1;
+      return this;
+    }
+
     @Override
     public void observed(KeyedObservation observation) {
+      if (observationsToFail > 0) {
+        observationsToFail--;
+        throw new IllegalStateException("the exchange could not be recorded");
+      }
       exchanged.logOf(WorldlineKeyMechanisms.MECHANISMS).record(observation);
     }
 

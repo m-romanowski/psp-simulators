@@ -39,14 +39,6 @@ public enum ExchangeVerdict {
     return this != REFUSED_WHILE_THE_KEY_WAS_HELD;
   }
 
-  public ExchangeVerdict recordedWhereNoRequestClaimedTheKey() {
-    return couldHaveChangedState() ? FIRST_REQUEST : this;
-  }
-
-  public ExchangeVerdict recordedAfterTheRequestThatClaimedTheKey(KeyRole role) {
-    return couldHaveChangedState() ? role.aRepeatThatRanTheOperation() : this;
-  }
-
   public boolean isAdmittedUnder(KeyRole role) {
     if (!isOrderedAgainstTheRequestThatClaimedTheKey()) {
       return true;

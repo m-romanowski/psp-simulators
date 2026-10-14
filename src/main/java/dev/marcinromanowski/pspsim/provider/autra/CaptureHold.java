@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.autra;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -234,7 +234,7 @@ final class CaptureHold {
             AutraKeyMechanisms.PAYMENT_ID,
             payment.paymentId(),
             AutraOperations.CAPTURE,
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             new FingerprintedRequest(call.method(), AutraOperations.CAPTURE, theFieldsOf(call)),
             result.body().asAKeyedAnswer(),
             payment.paymentId(),

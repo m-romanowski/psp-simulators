@@ -3,7 +3,7 @@ package dev.marcinromanowski.pspsim.provider.azericard;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -127,14 +127,11 @@ final class CompleteOrReverse {
             keyName,
             keyValue,
             message.operationName(),
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             message.fingerprinted(),
             answeredNothing(result)
                 ? null
-                : new KeyedAnswer(
-                    AzericardGateway.GATEWAY_HTTP_STATUS,
-                    result.body().contentType(),
-                    result.body().fields()),
+                : new KeyedAnswer(AzericardGateway.GATEWAY_HTTP_STATUS, result.body().fields()),
             providerObjectId,
             result.outcome() == ProviderOutcome.SUCCESS,
             null,

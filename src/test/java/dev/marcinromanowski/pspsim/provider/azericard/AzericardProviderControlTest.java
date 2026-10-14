@@ -12,10 +12,10 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -186,9 +186,9 @@ class AzericardProviderControlTest {
             AzericardKeyMechanisms.ORDER,
             "084800",
             "TRTYPE=0",
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             new FingerprintedRequest("POST", "TRTYPE=0", Map.of()),
-            new KeyedAnswer(200, "text/html", Map.of("ACTION", List.of("0"))),
+            new KeyedAnswer(200, Map.of("ACTION", List.of("0"))),
             "INTREF01",
             true,
             null,

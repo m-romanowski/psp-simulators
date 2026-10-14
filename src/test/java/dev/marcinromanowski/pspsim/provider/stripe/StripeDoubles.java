@@ -1215,8 +1215,19 @@ final class StripeDoubles {
       return exchanged.logOf(StripeKeyMechanisms.MECHANISMS).fingerprintOf(testRunId, request);
     }
 
+    private int observationsToFail;
+
+    Keys failingTheNextObservation() {
+      observationsToFail = 1;
+      return this;
+    }
+
     @Override
     public synchronized void observed(KeyedObservation observation) {
+      if (observationsToFail > 0) {
+        observationsToFail--;
+        throw new IllegalStateException("the exchange could not be recorded");
+      }
       exchanged.logOf(StripeKeyMechanisms.MECHANISMS).record(observation);
     }
 

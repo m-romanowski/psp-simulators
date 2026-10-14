@@ -2,7 +2,7 @@ package dev.marcinromanowski.pspsim.provider.azericard;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -283,7 +283,7 @@ final class Authorize {
       Instant now,
       String intRef,
       AzericardOperationResult result) {
-    record(message, testRunId, terminal, now, ExchangeVerdict.FIRST_REQUEST, intRef, true, result);
+    record(message, testRunId, terminal, now, KeyedOutcome.RAN_THE_OPERATION, intRef, true, result);
   }
 
   private void theTraceItCollidedWith(
@@ -297,7 +297,7 @@ final class Authorize {
         testRunId,
         terminal,
         now,
-        ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+        KeyedOutcome.REFUSED_AS_A_DUPLICATE,
         null,
         false,
         result);
@@ -308,7 +308,7 @@ final class Authorize {
       TestRunId testRunId,
       AzericardTerminal terminal,
       Instant now,
-      ExchangeVerdict verdict,
+      KeyedOutcome outcome,
       @Nullable String providerObjectId,
       boolean stateChanged,
       AzericardOperationResult result) {
@@ -317,14 +317,11 @@ final class Authorize {
             testRunId,
             terminal.accountId(),
             AzericardKeyMechanisms.ORDER,
-            AzericardOrderTrace.of(message.order()),
+            AzericardOrderTrace.exchangeKeyOf(message.order(), now),
             message.operationName(),
-            verdict,
+            outcome,
             message.fingerprinted(),
-            new KeyedAnswer(
-                AzericardGateway.GATEWAY_HTTP_STATUS,
-                result.body().contentType(),
-                result.body().fields()),
+            new KeyedAnswer(AzericardGateway.GATEWAY_HTTP_STATUS, result.body().fields()),
             providerObjectId,
             stateChanged,
             null,

@@ -99,8 +99,7 @@ class AzericardConcurrentExchangeIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void authorizations_sent_at_once_under_one_trace_are_numbered_after_the_one_that_claimed_it()
-      throws Exception {
+  void authorizations_at_once_under_one_trace_are_each_answered_and_read_back() throws Exception {
     Map<String, String> authorization = signed(authorization());
 
     List<Integer> statuses = AtOnce.sent(CONCURRENT, () -> post(authorization).statusCode());
@@ -111,7 +110,7 @@ class AzericardConcurrentExchangeIntegrationTest extends PostgresBackedTest {
             jdbc,
             "azericard_keyed_exchange",
             AzericardKeyMechanisms.ORDER,
-            AzericardOrderTrace.of(ORDER),
+            AzericardOrderTrace.exchangeKeyOf(ORDER, FIXED_NOW),
             RUN.value()),
         CONCURRENT,
         Set.of(ExchangeVerdict.DUPLICATE_KEY_REFUSAL));

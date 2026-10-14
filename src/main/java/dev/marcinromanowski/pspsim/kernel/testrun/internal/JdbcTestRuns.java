@@ -31,6 +31,9 @@ public final class JdbcTestRuns implements TestRuns {
 
   @Override
   public int forget(TestRunId testRunId) {
+    jdbc.sql("delete from simulator_fingerprint_key where test_run_id = ?")
+        .param(TestRunId.storableNamespace(testRunId).value())
+        .update();
     return jdbc.sql("delete from simulator_test_run where test_run_id = ?")
         .param(TestRunId.storableNamespace(testRunId).value())
         .update();

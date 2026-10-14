@@ -3,8 +3,8 @@ package dev.marcinromanowski.pspsim.provider.grow;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -215,7 +215,7 @@ final class CreateTransactionWithToken {
         now,
         GrowKeyMechanisms.UNIQUE_IDENTIFIER,
         submission.uniqueIdentifier(),
-        ExchangeVerdict.FIRST_REQUEST,
+        KeyedOutcome.RAN_THE_OPERATION,
         providerObjectId,
         true,
         result);
@@ -228,7 +228,7 @@ final class CreateTransactionWithToken {
           now,
           GrowKeyMechanisms.GROUP_IDENTIFIER,
           group,
-          ExchangeVerdict.FIRST_REQUEST,
+          KeyedOutcome.RAN_THE_OPERATION,
           providerObjectId,
           true,
           result);
@@ -257,7 +257,7 @@ final class CreateTransactionWithToken {
         now,
         keyName,
         keyValue,
-        ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+        KeyedOutcome.REFUSED_AS_A_DUPLICATE,
         null,
         false,
         result);
@@ -271,7 +271,7 @@ final class CreateTransactionWithToken {
       Instant now,
       String keyName,
       String keyValue,
-      ExchangeVerdict verdict,
+      KeyedOutcome outcome,
       @Nullable String providerObjectId,
       boolean stateChanged,
       GrowOperationResult result) {
@@ -282,15 +282,12 @@ final class CreateTransactionWithToken {
             keyName,
             keyValue,
             GrowOperations.CREATE_TRANSACTION_WITH_TOKEN,
-            verdict,
+            outcome,
             new FingerprintedRequest(
                 GrowLightApi.WIRE_METHOD,
                 GrowOperations.CREATE_TRANSACTION_WITH_TOKEN,
                 form.values()),
-            new KeyedAnswer(
-                GrowLightApi.GROW_HTTP_STATUS,
-                account.wireForm().contentType(),
-                result.body().flatten()),
+            new KeyedAnswer(GrowLightApi.GROW_HTTP_STATUS, result.body().flatten()),
             providerObjectId,
             stateChanged,
             null,

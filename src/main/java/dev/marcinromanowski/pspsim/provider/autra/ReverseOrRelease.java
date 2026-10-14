@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.autra;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -274,7 +274,7 @@ final class ReverseOrRelease {
             AutraKeyMechanisms.PAYMENT_ID,
             payment.paymentId(),
             AutraOperations.VOID,
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             new FingerprintedRequest(
                 call.method(), AutraOperations.VOID, CaptureHold.theFieldsOf(call)),
             result.body().asAKeyedAnswer(),

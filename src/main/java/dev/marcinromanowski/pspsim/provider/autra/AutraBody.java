@@ -31,9 +31,7 @@ record AutraBody(int httpStatus, @Nullable AutraJson json) {
 
   @Nullable KeyedAnswer asAKeyedAnswer() {
     AutraJson rendered = json;
-    return rendered == null
-        ? null
-        : new KeyedAnswer(httpStatus, AutraFields.JSON, rendered.flatten());
+    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

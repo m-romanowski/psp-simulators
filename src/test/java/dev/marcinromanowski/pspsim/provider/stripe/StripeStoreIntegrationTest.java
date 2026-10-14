@@ -13,6 +13,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchange;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
@@ -406,8 +407,8 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
 
   @Test
   void reads_back_a_refusal_recorded_before_the_request_that_was_holding_the_key_answered() {
-    keys.observed(observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
-    keys.observed(observed(ExchangeVerdict.FIRST_REQUEST, 200, Map.of("id", List.of("pi_1"))));
+    keys.observed(observed(KeyedOutcome.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
+    keys.observed(observed(KeyedOutcome.RAN_THE_OPERATION, 200, Map.of("id", List.of("pi_1"))));
 
     KeyedExchange exchange =
         keys.exchanges(new KeyedExchangeQuery(RUN_ID, KeyedExchangeQuery.FROM_THE_NEWEST, 50))
@@ -425,7 +426,7 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
   void keeps_the_answer_of_a_request_under_a_key_with_the_secrets_the_trail_withholds_redacted() {
     keys.observed(
         observed(
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             200,
             Map.of("id", List.of("pi_1"), "client_secret", List.of("pi_1_secret_kept"))));
 
@@ -454,8 +455,7 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
             threads.submit(
                 () -> {
                   together.await(10, TimeUnit.SECONDS);
-                  keys.observed(
-                      observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
+                  keys.observed(observed(KeyedOutcome.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
                   return null;
                 }));
       }
@@ -482,16 +482,16 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
   }
 
   private static KeyedObservation observed(
-      ExchangeVerdict verdict, int httpStatus, Map<String, List<String>> answered) {
+      KeyedOutcome outcome, int httpStatus, Map<String, List<String>> answered) {
     return new KeyedObservation(
         RUN_ID,
         MERCHANT,
         StripeKeyMechanisms.IDEMPOTENCY_KEY,
         A_KEY,
         "createPaymentIntent",
-        verdict,
+        outcome,
         new FingerprintedRequest("POST", "/v1/payment_intents", Map.of()),
-        new KeyedAnswer(httpStatus, "application/json", answered),
+        new KeyedAnswer(httpStatus, answered),
         null,
         false,
         null,

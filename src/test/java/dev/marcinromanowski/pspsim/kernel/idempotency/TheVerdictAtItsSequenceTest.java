@@ -2,6 +2,7 @@ package dev.marcinromanowski.pspsim.kernel.idempotency;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TheVerdictAtItsSequenceTest {
@@ -17,33 +18,32 @@ class TheVerdictAtItsSequenceTest {
   }
 
   @Test
-  void
-      every_verdict_that_ran_the_operation_is_the_first_request_where_no_request_claimed_the_key() {
-    for (ExchangeVerdict verdict : ExchangeVerdict.values()) {
-      assertThat(verdict.recordedWhereNoRequestClaimedTheKey())
-          .as(verdict.name())
-          .isEqualTo(verdict.couldHaveChangedState() ? ExchangeVerdict.FIRST_REQUEST : verdict);
+  void a_request_that_ran_the_operation_is_a_first_request_where_no_request_ran_before_it() {
+    assertThat(KeyedOutcome.RAN_THE_OPERATION.recordedWhereNoRequestRanTheOperation())
+        .isEqualTo(ExchangeVerdict.FIRST_REQUEST);
+  }
+
+  @Test
+  void a_request_that_ran_after_another_is_the_repeat_its_role_admits() {
+    for (KeyRole role : KeyRole.values()) {
+      assertThat(KeyedOutcome.RAN_THE_OPERATION.recordedAfterTheRequestThatRanTheOperation(role))
+          .as(role.name())
+          .isEqualTo(role.aRepeatThatRanTheOperation());
     }
   }
 
   @Test
-  void a_verdict_that_ran_the_operation_after_the_claim_is_the_repeat_its_role_admits() {
-    assertThat(
-            ExchangeVerdict.FIRST_REQUEST.recordedAfterTheRequestThatClaimedTheKey(
-                KeyRole.DUPLICATE_DETECTION_KEY))
-        .isEqualTo(ExchangeVerdict.REPEAT_ADMITTED);
-    assertThat(
-            ExchangeVerdict.CORRELATED_RETRY.recordedAfterTheRequestThatClaimedTheKey(
-                KeyRole.CORRELATION_KEY))
-        .isEqualTo(ExchangeVerdict.CORRELATED_RETRY);
-    assertThat(
-            ExchangeVerdict.DUPLICATE_KEY_REFUSAL.recordedAfterTheRequestThatClaimedTheKey(
-                KeyRole.DUPLICATE_DETECTION_KEY))
-        .isEqualTo(ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
-    assertThat(
-            ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY.recordedAfterTheRequestThatClaimedTheKey(
-                KeyRole.TRUE_IDEMPOTENCY_KEY))
-        .isEqualTo(ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY);
+  void a_refusal_or_a_replay_is_recorded_as_itself_wherever_it_lands() {
+    for (KeyRole role : KeyRole.values()) {
+      assertThat(bothPlacesOf(KeyedOutcome.REFUSED_AS_A_DUPLICATE, role))
+          .containsOnly(ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
+      assertThat(bothPlacesOf(KeyedOutcome.REPLAYED, role))
+          .containsOnly(ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY);
+      assertThat(bothPlacesOf(KeyedOutcome.REFUSED_AS_A_CONFLICT, role))
+          .containsOnly(ExchangeVerdict.CONFLICTING_PAYLOAD);
+      assertThat(bothPlacesOf(KeyedOutcome.REFUSED_WHILE_THE_KEY_WAS_HELD, role))
+          .containsOnly(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD);
+    }
   }
 
   @Test
@@ -68,5 +68,11 @@ class TheVerdictAtItsSequenceTest {
               verdict == ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY
                   || verdict == ExchangeVerdict.CONFLICTING_PAYLOAD);
     }
+  }
+
+  private static List<ExchangeVerdict> bothPlacesOf(KeyedOutcome outcome, KeyRole role) {
+    return List.of(
+        outcome.recordedWhereNoRequestRanTheOperation(),
+        outcome.recordedAfterTheRequestThatRanTheOperation(role));
   }
 }

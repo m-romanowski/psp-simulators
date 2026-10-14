@@ -48,9 +48,7 @@ record WorldlineBody(
 
   @Nullable KeyedAnswer asAKeyedAnswer() {
     WorldlineJson rendered = json;
-    return rendered == null
-        ? null
-        : new KeyedAnswer(httpStatus, WorldlineFields.JSON, rendered.flatten());
+    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

@@ -31,9 +31,7 @@ record TranzilaBody(int httpStatus, @Nullable TranzilaJson json) {
 
   @Nullable KeyedAnswer asAKeyedAnswer() {
     TranzilaJson rendered = json;
-    return rendered == null
-        ? null
-        : new KeyedAnswer(httpStatus, TranzilaFields.JSON, rendered.flatten());
+    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

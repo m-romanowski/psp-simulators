@@ -174,7 +174,6 @@ class TranzilaSynthesizedCallTest {
 
     assertThat(answer).isNotNull();
     assertThat(answer.httpStatus()).isEqualTo(200);
-    assertThat(answer.contentType()).isEqualTo(TranzilaFields.JSON);
     assertThat(TranzilaKeyMechanisms.MECHANISMS.withholding().withheld(answer.fields()))
         .containsEntry("Transaction_Result.token", List.of(Redaction.REDACTED))
         .containsEntry("Transaction_Result.keep", List.of("1"))

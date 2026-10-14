@@ -11,6 +11,7 @@ import dev.marcinromanowski.pspsim.kernel.fault.TransportFaultKind;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.testrun.FingerprintKey;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
@@ -88,7 +89,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_request_that_ran_under_a_duplicate_check_is_first_only_where_no_request_claimed_the_key() {
-    KeyedExchangeRow row = recorded(DUPLICATE, ExchangeVerdict.FIRST_REQUEST);
+    KeyedExchangeRow row = recorded(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION);
 
     assertThat(row.whereNoRequestClaimedTheKey()).isEqualTo(ExchangeVerdict.FIRST_REQUEST);
     assertThat(row.afterTheRequestThatClaimedTheKey()).isEqualTo(ExchangeVerdict.REPEAT_ADMITTED);
@@ -96,7 +97,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_request_that_ran_under_a_correlation_key_after_another_is_a_correlated_retry() {
-    KeyedExchangeRow row = recorded(CORRELATED, ExchangeVerdict.CORRELATED_RETRY);
+    KeyedExchangeRow row = recorded(CORRELATED, KeyedOutcome.RAN_THE_OPERATION);
 
     assertThat(row.whereNoRequestClaimedTheKey()).isEqualTo(ExchangeVerdict.FIRST_REQUEST);
     assertThat(row.afterTheRequestThatClaimedTheKey()).isEqualTo(ExchangeVerdict.CORRELATED_RETRY);
@@ -104,7 +105,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_request_that_ran_under_a_true_idempotency_key_stays_a_first_request_wherever_it_lands() {
-    KeyedExchangeRow row = recorded(IDEMPOTENT, ExchangeVerdict.FIRST_REQUEST);
+    KeyedExchangeRow row = recorded(IDEMPOTENT, KeyedOutcome.RAN_THE_OPERATION);
 
     assertThat(row.whereNoRequestClaimedTheKey()).isEqualTo(ExchangeVerdict.FIRST_REQUEST);
     assertThat(row.afterTheRequestThatClaimedTheKey()).isEqualTo(ExchangeVerdict.FIRST_REQUEST);
@@ -112,7 +113,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_refusal_as_a_duplicate_is_a_refusal_wherever_it_lands() {
-    KeyedExchangeRow row = recorded(DUPLICATE, ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
+    KeyedExchangeRow row = recorded(DUPLICATE, KeyedOutcome.REFUSED_AS_A_DUPLICATE);
 
     assertThat(row.whereNoRequestClaimedTheKey()).isEqualTo(ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
     assertThat(row.afterTheRequestThatClaimedTheKey())
@@ -121,7 +122,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_replay_is_a_replay_wherever_it_lands() {
-    KeyedExchangeRow row = recorded(IDEMPOTENT, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY);
+    KeyedExchangeRow row = recorded(IDEMPOTENT, KeyedOutcome.REPLAYED);
 
     assertThat(row.whereNoRequestClaimedTheKey()).isEqualTo(ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY);
     assertThat(row.afterTheRequestThatClaimedTheKey())
@@ -130,7 +131,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_refusal_while_the_key_was_held_is_that_refusal_wherever_it_lands() {
-    KeyedExchangeRow row = recorded(DUPLICATE, ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD);
+    KeyedExchangeRow row = recorded(DUPLICATE, KeyedOutcome.REFUSED_WHILE_THE_KEY_WAS_HELD);
 
     assertThat(row.whereNoRequestClaimedTheKey())
         .isEqualTo(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD);
@@ -145,17 +146,16 @@ class KeyedExchangeLogTest {
     answered.put("secret", List.of("pi_1_secret_kept"));
 
     KeyedExchangeRow row =
-        recordedWith(
-            DUPLICATE, ExchangeVerdict.FIRST_REQUEST, new KeyedAnswer(201, "x/y", answered));
+        recordedWith(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION, new KeyedAnswer(201, answered));
 
     assertThat(row.httpStatus()).isEqualTo(201);
-    assertThat(row.contentType()).isEqualTo("x/y");
+    assertThat(row.contentType()).isEqualTo("application/json");
     assertThat(row.body()).isEqualTo("{\"id\":[\"pi_1\"],\"secret\":[\"[redacted]\"]}");
   }
 
   @Test
   void a_request_answered_with_nothing_keeps_no_status_no_content_type_and_no_body() {
-    KeyedExchangeRow row = recordedWith(DUPLICATE, ExchangeVerdict.FIRST_REQUEST, null);
+    KeyedExchangeRow row = recordedWith(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION, null);
 
     assertThat(row.httpStatus()).isNull();
     assertThat(row.contentType()).isNull();
@@ -164,7 +164,7 @@ class KeyedExchangeLogTest {
 
   @Test
   void the_fingerprint_is_keyed_with_the_secret_of_the_test_run_the_request_belongs_to() {
-    KeyedExchangeRow row = recorded(DUPLICATE, ExchangeVerdict.FIRST_REQUEST);
+    KeyedExchangeRow row = recorded(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION);
 
     assertThat(row.fingerprint())
         .isEqualTo("6e1c0ef8fca94b66fa10790a1aa72ea39462fc5b58671a92286432005af98f67");
@@ -185,7 +185,7 @@ class KeyedExchangeLogTest {
             DUPLICATE,
             "order-1",
             "charge",
-            ExchangeVerdict.FIRST_REQUEST,
+            KeyedOutcome.RAN_THE_OPERATION,
             A_CHARGE,
             null,
             "pi_1",
@@ -209,7 +209,7 @@ class KeyedExchangeLogTest {
   void a_row_that_lost_its_sequence_is_written_again_until_it_is_recorded() {
     lostSequences = 3;
 
-    recorded(DUPLICATE, ExchangeVerdict.FIRST_REQUEST);
+    recorded(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION);
 
     assertThat(written).hasSize(1);
   }
@@ -218,7 +218,7 @@ class KeyedExchangeLogTest {
   void a_row_no_attempt_could_record_names_the_provider_and_the_key_it_was_under() {
     lostSequences = SequencedRows.ATTEMPTS;
 
-    assertThatThrownBy(() -> recorded(DUPLICATE, ExchangeVerdict.FIRST_REQUEST))
+    assertThatThrownBy(() -> recorded(DUPLICATE, KeyedOutcome.RAN_THE_OPERATION))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("provider grow")
         .hasMessageContaining("key " + DUPLICATE);
@@ -226,17 +226,17 @@ class KeyedExchangeLogTest {
 
   @Test
   void a_key_the_provider_declares_nowhere_is_refused() {
-    assertThatThrownBy(() -> recorded("undeclared", ExchangeVerdict.FIRST_REQUEST))
+    assertThatThrownBy(() -> recorded("undeclared", KeyedOutcome.RAN_THE_OPERATION))
         .isInstanceOf(IllegalStateException.class);
     assertThat(written).isEmpty();
   }
 
-  private KeyedExchangeRow recorded(String keyName, ExchangeVerdict verdict) {
-    return recordedWith(keyName, verdict, new KeyedAnswer(200, "application/json", Map.of()));
+  private KeyedExchangeRow recorded(String keyName, KeyedOutcome outcome) {
+    return recordedWith(keyName, outcome, new KeyedAnswer(200, Map.of()));
   }
 
   private KeyedExchangeRow recordedWith(
-      String keyName, ExchangeVerdict verdict, @Nullable KeyedAnswer answer) {
+      String keyName, KeyedOutcome outcome, @Nullable KeyedAnswer answer) {
     log.record(
         new KeyedObservation(
             RUN,
@@ -244,7 +244,7 @@ class KeyedExchangeLogTest {
             keyName,
             "v",
             "charge",
-            verdict,
+            outcome,
             A_CHARGE,
             answer,
             null,

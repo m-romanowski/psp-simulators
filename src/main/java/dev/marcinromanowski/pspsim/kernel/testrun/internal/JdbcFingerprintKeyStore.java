@@ -18,8 +18,8 @@ public final class JdbcFingerprintKeyStore implements FingerprintKeyStore {
   public Optional<FingerprintKey> held(TestRunId testRunId) {
     return jdbc.sql(
             """
-            select fingerprint_key from simulator_test_run
-            where test_run_id = ? and fingerprint_key is not null
+            select fingerprint_key from simulator_fingerprint_key
+            where test_run_id = ?
             """)
         .param(testRunId.value())
         .query(String.class)
@@ -32,11 +32,10 @@ public final class JdbcFingerprintKeyStore implements FingerprintKeyStore {
     return new FingerprintKey(
         jdbc.sql(
                 """
-                insert into simulator_test_run (test_run_id, fingerprint_key)
+                insert into simulator_fingerprint_key (test_run_id, fingerprint_key)
                 values (?, ?)
                 on conflict (test_run_id) do update
-                    set fingerprint_key =
-                        coalesce(simulator_test_run.fingerprint_key, excluded.fingerprint_key)
+                    set fingerprint_key = simulator_fingerprint_key.fingerprint_key
                 returning fingerprint_key
                 """)
             .params(testRunId.value(), minted.secret())

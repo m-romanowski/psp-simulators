@@ -37,7 +37,7 @@ class AzericardKeyInspectorIntegrationTest extends PostgresBackedTest {
 
   private static final String ORDER = "20260910084800";
   private static final String ANOTHER_ORDER_ENDING_THE_SAME = "20270101084800";
-  private static final String TRACE = "084800";
+  private static final String TRACE = "2026-09-10 084800";
 
   @LocalServerPort private int port;
 

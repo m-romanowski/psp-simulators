@@ -23,7 +23,8 @@ final class AzericardKeyMechanisms {
           + " digits of ORDER, which are the system trace audit number and must be unique within a"
           + " day for the terminal the message is sent to. A message whose trace collides is"
           + " answered ACTION=1, duplicate transaction detected, and never with the answer the"
-          + " first message got";
+          + " first message got. A value is recorded here as the UTC day of the message followed"
+          + " by those digits, so a trace reused on another day is a first request again";
 
   private static final String SCOPED_BY_THE_AUTHORIZATION =
       "the payment the authorization created: a completion, a reversal and a refund carry the RRN"

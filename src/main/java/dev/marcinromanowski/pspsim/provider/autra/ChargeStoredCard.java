@@ -3,8 +3,8 @@ package dev.marcinromanowski.pspsim.provider.autra;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -289,7 +289,7 @@ final class ChargeStoredCard {
         merchant,
         orderId,
         now,
-        ExchangeVerdict.FIRST_REQUEST,
+        KeyedOutcome.RAN_THE_OPERATION,
         paymentId,
         true,
         result);
@@ -345,7 +345,7 @@ final class ChargeStoredCard {
         merchant,
         orderId,
         now,
-        ExchangeVerdict.FIRST_REQUEST,
+        KeyedOutcome.RAN_THE_OPERATION,
         paymentId,
         true,
         result);
@@ -375,7 +375,7 @@ final class ChargeStoredCard {
         merchant,
         orderId,
         now,
-        ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+        KeyedOutcome.REFUSED_AS_A_DUPLICATE,
         approvedPaymentId,
         false,
         result);
@@ -451,7 +451,7 @@ final class ChargeStoredCard {
       AutraMerchant merchant,
       @Nullable String orderId,
       Instant now,
-      ExchangeVerdict verdict,
+      KeyedOutcome outcome,
       @Nullable String providerObjectId,
       boolean stateChanged,
       AutraOperationResult result) {
@@ -465,7 +465,7 @@ final class ChargeStoredCard {
             AutraKeyMechanisms.ORDER_ID,
             orderId,
             AutraOperations.SALE,
-            verdict,
+            outcome,
             new FingerprintedRequest(
                 call.method(),
                 AutraOperations.SALE,
