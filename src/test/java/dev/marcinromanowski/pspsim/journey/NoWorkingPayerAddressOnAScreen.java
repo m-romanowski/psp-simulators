@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.journey;
 import static org.assertj.core.api.Assertions.fail;
 
 import dev.marcinromanowski.pspsim.documentation.RelatedObjectAddressConvention;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,9 @@ public final class NoWorkingPayerAddressOnAScreen {
 
   public static final SequencedMap<String, List<String>> THE_PAGES_EACH_PROVIDER_SERVES =
       theDeclaredPages();
+
+  public static final SequencedMap<String, List<String>> THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO =
+      theSubmissionRoutes();
 
   public static final Set<String> THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE = Set.of("stripe");
 
@@ -85,6 +89,8 @@ public final class NoWorkingPayerAddressOnAScreen {
               + " page carries no payer address. A sweep that found none and a sweep that read"
               + " nothing must not pass the same way");
     }
+    List<String> swept = new ArrayList<>(routes);
+    swept.addAll(THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO.getOrDefault(provider, List.of()));
     List<String> printed = theValuesPrintedOn(body);
     if (printed.isEmpty()) {
       throw new IllegalStateException(
@@ -93,7 +99,7 @@ public final class NoWorkingPayerAddressOnAScreen {
               + " printed no value at all, so this sweep read nothing and would report that the"
               + " page carries no payer address");
     }
-    for (String route : routes) {
+    for (String route : swept) {
       for (String value : printed) {
         if (value.equals(route) || aRouteAsItIsDeclared(value)) {
           continue;
@@ -134,6 +140,12 @@ public final class NoWorkingPayerAddressOnAScreen {
         .splitAsStream(rendered)
         .filter(value -> !value.isBlank())
         .toList();
+  }
+
+  private static SequencedMap<String, List<String>> theSubmissionRoutes() {
+    SequencedMap<String, List<String>> declared = new LinkedHashMap<>();
+    declared.put("tranzila", List.of("/tranzila/directng/{terminal}/payer/{pageId}"));
+    return Collections.unmodifiableSequencedMap(declared);
   }
 
   private static SequencedMap<String, List<String>> theDeclaredPages() {

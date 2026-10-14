@@ -19,6 +19,8 @@ final class CreateHandshake {
 
   static final int THTK_ATTEMPTS = 5;
 
+  static final String A_SUM_AS_WRITTEN = "[0-9]{1,15}(\\.[0-9]{1,6})?";
+
   static final Set<String> THE_FIELDS_THE_SCHEMA_PUBLISHES =
       Set.of(TranzilaFields.TERMINAL_NAME, TranzilaFields.SUM, TranzilaFields.REQUEST_PARAMS);
 
@@ -72,7 +74,9 @@ final class CreateHandshake {
       return false;
     }
     Optional<String> sum = body.number(TranzilaFields.SUM);
-    if (sum.isEmpty() || new BigDecimal(sum.get()).signum() <= 0) {
+    if (sum.isEmpty()
+        || !sum.get().matches(A_SUM_AS_WRITTEN)
+        || new BigDecimal(sum.get()).signum() <= 0) {
       return false;
     }
     return !body.has(TranzilaFields.REQUEST_PARAMS)

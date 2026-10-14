@@ -5,13 +5,41 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SequencedMap;
+import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 final class TranzilaBrowserReturn {
 
-  static final String THE_PUBLISHED_ISSUER = "1";
+  static final Set<String> THE_NAMES_THE_RETURN_SETS =
+      Set.of(
+          TranzilaFields.SUPPLIER,
+          TranzilaFields.SUM,
+          TranzilaFields.CURRENCY,
+          TranzilaFields.RESPONSE,
+          TranzilaFields.TRANSACTION_ID,
+          TranzilaFields.INDEX,
+          TranzilaFields.CCNO,
+          TranzilaFields.RESPONSE_CV,
+          TranzilaFields.RESPONSE_ID,
+          TranzilaFields.CARDTYPE,
+          TranzilaFields.CARDISSUER,
+          TranzilaFields.CARDACQUIRER,
+          TranzilaFields.TRANZILA_TK,
+          TranzilaFields.TXN_TYPE,
+          TranzilaFields.TRANMODE,
+          TranzilaFields.CONFIRMATION_CODE);
 
-  static final String THE_PUBLISHED_ACQUIRER = "2";
+  static final String ISRACARD_ISSUES = "1";
+
+  static final String CAL_ISSUES = "2";
+
+  static final String ISRACARD_ACQUIRES = "1";
+
+  static final String VISA_CAL_ACQUIRES = "2";
+
+  static final String DINERS_ACQUIRES = "3";
+
+  static final String AMEX_ACQUIRES = "4";
 
   static final String NOT_ENTERED = "0";
 
@@ -40,8 +68,8 @@ final class TranzilaBrowserReturn {
                   TranzilaFields.RESPONSE_ID,
                   transaction == null ? NOT_ENTERED : transaction.responseId());
               fields.put(TranzilaFields.CARDTYPE, Integer.toString(card.cardType()));
-              fields.put(TranzilaFields.CARDISSUER, THE_PUBLISHED_ISSUER);
-              fields.put(TranzilaFields.CARDACQUIRER, THE_PUBLISHED_ACQUIRER);
+              fields.put(TranzilaFields.CARDISSUER, theIssuerOf(card.cardType()));
+              fields.put(TranzilaFields.CARDACQUIRER, theAcquirerOf(card.cardType()));
             });
     theTokenOf(page, transaction).ifPresent(token -> fields.put(TranzilaFields.TRANZILA_TK, token));
     if (transaction != null) {
@@ -60,6 +88,22 @@ final class TranzilaBrowserReturn {
       fields.put(TranzilaFields.CONFIRMATION_CODE, authNumber);
     }
     return Collections.unmodifiableSequencedMap(fields);
+  }
+
+  static String theIssuerOf(int cardType) {
+    return switch (cardType) {
+      case TranzilaCard.ISRACARD, TranzilaCard.AMEX -> ISRACARD_ISSUES;
+      default -> CAL_ISSUES;
+    };
+  }
+
+  static String theAcquirerOf(int cardType) {
+    return switch (cardType) {
+      case TranzilaCard.ISRACARD -> ISRACARD_ACQUIRES;
+      case TranzilaCard.AMEX -> AMEX_ACQUIRES;
+      case TranzilaCard.DINERS -> DINERS_ACQUIRES;
+      default -> VISA_CAL_ACQUIRES;
+    };
   }
 
   static boolean isApproved(TranzilaPage page, @Nullable TranzilaTransaction transaction) {

@@ -62,12 +62,13 @@ class TranzilaProviderTest {
   void the_provider_is_named_tranzila_and_claims_the_transaction_handshake_and_page_namespaces() {
     assertThat(provider.id().value()).isEqualTo("tranzila");
     assertThat(provider.wireRoutes().namespaces())
-        .containsExactly("/v1/transaction", "/v2/handshake", "/tranzila/directng");
+        .containsExactly("/v1/transaction", "/v2/handshake/create", "/tranzila/directng");
     assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v1/transactions")).isFalse();
     assertThat(provider.wireRoutes().covers("/v1/payment_intents")).isFalse();
     assertThat(provider.wireRoutes().covers("/v2/handshake/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v2/handshakes")).isFalse();
+    assertThat(provider.wireRoutes().covers("/v2/handshake/payments")).isFalse();
     assertThat(provider.wireRoutes().covers("/v2/m-1/payments")).isFalse();
     assertThat(provider.wireRoutes().covers("/tranzila/directng/myterminal/iframenew.php"))
         .isTrue();

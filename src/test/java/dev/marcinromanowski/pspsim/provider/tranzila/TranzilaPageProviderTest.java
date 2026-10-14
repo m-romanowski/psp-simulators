@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
@@ -101,16 +102,23 @@ class TranzilaPageProviderTest {
   }
 
   @Test
-  void a_page_whose_transaction_was_reset_away_reads_as_paid_by_its_own_outcome() {
+  void a_page_whose_transaction_is_no_longer_held_reads_by_its_own_outcome() {
+    wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("004"));
     open("A");
-    String pageId = thePage().pageId();
-    pay(pageId);
+    String declined = thePage().pageId();
+    pay(declined);
+    open("V");
+    String paid = thePage().pageId();
+    pay(paid);
     wired.transactions.clear(TranzilaWiring.RUN);
 
-    ProviderObjectState state = provider.state(TranzilaWiring.RUN, pageId).orElseThrow();
+    ProviderObjectState declinedState = provider.state(TranzilaWiring.RUN, declined).orElseThrow();
+    ProviderObjectState paidState = provider.state(TranzilaWiring.RUN, paid).orElseThrow();
 
-    assertThat(state.nativeStatus()).isEqualTo("A null");
-    assertThat(state.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(declinedState.nativeStatus()).isEqualTo("declined");
+    assertThat(declinedState.normalizedStatus()).isEqualTo(NormalizedStatus.FAILED);
+    assertThat(paidState.nativeStatus()).isEqualTo("paid");
+    assertThat(paidState.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
   }
 
   @Test

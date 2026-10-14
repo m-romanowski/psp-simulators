@@ -185,6 +185,16 @@ class CreateTransactionTest {
   }
 
   @Test
+  void the_published_page_cards_token_charges_nothing_on_the_api_of_a_run_that_never_minted_it() {
+    TranzilaOperationResult refused =
+        wired.create(TranzilaWire.withCard("\"txn_type\":\"debit\"", "t5d55d2922ca4029022", "3"));
+
+    assertThat(refused.body().text())
+        .isEqualTo("{\"error_code\":20111,\"message\":\"Provided token check failure\"}");
+    assertThat(wired.stored()).isEmpty();
+  }
+
+  @Test
   void a_token_seeded_as_a_fixture_charges_the_card_the_fixture_describes() {
     wired.fixtures.seed(
         new NewPaymentMethodFixture(

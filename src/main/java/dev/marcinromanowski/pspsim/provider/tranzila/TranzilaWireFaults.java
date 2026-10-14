@@ -13,7 +13,7 @@ final class TranzilaWireFaults {
           TranzilaApi.TRANZILA,
           List.of(
               TranzilaApiController.TRANSACTION,
-              TranzilaApiController.HANDSHAKE,
+              TranzilaApiController.CREATE_HANDSHAKE,
               TranzilaDirectNgPage.HOST));
 
   static final String THE_ADDRESS_DOES_NOT_ANSWER_THIS_METHOD =
@@ -39,7 +39,7 @@ final class TranzilaWireFaults {
   private TranzilaWireFaults() {}
 
   static ProviderWireAnswer theAnswerTo(WireFault fault, String address) {
-    if (address.startsWith(TranzilaApiController.HANDSHAKE)) {
+    if (address.startsWith(TranzilaApiController.CREATE_HANDSHAKE)) {
       return theHandshakesAnswerTo(fault);
     }
     if (address.startsWith(TranzilaDirectNgPage.HOST)) {
@@ -97,7 +97,8 @@ final class TranzilaWireFaults {
     return new ProviderWireAnswer.InThisProvidersOwnWords(
         httpStatus,
         TranzilaDirectNgPage.CONTENT_TYPE,
-        TranzilaDirectNgPage.refusing(said).getBytes(StandardCharsets.UTF_8));
+        TranzilaDirectNgPage.refusing(said).getBytes(StandardCharsets.UTF_8),
+        TranzilaDirectNgPage.DEFENCES);
   }
 
   private static ProviderWireAnswer errorSchema(int httpStatus, String code, String message) {

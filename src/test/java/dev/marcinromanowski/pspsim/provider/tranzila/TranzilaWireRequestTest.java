@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.marcinromanowski.pspsim.kernel.routing.InboundRoute;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +33,27 @@ class TranzilaWireRequestTest {
     assertThat(call.header("x-tranzila-api-app-key")).contains("key");
     assertThat(call.rawBody()).isEqualTo("{\"terminal_name\":\"t\"}");
     assertThat(call.body().orElseThrow().text("terminal_name")).contains("t");
+  }
+
+  @Test
+  void a_page_call_carries_the_method_the_route_every_header_and_every_parameter_sent() {
+    MockHttpServletRequest request =
+        new MockHttpServletRequest("POST", "/tranzila/directng/myterminal/iframenew.php");
+    request.addHeader("Accept", "text/html");
+    request.addParameter("sum", "10.53");
+    request.addParameter("orderid", "A-1", "A-2");
+    request.setAttribute(
+        InboundRoute.ATTRIBUTE,
+        InboundRoute.notAliased("/tranzila/directng/myterminal/iframenew.php?aliased"));
+
+    TranzilaPageCall call = TranzilaWireRequest.pageCallOf(request);
+
+    assertThat(call.method()).isEqualTo("POST");
+    assertThat(call.path()).isEqualTo("/tranzila/directng/myterminal/iframenew.php?aliased");
+    assertThat(call.headers()).containsExactly(Map.entry("Accept", List.of("text/html")));
+    assertThat(call.parameters())
+        .containsExactly(
+            Map.entry("sum", List.of("10.53")), Map.entry("orderid", List.of("A-1", "A-2")));
   }
 
   @Test

@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,6 +28,8 @@ record TranzilaPageRequest(
   static final String A_DECIMAL = "[0-9]+(\\.[0-9]+)?";
 
   static final String ONE_PAYMENT = "1";
+
+  static final Set<String> NEVER_ECHOED = neverEchoed();
 
   static final Set<String> THE_SCHEMES_A_RETURN_ADDRESS_TAKES = Set.of("http", "https");
 
@@ -121,9 +124,9 @@ record TranzilaPageRequest(
 
   static SequencedMap<String, String> theEchoedFieldsOf(Map<String, List<String>> sent) {
     SequencedMap<String, String> echoed = new LinkedHashMap<>();
-    for (String field : TranzilaFields.THE_PREDETERMINED_FIELDS) {
+    for (String field : sent.keySet()) {
       String value = first(sent, field);
-      if (value != null) {
+      if (value != null && !NEVER_ECHOED.contains(field)) {
         echoed.put(field, value);
       }
     }
@@ -153,6 +156,12 @@ record TranzilaPageRequest(
     }
     String value = values.get(0);
     return value.isEmpty() ? null : value;
+  }
+
+  private static Set<String> neverEchoed() {
+    Set<String> never = new LinkedHashSet<>(TranzilaBrowserReturn.THE_NAMES_THE_RETURN_SETS);
+    never.add(TranzilaFields.THTK);
+    return Collections.unmodifiableSet(never);
   }
 
   boolean answersOnTheSum(BigDecimal locked) {

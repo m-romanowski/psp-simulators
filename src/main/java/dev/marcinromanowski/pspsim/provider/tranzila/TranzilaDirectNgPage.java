@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerCard;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
+import dev.marcinromanowski.pspsim.kernel.spi.ThePayerStep;
 import dev.marcinromanowski.pspsim.kernel.spi.WhatAPayerPageMayLoad;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,6 +22,9 @@ final class TranzilaDirectNgPage {
 
   static final String PAYER_ROUTE = HOST + "/{" + TERMINAL + "}/payer/{" + PAGE + "}";
 
+  static final ThePayerStep THE_PAYERS_OWN_SUBMISSION =
+      new ThePayerStep.APageThisSimulatorServes(PAYER_ROUTE);
+
   static final String OUTCOME = "outcome";
 
   static final String CARD = "card";
@@ -32,6 +36,9 @@ final class TranzilaDirectNgPage {
 
   static final Map<String, List<String>> DEFENCE_HEADERS =
       WhatAPayerPageMayLoad.eachOnADocumentDeclaring(WHAT_THIS_PAGE_PERMITS);
+
+  static final Map<String, String> DEFENCES =
+      WhatAPayerPageMayLoad.onADocumentDeclaring(WHAT_THIS_PAGE_PERMITS);
 
   static final String TITLE = "Tranzila payment page";
 
@@ -51,7 +58,7 @@ final class TranzilaDirectNgPage {
 
   static final String NO_SUCH_METHOD =
       "This address of provider tranzila does not answer this HTTP method. The payment page takes"
-          + " GET or POST.";
+          + " GET or POST, and the payer's submission on it takes POST only.";
 
   static final String ILLEGAL_OPERATION = "Illegal Operation 912791";
 

@@ -8,16 +8,21 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireRoutes;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.spi.WhatAProviderAnswersOffItsRoutes;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends PostgresBackedTest {
 
@@ -113,42 +118,55 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
 
   @Autowired private ProviderRegistry providers;
 
+  @Autowired
+  @Qualifier("requestMappingHandlerMapping")
+  private RequestMappingHandlerMapping mappings;
+
   @Test
-  void every_namespace_answers_through_its_own_module_so_the_answer_never_depends_on_bean_order() {
+  void no_two_provider_modules_claim_one_address_but_where_one_claims_a_whole_route_of_its_own() {
+    Set<String> routes = new LinkedHashSet<>();
+    for (RequestMappingInfo mapping : mappings.getHandlerMethods().keySet()) {
+      routes.addAll(mapping.getPatternValues());
+    }
     List<String> collisions = new ArrayList<>();
-    for (SimulatorProvider other : providers.modules()) {
-      for (String namespace : other.wireRoutes().namespaces()) {
-        SimulatorProvider answering =
-            ProviderWireRoutes.theDeepestClaimOn(providers.modules(), namespace).orElseThrow();
-        if (!answering.id().equals(other.id())) {
-          collisions.add(
+    List<String> nested = new ArrayList<>();
+    for (SimulatorProvider claiming : providers.modules()) {
+      for (SimulatorProvider other : providers.modules()) {
+        if (claiming.id().equals(other.id())) {
+          continue;
+        }
+        for (String namespace : other.wireRoutes().namespaces()) {
+          if (!claiming.wireRoutes().covers(namespace)) {
+            continue;
+          }
+          String overlap =
               namespace
                   + " belongs to "
                   + other.id().value()
-                  + " and is answered by "
-                  + answering.id().value());
-        }
-        for (SimulatorProvider claiming : providers.modules()) {
-          if (!claiming.id().equals(other.id())
-              && claiming.wireRoutes().howDeeplyItCovers(namespace) == namespace.length()) {
-            collisions.add(
-                namespace
-                    + " belongs to "
-                    + other.id().value()
-                    + " and is also claimed as a whole by "
-                    + claiming.id().value());
-          }
+                  + " and is also claimed by "
+                  + claiming.id().value();
+          boolean aWholeRouteAnsweredByItsOwner =
+              routes.contains(namespace)
+                  && ProviderWireRoutes.theDeepestClaimOn(providers.modules(), namespace)
+                      .map(SimulatorProvider::id)
+                      .filter(other.id()::equals)
+                      .isPresent();
+          (aWholeRouteAnsweredByItsOwner ? nested : collisions).add(overlap);
         }
       }
     }
 
     assertThat(collisions)
         .as(
-            "the core gives an address to the module whose namespace covers it most deeply, so a"
-                + " namespace nested in another module's answers its own faults, and two modules"
-                + " claiming one namespace whole would make the envelope a client receives depend"
-                + " on the order the container built them")
+            "the core finds the provider an address belongs to by walking the modules in the"
+                + " order the container built them, so two modules claiming one address would"
+                + " make the envelope a client receives depend on that order; the one exception"
+                + " is a namespace that is exactly a route its own module serves, which the"
+                + " deepest claim gives to that module whatever the order")
         .isEmpty();
+    assertThat(nested)
+        .containsExactly(
+            "/v2/handshake/create belongs to tranzila and is also claimed by worldline");
   }
 
   @Test

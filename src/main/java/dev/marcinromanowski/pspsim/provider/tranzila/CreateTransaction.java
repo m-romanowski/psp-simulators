@@ -80,7 +80,8 @@ final class CreateTransaction {
       TranzilaCreateRequest request,
       TranzilaJson originalRequest,
       Instant now,
-      ObjectOrigin askedBy) {
+      ObjectOrigin askedBy,
+      Map<String, TranzilaCard> cardsThePageOffers) {
 
     String accountId() {
       return terminal.accountId();
@@ -105,6 +106,17 @@ final class CreateTransaction {
       TranzilaTerminal terminal,
       Instant now,
       ObjectOrigin askedBy) {
+    return handle(call, headers, testRunId, terminal, now, askedBy, Map.of());
+  }
+
+  TranzilaOperationResult handle(
+      TranzilaApiCall call,
+      Map<String, List<String>> headers,
+      TestRunId testRunId,
+      TranzilaTerminal terminal,
+      Instant now,
+      ObjectOrigin askedBy,
+      Map<String, TranzilaCard> cardsThePageOffers) {
     Optional<TranzilaJson.JsonObject> parsed = call.body();
     if (parsed.isEmpty()) {
       return TranzilaAnswers.refusedBody(
@@ -136,7 +148,8 @@ final class CreateTransaction {
             request,
             TranzilaOriginalRequest.of(parsed.get()),
             now,
-            askedBy);
+            askedBy,
+            cardsThePageOffers);
     Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
     if (inAnotherCurrency.isPresent()) {
       return inAnotherCurrency.get().result();
@@ -581,6 +594,7 @@ final class CreateTransaction {
         transactions
             .carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
             .map(TranzilaTransaction::card)
+            .or(() -> Optional.ofNullable(asked.cardsThePageOffers().get(cardNumber)))
             .or(() -> cards.holdingTheToken(asked.testRunId(), cardNumber));
     return known.map(card -> new Presented(card.expiringIn(month, year), cardNumber));
   }

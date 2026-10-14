@@ -62,13 +62,10 @@ class TranzilaHandshakeTest {
   }
 
   @Test
-  void a_sum_written_with_an_exponent_or_trailing_zeros_is_locked_as_its_plain_decimal() {
-    handshake(signed("n-2"), "{\"terminal_name\":\"myterminal\",\"sum\":1.5e2}");
-    handshake(signed("n-3"), "{\"terminal_name\":\"myterminal\",\"sum\":10.50}");
+  void a_sum_with_trailing_zeros_is_locked_as_written_and_no_params_are_kept_for_none_sent() {
+    handshake(signed("n-2"), "{\"terminal_name\":\"myterminal\",\"sum\":10.50}");
 
-    assertThat(wired.handshakes.all())
-        .extracting(TranzilaHandshake::sum)
-        .containsExactly("150", "10.50");
+    assertThat(wired.handshakes.all()).extracting(TranzilaHandshake::sum).containsExactly("10.50");
     assertThat(wired.handshakes.all())
         .extracting(TranzilaHandshake::requestParams)
         .containsOnlyNulls();
@@ -87,7 +84,12 @@ class TranzilaHandshakeTest {
             "{\"terminal_name\":\"myterminal\",\"sum\":0}",
             "{\"terminal_name\":\"myterminal\",\"sum\":-1}",
             "{\"terminal_name\":\"myterminal\",\"sum\":1,\"request_params\":\"order\"}",
-            "{\"terminal_name\":\"myterminal\",\"sum\":1,\"currency\":\"ILS\"}");
+            "{\"terminal_name\":\"myterminal\",\"sum\":1,\"currency\":\"ILS\"}",
+            "{\"terminal_name\":\"myterminal\",\"sum\":1.5e2}",
+            "{\"terminal_name\":\"myterminal\",\"sum\":1e999999999}",
+            "{\"terminal_name\":\"myterminal\",\"sum\":1E2}",
+            "{\"terminal_name\":\"myterminal\",\"sum\":1234567890123456}",
+            "{\"terminal_name\":\"myterminal\",\"sum\":1.1234567}");
 
     for (int at = 0; at < refused.size(); at++) {
       TranzilaApiResponse answered = handshake(signed("bad-" + at), refused.get(at));

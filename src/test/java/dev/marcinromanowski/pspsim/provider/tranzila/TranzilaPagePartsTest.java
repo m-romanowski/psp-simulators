@@ -231,7 +231,8 @@ class TranzilaPagePartsTest {
     assertThat(
             new TranzilaPayerCards(wired.fixtures)
                 .holdingTheToken(TranzilaWiring.RUN, "t5d55d2922ca4029022"))
-        .contains(TranzilaPageCards.thePublishedCardAsCharged());
+        .as("the published card is the page's own and is charged only through it")
+        .isEmpty();
   }
 
   @Test
@@ -293,7 +294,7 @@ class TranzilaPagePartsTest {
     ProviderWireAnswer.InThisProvidersOwnWords handshakeUnknown =
         (ProviderWireAnswer.InThisProvidersOwnWords)
             TranzilaWireFaults.theAnswerTo(
-                WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/v2/handshake/x");
+                WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/v2/handshake/create/x");
     ProviderWireAnswer.InThisProvidersOwnWords handshakeMethod =
         (ProviderWireAnswer.InThisProvidersOwnWords)
             TranzilaWireFaults.theAnswerTo(
@@ -316,13 +317,26 @@ class TranzilaPagePartsTest {
     assertThat(new String(handshakeMethod.body(), StandardCharsets.UTF_8))
         .isEqualTo(
             "{\"error_code\":405,\"message\":\"This address does not answer this HTTP method\"}");
+    assertThat(pageUnknown.headers())
+        .containsEntry("Content-Security-Policy", TranzilaDirectNgPage.WHAT_THIS_PAGE_PERMITS)
+        .containsEntry("Cache-Control", "no-store");
+    assertThat(handshakeUnknown.headers()).isEmpty();
     assertThat(pageUnknown.httpStatus()).isEqualTo(404);
     assertThat(pageUnknown.contentType()).isEqualTo("text/html; charset=utf-8");
     assertThat(new String(pageUnknown.body(), StandardCharsets.UTF_8))
         .contains(TranzilaDirectNgPage.NO_SUCH_ADDRESS);
     assertThat(pageMethod.httpStatus()).isEqualTo(405);
     assertThat(new String(pageMethod.body(), StandardCharsets.UTF_8))
-        .contains(TranzilaDirectNgPage.NO_SUCH_METHOD);
+        .contains(TranzilaDirectNgPage.escaped(TranzilaDirectNgPage.NO_SUCH_METHOD));
+    assertThat(TranzilaDirectNgPage.NO_SUCH_METHOD)
+        .endsWith("takes GET or POST, and the payer's submission on it takes POST only.");
+    assertThat(pageMethod.headers()).containsEntry("Cache-Control", "no-store");
+    assertThat(
+            ((ProviderWireAnswer.InThisProvidersOwnWords)
+                    TranzilaWireFaults.theAnswerTo(
+                        WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/v1/transaction/x"))
+                .contentType())
+        .isEqualTo("application/json");
     assertThat(
             TranzilaWireFaults.theAnswerTo(
                 WireFault.A_FAILURE_NOTHING_ELSE_ANSWERED, "/v2/handshake/create"))

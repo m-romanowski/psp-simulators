@@ -224,7 +224,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineFields");
     assertThat(TrailWithholdingConvention.howManyFieldsAreWithheld(build.modules()))
         .as("the second denominator: the fields these declarations name between them")
-        .isEqualTo(17);
+        .isEqualTo(18);
     assertThat(TrailWithholdingConvention.verdictOn(COMPILED_MAIN).offences())
         .as("the build under test keeps the rule this gate enforces")
         .isEmpty();
@@ -251,7 +251,8 @@ class TrailWithholdingConventionTest {
             "transaction_result.token",
             "original_request.card_number",
             "original_request.card_holder_id",
-            "TranzilaTK");
+            "TranzilaTK",
+            "myid");
     assertThat(theModuleOf("azericard").theFieldsItWithholds())
         .as("azericard answers no address for the page it serves and withholds nothing")
         .isEmpty();
@@ -316,7 +317,7 @@ class TrailWithholdingConventionTest {
                 + " SENSITIVE_RESPONSE_FIELDS")
         .contains("leaves " + THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE + " name(s)")
         .contains("dev.marcinromanowski.pspsim.provider.autra.AutraPixEvent FINANCIAL_TRANSACTION");
-    assertThat(read.get(2)).contains("read 17 withheld response field(s)");
+    assertThat(read.get(2)).contains("read 18 withheld response field(s)");
     assertThat(read.get(3)).contains("examined 29 published name(s) that read as an address");
     assertThat(read.get(4)).contains("25 of those address(es) are registered").contains("over 6");
     assertThat(read.get(5))
@@ -362,7 +363,7 @@ class TrailWithholdingConventionTest {
         .contains(
             "5 of the 6 provider module(s) mint a delivery: [autra, azericard, grow, stripe,"
                 + " tranzila]")
-        .contains("withholding 6 delivered field(s)");
+        .contains("withholding 7 delivered field(s)");
     assertThat(read.get(10))
         .contains(
             "[dev.marcinromanowski.pspsim.provider.stripe.StripeWebhookRendering] mint one out of a body");
@@ -706,16 +707,16 @@ class TrailWithholdingConventionTest {
 
     assertThat(excused.asAnEntryOfItsOwnDeclaration())
         .as(
-            "the 17 response entries and the 6 delivered entries the declarations of this build"
+            "the 18 response entries and the 7 delivered entries the declarations of this build"
                 + " name, each excused in the initializer that stores it")
-        .isEqualTo(23);
+        .isEqualTo(25);
     assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(204);
     assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(555);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(782);
+        .isEqualTo(784);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"
@@ -1801,7 +1802,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaFields");
     assertThat(TrailWithholdingConvention.howManyDeliveredFieldsAreWithheld(deliveries.modules()))
         .as("the second denominator: the fields these five declarations name between them")
-        .isEqualTo(6);
+        .isEqualTo(7);
     assertThat(deliveries.theClassesThatKeepADeliveryRow())
         .containsExactly("dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher");
     assertThat(deliveries.theMethodsThatKeepADeliveryRow())
@@ -1849,7 +1850,8 @@ class TrailWithholdingConventionTest {
     assertThat(theDeliveryOf("autra").theFieldsItWithholds())
         .as("registered as a body that holds nothing this build withholds")
         .isEmpty();
-    assertThat(theDeliveryOf("tranzila").theFieldsItWithholds()).containsExactly("TranzilaTK");
+    assertThat(theDeliveryOf("tranzila").theFieldsItWithholds())
+        .containsExactlyInAnyOrder("TranzilaTK", "myid");
     assertThat(theDeliveryOf("worldline").theClassesThatMintADelivery())
         .as("worldline mints no delivery at all, so it owes this rule nothing")
         .isEmpty();

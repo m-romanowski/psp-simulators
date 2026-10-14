@@ -527,7 +527,9 @@ class RelatedObjectAddressConventionTest {
                 "grow",
                 List.of(A_PAGE),
                 "tranzila",
-                List.of("/tranzila/directng/{terminal}/iframenew.php"),
+                List.of(
+                    "/tranzila/directng/{terminal}/iframenew.php",
+                    "/tranzila/directng/{terminal}/payer/{pageId}"),
                 "worldline",
                 List.of(A_PAGE_WITH_A_VARIABLE)));
     assertThat(RelatedObjectAddressConvention.theModulesThatDeclareNoPageOfTheirOwn(build, pages))

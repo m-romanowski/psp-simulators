@@ -70,7 +70,11 @@ class TranzilaDirectNgTest {
     assertThat(page.successUrl()).isEqualTo(SHOP_OK);
     assertThat(page.failUrl()).isEqualTo(SHOP_FAIL);
     assertThat(page.notifyUrl()).isNull();
-    assertThat(page.echoed()).containsExactly(Map.entry("pdesc", "Two seats"));
+    assertThat(page.echoed())
+        .containsExactly(
+            Map.entry("success_url_address", SHOP_OK),
+            Map.entry("fail_url_address", SHOP_FAIL),
+            Map.entry("pdesc", "Two seats"));
     assertThat(page.origin()).isEqualTo(ObjectOrigin.PROVIDER_API);
     assertThat(page.createdAt()).isEqualTo(TranzilaWiring.NOW);
     assertThat(page.isSettled()).isFalse();
@@ -83,6 +87,34 @@ class TranzilaDirectNgTest {
     assertThat(outbound.httpStatus()).isEqualTo(Integer.valueOf(200));
     assertThat(outbound.providerObjectId()).isEqualTo(page.pageId());
     assertThat(outbound.outcome()).isEqualTo(ProviderOutcome.SUCCESS);
+  }
+
+  @Test
+  void the_payers_national_id_travels_back_to_the_shop_and_is_withheld_from_every_trail_row() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, NOTIFY);
+    open(parameters("10", "A", "myid", "123456789", "orderid", "SHOP-1"));
+    AuditRecord opened = theRow(AuditDirection.INBOUND_REQUEST);
+
+    TranzilaApiResponse answered = pay(thePage().pageId(), THE_PUBLISHED_CARD);
+
+    assertThat(opened.sanitizedBody())
+        .containsEntry("myid", List.of("[redacted]"))
+        .containsEntry("orderid", List.of("SHOP-1"));
+    assertThat(theRow(AuditDirection.OUTBOUND_RESPONSE).sanitizedBody())
+        .containsEntry("myid", List.of("[redacted]"))
+        .containsEntry("orderid", List.of("SHOP-1"));
+    assertThat(bodyOf(answered))
+        .contains("<input type=\"hidden\" name=\"myid\" value=\"123456789\">")
+        .contains("<input type=\"hidden\" name=\"orderid\" value=\"SHOP-1\">");
+    assertThat(wired.posted).singleElement().asString().contains("&myid=123456789&orderid=SHOP-1&");
+    assertThat(
+            wired
+                .deliveries
+                .of(TranzilaApi.TRANZILA, TranzilaWiring.RUN)
+                .get(0)
+                .payload()
+                .sanitizedBody())
+        .containsEntry("myid", List.of("[redacted]"));
   }
 
   @Test
@@ -205,7 +237,13 @@ class TranzilaDirectNgTest {
     assertThat(wired.posted)
         .singleElement()
         .asString()
-        .startsWith(NOTIFY + " supplier=myterminal&sum=10.53&currency=1&Response=000&contact=Dana")
+        .startsWith(
+            NOTIFY
+                + " supplier=myterminal&sum=10.53&currency=1&Response=000"
+                + "&success_url_address=https%3A%2F%2Fshop.example%2Fok"
+                + "&fail_url_address=https%3A%2F%2Fshop.example%2Ffail"
+                + "&notify_url_address=https%3A%2F%2Fshop.example%2Fnotify&contact=Dana"
+                + "&transaction_id=")
         .contains("&TranzilaTK=t5d55d2922ca4029022")
         .endsWith("&txn_type=debit&tranmode=A&ConfirmationCode=" + made.authNumber());
     AuditRecord outbound = theRow(AuditDirection.OUTBOUND_RESPONSE);

@@ -97,7 +97,17 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
     HttpResponse<String> page =
         get(
             "/tranzila/directng/myterminal/iframenew.php",
-            pageParameters("10.5", "VK", "thtk", thtk, "contact", "Dana Levi"));
+            pageParameters(
+                "10.5",
+                "VK",
+                "thtk",
+                thtk,
+                "contact",
+                "Dana Levi",
+                "orderid",
+                "SHOP-77",
+                "myid",
+                "123456789"));
     String payerForm = theOnly(THE_PAYER_FORM, page.body());
     HttpResponse<String> returned =
         post(payerForm, Map.of("card", THE_PUBLISHED_CARD, "outcome", "PAID"));
@@ -134,7 +144,12 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
             "sum",
             "currency",
             "Response",
+            "success_url_address",
+            "fail_url_address",
+            "notify_url_address",
             "contact",
+            "orderid",
+            "myid",
             "transaction_id",
             "index",
             "ccno",
@@ -154,12 +169,15 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
         .containsEntry("currency", "1")
         .containsEntry("Response", "777")
         .containsEntry("contact", "Dana Levi")
+        .containsEntry("orderid", "SHOP-77")
+        .containsEntry("myid", "123456789")
+        .containsEntry("success_url_address", SHOP_OK)
         .containsEntry("index", transaction)
         .containsEntry("ccno", "9022")
         .containsEntry("Responsecv", "0")
         .containsEntry("Responseid", "0")
         .containsEntry("cardtype", "2")
-        .containsEntry("cardissuer", "1")
+        .containsEntry("cardissuer", "2")
         .containsEntry("cardacquirer", "2")
         .containsEntry("TranzilaTK", "t5d55d2922ca4029022")
         .containsEntry("txn_type", "verify")
@@ -180,6 +198,8 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
         .contains("\"txn_type\":\"force\"");
     assertThat(stateOf(transaction)).containsEntry("normalizedStatus", "SUCCEEDED");
     assertThat(page.body() + returned.body() + notified.body()).doesNotContain("4907639999909022");
+    assertThat(audit()).doesNotContain("123456789").contains("[redacted]");
+    assertThat(deliveries().toString()).doesNotContain("123456789");
   }
 
   @Test
@@ -310,7 +330,10 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
     HttpResponse<String> worldlinePayment = post("/v2/pspid-1/payments", "{}", Map.of());
     HttpResponse<String> worldlineUnknown = post("/v2/pspid-1/nothing-here", "{}", Map.of());
     HttpResponse<String> worldlineWrongMethod = get("/v2/pspid-1/payments", Map.of());
-    HttpResponse<String> handshakeUnknown = post("/v2/handshake/nothing-here", "{}", Map.of());
+    HttpResponse<String> handshakeUnknown =
+        post("/v2/handshake/create/nothing-here", "{}", Map.of());
+    HttpResponse<String> aMerchantCalledHandshake =
+        post("/v2/handshake/payments/nothing-here", "{}", Map.of());
     HttpResponse<String> handshakeWrongMethod = get("/v2/handshake/create", Map.of());
     HttpResponse<String> handshakeUnsigned =
         post("/v2/handshake/create", "{\"terminal_name\":\"myterminal\",\"sum\":1}", Map.of());
@@ -328,6 +351,10 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
     assertThat(handshakeUnknown.statusCode()).isEqualTo(404);
     assertThat(handshakeUnknown.body())
         .isEqualTo("{\"error_code\":404,\"message\":\"The specified resource was not found\"}");
+    assertThat(aMerchantCalledHandshake.statusCode()).isEqualTo(404);
+    assertThat(aMerchantCalledHandshake.body())
+        .contains("no route of provider worldline answers this address")
+        .doesNotContain("error_code");
     assertThat(handshakeWrongMethod.statusCode()).isEqualTo(405);
     assertThat(handshakeWrongMethod.body())
         .isEqualTo(
@@ -523,6 +550,13 @@ class TranzilaPaymentPageIntegrationTest extends PostgresBackedTest {
         .uri("/__simulator/tranzila/objects?testRunId=" + RUN.value())
         .retrieve()
         .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+  }
+
+  private String audit() {
+    return http.get()
+        .uri("/__simulator/tranzila/audit?testRunId=" + RUN.value())
+        .retrieve()
+        .body(String.class);
   }
 
   private List<Map<String, Object>> deliveries() {

@@ -39,7 +39,7 @@ class TranzilaBrowserReturnTest {
             Map.entry("Responsecv", "1"),
             Map.entry("Responseid", "0"),
             Map.entry("cardtype", "2"),
-            Map.entry("cardissuer", "1"),
+            Map.entry("cardissuer", "2"),
             Map.entry("cardacquirer", "2"),
             Map.entry("TranzilaTK", "t5d55d2922ca4024245"),
             Map.entry("txn_type", "debit"),
@@ -104,7 +104,7 @@ class TranzilaBrowserReturnTest {
             Map.entry("Responseid", "0"),
             Map.entry("cardtype", "5"),
             Map.entry("cardissuer", "1"),
-            Map.entry("cardacquirer", "2"),
+            Map.entry("cardacquirer", "1"),
             Map.entry("TranzilaTK", "t5d55d2922ca4029022"),
             Map.entry("tranmode", "K"));
     assertThat(TranzilaBrowserReturn.isApproved(saved, null)).isTrue();
@@ -158,7 +158,7 @@ class TranzilaBrowserReturnTest {
     assertThat(new String(payload.body(), StandardCharsets.UTF_8))
         .isEqualTo(
             "supplier=myterminal&sum=10.53&currency=978&Response=000&transaction_id=41044"
-                + "&index=41044&ccno=4245&Responsecv=1&Responseid=0&cardtype=2&cardissuer=1"
+                + "&index=41044&ccno=4245&Responsecv=1&Responseid=0&cardtype=2&cardissuer=2"
                 + "&cardacquirer=2&TranzilaTK=t5d55d2922ca4024245&txn_type=debit&tranmode=A"
                 + "&ConfirmationCode=0587923");
     assertThat(payload.sanitizedBody())

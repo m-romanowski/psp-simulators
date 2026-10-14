@@ -33,6 +33,21 @@ class NoWorkingPayerAddressOnAScreenTest {
   }
 
   @Test
+  void the_address_a_payer_submits_tranzilas_page_to_is_refused_on_a_tranzila_screen() {
+    assertThatThrownBy(
+            () ->
+                NoWorkingPayerAddressOnAScreen.refuseAnAddressOfAPayerPageOn(
+                    "/ui/objects?provider=tranzila&testRunId=r",
+                    "<td>/tranzila/directng/myterminal/payer/directng_0a</td>"))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("/tranzila/directng/{terminal}/payer/{pageId}");
+    assertThat(NoWorkingPayerAddressOnAScreen.THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO)
+        .containsExactly(
+            java.util.Map.entry(
+                "tranzila", List.of("/tranzila/directng/{terminal}/payer/{pageId}")));
+  }
+
+  @Test
   void an_address_kept_on_a_row_and_printed_as_a_path_is_refused_the_same_way() {
     assertThatCode(
             () ->

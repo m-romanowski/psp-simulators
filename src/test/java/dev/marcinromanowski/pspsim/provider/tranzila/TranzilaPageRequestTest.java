@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class TranzilaPageRequestTest {
 
   @Test
-  void the_published_parameters_are_read_and_the_predetermined_fields_kept_in_the_tables_order() {
+  void the_published_parameters_are_read_and_every_one_is_kept_to_echo_but_the_thtk() {
     Map<String, List<String>> sent = minimal();
     sent.put("success_url_address", List.of("https://shop.example/ok"));
     sent.put("fail_url_address", List.of("http://shop.example/fail"));
@@ -36,9 +36,15 @@ class TranzilaPageRequestTest {
     assertThat(read.thtk()).isEqualTo("w123");
     assertThat(read.echoed())
         .containsExactly(
-            Map.entry("myid", "123456789"),
+            Map.entry("success_url_address", "https://shop.example/ok"),
+            Map.entry("fail_url_address", "http://shop.example/fail"),
+            Map.entry("notify_url_address", "https://shop.example/notify"),
+            Map.entry("DCdisable", "order-1"),
+            Map.entry("cred_type", "1"),
+            Map.entry("remarks", "second"),
             Map.entry("contact", "Dana"),
-            Map.entry("remarks", "second"));
+            Map.entry("lang", "il"),
+            Map.entry("myid", "123456789"));
   }
 
   @Test

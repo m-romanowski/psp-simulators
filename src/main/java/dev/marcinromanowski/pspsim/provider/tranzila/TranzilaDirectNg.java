@@ -192,7 +192,7 @@ final class TranzilaDirectNg {
         null,
         null,
         Redaction.redact(call.headers(), TranzilaFields.SENSITIVE_HEADERS),
-        call.parameters(),
+        Redaction.redact(call.parameters(), TranzilaFields.SENSITIVE_REQUEST_FIELDS),
         null,
         now);
     Opening opening =
@@ -307,7 +307,7 @@ final class TranzilaDirectNg {
         null,
         null,
         Redaction.redact(call.headers(), TranzilaFields.SENSITIVE_HEADERS),
-        call.parameters(),
+        Redaction.redact(call.parameters(), TranzilaFields.SENSITIVE_REQUEST_FIELDS),
         null,
         now);
     if (page.isSettled()) {
@@ -561,7 +561,13 @@ final class TranzilaDirectNg {
     }
     TranzilaOperationResult result =
         createTransaction.handle(
-            TranzilaPageCharge.callOf(page, card), Map.of(), testRunId, terminal, now, askedBy);
+            TranzilaPageCharge.callOf(page, card),
+            Map.of(),
+            testRunId,
+            terminal,
+            now,
+            askedBy,
+            Map.of(card.token(), card.card()));
     if (result.insteadOfTheOperation() != null) {
       return new Step.AnsweredInstead(result);
     }

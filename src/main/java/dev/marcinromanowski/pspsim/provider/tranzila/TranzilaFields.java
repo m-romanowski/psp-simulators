@@ -1,6 +1,5 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
-import java.util.List;
 import java.util.Set;
 
 final class TranzilaFields {
@@ -152,18 +151,7 @@ final class TranzilaFields {
 
   static final String REQUEST_PARAMS = "request_params";
 
-  static final List<String> THE_PREDETERMINED_FIELDS =
-      List.of(
-          "myid",
-          "company",
-          "contact",
-          "email",
-          "phone",
-          "address",
-          "city",
-          "pdesc",
-          "remarks",
-          "json_purchase_data");
+  static final String MYID = "myid";
 
   static final String SUPPLIER = "supplier";
 
@@ -187,14 +175,16 @@ final class TranzilaFields {
 
   static final Set<String> SENSITIVE_HEADERS = Set.of("x-tranzila-api-access-token");
 
-  static final Set<String> SENSITIVE_REQUEST_FIELDS = Set.of(CARD_NUMBER, CVV, CARD_HOLDER_ID);
+  static final Set<String> SENSITIVE_REQUEST_FIELDS =
+      Set.of(CARD_NUMBER, CVV, CARD_HOLDER_ID, MYID);
 
   static final Set<String> SENSITIVE_RESPONSE_FIELDS =
       Set.of(
           TRANSACTION_RESULT + "." + TOKEN,
           ORIGINAL_REQUEST + "." + CARD_NUMBER,
           ORIGINAL_REQUEST + "." + CARD_HOLDER_ID,
-          TRANZILA_TK);
+          TRANZILA_TK,
+          MYID);
 
-  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK);
+  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID);
 }

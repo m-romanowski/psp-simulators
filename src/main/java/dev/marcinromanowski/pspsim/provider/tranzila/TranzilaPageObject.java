@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
@@ -62,7 +63,10 @@ final class TranzilaPageObject {
     if (outcome == PayerOutcome.ABANDONED) {
       return LEFT;
     }
-    return page.tranmode().wire() + " " + page.response();
+    String response = page.response();
+    return response == null
+        ? outcome.name().toLowerCase(Locale.ROOT)
+        : page.tranmode().wire() + " " + response;
   }
 
   static NormalizedStatus normalizedStatusOf(
@@ -74,9 +78,11 @@ final class TranzilaPageObject {
     if (outcome == null) {
       return NormalizedStatus.NOT_INITIALIZED;
     }
-    return outcome == PayerOutcome.ABANDONED
-        ? NormalizedStatus.CANCELLED
-        : NormalizedStatus.SUCCEEDED;
+    return switch (outcome) {
+      case ABANDONED -> NormalizedStatus.CANCELLED;
+      case DECLINED -> NormalizedStatus.FAILED;
+      case PAID -> NormalizedStatus.SUCCEEDED;
+    };
   }
 
   static Map<String, String> relatedObjectsOf(TranzilaPage page) {
