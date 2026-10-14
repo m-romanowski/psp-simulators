@@ -308,6 +308,38 @@ class TranzilaHostedFieldsTest {
   }
 
   @Test
+  void a_fixture_ending_alike_but_of_another_card_type_is_not_the_card_typed() {
+    aHandshake("10");
+    wired.fixtures.seed(
+        new NewPaymentMethodFixture(
+            TranzilaApi.TRANZILA,
+            TranzilaWiring.RUN,
+            TranzilaWiring.ACCOUNT,
+            "owner",
+            PaymentMethodKind.CARD,
+            "mastercard-9022",
+            new FixtureCard("mastercard", "9022", 2, 2031, "credit"),
+            Map.of("token", "seededTok9022"),
+            null,
+            ObjectOrigin.CONTROL_API),
+        PaymentMethodFixturePlan.storingNothingOfItsOwn(),
+        Set.of());
+
+    charge(aCharge("10", "tokenize", "true"));
+
+    assertThat(wired.theLastStored().token()).isEqualTo("t000000000000019022");
+    assertThat(wired.theLastStored().card().cardType()).isEqualTo(TranzilaCard.VISA);
+  }
+
+  @Test
+  void a_currency_no_page_numbers_is_named_rather_than_answered() {
+    assertThat(TranzilaHostedFieldsAnswer.theNumericCodeOf("GBP")).isEqualTo("826");
+    assertThatThrownBy(() -> TranzilaHostedFieldsAnswer.theNumericCodeOf("JPY"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("JPY has no numeric code the hosted fields answer could carry");
+  }
+
+  @Test
   void a_rule_answering_instead_of_the_charge_is_delivered_as_it_stands() {
     aHandshake("10");
     wired.writes(

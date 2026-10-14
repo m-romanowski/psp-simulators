@@ -185,6 +185,30 @@ class TranzilaHostedFieldsRequestTest {
   }
 
   @Test
+  void a_doubled_digit_from_five_up_loses_nine_and_below_five_is_only_doubled() {
+    assertThat(TranzilaHostedFieldsRequest.theDoubledSumOf(0)).isZero();
+    assertThat(TranzilaHostedFieldsRequest.theDoubledSumOf(4)).isEqualTo(8);
+    assertThat(TranzilaHostedFieldsRequest.theDoubledSumOf(5)).isEqualTo(1);
+    assertThat(TranzilaHostedFieldsRequest.theDoubledSumOf(9)).isEqualTo(9);
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("50")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("4002")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("5009")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("5000")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("0000000000000000000")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.passesLuhn("0000000000000000001")).isFalse();
+  }
+
+  @Test
+  void every_weight_of_the_isracard_check_counts() {
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("31000002")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("13000002")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("12000000")).isTrue();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("21000000")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("00000020")).isFalse();
+    assertThat(TranzilaHostedFieldsRequest.isAnIsracardNumber("00000000")).isTrue();
+  }
+
+  @Test
   void a_cvv_when_sent_is_three_or_four_digits() {
     assertThat(refusalsWith("cvv", "12")).containsExactly("10003 cvv INVALID CVV");
     assertThat(refusalsWith("cvv", "12345")).hasSize(1);
@@ -266,12 +290,8 @@ class TranzilaHostedFieldsRequestTest {
         .isEqualTo(new TranzilaCard("xxxxxxxxxxxx2716", TranzilaCard.MASTERCARD, 2, 26));
     assertThat(typed.cardType()).isEqualTo(TranzilaCard.MASTERCARD);
     assertThat(typed).hasToString("a card the payer typed, ending 2716");
-    assertThat(typed)
-        .isEqualTo(new TranzilaHostedCard("5326100000002716", true, false))
-        .isNotEqualTo(new TranzilaHostedCard("5326100000002716", false, false))
-        .isNotEqualTo(new TranzilaHostedCard("5326100000002716", true, true))
-        .isNotEqualTo(new TranzilaHostedCard("4326100000002716", true, false))
-        .hasSameHashCodeAs(new TranzilaHostedCard("4326100000002716", false, true));
+    assertThat(typed.cvvEntered()).isTrue();
+    assertThat(typed.idEntered()).isFalse();
     assertThat(admitted(aCharge()).toString()).doesNotContain("4907639999909022");
   }
 

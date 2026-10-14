@@ -1,7 +1,5 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
-import org.jspecify.annotations.Nullable;
-
 final class TranzilaHostedCard {
 
   private final String number;
@@ -39,19 +37,6 @@ final class TranzilaHostedCard {
 
   boolean idEntered() {
     return idEntered;
-  }
-
-  @Override
-  public boolean equals(@Nullable Object other) {
-    return other instanceof TranzilaHostedCard card
-        && number.equals(card.number)
-        && cvvEntered == card.cvvEntered
-        && idEntered == card.idEntered;
-  }
-
-  @Override
-  public int hashCode() {
-    return lastFour().hashCode();
   }
 
   @Override

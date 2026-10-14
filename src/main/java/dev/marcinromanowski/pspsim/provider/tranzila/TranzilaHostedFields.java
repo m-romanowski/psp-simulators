@@ -224,8 +224,10 @@ final class TranzilaHostedFields {
                     transactions
                         .paymentHolding(testRunId, id.longValue())
                         .flatMap(payment -> payment.transaction(id.longValue())));
-    TranzilaTransaction transaction =
-        made.orElseThrow(() -> theCardApiRefusedWhatItAdmitted(result));
+    if (made.isEmpty()) {
+      throw theCardApiRefusedWhatItAdmitted(result);
+    }
+    TranzilaTransaction transaction = made.get();
     if (!TranzilaAnswers.isADuplicate(result)) {
       if (transaction.approved()) {
         handshakes.retainUntil(

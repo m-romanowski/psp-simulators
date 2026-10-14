@@ -77,6 +77,8 @@ record TranzilaHostedFieldsRequest(
 
   static final int ISRACARD_MODULUS = 11;
 
+  static final int FIRST_DIGIT_DOUBLED_PAST_NINE = 5;
+
   static final String A_MONTH = "[0-9]{1,2}";
 
   static final String A_YEAR = "[0-9]{4}";
@@ -216,11 +218,12 @@ record TranzilaHostedFieldsRequest(
     if (!digits.matches(AN_ISRACARD_NUMBER)) {
       return false;
     }
+    int last = digits.length() - 1;
     int sum = 0;
-    for (int at = 0; at < digits.length(); at++) {
+    for (int at = 0; at < last; at++) {
       sum += (digits.charAt(at) - '0') * (digits.length() - at);
     }
-    return sum % ISRACARD_MODULUS == 0;
+    return Math.floorMod(-sum, ISRACARD_MODULUS) == digits.charAt(last) - '0';
   }
 
   static boolean isAMonth(String sent) {
@@ -232,20 +235,19 @@ record TranzilaHostedFieldsRequest(
   }
 
   static boolean passesLuhn(String digits) {
+    int last = digits.length() - 1;
     int sum = 0;
-    boolean doubled = false;
-    for (int at = digits.length() - 1; at >= 0; at--) {
+    boolean doubling = true;
+    for (int at = last - 1; at >= 0; at--) {
       int digit = digits.charAt(at) - '0';
-      if (doubled) {
-        digit *= 2;
-        if (digit > 9) {
-          digit -= 9;
-        }
-      }
-      sum += digit;
-      doubled = !doubled;
+      sum += doubling ? theDoubledSumOf(digit) : digit;
+      doubling = !doubling;
     }
-    return sum % 10 == 0;
+    return (10 - sum % 10) % 10 == digits.charAt(last) - '0';
+  }
+
+  static int theDoubledSumOf(int digit) {
+    return digit >= FIRST_DIGIT_DOUBLED_PAST_NINE ? 2 * digit - 9 : 2 * digit;
   }
 
   static Optional<TranzilaPageCurrency> currencyIn(@Nullable String sent) {

@@ -154,16 +154,15 @@ final class TranzilaNotify {
         .flatMap(payment -> payment.transaction(made));
   }
 
-  List<ScheduledWebhook> deliverOnce(
+  void deliverOnce(
       TestRunId testRunId,
       String accountId,
       String objectId,
       Map<String, String> fields,
       Target target) {
     if (target instanceof Target.Addressed addressed) {
-      return deliver(testRunId, accountId, objectId, fields, addressed.url(), null, null);
+      deliver(testRunId, accountId, objectId, fields, addressed.url(), null, null);
     }
-    return List.of();
   }
 
   private List<ScheduledWebhook> deliver(

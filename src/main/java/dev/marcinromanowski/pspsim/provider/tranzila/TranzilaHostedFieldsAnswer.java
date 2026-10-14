@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 final class TranzilaHostedFieldsAnswer {
@@ -56,14 +57,7 @@ final class TranzilaHostedFieldsAnswer {
     response.put(TranzilaFields.AMOUNT, TranzilaJson.text(inTwoPlaces(transaction.amount())));
     response.put(
         TranzilaFields.CURRENCY_CODE,
-        TranzilaJson.number(
-            TranzilaPageCurrency.alphabetic(transaction.currencyCode())
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            transaction.currencyCode()
-                                + " has no numeric code the hosted fields answer could carry"))
-                .numeric()));
+        TranzilaJson.number(theNumericCodeOf(transaction.currencyCode())));
     response.put(CREDIT_CARD_LAST_4_DIGITS, TranzilaJson.text(card.last4()));
     response.put(
         TranzilaFields.EXPIRY_MONTH,
@@ -92,6 +86,15 @@ final class TranzilaHostedFieldsAnswer {
     response.put(TranzilaFields.PAYMENT_PLAN, TranzilaJson.number(THE_ONE_PAYMENT_PLAN));
     response.put(TOTAL_INSTALLMENTS_NUMBER, nothing());
     return TranzilaJson.object(response);
+  }
+
+  static String theNumericCodeOf(String currency) {
+    Optional<TranzilaPageCurrency> known = TranzilaPageCurrency.alphabetic(currency);
+    if (known.isEmpty()) {
+      throw new IllegalStateException(
+          currency + " has no numeric code the hosted fields answer could carry");
+    }
+    return known.get().numeric();
   }
 
   static String inTwoPlaces(String amount) {
