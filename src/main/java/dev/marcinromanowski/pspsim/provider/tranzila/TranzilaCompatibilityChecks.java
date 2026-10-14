@@ -272,19 +272,19 @@ public final class TranzilaCompatibilityChecks {
     CheckResponse page = transport.send(CheckRequest.get(THE_PAGE));
     Matcher form = THE_PAYER_FORM.matcher(page.body());
     Map<String, String> read = new LinkedHashMap<>();
-    if (!form.find()) {
-      return read;
+    if (form.find()) {
+      Map<String, String> paying = new LinkedHashMap<>();
+      paying.put(TranzilaDirectNgPage.CARD, TranzilaPageCards.THE_PUBLISHED_CARD);
+      paying.put(TranzilaDirectNgPage.OUTCOME, PayerOutcome.PAID.name());
+      CheckResponse returned =
+          transport.send(
+              CheckRequest.form(TranzilaObjectActions.WIRE_METHOD, form.group(1), paying));
+      Matcher field = A_RETURNED_FIELD.matcher(returned.body());
+      while (field.find()) {
+        read.put(field.group(1), field.group(2));
+      }
+      read.keySet().retainAll(THE_FIELDS_THE_SAMPLE_PUBLISHES);
     }
-    Map<String, String> paying = new LinkedHashMap<>();
-    paying.put(TranzilaDirectNgPage.CARD, TranzilaPageCards.THE_PUBLISHED_CARD);
-    paying.put(TranzilaDirectNgPage.OUTCOME, PayerOutcome.PAID.name());
-    CheckResponse returned =
-        transport.send(CheckRequest.form(TranzilaObjectActions.WIRE_METHOD, form.group(1), paying));
-    Matcher field = A_RETURNED_FIELD.matcher(returned.body());
-    while (field.find()) {
-      read.put(field.group(1), field.group(2));
-    }
-    read.keySet().retainAll(THE_FIELDS_THE_SAMPLE_PUBLISHES);
     return read;
   }
 

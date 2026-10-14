@@ -169,10 +169,20 @@ class TranzilaPageProviderTest {
 
     int forgotten = provider.reset(TranzilaWiring.RUN, ResetScope.TEST_RUN).clearedObjects();
     open("A");
+    wired.handshakes.insert(
+        new TranzilaHandshake(
+            "w" + "b".repeat(41),
+            TranzilaWiring.RUN,
+            TranzilaWiring.ACCOUNT,
+            TranzilaWiring.TERMINAL,
+            "1",
+            null,
+            TranzilaWiring.NOW,
+            TranzilaWiring.NOW.plusSeconds(1)));
     int forgottenEverywhere = provider.reset(TranzilaWiring.RUN, ResetScope.ALL).clearedObjects();
 
     assertThat(forgotten).isEqualTo(2);
-    assertThat(forgottenEverywhere).isEqualTo(1);
+    assertThat(forgottenEverywhere).isEqualTo(2);
     assertThat(wired.pages.all()).isEmpty();
     assertThat(wired.handshakes.all()).isEmpty();
   }

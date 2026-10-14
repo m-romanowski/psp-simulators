@@ -61,8 +61,10 @@ class TranzilaDirectNgTest {
         .contains("<option value=\"published-9022\">")
         .contains("<dd>10.53 ILS</dd>")
         .contains("<dd>Two seats</dd>")
-        .contains("value=\"PAID\">Pay</button>")
-        .contains("value=\"ABANDONED\">Leave without paying</button>");
+        .contains("<button type=\"submit\" name=\"outcome\" value=\"PAID\">Pay</button>")
+        .contains(
+            "<button type=\"submit\" class=\"secondary\" name=\"outcome\""
+                + " value=\"ABANDONED\">Leave without paying</button>");
     assertThat(page.pageId()).matches("directng_[0-9a-f]{24}");
     assertThat(page.terminalName()).isEqualTo("myterminal");
     assertThat(page.accountId()).isEqualTo(TranzilaWiring.ACCOUNT);
@@ -229,6 +231,27 @@ class TranzilaDirectNgTest {
                     .doesNotContain(THE_PUBLISHED_TOKEN)
                     .doesNotContain("123456789")
                     .contains("[redacted]"));
+  }
+
+  @Test
+  void the_payers_submission_is_kept_on_the_trail_as_it_arrived_with_the_page_it_names() {
+    open(parameters("10", "A"));
+    String pageId = thePage().pageId();
+
+    pay(pageId, THE_PUBLISHED_CARD);
+
+    AuditRecord submitted =
+        wired.audit.all().stream()
+            .filter(record -> record.direction() == AuditDirection.INBOUND_REQUEST)
+            .reduce((first, last) -> last)
+            .orElseThrow();
+    assertThat(submitted.path()).isEqualTo("/tranzila/directng/myterminal/payer/" + pageId);
+    assertThat(submitted.method()).isEqualTo("POST");
+    assertThat(submitted.accountId()).isEqualTo(TranzilaWiring.ACCOUNT);
+    assertThat(submitted.resolutionRule()).isEqualTo(TestRunResolutionRule.OBJECT_CORRELATION);
+    assertThat(submitted.sanitizedBody())
+        .containsEntry("card", List.of(THE_PUBLISHED_CARD))
+        .containsEntry("outcome", List.of("PAID"));
   }
 
   @Test

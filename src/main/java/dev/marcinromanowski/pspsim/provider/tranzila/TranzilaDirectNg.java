@@ -574,18 +574,15 @@ final class TranzilaDirectNg {
     if (TranzilaAnswers.isADuplicate(result)) {
       return new Step.ADuplicate();
     }
-    Optional<TranzilaTransaction> made =
+    TranzilaTransaction transaction =
         Optional.ofNullable(result.providerObjectId())
             .flatMap(TranzilaIdentifiers::transactionIdIn)
             .flatMap(
                 id ->
                     transactions
                         .paymentHolding(testRunId, id.longValue())
-                        .flatMap(payment -> payment.transaction(id.longValue())));
-    if (made.isEmpty()) {
-      return new Step.Refused(TranzilaObjectActions.theWordsOf(result) + "." + STILL_COMPLETABLE);
-    }
-    TranzilaTransaction transaction = made.get();
+                        .flatMap(payment -> payment.transaction(id.longValue())))
+            .orElseThrow();
     TranzilaPage reached =
         page.settledAs(
             transaction.approved() ? PayerOutcome.PAID : PayerOutcome.DECLINED,
