@@ -663,7 +663,7 @@ class TrailWithholdingConventionTest {
     assertThat(
             TrailWithholdingDeclarations.aClassOfAProviderModule(
                 "dev.marcinromanowski.pspsim.provider.package-info"))
-        .as("the package's own synthetic class would otherwise read as a sixth provider")
+        .as("the package's own synthetic class would otherwise read as a provider of its own")
         .isFalse();
     assertThat(
             TrailWithholdingDeclarations.aClassOfAProviderModule(
@@ -1799,7 +1799,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.stripe.StripeFields",
             "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaFields");
     assertThat(TrailWithholdingConvention.howManyDeliveredFieldsAreWithheld(deliveries.modules()))
-        .as("the second denominator: the fields these five declarations name between them")
+        .as("the second denominator: the fields these declarations name between them")
         .isEqualTo(7);
     assertThat(deliveries.theClassesThatKeepADeliveryRow())
         .containsExactly("dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher");
@@ -1879,7 +1879,7 @@ class TrailWithholdingConventionTest {
     assertThat(
             TrailWithholdingConvention.theMatchingOfTheDeliveriesOf(
                 TrailWithholdingDeclarations.theDeliveriesIn(COMPILED_MAIN).modules()))
-        .as("the line names the five modules that declare one, and no module that declares none")
+        .as("the line names each module that declares one, and no module that declares none")
         .hasSize(5)
         .allSatisfy(matching -> assertThat(matching).contains("matches a whole key"));
   }

@@ -231,7 +231,7 @@ class TaskDescriptionsTest {
         val sixty = "Fails " + (1..60).joinToString(" ") { "word" } + "."
         val allowed = ADescription("verifyAllowed", 1, sixty)
         val notAllowed = ADescription("verifyOther", 1, sixty)
-        val registry = mapOf("verifyAllowed" to ALongerEntry(70, "it names five providers"))
+        val registry = mapOf("verifyAllowed" to ALongerEntry(70, "it names every provider"))
 
         assertEquals(70, TaskDescriptions.theMostWordsAllowed("verifyAllowed", registry))
         assertEquals(
@@ -244,7 +244,7 @@ class TaskDescriptionsTest {
 
     @Test
     fun `an allowance no description needs is an offence, and one being used is not`() {
-        val registry = mapOf("verifyAllowed" to ALongerEntry(70, "it names five providers"))
+        val registry = mapOf("verifyAllowed" to ALongerEntry(70, "it names every provider"))
         val sixty =
             ADescription("verifyAllowed", 1, "Fails " + (1..60).joinToString(" ") { "word" } + ".")
         val short = ADescription("verifyAllowed", 1, "Fails when a thing is another thing.")
@@ -265,7 +265,7 @@ class TaskDescriptionsTest {
             listOf("verifySilent"),
             TaskDescriptions.anAllowanceThatNamesNoReason(
                 mapOf(
-                    "verifyExplained" to ALongerEntry(70, "it names five providers"),
+                    "verifyExplained" to ALongerEntry(70, "it names every provider"),
                     "verifySilent" to ALongerEntry(70, "   "),
                 )
             ),

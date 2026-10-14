@@ -96,7 +96,7 @@ public final class RelatedObjectAddressConvention {
   static final String HOW_A_MODULE_IS_HELD_TO_ITS_OWN_ROUTES =
       "The addresses swept for are the ones each provider declares as the payer page it hosts,"
           + " read out of the compiled declarations, so core holds no list of any provider's"
-          + " vocabulary and a sixth provider widens this gate by declaring its page and"
+          + " vocabulary and a provider added later widens this gate by declaring its page and"
           + " compiling. Each module's values are swept for the routes that same module declares,"
           + " because the fact this rule refuses is a module publishing a working link to the page"
           + " it hosts itself: the address and the one-time token that page is reached with are"
