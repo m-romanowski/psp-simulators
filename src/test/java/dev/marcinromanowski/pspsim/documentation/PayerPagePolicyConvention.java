@@ -261,6 +261,9 @@ public final class PayerPagePolicyConvention {
               + WHAT_A_WIDER_POLICY_WOULD_COST);
     }
     List<String> policies = page.policies();
+    for (String script : page.theInlineScripts()) {
+      offences.addAll(theOffenceOfTheInlineScript(page, policies, script));
+    }
     if (policies.isEmpty()) {
       offences.add(
           page.renderedBy()
@@ -273,6 +276,36 @@ public final class PayerPagePolicyConvention {
       offences.addAll(theOffenceOfThePolicy(page, policy));
     }
     return List.copyOf(offences);
+  }
+
+  static List<String> theOffenceOfTheInlineScript(
+      APage page, List<String> policies, String script) {
+    if (PayerPageDeclarations.UNREADABLE.equals(script)) {
+      return List.of(
+          page.renderedBy()
+              + " renders an inline script whose text does not close inside the constant that"
+              + " opens it, so this gate cannot hash it and cannot tell whether its policy admits"
+              + " exactly that script");
+    }
+    String hash = PayerPageDeclarations.theHashOf(script);
+    for (String policy : policies) {
+      for (Directive directive : PayerPageDeclarations.theDirectivesOf(policy)) {
+        if (directive.name().equals(PayerPageDeclarations.THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY)
+            && List.of(directive.value().split(" ")).contains(hash)) {
+          return List.of();
+        }
+      }
+    }
+    return List.of(
+        page.renderedBy()
+            + " renders the inline script "
+            + script
+            + " and no policy of it names "
+            + PayerPageDeclarations.THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY
+            + " "
+            + hash
+            + ", the hash of exactly that text, so a browser would block it or a policy admits a"
+            + " script this page does not carry");
   }
 
   static List<String> theOffenceOfThePolicy(APage page, String policy) {

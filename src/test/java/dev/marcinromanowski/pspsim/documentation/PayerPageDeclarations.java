@@ -13,9 +13,13 @@ import java.lang.classfile.constantpool.LoadableConstantEntry;
 import java.lang.classfile.constantpool.StringEntry;
 import java.lang.classfile.instruction.ConstantInstruction;
 import java.lang.classfile.instruction.InvokeDynamicInstruction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -51,7 +55,13 @@ public final class PayerPageDeclarations {
 
   public static final String AN_ELEMENT_THAT_RUNS_INLINE = "script";
 
-  public static final String A_SOURCE = "src";
+  public static final String AN_INLINE_SCRIPT_OPENS = "<script>";
+
+  public static final String AN_INLINE_SCRIPT_CLOSES = "</script>";
+
+  public static final String UNREADABLE = "\u0000";
+
+  public static final String THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY = "script-src";
 
   public static final List<String> HOW_AN_HTML_DOCUMENT_OPENS = List.of("<!doctype html", "<html");
 
@@ -103,6 +113,14 @@ public final class PayerPageDeclarations {
         }
       }
       return List.copyOf(loading);
+    }
+
+    public List<String> theInlineScripts() {
+      List<String> scripts = new ArrayList<>();
+      for (String constant : constants) {
+        scripts.addAll(theInlineScriptsIn(constant));
+      }
+      return List.copyOf(scripts);
     }
 
     private boolean namesAnElementLoadingASource(String element) {
@@ -167,13 +185,39 @@ public final class PayerPageDeclarations {
       if (!Character.isLetterOrDigit(written.charAt(after))) {
         int closes = written.indexOf('>', after);
         String tag = closes < 0 ? written.substring(after) : written.substring(after, closes);
-        if (closes < 0 || tag.contains(A_SOURCE)) {
+        if (closes < 0 || !tag.isEmpty()) {
           return true;
         }
       }
       at = written.indexOf(opening, at + 1);
     }
     return false;
+  }
+
+  public static List<String> theInlineScriptsIn(String constant) {
+    List<String> scripts = new ArrayList<>();
+    String written = constant.toLowerCase(Locale.ROOT);
+    int at = written.indexOf(AN_INLINE_SCRIPT_OPENS);
+    while (at >= 0) {
+      int from = at + AN_INLINE_SCRIPT_OPENS.length();
+      int to = written.indexOf(AN_INLINE_SCRIPT_CLOSES, from);
+      scripts.add(to < 0 ? UNREADABLE : constant.substring(from, to));
+      at = to < 0 ? -1 : written.indexOf(AN_INLINE_SCRIPT_OPENS, to);
+    }
+    return List.copyOf(scripts);
+  }
+
+  public static String theHashOf(String script) {
+    try {
+      return "'sha256-"
+          + Base64.getEncoder()
+              .encodeToString(
+                  MessageDigest.getInstance("SHA-256")
+                      .digest(script.getBytes(StandardCharsets.UTF_8)))
+          + "'";
+    } catch (NoSuchAlgorithmException unavailable) {
+      throw new IllegalStateException(unavailable);
+    }
   }
 
   public static boolean aPolicy(String constant) {

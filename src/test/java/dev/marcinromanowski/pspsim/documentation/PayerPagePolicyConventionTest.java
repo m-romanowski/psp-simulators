@@ -262,23 +262,61 @@ class PayerPagePolicyConventionTest {
   }
 
   @Test
-  void a_script_written_inline_loads_nothing_and_is_left_to_the_policy_that_must_admit_it() {
-    APage inline =
+  void an_inline_script_is_admitted_only_by_a_policy_naming_the_hash_of_exactly_its_text() {
+    String script = "document.forms[0].submit();";
+    String itsHash = "'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='";
+    String carrying = "<p>x</p><script>" + script + "</script></body></html>";
+    APage unhashed = new APage("a.Page", List.of(A_STYLED_DOCUMENT, carrying, THE_FLOOR));
+    APage hashed =
+        new APage(
+            "a.Page", List.of(A_STYLED_DOCUMENT, carrying, THE_FLOOR + "; script-src " + itsHash));
+    APage anotherHash =
         new APage(
             "a.Page",
-            List.of(A_STYLED_DOCUMENT, "<script>document.forms[0].submit();</script>", THE_FLOOR));
+            List.of(
+                A_STYLED_DOCUMENT,
+                carrying,
+                THE_FLOOR + "; script-src 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='"));
+    APage unclosed =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script>document.", THE_FLOOR));
+
+    assertThat(PayerPageDeclarations.theHashOf(script)).isEqualTo(itsHash);
+    assertThat(unhashed.theInlineScripts()).containsExactly(script);
+    assertThat(unhashed.theElementsItLoadsASubresourceFor()).isEmpty();
+    assertThat(PayerPagePolicyConvention.theOffenceOf(unhashed))
+        .singleElement()
+        .asString()
+        .contains("renders the inline script " + script)
+        .contains("names script-src " + itsHash);
+    assertThat(PayerPagePolicyConvention.theOffenceOf(anotherHash))
+        .anySatisfy(offence -> assertThat(offence).contains("renders the inline script"));
+    assertThat(
+            PayerPagePolicyConvention.theOffenceOfTheInlineScript(
+                hashed, hashed.policies(), script))
+        .isEmpty();
+    assertThat(PayerPagePolicyConvention.theOffenceOf(unclosed))
+        .singleElement()
+        .asString()
+        .contains("does not close inside the constant that opens it");
+    assertThat(
+            PayerPageDeclarations.theInlineScriptsIn(
+                "<SCRIPT>a();</SCRIPT><p></p><script>b();</script>"))
+        .containsExactly("a();", "b();");
+  }
+
+  @Test
+  void a_script_tag_carrying_anything_is_read_as_loading_a_subresource() {
     APage loading =
         new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<SCRIPT defer src='/a.js'>", THE_FLOOR));
+    APage typed =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script type=\"module\">", THE_FLOOR));
     APage unclosed = new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script", THE_FLOOR));
-    APage unfinished = new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script type=", THE_FLOOR));
     APage scripted =
-        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<scripted></scripted><script>", THE_FLOOR));
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<scripted></scripted>", THE_FLOOR));
 
-    assertThat(inline.theElementsItLoadsASubresourceFor()).isEmpty();
-    assertThat(PayerPagePolicyConvention.theOffenceOf(inline)).isEmpty();
     assertThat(loading.theElementsItLoadsASubresourceFor()).containsExactly("script");
+    assertThat(typed.theElementsItLoadsASubresourceFor()).containsExactly("script");
     assertThat(unclosed.theElementsItLoadsASubresourceFor()).containsExactly("script");
-    assertThat(unfinished.theElementsItLoadsASubresourceFor()).containsExactly("script");
     assertThat(scripted.theElementsItLoadsASubresourceFor()).isEmpty();
   }
 
