@@ -23,6 +23,8 @@ public final class TheMerchant implements AutoCloseable {
 
   public static final String NEVER_MIND = "The shop knows you left without paying";
 
+  public static final String NOT_MADE = "The payment was not made";
+
   private static final String PAID = "/paid";
 
   private static final String ABANDONED = "/abandoned";
@@ -38,6 +40,8 @@ public final class TheMerchant implements AutoCloseable {
   private static final String HOSTED_FIELDS_CHECKOUT = "/hosted-fields-checkout";
 
   private static final String HOSTED_FIELDS_ANSWER = "/hosted-fields-answer";
+
+  private static final String THIRD_PARTY = "/a-third-party-widget";
 
   private static final Duration POLL = Duration.ofMillis(100);
 
@@ -62,6 +66,7 @@ public final class TheMerchant implements AutoCloseable {
     server.createContext(HOSTED_FIELDS_CHECKOUT, TheMerchant::checkOutWithHostedFields);
     server.createContext(
         HOSTED_FIELDS_ANSWER, exchange -> recordACallback(exchange, hostedFieldsAnswers));
+    server.createContext(THIRD_PARTY, TheMerchant::aWidgetThatListens);
     server.setExecutor(null);
     server.start();
   }
@@ -101,21 +106,35 @@ public final class TheMerchant implements AutoCloseable {
         + HOSTED_FIELDS_CHECKOUT
         + "?"
         + query(
-            Map.of("hf", hostedFieldsBase, "terminal", terminal, "thtk", thtk, "amount", amount));
+            Map.of(
+                "hf",
+                hostedFieldsBase,
+                "terminal",
+                terminal,
+                "thtk",
+                thtk,
+                "amount",
+                amount,
+                "notify",
+                whereCallbacksGo(),
+                "spy",
+                aThirdPartyFrame()));
+  }
+
+  public String aThirdPartyFrame() {
+    return "http://localhost:" + server.getAddress().getPort() + THIRD_PARTY;
   }
 
   public List<String> hostedFieldsAnswersReceived() {
     return List.copyOf(hostedFieldsAnswers);
   }
 
-  public String theOnlyHostedFieldsAnswer() {
-    if (hostedFieldsAnswers.size() != 1) {
+  public String theLatestHostedFieldsAnswer() {
+    if (hostedFieldsAnswers.isEmpty()) {
       throw new IllegalStateException(
-          "the shop's checkout posted "
-              + hostedFieldsAnswers.size()
-              + " answers of the hosted fields to its server, not one");
+          "the shop's checkout posted no answer of the hosted fields to its server");
     }
-    return hostedFieldsAnswers.get(0);
+    return hostedFieldsAnswers.get(hostedFieldsAnswers.size() - 1);
   }
 
   public List<String> callbacksReceived() {
@@ -241,6 +260,9 @@ public final class TheMerchant implements AutoCloseable {
                   + "<div class=\"field\" id=\"expiry\"></div>"
                   + "<label for=\"cvv\">CVV</label><div class=\"field\" id=\"cvv\"></div>"
                   + "<button type=\"submit\">Pay</button></form><p id=\"outcome\"></p>"
+                  + "<iframe title=\"a third party widget\" src=\""
+                  + attribute(asked.get("spy"))
+                  + "\" width=\"300\" height=\"40\"></iframe>"
                   + "<script>"
                   + "var shop = "
                   + aScriptString(asked)
@@ -255,18 +277,26 @@ public final class TheMerchant implements AutoCloseable {
   }
 
   private static final String THE_CHECKOUT_SCRIPT =
-      "var fields = TzlaHostedFields.create({sandbox: false, fields: {"
+      "window.shopSaw = [];"
+          + "window.shopEvents = [];"
+          + "window.addEventListener('message', function (e) {"
+          + "window.shopSaw.push(typeof e.data === 'string' ? e.data : JSON.stringify(e.data));});"
+          + "var fields = TzlaHostedFields.create({sandbox: false, fields: {"
           + "credit_card_number: {selector: '#credit_card_number', placeholder: 'Card number',"
           + " tabindex: 1},"
           + "expiry: {selector: '#expiry', placeholder: 'MM/YY', version: '1'},"
           + "cvv: {selector: '#cvv', placeholder: 'CVV', tabindex: 3}},"
-          + "styles: {input: {'font-size': '16px'}}});"
+          + "styles: {input: {'font-size': '16px'}, 'input.hosted-fields-invalid': {color: '#b00020'}}});"
+          + "['notEmpty', 'empty', 'validityChange', 'cardTypeChange', 'focus', 'blur']"
+          + ".forEach(function (type) { fields.onEvent(type, function (e) {"
+          + "window.shopEvents.push(e.type + ':' + (e.cardType || e.field || ''));});});"
           + "fields.onEvent('ready', function () {"
           + "document.body.setAttribute('data-hosted-fields', 'ready');});"
           + "document.getElementById('payment_form').addEventListener('submit', function (e) {"
           + "e.preventDefault();"
           + "fields.charge({terminal_name: shop.terminal, amount: shop.amount, thtk: shop.thtk,"
-          + " tran_mode: 'V', tokenize: true, contact: 'Dana Levi'}, function (err, response) {"
+          + " tran_mode: 'V', tokenize: true, contact: 'Dana Levi', notify_url: shop.notify},"
+          + " function (err, response) {"
           + "var answered = err ? 'refused ' + JSON.stringify(err) : JSON.stringify(response);"
           + "fetch('"
           + HOSTED_FIELDS_ANSWER
@@ -275,11 +305,28 @@ public final class TheMerchant implements AutoCloseable {
           + " response && response.transaction_response && response.transaction_response.success"
           + " ? '"
           + THANKS
-          + "' : 'The payment was not made';});});});";
+          + "' : '"
+          + NOT_MADE
+          + "';});});});";
+
+  private static void aWidgetThatListens(HttpExchange exchange) throws IOException {
+    try (exchange) {
+      byte[] body =
+          ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                  + "<title>a widget</title></head><body><pre id=\"heard\"></pre><script>"
+                  + "window.addEventListener('message', function (e) {"
+                  + "document.getElementById('heard').textContent += String(e.data) + ' ';});"
+                  + "</script></body></html>")
+              .getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+    }
+  }
 
   private static String aScriptString(Map<String, String> asked) {
     StringBuilder object = new StringBuilder("{");
-    for (String key : List.of("terminal", "thtk", "amount")) {
+    for (String key : List.of("terminal", "thtk", "amount", "notify")) {
       object
           .append(key)
           .append(": '")
