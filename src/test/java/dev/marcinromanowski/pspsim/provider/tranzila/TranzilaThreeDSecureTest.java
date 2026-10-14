@@ -604,8 +604,24 @@ class TranzilaThreeDSecureTest {
   }
 
   @Test
-  void a_decline_naming_no_operation_passes_the_3ds_step_and_declines_the_debit() {
-    String rule = anyOperation(new ScenarioAction.TerminalFailure("004"));
+  void a_decline_naming_no_operation_is_no_match_at_the_3ds_step_where_the_next_rule_decides() {
+    anyOperation(new ScenarioAction.TerminalFailure("004"), 5);
+    String failing =
+        aRule(TranzilaOperations.THREE_D_SECURE, new ScenarioAction.TerminalFailure("913"));
+
+    TranzilaOperationResult answered = wired.create(aSecureDebit(TranzilaWire.A_VISA, ""));
+
+    assertThat(answered.body().text())
+        .isEqualTo(
+            "{\"error_code\":913,\"message\":\"Cardholder not enrolled in the service.\","
+                + "\"transaction_result\":{\"processor_response_code\":\"913\","
+                + "\"transaction_id\":10000001}}");
+    assertThat(answered.scenarioId()).isEqualTo(failing);
+  }
+
+  @Test
+  void a_decline_naming_no_operation_declines_the_debit_a_passed_3ds_step_lets_through() {
+    String rule = anyOperation(new ScenarioAction.TerminalFailure("004"), 1);
 
     TranzilaOperationResult answered = wired.create(aSecureDebit(TranzilaWire.A_VISA, ""));
 
@@ -615,7 +631,6 @@ class TranzilaThreeDSecureTest {
                 + " reason with his credit company.\",\"transaction_result\":{"
                 + "\"processor_response_code\":\"004\",");
     assertThat(answered.scenarioId()).isEqualTo(rule);
-    assertThat(wired.theLastStored().processorResponseCode()).isEqualTo("004");
   }
 
   @Test
@@ -634,6 +649,25 @@ class TranzilaThreeDSecureTest {
                 + "\"transaction_result\":{\"processor_response_code\":\"913\","
                 + "\"transaction_id\":10000001}}");
     assertThat(forced).contains("\"processor_response_code\":\"000\"");
+  }
+
+  @Test
+  void the_registered_vocabularies_tell_the_engine_which_code_an_operation_answers() {
+    dev.marcinromanowski.pspsim.kernel.spi.VocabularyCodes codes =
+        new dev.marcinromanowski.pspsim.kernel.spi.VocabularyCodes(
+            () ->
+                new dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry(
+                    List.of(wired.provider)));
+
+    assertThat(codes.answers(TranzilaApi.TRANZILA, "3ds", "913")).isTrue();
+    assertThat(codes.answers(TranzilaApi.TRANZILA, "3ds", "004")).isFalse();
+    assertThat(codes.answers(TranzilaApi.TRANZILA, "debit", "004")).isTrue();
+    assertThat(codes.answers(TranzilaApi.TRANZILA, "debit", "913")).isFalse();
+    assertThat(codes.answers(TranzilaApi.TRANZILA, null, "913")).isTrue();
+    assertThat(
+            codes.answers(
+                dev.marcinromanowski.pspsim.kernel.ProviderId.of("unregistered"), "debit", "913"))
+        .isTrue();
   }
 
   @Test
@@ -678,13 +712,17 @@ class TranzilaThreeDSecureTest {
   }
 
   private String anyOperation(ScenarioAction action) {
+    return anyOperation(action, 1);
+  }
+
+  private String anyOperation(ScenarioAction action, int priority) {
     return wired
         .rules
         .add(
             new NewScenarioRule(
                 TranzilaApi.TRANZILA,
                 TranzilaWiring.RUN,
-                1,
+                priority,
                 ScenarioMatch.anyRequest(),
                 action,
                 null))

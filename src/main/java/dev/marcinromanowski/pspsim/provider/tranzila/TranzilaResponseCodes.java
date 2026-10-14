@@ -48,12 +48,7 @@ final class TranzilaResponseCodes {
           + " and is answered as error_code. Three digits, as the table writes them";
 
   static final String THE_DECLINE_CODES =
-      "a processor_response_code of the published code table that declines a card: 001 blocked,"
-          + " 002 stolen, 003 call the credit company, 004 refusal, 005 forged, 006 incorrect ID"
-          + " or CVV, 012 card not authorised for the terminal, 015 expired, 016 unauthorised"
-          + " currency or 017 unauthorised credit type; or a code of the 3DS table, 900 to 928 or"
-          + " 930, which fails the card holder's authentication and is answered as error_code."
-          + " Three digits, as the tables write them";
+      THE_PROCESSOR_DECLINES + " on a transaction type; or " + THE_3DS_FAILURE_CODES + " on 3ds";
 
   static final String BLOCKED =
       "Blocked confiscate card. Please check and enter the credit number again.";

@@ -332,6 +332,43 @@ class TranzilaThreeDSecureIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_rule_naming_no_operation_is_matched_only_where_tranzila_declares_its_code() {
+    http.post()
+        .uri("/__simulator/tranzila/scenarios")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+            Map.of(
+                "testRunId",
+                RUN.value(),
+                "match",
+                Map.of(),
+                "action",
+                Map.of("type", "TERMINAL_FAILURE", "providerCode", "004")))
+        .retrieve()
+        .toBodilessEntity();
+
+    HttpResponse<String> declined = signed(CREATE, aSecureDebit(A_VISA, ""));
+    var refused =
+        http.post()
+            .uri("/__simulator/tranzila/scenarios")
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(
+                Map.of(
+                    "testRunId",
+                    RUN.value(),
+                    "match",
+                    Map.of("operation", "3ds"),
+                    "action",
+                    Map.of("type", "TERMINAL_FAILURE", "providerCode", "004")))
+            .exchange((request, response) -> response.getStatusCode().value());
+
+    assertThat(declined.body())
+        .startsWith("{\"error_code\":4,\"message\":\"Refusal.")
+        .doesNotContain("t3ds_data");
+    assertThat(refused).isEqualTo(422);
+  }
+
+  @Test
   void the_complete_route_refuses_what_its_schema_does_not_publish_and_another_terminal() {
     HttpResponse<String> unknownField =
         signed(COMPLETE, "{\"track_id\":\"x\",\"terminal_name\":\"" + TERMINAL + "\",\"a\":1}");

@@ -354,22 +354,33 @@ class TranzilaChallengePageTest {
   }
 
   @Test
-  void a_decline_naming_no_operation_declines_a_hosted_fields_charge_at_its_debit() {
+  void a_decline_naming_no_operation_is_no_match_at_a_hosted_fields_3ds_step() {
     aHandshake("10");
     wired.rules.add(
         new dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule(
             TranzilaApi.TRANZILA,
             TranzilaWiring.RUN,
-            1,
+            5,
             dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch.anyRequest(),
             new dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction.TerminalFailure("004"),
             null));
+    wired.writes(
+        TranzilaOperations.THREE_D_SECURE,
+        new dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction.TerminalFailure("913"));
 
-    String answered = bodyOf(charge(aChargeOf("4111111111111111")));
+    String failed = bodyOf(charge(aChargeOf("4111111111111111", "force_txn_on_3ds_fail", "N")));
+    String declined = bodyOf(charge(aChargeOf("4111111111111111")));
 
-    assertThat(answered)
-        .contains("\"success\":false")
-        .contains("\"processor_response_code\":\"004\"");
+    assertThat(failed)
+        .startsWith(
+            "{\"errors\":null,\"transaction_response\":{\"success\":false,"
+                + "\"error\":\"Cardholder not enrolled in the service.\","
+                + "\"processor_response_code\":\"913\",");
+    assertThat(declined)
+        .startsWith(
+            "{\"errors\":null,\"transaction_response\":{\"success\":false,"
+                + "\"error\":\"Refusal. Please contact the card owner to check the reason with"
+                + " his credit company.\",\"processor_response_code\":\"004\",");
   }
 
   @Test

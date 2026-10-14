@@ -99,8 +99,8 @@ final class TranzilaOperations {
         THREE_D_SECURE,
         new FailureCodes(
             TranzilaResponseCodes.A_3DS_FAILURE, TranzilaResponseCodes.THE_3DS_FAILURE_CODES));
-    for (String type : List.of(DEBIT, VERIFY, FORCE, REVERSAL, CREDIT, CANCEL)) {
-      answered.put(type, declines);
+    for (TranzilaTxnType type : TranzilaTxnType.values()) {
+      answered.put(type.wire(), declines);
     }
     return answered;
   }
