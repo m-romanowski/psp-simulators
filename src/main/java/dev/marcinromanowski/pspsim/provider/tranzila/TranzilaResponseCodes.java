@@ -109,6 +109,24 @@ final class TranzilaResponseCodes {
     return THE_3DS_FAILURES.containsKey(code);
   }
 
+  static boolean answeredBy(String operation, String code) {
+    return TranzilaOperations.THREE_D_SECURE.equals(operation) == failsTheAuthentication(code);
+  }
+
+  static String whyNotAnsweredBy(String operation, String code) {
+    return "a scenario rule fails operation "
+        + operation
+        + " with "
+        + code
+        + ", and provider tranzila answers the codes of the 3DS table, 900 to 928 and 930, only"
+        + " on operation 3ds and the processor's declines only on a transaction type, so"
+        + " operation "
+        + operation
+        + " cannot answer "
+        + code
+        + "; nothing was charged and nothing was recorded";
+  }
+
   static boolean approves(String code) {
     return APPROVED.equals(code) || OPERATION_COMPLETED.equals(code);
   }

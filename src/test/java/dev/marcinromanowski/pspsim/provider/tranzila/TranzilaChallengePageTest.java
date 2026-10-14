@@ -354,6 +354,35 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_hosted_fields_challenge_keeps_the_fault_and_the_rule_of_a_disrupting_3ds_step() {
+    aHandshake("10");
+    wired.writes(
+        TranzilaOperations.THREE_D_SECURE,
+        new dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction.TransportFaultAlways(
+            new dev.marcinromanowski.pspsim.kernel.fault.TransportFault.DroppedConnection()));
+
+    TranzilaApiResponse answered = charge(aChargeOf("4111111111111111", "force_challenge", "1"));
+
+    assertThat(answered.delivery().fault()).isNotNull();
+    assertThat(theRow(AuditDirection.OUTBOUND_RESPONSE).scenarioId()).isNotNull();
+    assertThat(wired.challenges.all()).hasSize(1);
+  }
+
+  @Test
+  void a_hosted_fields_challenge_names_the_rule_that_let_its_3ds_step_proceed() {
+    aHandshake("10");
+    wired.writes(
+        TranzilaOperations.THREE_D_SECURE,
+        new dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction.FixedSuccess());
+
+    TranzilaApiResponse answered = charge(aChargeOf("4111111111111111", "force_challenge", "1"));
+
+    assertThat(bodyOf(answered)).startsWith("{\"challengeUrl\":");
+    assertThat(answered.delivery().fault()).isNull();
+    assertThat(theRow(AuditDirection.OUTBOUND_RESPONSE).scenarioId()).isNotNull();
+  }
+
+  @Test
   void a_challenge_is_listed_among_the_objects_by_its_arrival_and_cleared_with_its_run() {
     long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
     challenged("");

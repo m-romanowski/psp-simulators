@@ -63,6 +63,30 @@ class TranzilaThreeDSecureRequestTest {
   }
 
   @Test
+  void a_top_level_force_txn_on_3ds_fail_is_read_and_3ds_settings_wins_when_both_are_sent() {
+    assertThat(read("{\"force_txn_on_3ds_fail\":\"Y\"}").forceTxnOnFail()).isTrue();
+    assertThat(read("{\"force_txn_on_3ds_fail\":\"N\"}").forceTxnOnFail()).isFalse();
+    assertThat(
+            read("{\"force_txn_on_3ds_fail\":\"Y\","
+                    + "\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"N\"}}")
+                .forceTxnOnFail())
+        .isFalse();
+    assertThat(
+            read("{\"force_txn_on_3ds_fail\":\"N\","
+                    + "\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"Y\"}}")
+                .forceTxnOnFail())
+        .isTrue();
+    assertThat(refusalOf("{\"force_txn_on_3ds_fail\":\"yes\"}"))
+        .isEqualTo("force_txn_on_3ds_fail is neither Y nor N");
+    assertThat(
+            TranzilaCreateRequest.read(
+                json(
+                    TranzilaWire.aDebit()
+                        .replace("{\"terminal", "{\"force_txn_on_3ds_fail\":\"Y\",\"terminal"))))
+        .isNotNull();
+  }
+
+  @Test
   void every_member_outside_the_3ds_schema_is_refused_with_its_own_words() {
     assertThat(refusalOf("{\"3ds_settings\":[]}")).isEqualTo("3ds_settings must be an object");
     assertThat(refusalOf("{\"3ds_settings\":{\"sto\":\"N\"}}"))

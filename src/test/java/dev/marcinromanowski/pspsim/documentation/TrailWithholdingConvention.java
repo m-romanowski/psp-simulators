@@ -320,10 +320,12 @@ public final class TrailWithholdingConvention {
           new AnAddressInTheClear(
               "tranzila",
               "url",
-              "the member of auth_3ds_redirect a merchant sends on a create with activate_3ds Y,"
-                  + " naming the merchant's own site the payer's browser is posted to after a"
-                  + " challenge; original_request echoes it as the merchant sent it, and this"
-                  + " build mints no part of it"),
+              "auth_3ds_redirect.url, the merchant's own site a create with activate_3ds Y names"
+                  + " for the payer's browser after a challenge; it is answered only as"
+                  + " original_request.auth_3ds_redirect.url of the create and the complete answers,"
+                  + " as the merchant sent it, and this build mints no part of it. This gate reads"
+                  + " a module's published names one segment at a time, so the registration names"
+                  + " that last segment"),
           new AnAddressInTheClear(
               "worldline",
               "Location",

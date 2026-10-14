@@ -79,7 +79,8 @@ record TranzilaCreateRequest(
   static TranzilaCreateRequest read(TranzilaJson.JsonObject body) {
     for (String sent : body.members().keySet()) {
       if (!TranzilaFields.THE_REQUEST_FIELDS_THE_SCHEMA_PUBLISHES.contains(sent)
-          && !TranzilaThreeDSecure.AUTH_3DS_REDIRECT.equals(sent)) {
+          && !TranzilaThreeDSecure.THE_TOP_LEVEL_MEMBERS_THE_COMPLETE_EXAMPLE_ECHOES.contains(
+              sent)) {
         throw new TranzilaSchemaMismatch(sent + " is not a field of the Transactions API schema");
       }
     }

@@ -18,6 +18,11 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -224,6 +229,106 @@ class TranzilaThreeDSecureIntegrationTest extends PostgresBackedTest {
             "{\"error_code\":900,\"message\":\"Transaction failed during 3D Secure validation\","
                 + "\"transaction_result\":{\"processor_response_code\":\"900\",");
     assertThat(stateOf(trackId)).containsEntry("normalizedStatus", "FAILED");
+  }
+
+  @Test
+  void a_completed_challenge_is_found_by_both_lookups_with_the_fields_and_items_its_create_sent() {
+    HttpResponse<String> created =
+        signed(
+            CREATE,
+            aSecureDebit(
+                CHALLENGED,
+                ",\"user_defined_fields\":[{\"name\":\"order\",\"value\":\"ORD-3DS\"}]"));
+    String trackId = textIn(created.body(), "track_id");
+    post(URI.create(textIn(created.body(), "challengeUrl")).getPath(), Map.of("code", "555"));
+    String index = textIn(signed(COMPLETE, aComplete(trackId)).body(), "transaction_id");
+
+    HttpResponse<String> found =
+        signed(
+            "/v1/transactions",
+            "{\"terminal_name\":\"" + TERMINAL + "\",\"transaction_index\":" + index + "}");
+    HttpResponse<String> reported =
+        signed(
+            "/tranzila/report/v1/transaction",
+            "{\"terminal_name\":\""
+                + TERMINAL
+                + "\",\"transaction_index\":"
+                + index
+                + ",\"detailed\":\"Y\"}");
+
+    assertThat(found.statusCode()).isEqualTo(200);
+    assertThat(found.body())
+        .contains("\"user_defined_1\":\"ORD-3DS\"")
+        .contains("\"xid\":\"\",\"cavv\":\"\",\"eci\":\"\"");
+    assertThat(reported.statusCode()).isEqualTo(200);
+    assertThat(reported.body())
+        .contains("\"user_defined_1\":\"ORD-3DS\"")
+        .containsPattern("\"items\":\\[\\{[^]]*\"price\":1250");
+  }
+
+  @Test
+  void two_completes_of_one_challenge_at_once_charge_once_and_refuse_the_other_900()
+      throws Exception {
+    HttpResponse<String> created = signed(CREATE, aSecureDebit(CHALLENGED, ""));
+    String trackId = textIn(created.body(), "track_id");
+    post(URI.create(textIn(created.body(), "challengeUrl")).getPath(), Map.of("code", "555"));
+    CountDownLatch start = new CountDownLatch(1);
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    List<String> answered;
+    try {
+      List<Future<String>> racing = new ArrayList<>();
+      for (int at = 0; at < 2; at++) {
+        racing.add(
+            pool.submit(
+                () -> {
+                  start.await();
+                  return signed(COMPLETE, aComplete(trackId)).body();
+                }));
+      }
+      start.countDown();
+      answered = new ArrayList<>();
+      for (Future<String> one : racing) {
+        answered.add(one.get(30, TimeUnit.SECONDS));
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+
+    assertThat(answered).filteredOn(body -> body.contains("\"message\":\"Success\"")).hasSize(1);
+    assertThat(answered)
+        .filteredOn(
+            body ->
+                body.equals(
+                    "{\"error_code\":900,\"message\":\"Transaction failed during 3D Secure"
+                        + " validation\"}"))
+        .hasSize(1);
+    assertThat(objects()).hasSize(2);
+  }
+
+  @Test
+  void a_pending_challenge_shows_no_identity_it_keeps_on_the_trail_the_inspector_or_its_state() {
+    HttpResponse<String> created =
+        signed(
+            CREATE,
+            aSecureDebit(
+                CHALLENGED,
+                ",\"card_holder_id\":\"012345678\",\"user_defined_fields\":["
+                    + "{\"name\":\"Identity_Number\",\"value\":\"987654321\"},"
+                    + "{\"name\":\"DCdisable\",\"value\":\"dc-3ds\"}]"));
+    String trackId = textIn(created.body(), "track_id");
+    String waiting =
+        http.get()
+            .uri("/__simulator/tranzila/state/" + trackId + "?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+    post(URI.create(textIn(created.body(), "challengeUrl")).getPath(), Map.of("code", "555"));
+    HttpResponse<String> completed = signed(COMPLETE, aComplete(trackId));
+
+    assertThat(completed.body()).contains("987654321").contains("012345678");
+    assertThat(List.of(waiting, audit(), inspector()))
+        .allSatisfy(
+            seen -> assertThat(seen).doesNotContain("987654321").doesNotContain("012345678"));
+    assertThat(inspector()).contains("track_id").contains("dc-3ds");
   }
 
   @Test
@@ -437,6 +542,13 @@ class TranzilaThreeDSecureIntegrationTest extends PostgresBackedTest {
         .uri("/__simulator/tranzila/objects?testRunId=" + RUN.value())
         .retrieve()
         .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+  }
+
+  private String inspector() {
+    return http.get()
+        .uri("/__simulator/tranzila/idempotency?testRunId=" + RUN.value())
+        .retrieve()
+        .body(String.class);
   }
 
   private String audit() {

@@ -599,6 +599,133 @@ class TranzilaThreeDSecureTest {
   }
 
   @Test
+  void a_processor_decline_on_the_3ds_step_is_refused_naming_the_operation_and_makes_nothing() {
+    String rule =
+        aRule(TranzilaOperations.THREE_D_SECURE, new ScenarioAction.TerminalFailure("004"));
+
+    TranzilaOperationResult answered = wired.create(aSecureDebit(TranzilaWire.A_VISA, ""));
+
+    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.UNKNOWN);
+    assertThat(answered.scenarioId()).isEqualTo(rule);
+    assertThat(answered.insteadOfTheOperation()).isNotNull();
+    assertThat(answered.insteadOfTheOperation().httpStatus()).isEqualTo(500);
+    assertThat(new String(answered.insteadOfTheOperation().body(), StandardCharsets.UTF_8))
+        .isEqualTo(TranzilaResponseCodes.whyNotAnsweredBy("3ds", "004"))
+        .startsWith("a scenario rule fails operation 3ds with 004,");
+    assertThat(wired.stored()).isEmpty();
+    assertThat(wired.challenges.all()).isEmpty();
+  }
+
+  @Test
+  void a_3ds_code_on_a_transaction_type_is_refused_naming_the_operation_and_makes_nothing() {
+    String rule = aRule(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("901"));
+
+    TranzilaOperationResult answered = wired.create(TranzilaWire.aDebit());
+
+    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.UNKNOWN);
+    assertThat(answered.scenarioId()).isEqualTo(rule);
+    assertThat(new String(answered.insteadOfTheOperation().body(), StandardCharsets.UTF_8))
+        .isEqualTo(
+            "a scenario rule fails operation debit with 901, and provider tranzila answers the"
+                + " codes of the 3DS table, 900 to 928 and 930, only on operation 3ds and the"
+                + " processor's declines only on a transaction type, so operation debit cannot"
+                + " answer 901; nothing was charged and nothing was recorded");
+    assertThat(answered.insteadOfTheOperation().contentType())
+        .isEqualTo("text/plain; charset=utf-8");
+    assertThat(wired.stored()).isEmpty();
+  }
+
+  @Test
+  void each_operation_answers_its_own_table_of_codes_only() {
+    assertThat(TranzilaResponseCodes.answeredBy("3ds", "900")).isTrue();
+    assertThat(TranzilaResponseCodes.answeredBy("3ds", "930")).isTrue();
+    assertThat(TranzilaResponseCodes.answeredBy("3ds", "004")).isFalse();
+    assertThat(TranzilaResponseCodes.answeredBy("debit", "004")).isTrue();
+    assertThat(TranzilaResponseCodes.answeredBy("verify", "901")).isFalse();
+    assertThat(TranzilaResponseCodes.answeredBy("force", "017")).isTrue();
+  }
+
+  @Test
+  void the_forced_charge_after_a_failed_3ds_step_is_attributed_to_the_rule_that_decided_it() {
+    String failing =
+        aRule(TranzilaOperations.THREE_D_SECURE, new ScenarioAction.TerminalFailure("901"));
+    String charging = aRule(TranzilaOperations.DEBIT, new ScenarioAction.FixedSuccess());
+
+    TranzilaOperationResult answered =
+        wired.create(
+            aSecureDebit(
+                TranzilaWire.A_VISA, ",\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"Y\"}"));
+    TranzilaOperationResult alone =
+        wired.create(
+            aSecureDebit(
+                TranzilaWire.A_VISA, ",\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"Y\"}"));
+
+    assertThat(answered.scenarioId()).isEqualTo(charging).isNotEqualTo(failing);
+    assertThat(alone.scenarioId()).isEqualTo(charging);
+  }
+
+  @Test
+  void a_3ds_rule_names_the_answer_no_other_rule_decided_and_keeps_a_fault_another_made() {
+    TranzilaOperationResult undecided =
+        TranzilaOperationResult.succeeded("1", TranzilaBody.of(200, TranzilaJson.text("x")));
+    TranzilaOperationResult decided = undecided.proceededUnder("debit-rule");
+    TranzilaOperationResult faulted =
+        undecided.faultedBy("debit-rule", new TransportFault.DroppedConnection());
+
+    assertThat(CreateTransaction.proceededUnlessDecided(undecided, "3ds-rule").scenarioId())
+        .isEqualTo("3ds-rule");
+    assertThat(CreateTransaction.proceededUnlessDecided(decided, "3ds-rule").scenarioId())
+        .isEqualTo("debit-rule");
+    assertThat(CreateTransaction.declinedUnlessDecided(undecided, "3ds-rule").scenarioId())
+        .isEqualTo("3ds-rule");
+    assertThat(CreateTransaction.declinedUnlessDecided(decided, "3ds-rule").scenarioId())
+        .isEqualTo("debit-rule");
+    TranzilaOperationResult refaulted =
+        CreateTransaction.faultedUnlessFaulted(
+            faulted, "3ds-rule", new TransportFault.ServerError(502));
+    assertThat(refaulted.fault()).isEqualTo(new TransportFault.DroppedConnection());
+    assertThat(refaulted.scenarioId()).isEqualTo("debit-rule");
+    TranzilaOperationResult firstFault =
+        CreateTransaction.faultedUnlessFaulted(
+            decided, "3ds-rule", new TransportFault.DroppedConnection());
+    assertThat(firstFault.fault()).isEqualTo(new TransportFault.DroppedConnection());
+    assertThat(firstFault.scenarioId()).isEqualTo("debit-rule");
+    assertThat(
+            CreateTransaction.faultedUnlessFaulted(
+                    undecided, "3ds-rule", new TransportFault.DroppedConnection())
+                .scenarioId())
+        .isEqualTo("3ds-rule");
+  }
+
+  @Test
+  void the_top_level_force_txn_on_3ds_fail_of_the_complete_example_is_admitted_and_forces() {
+    String answered = wired.answered(aSecureDebit(FAILS, ",\"force_txn_on_3ds_fail\":\"Y\""));
+    String settingsWin =
+        wired.answered(
+            aSecureDebit(
+                FAILS,
+                ",\"force_txn_on_3ds_fail\":\"Y\",\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"N\"}"));
+
+    assertThat(answered).contains("\"processor_response_code\":\"000\"");
+    assertThat(settingsWin).startsWith("{\"error_code\":900,");
+  }
+
+  private String aRule(String operation, ScenarioAction action) {
+    return wired
+        .rules
+        .add(
+            new dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule(
+                TranzilaApi.TRANZILA,
+                TranzilaWiring.RUN,
+                1,
+                dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch.anyRequest()
+                    .naming(operation),
+                action,
+                null))
+        .scenarioId();
+  }
+
+  @Test
   void the_published_cards_are_known_by_their_number_and_by_the_mask_a_token_keeps() {
     assertThat(TranzilaThreeDSecureCards.ofThePan(FRICTIONLESS))
         .contains(TranzilaThreeDSecureOutcome.AUTHENTICATED);

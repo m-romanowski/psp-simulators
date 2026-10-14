@@ -62,5 +62,3 @@ create table tranzila_challenge (
 );
 
 create unique index tranzila_challenge_by_arrival on tranzila_challenge (test_run_id, arrival);
-
-create index tranzila_challenge_by_transaction on tranzila_challenge (test_run_id, transaction_id);

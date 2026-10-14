@@ -3,6 +3,8 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.fault.RenderedResponse;
+import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
@@ -13,6 +15,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -49,6 +52,8 @@ final class CreateTransaction {
       "terminal_name names a terminal other than the one the X-tranzila-api-app-key belongs to";
 
   static final String ENTERED_AND_VALID = "1";
+
+  static final int MISDIRECTED_STATUS = 500;
 
   static final String NOT_ENTERED = "0";
 
@@ -382,7 +387,7 @@ final class CreateTransaction {
                   drawn,
                   asked3ds,
                   TranzilaResponseCodes.THREE_D_SECURE_FAILED)
-              .mapped(result -> result.proceededUnder(matched.scenarioId()));
+              .mapped(result -> proceededUnlessDecided(result, matched.scenarioId()));
       case ScenarioDecision.Disrupt disrupted ->
           afterTheAuthentication(
                   asked,
@@ -391,20 +396,25 @@ final class CreateTransaction {
                   drawn,
                   asked3ds,
                   TranzilaResponseCodes.THREE_D_SECURE_FAILED)
-              .mapped(result -> result.faultedBy(disrupted.scenarioId(), disrupted.fault()));
+              .mapped(
+                  result ->
+                      faultedUnlessFaulted(result, disrupted.scenarioId(), disrupted.fault()));
       case ScenarioDecision.Preempt preempted ->
           Answered.refused(
               TranzilaOperationResult.answeredInsteadOf(
                   preempted.scenarioId(), preempted.answer()));
       case ScenarioDecision.Fail declined ->
-          afterTheAuthentication(
-                  asked,
-                  presented,
-                  secure,
-                  drawn,
-                  TranzilaThreeDSecureOutcome.FAILED,
-                  declined.providerCode())
-              .mapped(result -> result.declinedBy(declined.scenarioId()));
+          TranzilaResponseCodes.answeredBy(
+                  TranzilaOperations.THREE_D_SECURE, declined.providerCode())
+              ? afterTheAuthentication(
+                      asked,
+                      presented,
+                      secure,
+                      drawn,
+                      TranzilaThreeDSecureOutcome.FAILED,
+                      declined.providerCode())
+                  .mapped(result -> declinedUnlessDecided(result, declined.scenarioId()))
+              : misdirected(TranzilaOperations.THREE_D_SECURE, declined);
       case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
     };
   }
@@ -819,11 +829,44 @@ final class CreateTransaction {
               TranzilaOperationResult.answeredInsteadOf(
                   preempted.scenarioId(), preempted.answer()));
       case ScenarioDecision.Fail declined ->
-          decline
-              .apply(declined.providerCode())
-              .mapped(result -> result.declinedBy(declined.scenarioId()));
+          TranzilaResponseCodes.answeredBy(asked.request().type().wire(), declined.providerCode())
+              ? decline
+                  .apply(declined.providerCode())
+                  .mapped(result -> result.declinedBy(declined.scenarioId()))
+              : misdirected(asked.request().type().wire(), declined);
       case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
     };
+  }
+
+  static Answered misdirected(String operation, ScenarioDecision.Fail declined) {
+    return Answered.refused(
+        TranzilaOperationResult.answeredInsteadOf(
+            declined.scenarioId(),
+            new RenderedResponse(
+                    MISDIRECTED_STATUS,
+                    TranzilaDelivery.DIAGNOSTIC_CONTENT_TYPE,
+                    TranzilaResponseCodes.whyNotAnsweredBy(operation, declined.providerCode())
+                        .getBytes(StandardCharsets.UTF_8))
+                .asDelivered()));
+  }
+
+  static TranzilaOperationResult proceededUnlessDecided(
+      TranzilaOperationResult result, String scenarioId) {
+    return result.scenarioId() == null ? result.proceededUnder(scenarioId) : result;
+  }
+
+  static TranzilaOperationResult declinedUnlessDecided(
+      TranzilaOperationResult result, String scenarioId) {
+    return result.scenarioId() == null ? result.declinedBy(scenarioId) : result;
+  }
+
+  static TranzilaOperationResult faultedUnlessFaulted(
+      TranzilaOperationResult result, String scenarioId, TransportFault fault) {
+    if (result.fault() != null) {
+      return result;
+    }
+    String decided = result.scenarioId();
+    return result.faultedBy(decided == null ? scenarioId : decided, fault);
   }
 
   private static ScenarioRequest theScenarioRequest(

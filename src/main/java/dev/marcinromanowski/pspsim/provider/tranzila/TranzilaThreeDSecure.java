@@ -34,6 +34,9 @@ record TranzilaThreeDSecure(
 
   static final String NO = "N";
 
+  static final Set<String> THE_TOP_LEVEL_MEMBERS_THE_COMPLETE_EXAMPLE_ECHOES =
+      Set.of(AUTH_3DS_REDIRECT, FORCE_TXN_ON_3DS_FAIL);
+
   static final Set<String> THE_SETTINGS =
       Set.of(BROWSER, FORCE_TXN_ON_3DS_FAIL, FORCE_CHALLENGE, AUTH_3DS_REDIRECT);
 
@@ -74,6 +77,12 @@ record TranzilaThreeDSecure(
   }
 
   static void refuseWhatTheSchemaDoesNotAdmit(TranzilaJson.JsonObject body) {
+    if (body.has(FORCE_TXN_ON_3DS_FAIL)
+        && body.text(FORCE_TXN_ON_3DS_FAIL)
+            .filter(sent -> YES.equals(sent) || NO.equals(sent))
+            .isEmpty()) {
+      throw new TranzilaSchemaMismatch(FORCE_TXN_ON_3DS_FAIL + " is neither Y nor N");
+    }
     if (body.has(THREE_DS_SETTINGS)) {
       settingsIn(body);
     }
@@ -98,7 +107,11 @@ record TranzilaThreeDSecure(
       pairsIn(settings, AUTH_3DS_REDIRECT).forEach(params::putIfAbsent);
     }
     return new TranzilaThreeDSecure(
-        settings.text(FORCE_TXN_ON_3DS_FAIL).filter(YES::equals).isPresent(),
+        settings
+            .text(FORCE_TXN_ON_3DS_FAIL)
+            .or(() -> body.text(FORCE_TXN_ON_3DS_FAIL))
+            .filter(YES::equals)
+            .isPresent(),
         TranzilaCreateRequest.integer(settings, FORCE_CHALLENGE)
             .filter(asked -> asked.longValue() == 1L)
             .isPresent(),

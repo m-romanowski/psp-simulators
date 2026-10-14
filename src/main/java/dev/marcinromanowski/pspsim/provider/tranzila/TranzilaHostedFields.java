@@ -115,7 +115,12 @@ final class TranzilaHostedFields {
         @Nullable String scenarioId)
         implements Charged {}
 
-    record Challenged(String challengeUrl, String trackId) implements Charged {}
+    record Challenged(
+        String challengeUrl,
+        String trackId,
+        @Nullable TransportFault fault,
+        @Nullable String scenarioId)
+        implements Charged {}
   }
 
   TranzilaApiResponse script() {
@@ -272,7 +277,8 @@ final class TranzilaHostedFields {
     if (address.isEmpty() || trackId.isEmpty()) {
       return Optional.empty();
     }
-    return Optional.of(new Charged.Challenged(address.get(), trackId.get()));
+    return Optional.of(
+        new Charged.Challenged(address.get(), trackId.get(), result.fault(), result.scenarioId()));
   }
 
   TranzilaApiResponse continued(TranzilaPageCall call, String trackId) {
@@ -417,8 +423,8 @@ final class TranzilaHostedFields {
               null,
               TranzilaHostedFieldsAnswer.aChallenge(
                   challenged.challengeUrl(), challenged.trackId()),
-              null,
-              null);
+              challenged.fault(),
+              challenged.scenarioId());
       case Charged.Made made -> {
         TranzilaTransaction transaction = made.transaction();
         boolean approved = transaction.approved();
