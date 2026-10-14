@@ -70,5 +70,23 @@
       "code": "10000",
       "message": "MANDATORY KEY IS MISSING"
     }
+  },
+  "3ds-complete": {
+    "evidence": "published example",
+    "note": "the Example of Complete: transaction_result values as strings but amount, t3ds_data, and original_request with the card masked and cvv as ***; values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-api-3ds/complete",
+    "reference": "tranzila.md, 3-D Secure",
+    "status": 200,
+    "body": "3ds-complete.json"
+  },
+  "3ds-failed": {
+    "evidence": "published rule",
+    "note": "create and complete publish 900 Transaction failed during 3D Secure validation as their application error code, answered with HTTP 200",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-api-3ds/create",
+    "reference": "tranzila.md, 3-D Secure",
+    "rules": {
+      "httpStatus": "200",
+      "error_code": "900"
+    }
   }
 }

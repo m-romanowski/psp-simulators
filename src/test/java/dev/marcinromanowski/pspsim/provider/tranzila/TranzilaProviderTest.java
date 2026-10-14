@@ -200,7 +200,7 @@ class TranzilaProviderTest {
             TranzilaOrigination.A_DEBIT,
             TranzilaOrigination.A_J5,
             TranzilaOrigination.A_PAGE_PAYMENT);
-    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(9);
+    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(11);
   }
 
   @Test

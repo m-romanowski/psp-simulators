@@ -11,6 +11,65 @@
     }
   ],
   "paths": {
+    "/tranzila/3ds/challenge/{trackId}": {
+      "get": {
+        "operationId": "shown",
+        "parameters": [
+          {
+            "name": "trackId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "answered",
+        "parameters": [
+          {
+            "name": "trackId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider tranzila reads this body in its own wire format, specified in doc/tranzila.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/tranzila/directng/{terminal}/iframenew.php": {
       "get": {
         "operationId": "openedByAGet",
@@ -164,6 +223,31 @@
     "/tranzila/hf/process/ajax_process_transaction": {
       "post": {
         "operationId": "charged",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider tranzila reads this body in its own wire format, specified in doc/tranzila.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/transaction/credit_card/3ds/complete": {
+      "post": {
+        "operationId": "complete",
         "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
         "responses": {
           "default": {

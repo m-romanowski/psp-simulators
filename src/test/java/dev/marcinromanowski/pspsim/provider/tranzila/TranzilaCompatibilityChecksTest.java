@@ -22,6 +22,21 @@ class TranzilaCompatibilityChecksTest {
 
   private static final String CONFIG = "/__simulator/tranzila/config";
 
+  private static final String COMPLETE = "/v1/transaction/credit_card/3ds/complete";
+
+  private static final String A_CHALLENGE =
+      "{\"error_code\":0,\"message\":\"success\","
+          + "\"challengeUrl\":\"http://localhost:8080/tranzila/3ds/challenge/3ds_1\","
+          + "\"track_id\":\"3ds_1\"}";
+
+  private static final String A_COMPLETION =
+      "{\"error_code\":0,\"message\":\"Success\",\"transaction_result\":{"
+          + "\"processor_response_code\":\"000\",\"card_type\":\"2\","
+          + "\"card_type_name\":\"Visa\",\"payment_plan\":\"1\","
+          + "\"card_locality\":\"domestic\"},\"t3ds_data\":{\"version\":\"1.0\","
+          + "\"statusCode\":\"YA\",\"statusMessage\":\"Authenticated successfully.\","
+          + "\"eci\":\"05\"},\"original_request\":{\"cvv\":\"***\"}}";
+
   private static final String HANDSHAKE = "/v2/handshake/create";
 
   private static final String PAGE = "/tranzila/directng/smoketerminal/iframenew.php";
@@ -80,6 +95,22 @@ class TranzilaCompatibilityChecksTest {
             "transaction_response.payment_plan=1");
     assertThat(expectedBy(checks.get(8)))
         .containsExactly("code=10000", "message=MANDATORY KEY IS MISSING");
+    assertThat(expectedBy(checks.get(9))).containsExactly("httpStatus=200", "error_code=900");
+    assertThat(expectedBy(checks.get(10)))
+        .containsExactly(
+            "httpStatus=200",
+            "error_code=0",
+            "message=Success",
+            "transaction_result.processor_response_code=000",
+            "transaction_result.card_type=2",
+            "transaction_result.card_type_name=Visa",
+            "transaction_result.payment_plan=1",
+            "transaction_result.card_locality=domestic",
+            "t3ds_data.version=1.0",
+            "t3ds_data.statusCode=YA",
+            "t3ds_data.statusMessage=Authenticated successfully.",
+            "t3ds_data.eci=05",
+            "original_request.cvv=***");
     assertThat(checks)
         .extracting(ContractCheck::operation)
         .containsExactly(
@@ -91,7 +122,98 @@ class TranzilaCompatibilityChecksTest {
             TranzilaCompatibilityChecks.THE_HANDSHAKE_REFUSES_A_TOKEN,
             TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER,
             TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_CHARGE,
-            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY);
+            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY,
+            TranzilaCompatibilityChecks.THE_API_FAILS_THE_AUTHENTICATION,
+            TranzilaCompatibilityChecks.THE_API_COMPLETES_A_CHALLENGE);
+  }
+
+  @Test
+  void the_failed_authentication_holds_on_900_at_200_and_sends_the_published_fail_card() {
+    String failed = "{\"error_code\":900,\"message\":\"x\"}";
+    CannedTransport transport = prepared().answering("POST", CREATE, 200, failed);
+
+    assertThat(run(9, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(String.valueOf(theCreate(transport).body()))
+        .contains("\"activate_3ds\":\"Y\"")
+        .contains("\"card_number\":\"4907639999990022\"");
+    assertThat(failedField(9, prepared().answering("POST", CREATE, 200, NOT_FOUND)))
+        .isEqualTo("error_code");
+  }
+
+  @Test
+  void the_completed_challenge_holds_on_the_published_complete_answer_after_the_code_passed() {
+    CannedTransport transport =
+        prepared()
+            .answering("POST", CREATE, 200, A_CHALLENGE)
+            .answering("POST", "/tranzila/3ds/challenge/3ds_1", 200, "<html></html>")
+            .answering("POST", COMPLETE, 200, A_COMPLETION);
+
+    assertThat(run(10, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    CheckRequest answered =
+        transport.sent().stream()
+            .filter(request -> request.path().startsWith("/tranzila/3ds/challenge/"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(answered.path()).isEqualTo("/tranzila/3ds/challenge/3ds_1");
+    assertThat(String.valueOf(answered.body())).isEqualTo("code=555");
+    CheckRequest completed =
+        transport.sent().stream()
+            .filter(request -> COMPLETE.equals(request.path()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(String.valueOf(completed.body()))
+        .isEqualTo("{\"track_id\":\"3ds_1\",\"terminal_name\":\"smoketerminal\"}");
+    assertThat(completed.headers().get(TranzilaFields.APP_KEY))
+        .isEqualTo(theConfigured(transport, "appKey"));
+    assertThat(String.valueOf(theCreate(transport).body()))
+        .contains("\"card_number\":\"4918914107195005\"")
+        .contains("\"cvv\":\"123\"");
+    assertThat(
+            failedField(
+                10,
+                prepared()
+                    .answering("POST", CREATE, 200, A_CHALLENGE)
+                    .answering("POST", "/tranzila/3ds/challenge/3ds_1", 200, "<html></html>")
+                    .answering("POST", COMPLETE, 200, A_COMPLETION.replace("\"YA\"", "\"N\""))))
+        .isEqualTo("t3ds_data.statusCode");
+  }
+
+  @Test
+  void a_create_that_answers_no_challenge_completes_nothing_and_fails_the_check() {
+    CannedTransport transport = prepared().answering("POST", CREATE, 200, A_DEBIT);
+
+    assertThat(run(10, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Failed.class);
+    assertThat(transport.sent()).noneMatch(request -> COMPLETE.equals(request.path()));
+    assertThat(
+            run(
+                    10,
+                    prepared()
+                        .answering(
+                            "POST",
+                            CREATE,
+                            200,
+                            "{\"challengeUrl\":\"not-an-address\",\"track_id\":\"3ds_1\"}"))
+                .verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Failed.class);
+  }
+
+  @Test
+  void the_field_a_pointer_names_is_read_with_its_dots() {
+    assertThat(TranzilaCompatibilityChecks.theFieldAt("/t3ds_data/eci")).isEqualTo("t3ds_data.eci");
+  }
+
+  private static CheckRequest theCreate(CannedTransport transport) {
+    return transport.sent().stream()
+        .filter(request -> CREATE.equals(request.path()))
+        .findFirst()
+        .orElseThrow();
   }
 
   @Test

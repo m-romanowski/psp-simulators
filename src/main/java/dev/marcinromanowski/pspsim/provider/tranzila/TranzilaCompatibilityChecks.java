@@ -50,6 +50,30 @@ public final class TranzilaCompatibilityChecks {
   static final String THE_HOSTED_FIELDS_REFUSE_A_MISSING_KEY =
       "POST /tranzila/hf/process/ajax_process_transaction without the mandatory thtk";
 
+  static final String THE_API_FAILS_THE_AUTHENTICATION =
+      "POST /v1/transaction/credit_card/create activate_3ds Y, the published frictionless fail card";
+
+  static final String THE_API_COMPLETES_A_CHALLENGE =
+      "POST /v1/transaction/credit_card/3ds/complete after the published challenge card passed"
+          + " with 555";
+
+  static final List<String> THE_FIELDS_THE_COMPLETE_SAMPLE_PUBLISHES =
+      List.of(
+          "/error_code",
+          "/message",
+          "/transaction_result/processor_response_code",
+          "/transaction_result/card_type",
+          "/transaction_result/card_type_name",
+          "/transaction_result/payment_plan",
+          "/transaction_result/card_locality",
+          "/t3ds_data/version",
+          "/t3ds_data/statusCode",
+          "/t3ds_data/statusMessage",
+          "/t3ds_data/eci",
+          "/original_request/cvv");
+
+  static final Pattern A_PATH_AFTER_ITS_HOST = Pattern.compile("^[a-z]+://[^/]+(/.*)$");
+
   static final List<String> THE_RESPONSE_FIELDS_THE_HOSTED_FIELDS_SAMPLE_PUBLISHES =
       List.of(
           "success",
@@ -116,7 +140,92 @@ public final class TranzilaCompatibilityChecks {
         handshakeRefused(),
         pageReturn(),
         hostedFieldsCharge(),
-        hostedFieldsRefuseAMissingKey());
+        hostedFieldsRefuseAMissingKey(),
+        authenticationFailed(),
+        challengeCompleted());
+  }
+
+  private ContractCheck authenticationFailed() {
+    VendorSample published = tranzila.sample("3ds-failed");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_API_FAILS_THE_AUTHENTICATION,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("httpStatus", published.rule("httpStatus")),
+            new ContractExpectation("error_code", published.rule("error_code"))),
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse failed =
+              transport.send(
+                  signed(aSecureDebit(TranzilaThreeDSecureCards.FRICTIONLESS_FAIL), credentials));
+          Map<String, String> read = new LinkedHashMap<>();
+          read.put("httpStatus", String.valueOf(failed.status()));
+          Observed.put(read, "error_code", json.at(failed.body(), "/error_code"));
+          return read;
+        });
+  }
+
+  private ContractCheck challengeCompleted() {
+    VendorSample published = tranzila.sample("3ds-complete");
+    List<ContractExpectation> expected = new ArrayList<>();
+    expected.add(new ContractExpectation("httpStatus", published.status()));
+    for (String pointer : THE_FIELDS_THE_COMPLETE_SAMPLE_PUBLISHES) {
+      expected.add(new ContractExpectation(theFieldAt(pointer), published.json(pointer)));
+    }
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_API_COMPLETES_A_CHALLENGE,
+        published.provenance(),
+        expected,
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse created =
+              transport.send(
+                  signed(aSecureDebit(TranzilaThreeDSecureCards.CHALLENGE_REQUIRED), credentials));
+          String address = json.at(created.body(), "/" + TranzilaThreeDSecureAnswers.CHALLENGE_URL);
+          String trackId = json.at(created.body(), "/" + TranzilaThreeDSecureAnswers.TRACK_ID);
+          Map<String, String> read = new LinkedHashMap<>();
+          Matcher path = A_PATH_AFTER_ITS_HOST.matcher(String.valueOf(address));
+          if (trackId == null || !path.matches()) {
+            return read;
+          }
+          transport.send(
+              CheckRequest.form(
+                  TranzilaObjectActions.WIRE_METHOD,
+                  path.group(1),
+                  Map.of(
+                      TranzilaChallengePage.CODE, TranzilaThreeDSecureCards.THE_CODE_THAT_PASSES)));
+          CheckResponse completed = transport.send(signed(aComplete(trackId), credentials));
+          read.put("httpStatus", String.valueOf(completed.status()));
+          for (String pointer : THE_FIELDS_THE_COMPLETE_SAMPLE_PUBLISHES) {
+            Observed.put(read, theFieldAt(pointer), json.at(completed.body(), pointer));
+          }
+          return read;
+        });
+  }
+
+  static String theFieldAt(String pointer) {
+    return pointer.substring(1).replace('/', '.');
+  }
+
+  private static CheckRequest aSecureDebit(String card) {
+    return CheckRequest.json(
+        "POST",
+        TranzilaApiController.CREATE,
+        "{\"terminal_name\":\""
+            + TERMINAL
+            + "\",\"activate_3ds\":\"Y\",\"txn_type\":\"debit\",\"card_number\":\""
+            + card
+            + "\",\"expire_month\":7,\"expire_year\":2030,\"cvv\":\"123\","
+            + "\"items\":[{\"name\":\"smoke\",\"units_number\":1,\"unit_price\":10}]}");
+  }
+
+  private static CheckRequest aComplete(String trackId) {
+    return CheckRequest.json(
+        "POST",
+        TranzilaApiController.COMPLETE,
+        "{\"track_id\":\"" + trackId + "\",\"terminal_name\":\"" + TERMINAL + "\"}");
   }
 
   private ContractCheck charge() {
