@@ -94,6 +94,10 @@ class APayerFinishesTranzilasPaymentPageTest extends AJourneyInAMobileAppsWebvie
         .containsEntry("tranmode", "VK")
         .containsEntry("order_id", THE_ORDER)
         .containsEntry("orderid", THE_SHOPS_ORDER)
+        .as("fields named like the form's own methods are echoed and the form still posts")
+        .containsEntry("submit", "pay")
+        .containsEntry("action", "checkout")
+        .containsEntry("method", "card")
         .doesNotContainKey("thtk")
         .containsKey("TranzilaTK")
         .containsKey("transaction_id");
@@ -132,6 +136,9 @@ class APayerFinishesTranzilasPaymentPageTest extends AJourneyInAMobileAppsWebvie
     parameters.put("contact", THE_PAYER);
     parameters.put("pdesc", WHAT_IS_BEING_PAID_FOR);
     parameters.put("orderid", THE_SHOPS_ORDER);
+    parameters.put("submit", "pay");
+    parameters.put("action", "checkout");
+    parameters.put("method", "card");
     return parameters.entrySet().stream()
         .map(
             entry ->
