@@ -74,10 +74,11 @@ and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs.
 (`/tranzila/directng`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
 the simulator's page and not a vendor address.
 
-At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and `/v2/handshake`;
-stripe and autra also answer under `/v1`, and worldline keeps the rest of `/v2`. The deeper namespace answers the
-faults under it ("Error Shape"): an unknown address or a wrong method under `/v2/handshake` is answered by tranzila,
-and anywhere else under `/v2` by worldline.
+At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and the one route
+`/v2/handshake/create`; stripe and autra also answer under `/v1`, and worldline keeps the rest of `/v2`, including a
+merchant named `handshake`. The namespace with more path segments answers the faults under it ("Error Shape"): an
+unknown address under `/v2/handshake/create` or a wrong method on it is answered by tranzila, and anywhere else under
+`/v2` by worldline.
 
 ## Authentication and Transport
 
@@ -352,16 +353,18 @@ required (published schema).
 | `401`  | `{"error_code":401,"message":"Unauthorized"}`                                        |
 
 - `thtk`: `w` and 41 lowercase hex digits, the length of the published example (simulator decision).
-- A body outside the schema (`terminal_name` a string, `sum` a JSON number above zero, `request_params` an object, no
-  other field) is answered `400`; a `terminal_name` other than the app key's terminal, a missing or wrong
+- A body outside the schema (`terminal_name` a string, `sum` a JSON number above zero written as at most 15 digits
+  with at most 6 decimals and no exponent, `request_params` an object, no other field) is answered `400`; a `terminal_name` other than the app key's terminal, a missing or wrong
   authentication header, or an app key no account holds is answered `401` (simulator decision: the published bodies
   carry no reason).
 - "Handshake data is retained for **20 minutes** to allow for direct retries. A successful charge resets the timer."
   (published rule). Enforced on the run clock: an approved attempt on the page renews it for 20 minutes; a declined
   one does not.
-- An amount that does not match: `"Illegal Operation 912791"`, "no transaction is executed" (published rule). The page
-  checks the `thtk` when it is opened (it must name a live handshake of the page's terminal locking the page's `sum`,
-  compared as numbers) and again when the payer pays (it must still be live); either refusal executes nothing.
+- An amount that does not match: `"Illegal Operation 912791"`, "no transaction is executed" (published rule: checked
+  "After form submission"). The page also checks the `thtk` when it is opened (simulator decision: the page's `sum`
+  cannot change between opening and paying, so the mismatch is known at once): it must name a live handshake of the
+  page's terminal locking the page's `sum`, compared as numbers. When the payer pays, the handshake must still be
+  live. Either refusal executes nothing.
 - A page call sent with a `thtk` is resolved to the test run that holds that handshake when its terminal name is
   configured in more than one run.
 - `request_params` is "returned upon transaction completion" (published rule): each top-level member is echoed in the
@@ -398,10 +401,11 @@ rule, "Data Transfer Methods").
 | `currency`                                        | `1` NIS, `2` USD, `978` Euro, `826` GBP                                               | required                                                    |
 | `tranmode`                                        | `A` standard, `V` J5, `K` token without checking card, `N` J2, `J` standing order; legacy adds "With token add K (AK, NK, VK)" | required (the table marks it so); `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; `J` refused |
 | `cred_type`                                       | `1`, `6`, `8`                                                                         | `1` only                                                    |
-| `success_url_address`, `fail_url_address`, `notify_url_address` | URLs                                                                   | absolute `http` or `https` addresses; `notify_url_address` must be a callback target configured for the terminal's account, or no page is opened |
+| `success_url_address`, `fail_url_address`, `notify_url_address` | URLs                                                                   | absolute `http` or `https` addresses; `notify_url_address` must be a callback target configured for the terminal's account, or no page is opened (simulator decision: the simulator only calls addresses an account configured) |
 | `DCdisable`                                       | ≤254 characters                                                                       | "Duplicates and DCdisable"                                  |
 | `thtk`                                            | the Handshake token                                                                   | "Handshake V2"                                              |
-| `myid`, `company`, `contact`, `email`, `phone`, `address`, `city`, `pdesc`, `remarks`, `json_purchase_data` | predetermined fields          | echoed in the return                                        |
+| `myid`, `company`, `contact`, `email`, `phone`, `address`, `city`, `pdesc`, `remarks`, `json_purchase_data` | predetermined fields          | echoed in the return like every other parameter             |
+| any other parameter, a shop's own `orderid` among them | "the parameters entered on the payment page" come back ("Data Retrieval") | echoed in the return and the notify, in the order received |
 | `apple_pay`, `google_pay`, `bit_pay`, `ppnewwin`, `recur_*`, display parameters | published                                            | ignored                                                     |
 
 The page itself is a simulator decision: Tranzila publishes its parameters and its return, not its form. Every refusal
@@ -414,6 +418,14 @@ of a parameter is a page of the simulator's own words ("Error Shape") and opens 
 | pays under `K`                          | no transaction; `Response` per `tranzila.verification-approval-code` and the card's token as `TranzilaTK`; no scenario rule applies |
 | pays under a `DCdisable` already approved | no transaction, no return and no notify; the page shows "This payment has already been paid. Please contact customer service." and stays open |
 | leaves                                  | the page ends with no transaction, no return and no notify (no cancel return is published)                 |
+
+`published-9022` is the page's own: its token charges nothing on the card API (`20111`) unless a page charge of the
+same run made a transaction carrying it.
+
+`myid` is the payer's national ID, the page's counterpart of the API's `card_holder_id`: it travels to the shop in the
+return and the notify and is withheld from every row of the trail, inbound, outbound and the notify's. It is kept
+with the page, with every other parameter to echo, so that a notify can be sent again, and is forgotten when the test
+run is reset.
 
 The published test card answers by the scenario like any other card here: the page performs no 3-D Secure.
 
@@ -433,9 +445,9 @@ cardtype=1, cardissuer=1, cardacquirer=2, TranzilaTK, txn_type=debit, tranmode=A
 |--------------------------------------------------------------------------------------------------------|-----------------------------------|----------------------------------------------------------------------------|
 | return method is a terminal setting ("Return Method"); guides set POST                                 | published rule                    | a `POST` form to `success_url_address` (approved) or `fail_url_address` (declined), submitted by one inline script the page's policy admits by its hash; with no address for the outcome, the page shows the fields itself, `TranzilaTK` withheld |
 | `Response` `000` = success; `ccno` last 4; `TranzilaTK` "if tokenization is enabled"                   | published rule                    | `TranzilaTK` on every approved attempt; J2, J5 and `K` `Response` per `tranzila.verification-approval-code` (for `K`, inference from the `777` text) |
-| `cardissuer`, `cardacquirer`                                                                           | published example (`1`, `2`)      | the published example's values for every card                              |
+| `cardissuer`, `cardacquirer`                                                                           | published tables ("Key Response Fields") | simulator decision, by card type: Isracard issuer `1` and acquirer `1`; Amex issuer `1` (Isracard) and acquirer `4`; Diners issuer `2` (C.A.L) and acquirer `3`; every other card issuer `2` and acquirer `2` (Visa Cal) |
 | `Responsecv`, `Responseid`                                                                             | published example                 | `0`: the page collects neither                                             |
-| fields returned                                                                                        | published example                 | `supplier`, `sum`, `currency` as sent, `Response`, the predetermined fields sent, `transaction_id` and `index` (none for `K`), `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK`, `txn_type` (none for `K`), `tranmode` as sent, then the handshake's `request_params` |
+| fields returned                                                                                        | published example; "Data Retrieval": "the response from the credit card companies, along with the parameters entered on the payment page" (published rule) | `supplier`, `sum`, `currency` as sent, `Response`, every other parameter the page received but `thtk` and the names the return sets itself, `transaction_id` and `index` (none for `K`), `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK`, `txn_type` (none for `K`), `tranmode` as sent, then the handshake's `request_params`; the return's own value wins a name both carry |
 | notify: `application/x-www-form-urlencoded` `POST`                                                     | published rule (notify guides)    | as published                                                               |
 | notify fields: `ConfirmationCode?: string; // Success confirmation` among them                          | published example (Lovable notify guide) | simulator decision: the return's fields plus `ConfirmationCode`, the transaction's auth number, when it has one |
 | notify address: `notify_url_address`, "Or add through tranzila settings"                              | published rule                    | `notify_url_address`; without one, the account's one configured callback target stands for the terminal's setting, and with none or several no notify is sent |
@@ -542,7 +554,7 @@ Tranzila has no status field. Every transaction is an object of its own; its nat
 | cancelled `force` or `credit`                            | `CANCELLED`                                    |
 | payment page waiting for its payer (`awaiting the payer`) | `NOT_INITIALIZED`                             |
 | payment page left (`left without paying`)                | `CANCELLED`                                    |
-| payment page paid                                        | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED` |
+| payment page paid or declined                            | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED`; a page whose transaction is no longer held `paid` `SUCCEEDED` or `declined` `FAILED` |
 
 A `force`, `credit`, `reversal` or `cancel` has its own `transaction_id` and an empty ledger, and relates to its
 original by `reference_txn_id`; the original's ledger operations name it in `createdObjectId`. A payment is no longer
@@ -560,9 +572,9 @@ not count. An original whose `credit` was cancelled returns to its normalized st
 | `api.tranzila.com` under Tranzila's namespaces | unknown address `404`; wrong method `405` | `{"error_code":"404","message":"The specified resource was not found"}`; `{"error_code":"405","message":"This address does not answer this HTTP method"}` | simulator decision: the `404` text is the one declared on the create operation; no `405` is published |
 | `/v1/transactions`                    | auth, schema                                | as create (only `200` is declared)                                                         | simulator decision             |
 | `/v2/handshake/create`                | `400`, `401`                                | `error_code` equal to the HTTP status                                                      | published example              |
-| under `/v2/handshake`                 | unknown address `404`; wrong method `405`  | the handshake's shape, `{"error_code":404,"message":"The specified resource was not found"}`, `405` with "This address does not answer this HTTP method" | simulator decision |
+| under `/v2/handshake/create`          | unknown address `404`; wrong method `405`  | the handshake's shape, `{"error_code":404,"message":"The specified resource was not found"}`, `405` with "This address does not answer this HTTP method" | simulator decision |
 | `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}` | published example |
-| payment page, Hosted Fields frames    | refusal                                     | a simulator-written HTML page: `404` no such terminal or page, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed | simulator decision |
+| payment page, Hosted Fields frames    | refusal                                     | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng`: `404` no such terminal or page, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed | simulator decision |
 
 The `Error` schema's `'response '` key (trailing space) is not answered: it is not required.
 
