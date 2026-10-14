@@ -7,6 +7,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AFailureNothingAnswered;
 import dev.marcinromanowski.pspsim.kernel.audit.ActionTrail;
 import dev.marcinromanowski.pspsim.kernel.audit.TheCausesOfAFailure;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireRoutes;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.spi.WhatAProviderAnswersOffItsRoutes;
 import dev.marcinromanowski.pspsim.kernel.spi.WireAnswer;
@@ -115,11 +116,7 @@ public final class WhoeverWasAsked {
   }
 
   private Optional<ProviderId> theProviderClaiming(String address) {
-    for (SimulatorProvider provider : providers.modules()) {
-      if (provider.wireRoutes().covers(address)) {
-        return Optional.of(provider.id());
-      }
-    }
-    return Optional.empty();
+    return ProviderWireRoutes.theDeepestClaimOn(providers.modules(), address)
+        .map(SimulatorProvider::id);
   }
 }

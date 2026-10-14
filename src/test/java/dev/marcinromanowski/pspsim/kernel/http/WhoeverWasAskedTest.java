@@ -207,6 +207,26 @@ class WhoeverWasAskedTest {
   }
 
   @Test
+  void a_failure_under_a_namespace_nested_in_another_is_recorded_under_the_nested_one() {
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/cgi-bin/inner"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing of its own"));
+    ProviderRegistry both = new ProviderRegistry(List.of(gateway, inner));
+    WhoeverWasAsked nested =
+        new WhoeverWasAsked(
+            new WhatAProviderAnswersOffItsRoutes(both), both, List.of(surface), trail.asTrail());
+
+    nested.record(failedAt("/cgi-bin/inner/x", "run-7", new IllegalStateException("broken")));
+    nested.record(failedAt("/cgi-bin/outer", "run-7", new IllegalStateException("broken")));
+
+    assertThat(trail.written())
+        .extracting(AuditRecord::provider)
+        .containsExactly(ProviderId.of("inner"), ProviderId.of("gateway"));
+  }
+
+  @Test
   void a_failure_on_an_address_a_surface_owns_is_recorded_under_the_provider_it_names() {
     asked.record(failedAt(AN_ADDRESS_THE_SURFACE_OWNS, "run-7", new IllegalStateException("x")));
 

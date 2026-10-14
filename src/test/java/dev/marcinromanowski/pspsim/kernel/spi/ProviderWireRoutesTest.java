@@ -33,6 +33,47 @@ class ProviderWireRoutesTest {
   }
 
   @Test
+  void an_address_is_covered_as_deeply_as_the_longest_namespace_it_lies_in() {
+    ProviderWireRoutes routes =
+        new ProviderWireRoutes(ProviderId.of("p"), List.of("/v2", "/v2/handshake"));
+
+    assertThat(routes.howDeeplyItCovers("/v2/handshake/create")).isEqualTo(13);
+    assertThat(routes.howDeeplyItCovers("/v2/handshake")).isEqualTo(13);
+    assertThat(routes.howDeeplyItCovers("/v2/handshakes")).isEqualTo(3);
+    assertThat(routes.howDeeplyItCovers("/v1")).isEqualTo(ProviderWireRoutes.COVERS_NOTHING);
+    assertThat(ProviderWireRoutes.COVERS_NOTHING).isEqualTo(-1);
+  }
+
+  @Test
+  void the_provider_claiming_an_address_most_deeply_is_its_claimant_whichever_comes_first() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(outer, inner), "/v2/handshake/x"))
+        .contains(inner);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v2/handshake/x"))
+        .contains(inner);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v2/m/payments"))
+        .contains(outer);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v1/x")).isEmpty();
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(), "/v2")).isEmpty();
+    ProviderDouble twin =
+        new ProviderDouble("twin")
+            .answering(
+                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(outer, twin), "/v2/x"))
+        .as("a claim no deeper than one already read does not take the address from it")
+        .contains(outer);
+  }
+
+  @Test
   void a_namespace_that_already_ends_in_a_separator_covers_what_is_under_it_and_itself() {
     ProviderWireRoutes routes =
         new ProviderWireRoutes(GROW, List.of("/hostedtokenization/tokenization/form/"));

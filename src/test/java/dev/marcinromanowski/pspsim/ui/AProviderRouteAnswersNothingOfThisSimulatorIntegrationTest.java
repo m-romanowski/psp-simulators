@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireRoutes;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.spi.WhatAProviderAnswersOffItsRoutes;
 import java.util.ArrayList;
@@ -113,20 +114,28 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
   @Autowired private ProviderRegistry providers;
 
   @Test
-  void no_two_provider_modules_claim_one_address_so_the_answer_never_depends_on_bean_order() {
+  void every_namespace_answers_through_its_own_module_so_the_answer_never_depends_on_bean_order() {
     List<String> collisions = new ArrayList<>();
-    for (SimulatorProvider claiming : providers.modules()) {
-      for (SimulatorProvider other : providers.modules()) {
-        if (claiming.id().equals(other.id())) {
-          continue;
+    for (SimulatorProvider other : providers.modules()) {
+      for (String namespace : other.wireRoutes().namespaces()) {
+        SimulatorProvider answering =
+            ProviderWireRoutes.theDeepestClaimOn(providers.modules(), namespace).orElseThrow();
+        if (!answering.id().equals(other.id())) {
+          collisions.add(
+              namespace
+                  + " belongs to "
+                  + other.id().value()
+                  + " and is answered by "
+                  + answering.id().value());
         }
-        for (String namespace : other.wireRoutes().namespaces()) {
-          if (claiming.wireRoutes().covers(namespace)) {
+        for (SimulatorProvider claiming : providers.modules()) {
+          if (!claiming.id().equals(other.id())
+              && claiming.wireRoutes().howDeeplyItCovers(namespace) == namespace.length()) {
             collisions.add(
                 namespace
                     + " belongs to "
                     + other.id().value()
-                    + " and is also claimed by "
+                    + " and is also claimed as a whole by "
                     + claiming.id().value());
           }
         }
@@ -135,9 +144,10 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
 
     assertThat(collisions)
         .as(
-            "the core finds the provider an address belongs to by walking the modules in the"
-                + " order the container built them, so two modules claiming one address would"
-                + " make the envelope a client receives depend on that order")
+            "the core gives an address to the module whose namespace covers it most deeply, so a"
+                + " namespace nested in another module's answers its own faults, and two modules"
+                + " claiming one namespace whole would make the envelope a client receives depend"
+                + " on the order the container built them")
         .isEmpty();
   }
 

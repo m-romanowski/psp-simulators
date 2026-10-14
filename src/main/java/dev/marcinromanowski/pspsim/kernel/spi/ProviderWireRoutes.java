@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.ThisSimulatorsOwnAddresses;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
@@ -43,6 +44,32 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
       }
     }
     namespaces = List.copyOf(namespaces);
+  }
+
+  public static final int COVERS_NOTHING = -1;
+
+  public int howDeeplyItCovers(String address) {
+    int deepest = COVERS_NOTHING;
+    for (String namespace : namespaces) {
+      if (isUnder(address, namespace)) {
+        deepest = Math.max(deepest, namespace.length());
+      }
+    }
+    return deepest;
+  }
+
+  public static Optional<SimulatorProvider> theDeepestClaimOn(
+      List<SimulatorProvider> providers, String address) {
+    SimulatorProvider claiming = null;
+    int deepest = COVERS_NOTHING;
+    for (SimulatorProvider provider : providers) {
+      int depth = provider.wireRoutes().howDeeplyItCovers(address);
+      if (depth > deepest) {
+        deepest = depth;
+        claiming = provider;
+      }
+    }
+    return Optional.ofNullable(claiming);
   }
 
   public boolean covers(String address) {

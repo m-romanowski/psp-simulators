@@ -97,6 +97,7 @@ public final class PairingScreen {
   public static Setting settingOf(
       PairingSetting declared,
       ProviderAccountFields fields,
+      String publicBaseUrl,
       String providerBaseUrl,
       String testRunId,
       String accountId,
@@ -104,6 +105,8 @@ public final class PairingScreen {
     return switch (declared.value()) {
       case PairingValue.Given given -> shown(declared, given.text());
       case PairingValue.TheProviderBaseUrl _ -> shown(declared, providerBaseUrl);
+      case PairingValue.AnAddressOfThisSimulator host ->
+          shown(declared, withoutATrailingSlash(publicBaseUrl) + host.path());
       case PairingValue.TheTestRunId _ -> shown(declared, testRunId);
       case PairingValue.TheTestRunHeader _ -> shown(declared, TestRunHeader.NAME);
       case PairingValue.TheAccountId _ -> shown(declared, accountId);
@@ -129,6 +132,7 @@ public final class PairingScreen {
           snippetOf(
               pairing,
               fields,
+              publicBaseUrl,
               providerBaseUrl,
               testRunId,
               accountId,
@@ -160,6 +164,7 @@ public final class PairingScreen {
   private static Snippet snippetOf(
       ProviderPairing pairing,
       ProviderAccountFields fields,
+      String publicBaseUrl,
       String providerBaseUrl,
       String testRunId,
       String accountId,
@@ -169,7 +174,14 @@ public final class PairingScreen {
     List<Setting> settings = new ArrayList<>();
     for (PairingSetting declared : pairing.settings()) {
       settings.add(
-          settingOf(declared, fields, providerBaseUrl, testRunId, accountId, configuration));
+          settingOf(
+              declared,
+              fields,
+              publicBaseUrl,
+              providerBaseUrl,
+              testRunId,
+              accountId,
+              configuration));
     }
     return new Snippet(accountId, List.copyOf(settings));
   }

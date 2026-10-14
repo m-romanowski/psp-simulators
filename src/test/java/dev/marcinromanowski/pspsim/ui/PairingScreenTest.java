@@ -1,6 +1,7 @@
 package dev.marcinromanowski.pspsim.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.ProviderId;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
@@ -115,6 +116,27 @@ class PairingScreenTest {
     assertThat(List.of(base, run, header, account, given))
         .allSatisfy(setting -> assertThat(setting.fromField()).isEqualTo(""))
         .allSatisfy(setting -> assertThat(setting.shown()).isEqualTo(PairingScreen.Shown.VALUE));
+  }
+
+  @Test
+  void an_address_of_this_simulator_is_its_public_base_url_at_the_path_the_provider_names() {
+    PairingScreen.Setting host =
+        resolved(new PairingValue.AnAddressOfThisSimulator("/tranzila/directng"));
+
+    assertThat(host.value()).isEqualTo("https://simulator.internal/tranzila/directng");
+    assertThat(host.shown()).isEqualTo(PairingScreen.Shown.VALUE);
+    assertThat(host.fromField()).isEqualTo("");
+  }
+
+  @Test
+  void
+      an_address_of_this_simulator_is_refused_unless_its_path_is_absolute_with_no_trailing_slash() {
+    assertThatThrownBy(() -> new PairingValue.AnAddressOfThisSimulator("tranzila/directng"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("tranzila/directng is not one");
+    assertThatThrownBy(() -> new PairingValue.AnAddressOfThisSimulator("/tranzila/directng/"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("/tranzila/directng/ is not one");
   }
 
   @Test
@@ -236,6 +258,7 @@ class PairingScreenTest {
     return PairingScreen.settingOf(
         new PairingSetting(name, field(key)),
         FIELDS,
+        "https://simulator.internal/",
         "https://simulator.internal/v2",
         RUN,
         ACCOUNT,
@@ -246,6 +269,7 @@ class PairingScreenTest {
     return PairingScreen.settingOf(
         new PairingSetting("A_SETTING", value),
         FIELDS,
+        "https://simulator.internal/",
         "https://simulator.internal/v2",
         RUN,
         ACCOUNT,

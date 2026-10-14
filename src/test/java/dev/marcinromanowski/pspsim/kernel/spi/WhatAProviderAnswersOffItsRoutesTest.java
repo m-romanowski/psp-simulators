@@ -232,6 +232,34 @@ class WhatAProviderAnswersOffItsRoutesTest {
   }
 
   @Test
+  void a_namespace_nested_in_another_providers_answers_the_addresses_under_it_in_either_order() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing of its own"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing of its own"));
+
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(outer, inner)))
+        .to(WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/v2/handshake/x", 404);
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(inner, outer)))
+        .to(WireFault.A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER, "/v2/handshake", 405);
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(inner, outer)))
+        .to(WireFault.A_FAILURE_NOTHING_ELSE_ANSWERED, "/v2/m-1/payments", 500);
+
+    assertThat(inner.theFaultsItWasAskedAbout())
+        .containsExactly(
+            WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE,
+            WireFault.A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER);
+    assertThat(outer.theFaultsItWasAskedAbout())
+        .containsExactly(WireFault.A_FAILURE_NOTHING_ELSE_ANSWERED);
+  }
+
+  @Test
   void the_deepest_path_a_namespace_lies_under_decides_and_not_the_shallowest() {
     ProviderDouble deeper =
         new ProviderDouble("deeper")
