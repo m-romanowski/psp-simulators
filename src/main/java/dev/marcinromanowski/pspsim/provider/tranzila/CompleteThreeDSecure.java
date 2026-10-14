@@ -156,9 +156,8 @@ final class CompleteThreeDSecure {
       TranzilaTerminal terminal,
       TranzilaChallenge challenge,
       Instant now) {
-    CreateTransaction.Completed done =
+    TranzilaOperationResult result =
         createTransaction.completing(call, headers, terminal, challenge, now);
-    TranzilaOperationResult result = done.result();
     if (result.insteadOfTheOperation() != null) {
       return new Reached.AnsweredInstead(result);
     }

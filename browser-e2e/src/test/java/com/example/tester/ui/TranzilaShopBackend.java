@@ -150,7 +150,9 @@ public final class TranzilaShopBackend {
             "{\"track_id\":\"" + trackId + "\",\"terminal_name\":\"" + terminal + "\"}");
     if (answer.statusCode() != 200) {
       throw new IllegalStateException(
-          "tranzila answered " + answer.statusCode() + " to a 3-D Secure completion: "
+          "tranzila answered "
+              + answer.statusCode()
+              + " to a 3-D Secure completion: "
               + answer.body());
     }
     return answer.body();

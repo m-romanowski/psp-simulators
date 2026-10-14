@@ -119,9 +119,4 @@ record TranzilaChallenge(
         answeredAt,
         at);
   }
-
-  String theOperation() {
-    Integer mode = verifyMode;
-    return mode == null ? type.wire() : type.wire() + " " + mode;
-  }
 }

@@ -481,9 +481,7 @@ final class CreateTransaction {
         "no Tranzila track_id could be claimed in " + TRANSACTION_ID_ATTEMPTS + " attempts");
   }
 
-  record Completed(TranzilaOperationResult result, TranzilaChallenge challenge) {}
-
-  Completed completing(
+  TranzilaOperationResult completing(
       TranzilaApiCall call,
       Map<String, List<String>> headers,
       TranzilaTerminal terminal,
@@ -515,7 +513,7 @@ final class CreateTransaction {
                 presented,
                 challenge.transactionId(),
                 TranzilaResponseCodes.THREE_D_SECURE_FAILED);
-    return new Completed(answered.result(), challenge);
+    return answered.result();
   }
 
   private Answered aForce(Asked asked) {

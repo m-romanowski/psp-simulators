@@ -111,7 +111,8 @@ class APayerPassesTranzilasThreeDSecureChallengeTest extends AJourneyInAMobileAp
             "the webview the payer answered the challenge in never saw the card number the shop's"
                 + " server sent, nor its first six")
         .allSatisfy(
-            seen -> assertThat(seen).doesNotContain(THE_CHALLENGE_CARD).doesNotContain(ITS_FIRST_SIX));
+            seen ->
+                assertThat(seen).doesNotContain(THE_CHALLENGE_CARD).doesNotContain(ITS_FIRST_SIX));
     assertThat(String.join("\n", merchant().returnsReceived()))
         .doesNotContain(THE_CHALLENGE_CARD)
         .doesNotContain(ITS_FIRST_SIX);
@@ -186,7 +187,8 @@ class APayerPassesTranzilasThreeDSecureChallengeTest extends AJourneyInAMobileAp
         .doesNotContain("track_id");
     assertThat(List.of(page().mainFrame().content(), heardOnTheShopsWindow, answered))
         .allSatisfy(
-            seen -> assertThat(seen).doesNotContain(THE_CHALLENGE_CARD).doesNotContain(ITS_FIRST_SIX));
+            seen ->
+                assertThat(seen).doesNotContain(THE_CHALLENGE_CARD).doesNotContain(ITS_FIRST_SIX));
     theWebviewSawNothingGoWrong();
   }
 

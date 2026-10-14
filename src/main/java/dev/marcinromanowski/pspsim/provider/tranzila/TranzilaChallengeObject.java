@@ -22,8 +22,6 @@ final class TranzilaChallengeObject {
 
   static ProviderObjectState stateOf(
       TranzilaChallenge challenge, @Nullable TranzilaObject transaction, Instant now) {
-    Instant completedAt = challenge.completedAt();
-    Instant answeredAt = challenge.answeredAt();
     return new ProviderObjectState(
         ProviderObjectIdentity.of(challenge.trackId()),
         TranzilaObjectKinds.A_CHALLENGE,
@@ -39,9 +37,16 @@ final class TranzilaChallengeObject {
         false,
         relatedObjectsOf(challenge),
         challenge.origin(),
-        completedAt != null
-            ? completedAt
-            : answeredAt != null ? answeredAt : challenge.createdAt());
+        updatedAtOf(challenge));
+  }
+
+  static Instant updatedAtOf(TranzilaChallenge challenge) {
+    Instant completedAt = challenge.completedAt();
+    if (completedAt != null) {
+      return completedAt;
+    }
+    Instant answeredAt = challenge.answeredAt();
+    return answeredAt == null ? challenge.createdAt() : answeredAt;
   }
 
   static String nativeStatusOf(TranzilaChallenge challenge, @Nullable TranzilaObject transaction) {
