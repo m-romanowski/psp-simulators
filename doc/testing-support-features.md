@@ -139,7 +139,7 @@ answer only by writing a scenario rule.
 | Azericard | none | `TERMINAL`+`ORDER` (last six digits, per terminal, per day), `RRN`, `INT_REF`. Status inquiry uses terminal, order and original type | no published rule |
 
 A request's body is its answer's fields as its audit trail row keeps them, with the provider's withheld fields
-redacted. Its fingerprint is keyed per test run: it tells two requests of one run apart and identifies no input.
+redacted, written as JSON. It is not the bytes the client read, and the content type shown is that JSON's. Its fingerprint is keyed per test run: it tells two requests of one run apart and identifies no input.
 Requests are numbered in the order they were recorded, so a duplicate refusal answered while the request that claimed
 the key was still running appears before that request.
 
