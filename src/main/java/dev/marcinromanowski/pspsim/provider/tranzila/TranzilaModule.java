@@ -2,6 +2,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import dev.marcinromanowski.pspsim.kernel.audit.AuditTrail;
 import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
+import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
 import dev.marcinromanowski.pspsim.kernel.fault.DelayedDeliveries;
 import dev.marcinromanowski.pspsim.kernel.fault.FaultDelayCeiling;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixtures;
@@ -12,6 +13,9 @@ import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import dev.marcinromanowski.pspsim.kernel.transaction.ClaimConstraints;
+import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
+import dev.marcinromanowski.pspsim.kernel.webhook.AcknowledgementPolicy;
+import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,6 +53,61 @@ public class TranzilaModule {
   }
 
   @Bean
+  TranzilaPages tranzilaPages(JdbcClient jdbc) {
+    return new JdbcTranzilaPages(jdbc);
+  }
+
+  @Bean
+  TranzilaHandshakes tranzilaHandshakes(JdbcClient jdbc) {
+    return new JdbcTranzilaHandshakes(jdbc);
+  }
+
+  @Bean
+  TranzilaNotify tranzilaNotify(
+      ProviderAccounts accounts,
+      WebhookDispatcher dispatcher,
+      TranzilaPages pages,
+      TranzilaTransactions transactions) {
+    return new TranzilaNotify(accounts, dispatcher, pages, transactions);
+  }
+
+  @Bean
+  AcknowledgementPolicy tranzilaNotifyAcknowledgement() {
+    return new TranzilaNotifyAcknowledgement();
+  }
+
+  @Bean
+  TranzilaDirectNg tranzilaDirectNg(
+      TranzilaTerminals terminals,
+      TranzilaPages pages,
+      TranzilaHandshakes handshakes,
+      TranzilaTransactions transactions,
+      CreateTransaction createTransaction,
+      PaymentMethodFixtures fixtures,
+      TranzilaNotify notify,
+      TestRuns testRuns,
+      AuditTrail audit,
+      SimulatorClock clock,
+      IdGenerator ids,
+      UnitOfWork unitOfWork,
+      @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
+    return new TranzilaDirectNg(
+        terminals,
+        pages,
+        handshakes,
+        transactions,
+        createTransaction,
+        new TranzilaPageCards(fixtures),
+        notify,
+        testRuns,
+        audit,
+        clock,
+        ids,
+        TestRunId.of(defaultTestRunId),
+        unitOfWork);
+  }
+
+  @Bean
   CreateTransaction tranzilaCreateTransaction(
       TranzilaTransactions transactions,
       PaymentMethodFixtures fixtures,
@@ -68,6 +127,7 @@ public class TranzilaModule {
       SimulatorClock clock,
       IdGenerator ids,
       CreateTransaction createTransaction,
+      TranzilaHandshakes handshakes,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new TranzilaApi(
         terminals,
@@ -77,7 +137,8 @@ public class TranzilaModule {
         clock,
         ids,
         TestRunId.of(defaultTestRunId),
-        createTransaction);
+        createTransaction,
+        new CreateHandshake(handshakes, ids));
   }
 
   @Bean
@@ -96,7 +157,11 @@ public class TranzilaModule {
       ScenarioRules scenarios,
       DelayedDeliveries heldResponses,
       SimulatorClock clock,
-      CreateTransaction createTransaction) {
+      CreateTransaction createTransaction,
+      TranzilaPages pages,
+      TranzilaHandshakes handshakes,
+      TranzilaDirectNg directNg,
+      TranzilaNotify notify) {
     return new TranzilaProvider(
         terminals,
         transactions,
@@ -107,6 +172,10 @@ public class TranzilaModule {
         scenarios,
         heldResponses,
         clock,
-        createTransaction);
+        createTransaction,
+        pages,
+        handshakes,
+        directNg,
+        notify);
   }
 }

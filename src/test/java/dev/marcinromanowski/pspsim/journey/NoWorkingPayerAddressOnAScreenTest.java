@@ -190,13 +190,13 @@ class NoWorkingPayerAddressOnAScreenTest {
         .as(
             "a provider in neither register has its screens refused above rather than swept for"
                 + " no route, so the ones that serve a page are named here")
-        .containsExactly("autra", "azericard", "grow", "worldline");
+        .containsExactly("autra", "azericard", "grow", "tranzila", "worldline");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE)
-        .containsExactlyInAnyOrder("stripe", "tranzila");
+        .containsExactlyInAnyOrder("stripe");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES.values())
         .allSatisfy(routes -> assertThat(routes).isNotEmpty())
         .flatExtracting(List::copyOf)
-        .hasSize(4);
+        .hasSize(5);
   }
 
   @Test

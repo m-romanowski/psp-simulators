@@ -19,6 +19,8 @@ final class TranzilaOrigination {
 
   static final String A_J5 = "POST /v1/transaction/credit_card/create verify 5";
 
+  static final String A_PAGE_PAYMENT = "GET /tranzila/directng/{terminal}/iframenew.php";
+
   static final String AMOUNT = "amount";
 
   private static final String IT_IS_LISTED_ALREADY =
@@ -85,6 +87,48 @@ final class TranzilaOrigination {
   private static final List<AFieldATesterFillsIn> THE_FIELDS =
       List.of(THE_AMOUNT, THE_CURRENCY, THE_CARD, THE_EXPIRY_MONTH, THE_EXPIRY_YEAR);
 
+  private static final ThePayerStep THE_PAYMENT_PAGE =
+      new ThePayerStep.APageThisSimulatorServes(TranzilaDirectNgPage.ROUTE);
+
+  private static final AFieldATesterFillsIn THE_SUM =
+      AFieldATesterFillsIn.typed(
+          TranzilaFields.SUM,
+          "sum",
+          true,
+          "The payment page takes the amount as sum, a positive decimal number in currency"
+              + " units, so 10.53 is ten shekels and fifty-three agorot.",
+          "10.53");
+
+  private static final AFieldATesterFillsIn THE_PAGE_CURRENCY =
+      AFieldATesterFillsIn.chosenFrom(
+          TranzilaFields.CURRENCY,
+          "currency",
+          true,
+          "The payment page takes currency as a number, from four values, where the card API"
+              + " takes ISO 4217 letters.",
+          List.of(
+              new AValueAFieldOffers("1", "NIS"),
+              new AValueAFieldOffers("2", "US dollar"),
+              new AValueAFieldOffers("978", "Euro"),
+              new AValueAFieldOffers("826", "Pound sterling")));
+
+  private static final AFieldATesterFillsIn THE_TRANMODE =
+      AFieldATesterFillsIn.chosenFrom(
+          TranzilaFields.TRANMODE,
+          "tranmode",
+          true,
+          "What the page does with the card: A charges it, V holds the sum as a J5, N checks the"
+              + " card as a J2, and K saves a token without checking the card; AK, VK and NK do"
+              + " the same as A, V and N with a token.",
+          List.of(
+              new AValueAFieldOffers("A", "charge the card"),
+              new AValueAFieldOffers("V", "hold the sum (J5)"),
+              new AValueAFieldOffers("N", "check the card (J2)"),
+              new AValueAFieldOffers("K", "save a token only"),
+              new AValueAFieldOffers("AK", "charge the card, with a token"),
+              new AValueAFieldOffers("VK", "hold the sum (J5), with a token"),
+              new AValueAFieldOffers("NK", "check the card (J2), with a token")));
+
   static final ProviderOriginationFields DECLARED =
       new ProviderOriginationFields(
           TranzilaApi.TRANZILA,
@@ -106,7 +150,18 @@ final class TranzilaOrigination {
                       + " screen."
                       + IT_IS_LISTED_ALREADY,
                   NO_PAYER_PAGE,
-                  THE_FIELDS)),
+                  THE_FIELDS),
+              new DeclaredOrigination(
+                  A_PAGE_PAYMENT,
+                  "Send a payer to the payment page (DirectNG)",
+                  "A payment page waiting for its payer, under the tranmode picked here, with no"
+                      + " success, fail or notify address; the payer step on the Payments screen"
+                      + " pays it with a card the page offers, or leaves it, and the transaction"
+                      + " it makes is listed on its own. The page exists the moment this screen"
+                      + " answers: it is on the Payments screen now, under the id above, and its"
+                      + " payer step is offered there.",
+                  THE_PAYMENT_PAGE,
+                  List.of(THE_SUM, THE_PAGE_CURRENCY, THE_TRANMODE))),
           theFieldsTheSimulatorFillsIn());
 
   private static SequencedMap<String, String> theFieldsTheSimulatorFillsIn() {
@@ -153,6 +208,27 @@ final class TranzilaOrigination {
         TranzilaApiController.CREATE,
         Map.of(),
         TranzilaJsonWriter.toText(TranzilaJson.object(body)));
+  }
+
+  static Map<String, List<String>> theParametersOf(OriginationRequest request) {
+    Map<String, List<String>> parameters = new LinkedHashMap<>();
+    for (String field :
+        List.of(TranzilaFields.SUM, TranzilaFields.CURRENCY, TranzilaFields.TRANMODE)) {
+      request.value(field).ifPresent(value -> parameters.put(field, List.of(value)));
+    }
+    return parameters;
+  }
+
+  static OriginationOutcome outcomeOf(
+      TranzilaDirectNg.Opening opening, OriginationRequest request) {
+    return switch (opening) {
+      case TranzilaDirectNg.Opening.Refused refused ->
+          new OriginationOutcome.RefusedByTheProvider(refused.inItsOwnWords());
+      case TranzilaDirectNg.Opening.Opened opened ->
+          new OriginationOutcome.Originated(
+              opened.page().pageId(),
+              DECLARED.wayNamed(request.startedAs()).orElseThrow().whatItLeavesBehind());
+    };
   }
 
   static OriginationOutcome outcomeOf(TranzilaOperationResult result, OriginationRequest request) {

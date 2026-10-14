@@ -258,6 +258,49 @@ public final class TrailWithholdingConvention {
                   + " value is this simulator's base address; it names no object and reaches a"
                   + " trail row under no field"),
           new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_API_V2_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the handshake version; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_DIRECTNG_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the payment page host; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "fail_url",
+              "the column the merchant-supplied fail_url_address is stored under in this build's"
+                  + " own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "fail_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own site;"
+                  + " the page posts the payer's browser there and answers it back in no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "notify_url",
+              "the column the merchant-supplied notify_url_address is stored under in this build's"
+                  + " own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "notify_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own"
+                  + " callback target; tranzila posts the notify there and answers it back in no"
+                  + " field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "success_url",
+              "the column the merchant-supplied success_url_address is stored under in this"
+                  + " build's own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "success_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own site;"
+                  + " the page posts the payer's browser there and answers it back in no field"),
+          new AnAddressInTheClear(
               "worldline",
               "Location",
               "the header worldline answers a created payment's own resource address in, built"

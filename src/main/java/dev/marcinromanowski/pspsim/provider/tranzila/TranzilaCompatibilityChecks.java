@@ -14,9 +14,12 @@ import dev.marcinromanowski.pspsim.kernel.smoke.Observed;
 import dev.marcinromanowski.pspsim.kernel.smoke.SmokeNamespace;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSample;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSamples;
+import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class TranzilaCompatibilityChecks {
 
@@ -31,6 +34,30 @@ public final class TranzilaCompatibilityChecks {
       "POST /v1/transaction/credit_card/create with a wrong access token";
 
   static final String THE_TRAIL_RECORDS = "GET /__simulator/tranzila/audit";
+
+  static final String THE_HANDSHAKE_LOCKS_A_SUM = "POST /v2/handshake/create";
+
+  static final String THE_HANDSHAKE_REFUSES_A_TOKEN =
+      "POST /v2/handshake/create with a wrong access token";
+
+  static final String THE_PAGE_RETURNS_THE_PAYER =
+      "GET /tranzila/directng/{terminal}/iframenew.php tranmode A, paid with the published card";
+
+  static final String THE_SHOPS_ADDRESS = "https://shop.invalid/paid";
+
+  static final String THE_PAGE =
+      "/tranzila/directng/smoketerminal/iframenew.php?sum=10.53&currency=1&tranmode=A"
+          + "&success_url_address="
+          + THE_SHOPS_ADDRESS;
+
+  static final List<String> THE_FIELDS_THE_SAMPLE_PUBLISHES =
+      List.of(TranzilaFields.RESPONSE, TranzilaFields.TXN_TYPE, TranzilaFields.TRANMODE);
+
+  private static final Pattern THE_PAYER_FORM =
+      Pattern.compile("action=\"(/tranzila/directng/[^\"/]+/payer/[^\"/]+)\"");
+
+  private static final Pattern A_RETURNED_FIELD =
+      Pattern.compile("<input type=\"hidden\" name=\"([^\"]*)\" value=\"([^\"]*)\">");
 
   private static final String ACCOUNT = "account-1";
 
@@ -61,7 +88,14 @@ public final class TranzilaCompatibilityChecks {
   }
 
   public List<ContractCheck> all() {
-    return List.of(charge(), noOriginal(), refusedToken(), auditTrail());
+    return List.of(
+        charge(),
+        noOriginal(),
+        refusedToken(),
+        auditTrail(),
+        handshake(),
+        handshakeRefused(),
+        pageReturn());
   }
 
   private ContractCheck charge() {
@@ -165,6 +199,100 @@ public final class TranzilaCompatibilityChecks {
           Observed.put(read, "audit.outcome", json.at(trail.body(), "/1/outcome"));
           return read;
         });
+  }
+
+  private ContractCheck handshake() {
+    VendorSample published = tranzila.sample("handshake-created");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_HANDSHAKE_LOCKS_A_SUM,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("httpStatus", published.status()),
+            new ContractExpectation("error_code", published.json("/error_code")),
+            new ContractExpectation("message", published.json("/message"))),
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse created = transport.send(signed(aHandshake(), credentials));
+          Map<String, String> read = new LinkedHashMap<>();
+          read.put("httpStatus", String.valueOf(created.status()));
+          Observed.put(read, "error_code", json.at(created.body(), "/error_code"));
+          Observed.put(read, "message", json.at(created.body(), "/message"));
+          return read;
+        });
+  }
+
+  private ContractCheck handshakeRefused() {
+    VendorSample published = tranzila.sample("handshake-unauthorized");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_HANDSHAKE_REFUSES_A_TOKEN,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("httpStatus", published.status()),
+            new ContractExpectation("error_code", published.json("/error_code")),
+            new ContractExpectation("message", published.json("/message"))),
+        transport -> {
+          Credentials credentials = prepare(transport);
+          CheckResponse refused =
+              transport.send(
+                  aHandshake()
+                      .carrying(TranzilaFields.APP_KEY, credentials.appKey())
+                      .carrying(TranzilaFields.REQUEST_TIME, aRequestTime())
+                      .carrying(TranzilaFields.NONCE, ids.hex(NONCE_LENGTH))
+                      .carrying(TranzilaFields.ACCESS_TOKEN, A_TOKEN_NO_SECRET_PRODUCED));
+          Map<String, String> read = new LinkedHashMap<>();
+          read.put("httpStatus", String.valueOf(refused.status()));
+          Observed.put(read, "error_code", json.at(refused.body(), "/error_code"));
+          Observed.put(read, "message", json.at(refused.body(), "/message"));
+          return read;
+        });
+  }
+
+  private ContractCheck pageReturn() {
+    VendorSample published = tranzila.sample("directng-return");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_PAGE_RETURNS_THE_PAYER,
+        published.provenance(),
+        List.of(
+            new ContractExpectation(
+                TranzilaFields.RESPONSE, published.rule(TranzilaFields.RESPONSE)),
+            new ContractExpectation(
+                TranzilaFields.TXN_TYPE, published.rule(TranzilaFields.TXN_TYPE)),
+            new ContractExpectation(
+                TranzilaFields.TRANMODE, published.rule(TranzilaFields.TRANMODE))),
+        transport -> {
+          prepare(transport);
+          return theReturnedFields(transport);
+        });
+  }
+
+  private static Map<String, String> theReturnedFields(CheckTransport transport) {
+    CheckResponse page = transport.send(CheckRequest.get(THE_PAGE));
+    Matcher form = THE_PAYER_FORM.matcher(page.body());
+    Map<String, String> read = new LinkedHashMap<>();
+    if (!form.find()) {
+      return read;
+    }
+    Map<String, String> paying = new LinkedHashMap<>();
+    paying.put(TranzilaDirectNgPage.CARD, TranzilaPageCards.THE_PUBLISHED_CARD);
+    paying.put(TranzilaDirectNgPage.OUTCOME, PayerOutcome.PAID.name());
+    CheckResponse returned =
+        transport.send(CheckRequest.form(TranzilaObjectActions.WIRE_METHOD, form.group(1), paying));
+    Matcher field = A_RETURNED_FIELD.matcher(returned.body());
+    while (field.find()) {
+      read.put(field.group(1), field.group(2));
+    }
+    read.keySet().retainAll(THE_FIELDS_THE_SAMPLE_PUBLISHES);
+    return read;
+  }
+
+  private static CheckRequest aHandshake() {
+    return CheckRequest.json(
+        "POST",
+        TranzilaApiController.CREATE_HANDSHAKE,
+        "{\"terminal_name\":\"" + TERMINAL + "\",\"sum\":10.53}");
   }
 
   record Credentials(String appKey, String appSecret) {}

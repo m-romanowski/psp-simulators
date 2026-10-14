@@ -46,6 +46,13 @@ final class TranzilaObjectKinds {
           "The cancellation of a debit, a force or a credit in full, a transaction of its own that"
               + " names the one it cancels in reference_txn_id.");
 
+  static final ProviderObjectKind A_PAYMENT_PAGE =
+      new ProviderObjectKind(
+          "a payment page",
+          "The DirectNG page a payer is sent to with the merchant's parameters: it waits for the"
+              + " payer, and once they pay it names the transaction it made, which is listed on"
+              + " its own.");
+
   private TranzilaObjectKinds() {}
 
   static ProviderObjectKind of(TranzilaTransaction transaction) {

@@ -56,7 +56,6 @@ import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
 import dev.marcinromanowski.pspsim.kernel.spi.ScheduledWebhook;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
-import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookScheduleRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -71,16 +70,10 @@ import java.util.Set;
 
 final class TranzilaProvider implements SimulatorProvider {
 
-  static final String NO_WEBHOOK_LEAVES_THIS_ROUTE =
-      "provider tranzila publishes one notification, the payment page's notify, a form POST to"
-          + " notify_url_address for every finished payer attempt, and the card API this module"
-          + " serves sends none: every transaction of POST /v1/transaction/credit_card/create is"
-          + " answered synchronously";
-
   static final String NO_PAGE_TO_COMPLETE =
-      "provider tranzila's card API charges a card number or a token the merchant already holds"
-          + " and keeps no object waiting for a payer; its payer page is the DirectNG iframe at"
-          + " /{terminal}/iframenew.php, which this module does not serve";
+      "this object is a transaction of provider tranzila's card API, which charges a card number"
+          + " or a token the merchant already holds and keeps nothing waiting for a payer; the"
+          + " object a payer finishes is the DirectNG payment page";
 
   static final String HOLD_EXPIRES_AT = "hold_expires_at";
 
@@ -94,6 +87,10 @@ final class TranzilaProvider implements SimulatorProvider {
   private final DelayedDeliveries heldResponses;
   private final SimulatorClock clock;
   private final CreateTransaction createTransaction;
+  private final TranzilaPages pages;
+  private final TranzilaHandshakes handshakes;
+  private final TranzilaDirectNg directNg;
+  private final TranzilaNotify notify;
 
   TranzilaProvider(
       TranzilaTerminals terminals,
@@ -105,7 +102,11 @@ final class TranzilaProvider implements SimulatorProvider {
       ScenarioRules scenarios,
       DelayedDeliveries heldResponses,
       SimulatorClock clock,
-      CreateTransaction createTransaction) {
+      CreateTransaction createTransaction,
+      TranzilaPages pages,
+      TranzilaHandshakes handshakes,
+      TranzilaDirectNg directNg,
+      TranzilaNotify notify) {
     this.terminals = terminals;
     this.transactions = transactions;
     this.nonces = nonces;
@@ -116,6 +117,10 @@ final class TranzilaProvider implements SimulatorProvider {
     this.heldResponses = heldResponses;
     this.clock = clock;
     this.createTransaction = createTransaction;
+    this.pages = pages;
+    this.handshakes = handshakes;
+    this.directNg = directNg;
+    this.notify = notify;
   }
 
   @Override
@@ -186,7 +191,7 @@ final class TranzilaProvider implements SimulatorProvider {
 
   @Override
   public ProviderWireAnswer theAnswerOffItsRoutes(WireFault fault, String address) {
-    return TranzilaWireFaults.theAnswerTo(fault);
+    return TranzilaWireFaults.theAnswerTo(fault, address);
   }
 
   @Override
@@ -240,6 +245,8 @@ final class TranzilaProvider implements SimulatorProvider {
       heldResponses.cancelAll(TranzilaApi.TRANZILA);
       return new ResetOutcome(
           transactions.clearAll()
+              + pages.clearAll()
+              + handshakes.clearAll()
               + nonces.clearAll()
               + exchanges.clearAll()
               + fixtures.clearAll(TranzilaApi.TRANZILA)
@@ -249,6 +256,8 @@ final class TranzilaProvider implements SimulatorProvider {
     heldResponses.cancel(TranzilaApi.TRANZILA, testRunId);
     return new ResetOutcome(
         transactions.clear(testRunId)
+            + pages.clear(testRunId)
+            + handshakes.clear(testRunId)
             + nonces.clear(testRunId)
             + exchanges.clear(testRunId)
             + fixtures.clear(TranzilaApi.TRANZILA, testRunId)
@@ -259,6 +268,10 @@ final class TranzilaProvider implements SimulatorProvider {
   @Override
   public Optional<ProviderObjectState> state(TestRunId testRunId, String providerObjectId) {
     Instant now = clock.now(testRunId);
+    Optional<TranzilaPage> page = pages.find(testRunId, providerObjectId);
+    if (page.isPresent()) {
+      return Optional.of(stateOf(page.get(), now));
+    }
     return TranzilaIdentifiers.transactionIdIn(providerObjectId)
         .flatMap(
             id ->
@@ -277,10 +290,26 @@ final class TranzilaProvider implements SimulatorProvider {
             .flatMap(Optional::stream)
             .toList();
     Instant now = clock.now(testRunId);
-    return TranzilaGroups.theObjectsNamed(asked, transactions.paymentsHolding(testRunId, asked))
-        .stream()
-        .map(object -> stateOf(object, now))
-        .toList();
+    List<ProviderObjectState> held = new ArrayList<>();
+    TranzilaGroups.theObjectsNamed(asked, transactions.paymentsHolding(testRunId, asked))
+        .forEach(object -> held.add(stateOf(object, now)));
+    pages.allById(testRunId, providerObjectIds).forEach(page -> held.add(stateOf(page, now)));
+    return List.copyOf(held);
+  }
+
+  ProviderObjectState stateOf(TranzilaPage page, Instant now) {
+    Long transactionId = page.transactionId();
+    if (transactionId == null) {
+      return TranzilaPageObject.stateOf(page, null, now);
+    }
+    long made = transactionId.longValue();
+    return TranzilaPageObject.stateOf(
+        page,
+        transactions
+            .paymentHolding(page.testRunId(), made)
+            .flatMap(payment -> TranzilaObject.of(payment, made))
+            .orElse(null),
+        now);
   }
 
   @Override
@@ -331,6 +360,15 @@ final class TranzilaProvider implements SimulatorProvider {
     if (terminal.isEmpty()) {
       return new OriginationOutcome.NoSuchAccount();
     }
+    if (TranzilaOrigination.A_PAGE_PAYMENT.equals(request.startedAs())) {
+      return TranzilaOrigination.outcomeOf(
+          directNg.opening(
+              terminal.get(),
+              TranzilaOrigination.theParametersOf(request),
+              request.askedBy(),
+              clock.now(testRunId)),
+          request);
+    }
     TranzilaOperationResult result =
         createTransaction.handle(
             TranzilaOrigination.callOf(request, terminal.get()),
@@ -344,17 +382,30 @@ final class TranzilaProvider implements SimulatorProvider {
 
   @Override
   public HostedPageContract hostedPages() {
-    return new HostedPageContract.NoPageAPayerFinishes(NO_PAGE_TO_COMPLETE);
+    return new HostedPageContract.ObjectsAPayerFinishes(
+        List.of(
+            new HostedPageContract.AnObjectItKeepsWaiting(
+                TranzilaObjectKinds.A_PAYMENT_PAGE.asThisProviderNamesIt(), true)));
   }
 
   @Override
   public HostedCompletionOffer hostedCompletion(TestRunId testRunId, String providerObjectId) {
-    return new HostedCompletionOffer.NotOffered(TranzilaApi.TRANZILA, NO_PAGE_TO_COMPLETE);
+    return pages
+        .find(testRunId, providerObjectId)
+        .map(directNg::offeredOn)
+        .orElseGet(
+            () -> new HostedCompletionOffer.NotOffered(TranzilaApi.TRANZILA, NO_PAGE_TO_COMPLETE));
   }
 
   @Override
   public HostedCompletionOutcome complete(HostedCompletionRequest request) {
-    return new HostedCompletionOutcome.NotOffered(NO_PAGE_TO_COMPLETE);
+    Optional<TranzilaPage> page = pages.find(request.testRunId(), request.providerObjectId());
+    if (page.isPresent()) {
+      return directNg.complete(page.get(), request);
+    }
+    return state(request.testRunId(), request.providerObjectId()).isPresent()
+        ? new HostedCompletionOutcome.NotOffered(NO_PAGE_TO_COMPLETE)
+        : new HostedCompletionOutcome.NoSuchObject();
   }
 
   @Override
@@ -366,6 +417,7 @@ final class TranzilaProvider implements SimulatorProvider {
       after =
           TranzilaIdentifiers.transactionIdIn(cursor)
               .flatMap(id -> transactions.placeOf(testRunId, id.longValue()))
+              .or(() -> pages.placeOf(testRunId, cursor))
               .orElse(null);
       if (after == null) {
         return new ProviderObjectPage.NoSuchCursor();
@@ -381,6 +433,12 @@ final class TranzilaProvider implements SimulatorProvider {
               new ProviderObjectCursor(arrived.arrival(), object.objectId()),
               stateOf(object, now)));
     }
+    for (ArrivalOf<TranzilaPage> arrived : pages.newestFirst(testRunId, after, query.limit())) {
+      TranzilaPage page = arrived.row();
+      placed.add(
+          new PlacedProviderObject(
+              new ProviderObjectCursor(arrived.arrival(), page.pageId()), stateOf(page, now)));
+    }
     return ProviderObjectPages.newestFirst(placed, query.limit());
   }
 
@@ -391,7 +449,7 @@ final class TranzilaProvider implements SimulatorProvider {
 
   @Override
   public List<ScheduledWebhook> schedule(WebhookScheduleRequest request) {
-    throw new WebhookNotSchedulableException(NO_WEBHOOK_LEAVES_THIS_ROUTE);
+    return notify.schedule(request);
   }
 
   static ProviderObjectState stateOf(TranzilaObject object, Instant now) {

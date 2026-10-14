@@ -4,6 +4,10 @@ import dev.marcinromanowski.pspsim.kernel.ProviderId;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditTrail;
 import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
+import dev.marcinromanowski.pspsim.kernel.credentials.AccountRemovalPlan;
+import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
+import dev.marcinromanowski.pspsim.kernel.credentials.ProviderConfigurationPlan;
+import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fault.DelayedDeliveries;
 import dev.marcinromanowski.pspsim.kernel.fault.DeliveryAbandonment;
 import dev.marcinromanowski.pspsim.kernel.fault.HeldDelivery;
@@ -14,6 +18,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -108,6 +113,13 @@ final class TranzilaDoubles {
     public List<TranzilaTerminal> byAppKey(String appKey) {
       return stored.values().stream().filter(held -> held.appKey().equals(appKey)).toList();
     }
+
+    @Override
+    public List<TranzilaTerminal> named(String terminalName) {
+      return stored.values().stream()
+          .filter(held -> held.terminalName().equals(terminalName))
+          .toList();
+    }
   }
 
   static final class Transactions implements TranzilaTransactions {
@@ -155,9 +167,14 @@ final class TranzilaDoubles {
         return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
       }
       stored.add(transaction);
-      arrivals++;
-      arrivedAt.put(keyOf(transaction.testRunId(), transaction.transactionId()), arrivals);
+      arrivedAt.put(
+          keyOf(transaction.testRunId(), transaction.transactionId()), Long.valueOf(nextArrival()));
       return TranzilaInsert.STORED;
+    }
+
+    long nextArrival() {
+      arrivals++;
+      return arrivals;
     }
 
     private static String keyOf(TestRunId testRunId, long transactionId) {
@@ -524,6 +541,242 @@ final class TranzilaDoubles {
 
     private static String pad(String value, int length) {
       return "0".repeat(Math.max(0, length - value.length())) + value;
+    }
+  }
+
+  static final class Pages implements TranzilaPages {
+
+    private final List<TranzilaPage> stored = new ArrayList<>();
+    private final Map<String, Long> arrivedAt = new HashMap<>();
+    private final Transactions arrivals;
+    private int takenIds;
+    private final List<String> settledMeanwhile = new ArrayList<>();
+    private final List<String> lockedMeanwhile = new ArrayList<>();
+
+    Pages(Transactions arrivals) {
+      this.arrivals = arrivals;
+    }
+
+    Pages theNextIdsAreTaken(int howMany) {
+      takenIds = howMany;
+      return this;
+    }
+
+    Pages settledByAnotherSubmissionFirst(String pageId) {
+      settledMeanwhile.add(pageId);
+      return this;
+    }
+
+    Pages heldByAnotherSubmission(String pageId) {
+      lockedMeanwhile.add(pageId);
+      return this;
+    }
+
+    List<TranzilaPage> all() {
+      return List.copyOf(stored);
+    }
+
+    @Override
+    public int open(TranzilaPage page) {
+      if (takenIds > 0) {
+        takenIds--;
+        return 0;
+      }
+      stored.add(page);
+      arrivedAt.put(page.pageId(), Long.valueOf(arrivals.nextArrival()));
+      return 1;
+    }
+
+    @Override
+    public Optional<TranzilaPage> find(String pageId) {
+      return stored.stream().filter(held -> held.pageId().equals(pageId)).findFirst();
+    }
+
+    @Override
+    public Optional<TranzilaPage> find(TestRunId testRunId, String pageId) {
+      return find(pageId).filter(held -> held.testRunId().equals(testRunId));
+    }
+
+    @Override
+    public Optional<TranzilaPage> lockedWhileOpen(TestRunId testRunId, String pageId) {
+      if (lockedMeanwhile.remove(pageId)) {
+        return Optional.empty();
+      }
+      if (settledMeanwhile.remove(pageId)) {
+        find(testRunId, pageId)
+            .ifPresent(
+                held ->
+                    settle(
+                        held.settledAs(
+                            PayerOutcome.ABANDONED, null, null, null, null, held.createdAt())));
+        return Optional.empty();
+      }
+      return find(testRunId, pageId).filter(held -> !held.isSettled());
+    }
+
+    @Override
+    public Optional<TranzilaPage> ofTheTransaction(TestRunId testRunId, long transactionId) {
+      return stored.stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> Long.valueOf(transactionId).equals(held.transactionId()))
+          .findFirst();
+    }
+
+    @Override
+    public List<TranzilaPage> allById(TestRunId testRunId, List<String> pageIds) {
+      return stored.stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> pageIds.contains(held.pageId()))
+          .toList();
+    }
+
+    @Override
+    public void settle(TranzilaPage settled) {
+      stored.replaceAll(held -> held.pageId().equals(settled.pageId()) ? settled : held);
+    }
+
+    @Override
+    public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, String pageId) {
+      return find(testRunId, pageId)
+          .map(held -> new ProviderObjectCursor(arrivedAt.get(pageId).longValue(), pageId));
+    }
+
+    @Override
+    public List<ArrivalOf<TranzilaPage>> newestFirst(
+        TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit) {
+      List<ArrivalOf<TranzilaPage>> listed = new ArrayList<>();
+      for (TranzilaPage held : stored.reversed()) {
+        long arrival = arrivedAt.get(held.pageId()).longValue();
+        if (held.testRunId().equals(testRunId)
+            && arrival < ProviderObjectCursor.walkingBackFrom(after)
+            && listed.size() < limit) {
+          listed.add(new ArrivalOf<>(arrival, held));
+        }
+      }
+      return List.copyOf(listed);
+    }
+
+    @Override
+    public int clear(TestRunId testRunId) {
+      int before = stored.size();
+      stored.removeIf(held -> held.testRunId().equals(testRunId));
+      return before - stored.size();
+    }
+
+    @Override
+    public int clearAll() {
+      int before = stored.size();
+      stored.clear();
+      return before;
+    }
+  }
+
+  static final class Handshakes implements TranzilaHandshakes {
+
+    private final List<TranzilaHandshake> stored = new ArrayList<>();
+    private int takenThtks;
+
+    Handshakes theNextThtksAreTaken(int howMany) {
+      takenThtks = howMany;
+      return this;
+    }
+
+    List<TranzilaHandshake> all() {
+      return List.copyOf(stored);
+    }
+
+    @Override
+    public int insert(TranzilaHandshake handshake) {
+      if (takenThtks > 0) {
+        takenThtks--;
+        return 0;
+      }
+      stored.add(handshake);
+      return 1;
+    }
+
+    @Override
+    public Optional<TranzilaHandshake> find(TestRunId testRunId, String thtk) {
+      return stored.stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> held.thtk().equals(thtk))
+          .findFirst();
+    }
+
+    @Override
+    public void retainUntil(TestRunId testRunId, String thtk, Instant expiresAt) {
+      stored.replaceAll(
+          held ->
+              held.testRunId().equals(testRunId) && held.thtk().equals(thtk)
+                  ? new TranzilaHandshake(
+                      held.thtk(),
+                      held.testRunId(),
+                      held.accountId(),
+                      held.terminalName(),
+                      held.sum(),
+                      held.requestParams(),
+                      held.createdAt(),
+                      expiresAt)
+                  : held);
+    }
+
+    @Override
+    public int clear(TestRunId testRunId) {
+      int before = stored.size();
+      stored.removeIf(held -> held.testRunId().equals(testRunId));
+      return before - stored.size();
+    }
+
+    @Override
+    public int clearAll() {
+      int before = stored.size();
+      stored.clear();
+      return before;
+    }
+  }
+
+  static final class Accounts implements ProviderAccounts {
+
+    private final List<WebhookTarget> targets = new ArrayList<>();
+    private final List<TestRunId> runs = new ArrayList<>();
+
+    Accounts callingBack(TestRunId testRunId, String accountId, String url) {
+      targets.add(new WebhookTarget(accountId, url));
+      runs.add(testRunId);
+      return this;
+    }
+
+    @Override
+    public void merge(
+        ProviderId provider,
+        TestRunId testRunId,
+        List<String> accountIds,
+        List<WebhookTarget> webhookTargets,
+        ProviderConfigurationPlan plan) {
+      plan.store();
+    }
+
+    @Override
+    public boolean remove(
+        ProviderId provider, TestRunId testRunId, String accountId, AccountRemovalPlan plan) {
+      plan.remove();
+      return true;
+    }
+
+    @Override
+    public List<String> identitiesOf(ProviderId provider, TestRunId testRunId) {
+      return List.of();
+    }
+
+    @Override
+    public List<WebhookTarget> webhookTargetsOf(ProviderId provider, TestRunId testRunId) {
+      List<WebhookTarget> ofTheRun = new ArrayList<>();
+      for (int index = 0; index < targets.size(); index++) {
+        if (runs.get(index).equals(testRunId)) {
+          ofTheRun.add(targets.get(index));
+        }
+      }
+      return List.copyOf(ofTheRun);
     }
   }
 }

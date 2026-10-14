@@ -309,10 +309,11 @@ class DashboardScreenIntegrationTest extends PostgresBackedTest {
     assertThat(split).containsExactlyInAnyOrderElementsOf(providers.names());
     assertThat(page(DASHBOARD + "?testRunId=" + RUN.value()))
         .contains(
-            "5 objects waiting for a payer on a page the provider hosts are kept by 4 of the 6"
+            "6 objects waiting for a payer on a page the provider hosts are kept by 5 of the 6"
                 + " providers here")
         .contains("autra a card session and a Pix")
         .contains("azericard a payment page")
+        .contains("tranzila a payment page")
         .doesNotContain("Grow is the only provider here that keeps a hosted session");
   }
 

@@ -15,4 +15,6 @@ interface TranzilaTerminals {
   List<TranzilaTerminal> ofTheRun(TestRunId testRunId);
 
   List<TranzilaTerminal> byAppKey(String appKey);
+
+  List<TranzilaTerminal> named(String terminalName);
 }

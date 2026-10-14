@@ -22,6 +22,10 @@ class TranzilaCompatibilityChecksTest {
 
   private static final String CONFIG = "/__simulator/tranzila/config";
 
+  private static final String HANDSHAKE = "/v2/handshake/create";
+
+  private static final String PAGE = "/tranzila/directng/smoketerminal/iframenew.php";
+
   private static final Instant AT = Instant.parse("2026-10-13T12:00:00Z");
 
   private static final String A_DEBIT =
@@ -57,13 +61,22 @@ class TranzilaCompatibilityChecksTest {
     assertThat(expectedBy(checks.get(2))).containsExactly("httpStatus=401", "error_code=20000");
     assertThat(expectedBy(checks.get(3)))
         .containsExactly("audit.direction=INBOUND_REQUEST", "audit.outcome=SUCCESS");
+    assertThat(expectedBy(checks.get(4)))
+        .containsExactly("httpStatus=200", "error_code=0", "message=Success");
+    assertThat(expectedBy(checks.get(5)))
+        .containsExactly("httpStatus=401", "error_code=401", "message=Unauthorized");
+    assertThat(expectedBy(checks.get(6)))
+        .containsExactly("Response=000", "txn_type=debit", "tranmode=A");
     assertThat(checks)
         .extracting(ContractCheck::operation)
         .containsExactly(
             TranzilaCompatibilityChecks.THE_API_CHARGES,
             TranzilaCompatibilityChecks.THE_API_FINDS_NO_ORIGINAL,
             TranzilaCompatibilityChecks.THE_API_REFUSES_A_TOKEN,
-            TranzilaCompatibilityChecks.THE_TRAIL_RECORDS);
+            TranzilaCompatibilityChecks.THE_TRAIL_RECORDS,
+            TranzilaCompatibilityChecks.THE_HANDSHAKE_LOCKS_A_SUM,
+            TranzilaCompatibilityChecks.THE_HANDSHAKE_REFUSES_A_TOKEN,
+            TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER);
   }
 
   @Test
@@ -221,6 +234,104 @@ class TranzilaCompatibilityChecksTest {
                     .body()))
         .contains("\"txn_type\":\"credit\"")
         .contains("\"reference_txn_id\":99999999");
+  }
+
+  @Test
+  void the_handshake_holds_on_the_published_success_and_fails_naming_what_differs() {
+    String created = "{\"error_code\":0,\"message\":\"Success\",\"thtk\":\"w1\"}";
+    CannedTransport transport = prepared().answering("POST", HANDSHAKE, 200, created);
+
+    assertThat(run(4, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(failedField(4, prepared().answering("POST", HANDSHAKE, 201, created)))
+        .isEqualTo("httpStatus");
+    assertThat(
+            failedField(
+                4, prepared().answering("POST", HANDSHAKE, 200, created.replace(":0", ":1"))))
+        .isEqualTo("error_code");
+    assertThat(
+            failedField(
+                4,
+                prepared()
+                    .answering("POST", HANDSHAKE, 200, created.replace("Success", "success"))))
+        .isEqualTo("message");
+    CheckRequest sent =
+        transport.sent().stream()
+            .filter(request -> HANDSHAKE.equals(request.path()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(String.valueOf(sent.body()))
+        .isEqualTo("{\"terminal_name\":\"smoketerminal\",\"sum\":10.53}");
+    assertThat(sent.headers().get(TranzilaFields.ACCESS_TOKEN))
+        .isEqualTo(
+            TranzilaAccessToken.hexOfTheHmac(
+                theConfigured(transport, "appSecret")
+                    + sent.headers().get(TranzilaFields.REQUEST_TIME)
+                    + sent.headers().get(TranzilaFields.NONCE),
+                theConfigured(transport, "appKey")));
+  }
+
+  @Test
+  void the_refused_handshake_holds_on_the_published_401_and_fails_naming_what_differs() {
+    String refused = "{\"error_code\":401,\"message\":\"Unauthorized\"}";
+    CannedTransport transport = prepared().answering("POST", HANDSHAKE, 401, refused);
+
+    assertThat(run(5, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(failedField(5, prepared().answering("POST", HANDSHAKE, 400, refused)))
+        .isEqualTo("httpStatus");
+    assertThat(
+            failedField(
+                5,
+                prepared().answering("POST", HANDSHAKE, 401, refused.replace("Unauthorized", ""))))
+        .isEqualTo("message");
+    assertThat(
+            transport.sent().stream()
+                .filter(request -> HANDSHAKE.equals(request.path()))
+                .findFirst()
+                .orElseThrow()
+                .headers()
+                .get(TranzilaFields.ACCESS_TOKEN))
+        .isEqualTo("not-the-access-token");
+  }
+
+  @Test
+  void the_page_return_holds_when_the_payer_is_posted_back_with_the_published_values() {
+    String page =
+        "<form method=\"post\" action=\"/tranzila/directng/smoketerminal/payer/directng_1\">";
+    String returned =
+        "<input type=\"hidden\" name=\"Response\" value=\"000\">"
+            + "<input type=\"hidden\" name=\"sum\" value=\"10.53\">"
+            + "<input type=\"hidden\" name=\"txn_type\" value=\"debit\">"
+            + "<input type=\"hidden\" name=\"tranmode\" value=\"A\">";
+    CannedTransport transport =
+        prepared()
+            .answering("GET", PAGE, 200, page)
+            .answering("POST", "/tranzila/directng/smoketerminal/payer/directng_1", 200, returned);
+
+    assertThat(run(6, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    CheckRequest paid = transport.sent().get(transport.sent().size() - 1);
+    assertThat(paid.path()).isEqualTo("/tranzila/directng/smoketerminal/payer/directng_1");
+    assertThat(String.valueOf(paid.body()))
+        .contains("card=published-9022")
+        .contains("outcome=PAID");
+    assertThat(
+            failedField(
+                6,
+                prepared()
+                    .answering("GET", PAGE, 200, page)
+                    .answering(
+                        "POST",
+                        "/tranzila/directng/smoketerminal/payer/directng_1",
+                        200,
+                        returned.replace("\"000\"", "\"004\""))))
+        .isEqualTo("Response");
+    assertThat(failedField(6, prepared().answering("GET", PAGE, 400, "refused")))
+        .isEqualTo("Response");
   }
 
   private SmokeRun run(int check, CannedTransport transport) {

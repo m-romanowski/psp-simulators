@@ -74,6 +74,18 @@ public final class PayerPagePolicyConvention {
               "base-uri 'none'",
               "the page resolves no relative address, so nothing may set one for it"),
           new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+              "form-action 'self'",
+              "its form posts to this origin and is answered with a document; the shop frames"
+                  + " this page, which is why it names no frame-ancestors"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
+              "script-src 'sha256-8lDeP0UDwCO6/RhblgeH/ctdBzjVpJxrXizsnIk3cEQ='",
+              "the one inline script that submits the return form to the shop's own address, as"
+                  + " tranzila returns a payer with a POST; the hash admits that script and"
+                  + " nothing else, and the form names no form-action because it posts off this"
+                  + " origin"),
+          new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage",
               "form-action 'self'",
               "its form posts to this origin and is answered with a document; the shop frames"

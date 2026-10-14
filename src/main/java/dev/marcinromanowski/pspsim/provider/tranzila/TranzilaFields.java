@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import java.util.List;
 import java.util.Set;
 
 final class TranzilaFields {
@@ -133,6 +134,57 @@ final class TranzilaFields {
 
   static final String MASKED_CVV = "***";
 
+  static final String FORM = "application/x-www-form-urlencoded";
+
+  static final String SUM = "sum";
+
+  static final String CURRENCY = "currency";
+
+  static final String CRED_TYPE = "cred_type";
+
+  static final String SUCCESS_URL_ADDRESS = "success_url_address";
+
+  static final String FAIL_URL_ADDRESS = "fail_url_address";
+
+  static final String NOTIFY_URL_ADDRESS = "notify_url_address";
+
+  static final String THTK = "thtk";
+
+  static final String REQUEST_PARAMS = "request_params";
+
+  static final List<String> THE_PREDETERMINED_FIELDS =
+      List.of(
+          "myid",
+          "company",
+          "contact",
+          "email",
+          "phone",
+          "address",
+          "city",
+          "pdesc",
+          "remarks",
+          "json_purchase_data");
+
+  static final String SUPPLIER = "supplier";
+
+  static final String RESPONSE = "Response";
+
+  static final String INDEX = "index";
+
+  static final String CCNO = "ccno";
+
+  static final String RESPONSE_CV = "Responsecv";
+
+  static final String CARDTYPE = "cardtype";
+
+  static final String CARDISSUER = "cardissuer";
+
+  static final String CARDACQUIRER = "cardacquirer";
+
+  static final String TRANZILA_TK = "TranzilaTK";
+
+  static final String CONFIRMATION_CODE = "ConfirmationCode";
+
   static final Set<String> SENSITIVE_HEADERS = Set.of("x-tranzila-api-access-token");
 
   static final Set<String> SENSITIVE_REQUEST_FIELDS = Set.of(CARD_NUMBER, CVV, CARD_HOLDER_ID);
@@ -141,5 +193,8 @@ final class TranzilaFields {
       Set.of(
           TRANSACTION_RESULT + "." + TOKEN,
           ORIGINAL_REQUEST + "." + CARD_NUMBER,
-          ORIGINAL_REQUEST + "." + CARD_HOLDER_ID);
+          ORIGINAL_REQUEST + "." + CARD_HOLDER_ID,
+          TRANZILA_TK);
+
+  static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK);
 }

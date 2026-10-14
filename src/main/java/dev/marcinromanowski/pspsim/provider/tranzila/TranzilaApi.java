@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import org.jspecify.annotations.Nullable;
 
 public final class TranzilaApi {
@@ -69,6 +70,7 @@ public final class TranzilaApi {
   private final IdGenerator ids;
   private final TestRunId defaultTestRun;
   private final CreateTransaction createTransaction;
+  private final CreateHandshake createHandshake;
 
   TranzilaApi(
       TranzilaTerminals terminals,
@@ -78,7 +80,8 @@ public final class TranzilaApi {
       SimulatorClock clock,
       IdGenerator ids,
       TestRunId defaultTestRun,
-      CreateTransaction createTransaction) {
+      CreateTransaction createTransaction,
+      CreateHandshake createHandshake) {
     this.terminals = terminals;
     this.nonces = nonces;
     this.testRuns = testRuns;
@@ -87,9 +90,34 @@ public final class TranzilaApi {
     this.ids = ids;
     this.defaultTestRun = defaultTestRun;
     this.createTransaction = createTransaction;
+    this.createHandshake = createHandshake;
   }
 
   public TranzilaApiResponse create(TranzilaApiCall call) {
+    return answered(
+        call,
+        refusal -> refusal,
+        (testRunId, terminal, now) ->
+            createTransaction.handle(
+                call, call.headers(), testRunId, terminal, now, ObjectOrigin.PROVIDER_API));
+  }
+
+  public TranzilaApiResponse handshake(TranzilaApiCall call) {
+    return answered(
+        call,
+        _ -> CreateHandshake.refusedCredential(),
+        (testRunId, terminal, now) -> createHandshake.handle(call, testRunId, terminal, now));
+  }
+
+  interface AnOperation {
+
+    TranzilaOperationResult handle(TestRunId testRunId, TranzilaTerminal terminal, Instant now);
+  }
+
+  private TranzilaApiResponse answered(
+      TranzilaApiCall call,
+      UnaryOperator<TranzilaOperationResult> asThisRouteRefuses,
+      AnOperation operation) {
     Optional<String> appKey = call.header(TranzilaFields.APP_KEY);
     List<TranzilaTerminal> byCredential = appKey.map(terminals::byAppKey).orElseGet(List::of);
     TestRunResolution resolution = resolve(call, byCredential);
@@ -101,17 +129,10 @@ public final class TranzilaApi {
     recordInbound(call, resolution, account, now);
     TranzilaOperationResult result =
         terminal.isEmpty()
-            ? refused(NO_ACCOUNT_ANSWERS_TO_THAT_APP_KEY)
+            ? asThisRouteRefuses.apply(refused(NO_ACCOUNT_ANSWERS_TO_THAT_APP_KEY))
             : theRefusalOfTheAccessToken(call, terminal.get(), now)
-                .orElseGet(
-                    () ->
-                        createTransaction.handle(
-                            call,
-                            call.headers(),
-                            testRunId,
-                            terminal.get(),
-                            now,
-                            ObjectOrigin.PROVIDER_API));
+                .map(asThisRouteRefuses)
+                .orElseGet(() -> operation.handle(testRunId, terminal.get(), now));
     return delivered(call, resolution, account, now, result);
   }
 

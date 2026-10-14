@@ -20,12 +20,14 @@ import dev.marcinromanowski.pspsim.kernel.smoke.CheckJson;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
+import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedPageContract;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectAction;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.OriginationOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.OriginationRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.PresetExpansion;
 import dev.marcinromanowski.pspsim.kernel.spi.PresetRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfiguration;
@@ -37,7 +39,6 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
-import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.nio.charset.StandardCharsets;
@@ -58,13 +59,18 @@ class TranzilaProviderTest {
   private final TranzilaProvider provider = wired.provider;
 
   @Test
-  void the_provider_is_named_tranzila_and_claims_the_transaction_namespace_of_v1_alone() {
+  void the_provider_is_named_tranzila_and_claims_the_transaction_handshake_and_page_namespaces() {
     assertThat(provider.id().value()).isEqualTo("tranzila");
-    assertThat(provider.wireRoutes().namespaces()).containsExactly("/v1/transaction");
+    assertThat(provider.wireRoutes().namespaces())
+        .containsExactly("/v1/transaction", "/v2/handshake", "/tranzila/directng");
     assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v1/transactions")).isFalse();
     assertThat(provider.wireRoutes().covers("/v1/payment_intents")).isFalse();
-    assertThat(provider.wireRoutes().covers("/v2/handshake/create")).isFalse();
+    assertThat(provider.wireRoutes().covers("/v2/handshake/create")).isTrue();
+    assertThat(provider.wireRoutes().covers("/v2/handshakes")).isFalse();
+    assertThat(provider.wireRoutes().covers("/v2/m-1/payments")).isFalse();
+    assertThat(provider.wireRoutes().covers("/tranzila/directng/myterminal/iframenew.php"))
+        .isTrue();
   }
 
   @Test
@@ -175,18 +181,39 @@ class TranzilaProviderTest {
     assertThat(provider.objectActions().offers(ObjectAction.CANCEL)).isTrue();
     assertThat(provider.objectActions().offers(ObjectAction.REFUND)).isTrue();
     assertThat(provider.originationFields().names())
-        .containsExactly(TranzilaOrigination.A_DEBIT, TranzilaOrigination.A_J5);
-    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(4);
+        .containsExactly(
+            TranzilaOrigination.A_DEBIT,
+            TranzilaOrigination.A_J5,
+            TranzilaOrigination.A_PAGE_PAYMENT);
+    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(7);
   }
 
   @Test
-  void no_page_is_kept_waiting_for_a_payer_and_no_webhook_can_be_scheduled() {
-    assertThat(provider.hostedPages()).isInstanceOf(HostedPageContract.NoPageAPayerFinishes.class);
-    assertThat(provider.hostedCompletion(TranzilaWiring.RUN, "1"))
-        .isInstanceOf(HostedCompletionOffer.NotOffered.class);
-    assertThat(provider.complete(null)).isInstanceOf(HostedCompletionOutcome.NotOffered.class);
-    assertThatThrownBy(() -> provider.schedule(null))
-        .isInstanceOf(WebhookNotSchedulableException.class);
+  void the_payment_page_is_the_one_object_kept_waiting_and_a_transaction_offers_no_payer_step() {
+    long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
+
+    assertThat(provider.hostedPages())
+        .isEqualTo(
+            new HostedPageContract.ObjectsAPayerFinishes(
+                List.of(new HostedPageContract.AnObjectItKeepsWaiting("a payment page", true))));
+    assertThat(provider.hostedCompletion(TranzilaWiring.RUN, Long.toString(debit)))
+        .isEqualTo(
+            new HostedCompletionOffer.NotOffered(
+                TranzilaApi.TRANZILA, TranzilaProvider.NO_PAGE_TO_COMPLETE));
+    assertThat(
+            provider.complete(
+                new HostedCompletionRequest(
+                    TranzilaWiring.RUN,
+                    Long.toString(debit),
+                    PayerOutcome.ABANDONED,
+                    null,
+                    ObjectOrigin.UI)))
+        .isEqualTo(new HostedCompletionOutcome.NotOffered(TranzilaProvider.NO_PAGE_TO_COMPLETE));
+    assertThat(
+            provider.complete(
+                new HostedCompletionRequest(
+                    TranzilaWiring.RUN, "42", PayerOutcome.ABANDONED, null, ObjectOrigin.UI)))
+        .isEqualTo(new HostedCompletionOutcome.NoSuchObject());
   }
 
   @Test

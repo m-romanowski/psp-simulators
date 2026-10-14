@@ -2,13 +2,23 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
+import dev.marcinromanowski.pspsim.kernel.scenario.DeliveryShaping;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.OutsideAnyUnitOfWork;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
+import dev.marcinromanowski.pspsim.kernel.webhook.InMemoryWebhookDeliveries;
+import dev.marcinromanowski.pspsim.kernel.webhook.MerchantResponse;
+import dev.marcinromanowski.pspsim.kernel.webhook.RetryPlan;
+import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -39,12 +49,73 @@ final class TranzilaWiring {
           exchanges,
           ids,
           new ScenarioEngine(rules));
+  final RecordedUnitsOfWork units = new RecordedUnitsOfWork();
+  final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
+  final TranzilaDoubles.Handshakes handshakes = new TranzilaDoubles.Handshakes();
+  final TranzilaDoubles.Accounts accounts = new TranzilaDoubles.Accounts();
+  final List<String> posted = new ArrayList<>();
+  final List<MerchantResponse> merchantAnswers = new ArrayList<>();
+  final InMemoryWebhookDeliveries deliveries = new InMemoryWebhookDeliveries();
+  final WebhookDispatcher dispatcher =
+      new WebhookDispatcher(
+          deliveries,
+          (url, payload) -> {
+            posted.add(url + " " + new String(payload.body(), StandardCharsets.UTF_8));
+            return merchantAnswers.isEmpty()
+                ? new MerchantResponse.Answered(200, "OK")
+                : merchantAnswers.remove(0);
+          },
+          audit,
+          clock,
+          ids,
+          new RetryPlan(List.of(Duration.ZERO, Duration.ofMinutes(1))),
+          new DeliveryShaping(rules),
+          List.of(new TranzilaNotifyAcknowledgement()),
+          List.of(),
+          OutsideAnyUnitOfWork.RUNS_AT_ONCE);
+  final TranzilaNotify notify = new TranzilaNotify(accounts, dispatcher, pages, transactions);
+  final TranzilaDirectNg directNg =
+      new TranzilaDirectNg(
+          terminals,
+          pages,
+          handshakes,
+          transactions,
+          create,
+          new TranzilaPageCards(fixtures),
+          notify,
+          new TranzilaDoubles.Runs(RUN),
+          audit,
+          clock,
+          ids,
+          RUN,
+          units);
   final TranzilaApi api =
       new TranzilaApi(
-          terminals, nonces, new TranzilaDoubles.Runs(RUN), audit, clock, ids, RUN, create);
+          terminals,
+          nonces,
+          new TranzilaDoubles.Runs(RUN),
+          audit,
+          clock,
+          ids,
+          RUN,
+          create,
+          new CreateHandshake(handshakes, ids));
   final TranzilaProvider provider =
       new TranzilaProvider(
-          terminals, transactions, nonces, exchanges, audit, fixtures, rules, held, clock, create);
+          terminals,
+          transactions,
+          nonces,
+          exchanges,
+          audit,
+          fixtures,
+          rules,
+          held,
+          clock,
+          create,
+          pages,
+          handshakes,
+          directNg,
+          notify);
 
   TranzilaWiring() {
     terminals.with(

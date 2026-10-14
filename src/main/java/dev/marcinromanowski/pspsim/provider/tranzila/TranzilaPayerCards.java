@@ -18,6 +18,9 @@ final class TranzilaPayerCards {
   }
 
   Optional<TranzilaCard> holdingTheToken(TestRunId testRunId, String token) {
+    if (TranzilaPageCards.THE_PUBLISHED_CARDS_TOKEN.equals(token)) {
+      return Optional.of(TranzilaPageCards.thePublishedCardAsCharged());
+    }
     return fixtures.of(TranzilaApi.TRANZILA, testRunId).stream()
         .filter(seeded -> token.equals(seeded.providerIds().get(ProviderPaymentMethodFields.TOKEN)))
         .map(PaymentMethodFixture::card)

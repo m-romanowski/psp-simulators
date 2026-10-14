@@ -526,13 +526,13 @@ class RelatedObjectAddressConventionTest {
                 List.of("/azericard/payer"),
                 "grow",
                 List.of(A_PAGE),
+                "tranzila",
+                List.of("/tranzila/directng/{terminal}/iframenew.php"),
                 "worldline",
                 List.of(A_PAGE_WITH_A_VARIABLE)));
     assertThat(RelatedObjectAddressConvention.theModulesThatDeclareNoPageOfTheirOwn(build, pages))
-        .as(
-            "stripe and tranzila build states and serve no payer page, so their values are swept"
-                + " for nothing")
-        .containsExactly("stripe", "tranzila");
+        .as("stripe builds states and serves no payer page, so its values are swept for nothing")
+        .containsExactly("stripe");
   }
 
   @Test

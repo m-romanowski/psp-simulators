@@ -15,8 +15,7 @@ public final class NoWorkingPayerAddressOnAScreen {
   public static final SequencedMap<String, List<String>> THE_PAGES_EACH_PROVIDER_SERVES =
       theDeclaredPages();
 
-  public static final Set<String> THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE =
-      Set.of("stripe", "tranzila");
+  public static final Set<String> THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE = Set.of("stripe");
 
   public static final String A_SCREEN_OF_THIS_SIMULATOR = "/ui";
 
@@ -142,6 +141,7 @@ public final class NoWorkingPayerAddressOnAScreen {
     declared.put("autra", List.of("/tokenize/sessions/{hostedCardSessionId}"));
     declared.put("azericard", List.of("/azericard/payer"));
     declared.put("grow", List.of("/far"));
+    declared.put("tranzila", List.of("/tranzila/directng/{terminal}/iframenew.php"));
     declared.put(
         "worldline", List.of("/hostedtokenization/tokenization/form/{hostedTokenizationId}"));
     return Collections.unmodifiableSequencedMap(declared);

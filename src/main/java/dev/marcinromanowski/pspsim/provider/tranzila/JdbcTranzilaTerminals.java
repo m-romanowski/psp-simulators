@@ -83,6 +83,14 @@ final class JdbcTranzilaTerminals implements TranzilaTerminals {
         .list();
   }
 
+  @Override
+  public List<TranzilaTerminal> named(String terminalName) {
+    return jdbc.sql("select * from tranzila_terminal where terminal_name = ? order by test_run_id")
+        .param(terminalName)
+        .query(JdbcTranzilaTerminals::toTerminal)
+        .list();
+  }
+
   private static TranzilaTerminal toTerminal(ResultSet rs, int row) throws SQLException {
     return new TranzilaTerminal(
         TestRunId.storedNamespace(rs.getString("test_run_id")),

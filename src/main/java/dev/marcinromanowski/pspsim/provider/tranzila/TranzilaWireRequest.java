@@ -19,6 +19,13 @@ final class TranzilaWireRequest {
         request.getMethod(), InboundRoute.of(request), headersOf(request), bodyOf(request));
   }
 
+  static TranzilaPageCall pageCallOf(HttpServletRequest request) {
+    Map<String, List<String>> parameters = new LinkedHashMap<>();
+    request.getParameterMap().forEach((name, values) -> parameters.put(name, List.of(values)));
+    return new TranzilaPageCall(
+        request.getMethod(), InboundRoute.of(request), headersOf(request), parameters);
+  }
+
   private static Map<String, List<String>> headersOf(HttpServletRequest request) {
     Map<String, List<String>> headers = new LinkedHashMap<>();
     for (String name : Collections.list(request.getHeaderNames())) {

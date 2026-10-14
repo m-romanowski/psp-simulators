@@ -2,6 +2,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 final class TranzilaAnswers {
@@ -71,6 +72,14 @@ final class TranzilaAnswers {
             OK,
             theSuccessOf(
                 0, TranzilaErrors.DUPLICATE_PAYMENT, theResultOf(original), originalRequest)));
+  }
+
+  static boolean isADuplicate(TranzilaOperationResult result) {
+    return result
+        .body()
+        .fields()
+        .getOrDefault(TranzilaFields.MESSAGE, List.of())
+        .contains(TranzilaErrors.DUPLICATE_PAYMENT);
   }
 
   static TranzilaOperationResult declined(TranzilaTransaction transaction) {

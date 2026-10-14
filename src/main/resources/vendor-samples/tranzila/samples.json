@@ -26,5 +26,32 @@
       "httpStatus": "401",
       "error_code": "20000"
     }
+  },
+  "handshake-created": {
+    "evidence": "published example",
+    "note": "the 200 response of Create Handshake Token, field names and values as published",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/handshake-v2/createhandshakev2",
+    "reference": "tranzila.md, Handshake V2",
+    "status": 200,
+    "body": "handshake-created.json"
+  },
+  "handshake-unauthorized": {
+    "evidence": "published example",
+    "note": "the 401 response of Create Handshake Token, whose error_code is the HTTP status",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/handshake-v2/createhandshakev2",
+    "reference": "tranzila.md, Handshake V2",
+    "status": 401,
+    "body": "handshake-unauthorized.json"
+  },
+  "directng-return": {
+    "evidence": "published rule",
+    "note": "the Key Response Fields of the payment page's return: Response 000 is success, txn_type and tranmode as the charge was made",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/iframe-integration-directng",
+    "reference": "tranzila.md, Browser Return and Notify",
+    "rules": {
+      "Response": "000",
+      "txn_type": "debit",
+      "tranmode": "A"
+    }
   }
 }

@@ -49,6 +49,10 @@ public final class PayerPageDeclarations {
           "script", "img", "link", "iframe", "frame", "object", "embed", "audio", "video", "source",
           "track", "applet");
 
+  public static final String AN_ELEMENT_THAT_RUNS_INLINE = "script";
+
+  public static final String A_SOURCE = "src";
+
   public static final List<String> HOW_AN_HTML_DOCUMENT_OPENS = List.of("<!doctype html", "<html");
 
   private static final Pattern A_RUN_OF_SPACE = Pattern.compile("\\s+");
@@ -90,11 +94,24 @@ public final class PayerPageDeclarations {
     public List<String> theElementsItLoadsASubresourceFor() {
       List<String> loading = new ArrayList<>();
       for (String element : THE_ELEMENTS_THAT_LOAD_A_SUBRESOURCE) {
-        if (namesAnElement(element)) {
+        boolean loads =
+            AN_ELEMENT_THAT_RUNS_INLINE.equals(element)
+                ? namesAnElementLoadingASource(element)
+                : namesAnElement(element);
+        if (loads) {
           loading.add(element);
         }
       }
       return List.copyOf(loading);
+    }
+
+    private boolean namesAnElementLoadingASource(String element) {
+      for (String constant : constants) {
+        if (namesTheElementLoadingASource(constant, element)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     private boolean namesAnElement(String element) {
@@ -132,6 +149,27 @@ public final class PayerPageDeclarations {
       int after = at + opening.length();
       if (after >= written.length() || !Character.isLetterOrDigit(written.charAt(after))) {
         return true;
+      }
+      at = written.indexOf(opening, at + 1);
+    }
+    return false;
+  }
+
+  public static boolean namesTheElementLoadingASource(String text, String element) {
+    String written = text.toLowerCase(Locale.ROOT);
+    String opening = "<" + element;
+    int at = written.indexOf(opening);
+    while (at >= 0) {
+      int after = at + opening.length();
+      if (after >= written.length()) {
+        return true;
+      }
+      if (!Character.isLetterOrDigit(written.charAt(after))) {
+        int closes = written.indexOf('>', after);
+        String tag = closes < 0 ? written.substring(after) : written.substring(after, closes);
+        if (closes < 0 || tag.contains(A_SOURCE)) {
+          return true;
+        }
       }
       at = written.indexOf(opening, at + 1);
     }

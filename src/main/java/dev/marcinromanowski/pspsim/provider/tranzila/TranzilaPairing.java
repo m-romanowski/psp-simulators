@@ -26,6 +26,12 @@ final class TranzilaPairing {
           List.of(
               new PairingSetting("TRANZILA_API_BASE_URL", new PairingValue.TheProviderBaseUrl()),
               new PairingSetting(
+                  "TRANZILA_API_V2_BASE_URL",
+                  new PairingValue.AnAddressOfThisSimulator(TranzilaApiController.VERSION_2)),
+              new PairingSetting(
+                  "TRANZILA_DIRECTNG_BASE_URL",
+                  new PairingValue.AnAddressOfThisSimulator(TranzilaDirectNgPage.HOST)),
+              new PairingSetting(
                   "TRANZILA_TERMINAL_NAME",
                   new PairingValue.FromAccountField(TranzilaTerminal.TERMINAL_NAME_PROPERTY)),
               new PairingSetting(
