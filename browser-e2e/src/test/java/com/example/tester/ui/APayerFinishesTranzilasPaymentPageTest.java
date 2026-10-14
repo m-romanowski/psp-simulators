@@ -30,6 +30,8 @@ class APayerFinishesTranzilasPaymentPageTest extends AJourneyInAMobileAppsWebvie
 
   private static final String THE_ORDER = "ORD-9871";
 
+  private static final String THE_SHOPS_ORDER = "SHOP-77";
+
   private static final Duration A_NOTIFY_ARRIVES_WITHIN = Duration.ofSeconds(20);
 
   private TranzilaShopBackend shop;
@@ -91,6 +93,8 @@ class APayerFinishesTranzilasPaymentPageTest extends AJourneyInAMobileAppsWebvie
         .containsEntry("txn_type", "verify")
         .containsEntry("tranmode", "VK")
         .containsEntry("order_id", THE_ORDER)
+        .containsEntry("orderid", THE_SHOPS_ORDER)
+        .doesNotContainKey("thtk")
         .containsKey("TranzilaTK")
         .containsKey("transaction_id");
     String transaction = returned.get("transaction_id");
@@ -127,6 +131,7 @@ class APayerFinishesTranzilasPaymentPageTest extends AJourneyInAMobileAppsWebvie
     parameters.put("notify_url_address", merchant().whereCallbacksGo());
     parameters.put("contact", THE_PAYER);
     parameters.put("pdesc", WHAT_IS_BEING_PAID_FOR);
+    parameters.put("orderid", THE_SHOPS_ORDER);
     return parameters.entrySet().stream()
         .map(
             entry ->
