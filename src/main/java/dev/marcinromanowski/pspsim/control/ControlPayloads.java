@@ -242,6 +242,7 @@ final class ControlPayloads {
       Instant firstRequestAt,
       List<Instant> replayTimestamps,
       boolean stateChanged,
+      @Nullable String notRecorded,
       List<KeyedRequestView> requests) {}
 
   record KeyedRequestView(
@@ -257,6 +258,7 @@ final class ControlPayloads {
       boolean stateChanged,
       @Nullable String timeout,
       @Nullable String conflictReason,
+      @Nullable String noAnswerBecause,
       Instant at) {}
 
   record PersonaInstrumentView(

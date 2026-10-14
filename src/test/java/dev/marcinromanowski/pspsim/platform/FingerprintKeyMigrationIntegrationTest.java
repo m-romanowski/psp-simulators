@@ -149,25 +149,39 @@ class FingerprintKeyMigrationIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void an_answer_kept_with_nothing_withheld_is_emptied_and_one_kept_withheld_is_kept() {
-    for (String table : KEPT_UNWITHHELD.keySet()) {
+  void every_answer_recorded_before_the_key_is_emptied_and_marked_as_not_kept() {
+    for (String table : everyExchangeTable()) {
       assertThat(
               jdbc.queryForObject(
                   "select count(*) from "
                       + SCHEMA
                       + "."
                       + table
-                      + " where http_status is not null or content_type is not null"
-                      + " or body is not null",
+                      + " where answer_kept or http_status is not null"
+                      + " or content_type is not null or body is not null",
                   Integer.class))
           .as(table)
           .isZero();
-    }
-    for (String table : List.of("tranzila_keyed_exchange", "stripe_idempotency_exchange")) {
-      assertThat(jdbc.queryForList("select body from " + SCHEMA + "." + table, String.class))
+      assertThat(jdbc.queryForObject("select count(*) from " + SCHEMA + "." + table, Integer.class))
           .as(table)
-          .hasSize(3)
-          .containsOnly(A_WITHHELD_BODY);
+          .isEqualTo(3);
+    }
+  }
+
+  @Test
+  void a_row_marked_as_keeping_no_answer_cannot_carry_one() {
+    for (String table : everyExchangeTable()) {
+      assertThatThrownBy(
+              () ->
+                  jdbc.update(
+                      "update "
+                          + SCHEMA
+                          + "."
+                          + table
+                          + " set body = '{}', http_status = 200,"
+                          + " content_type = 'application/json'"))
+          .as(table)
+          .isInstanceOf(DataIntegrityViolationException.class);
     }
   }
 

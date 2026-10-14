@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.TheRequestsUnderOneKey;
+import dev.marcinromanowski.pspsim.TheSurfacesOfAnUnrecordedKey;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
@@ -20,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +43,8 @@ import org.springframework.web.client.RestClient;
 class WorldlineReplayRaceIntegrationTest extends PostgresBackedTest {
 
   private static final AtomicReference<Runnable> ARMED = new AtomicReference<>();
+
+  private static final AtomicBoolean NOT_RECORDED = new AtomicBoolean();
 
   private static final TestRunId RUN = TestRunId.of("worldline-replay-race-it");
 
@@ -105,6 +109,29 @@ class WorldlineReplayRaceIntegrationTest extends PostgresBackedTest {
   @AfterEach
   void disarm() {
     ARMED.set(null);
+    NOT_RECORDED.set(false);
+  }
+
+  @Test
+  void a_key_whose_first_request_went_unrecorded_reads_back_as_such_on_every_surface() {
+    String body = aHoldOf(aStoredToken());
+    Map<String, String> key =
+        Map.of(WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT, KEY);
+    Map<String, String> another =
+        Map.of(
+            WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT,
+            "k-recorded-whole");
+    assertThat(post(thePayments(), body, another).statusCode()).isEqualTo(201);
+    NOT_RECORDED.set(true);
+
+    int unrecorded = post(thePayments(), body, key).statusCode();
+    HttpResponse<String> retried = post(thePayments(), body, key);
+
+    assertThat(unrecorded).isEqualTo(500);
+    assertThat(retried.statusCode()).isEqualTo(201);
+    assertThat(retried.headers().firstValue(WorldlineFields.IDEMPOTENCE_REQUEST_TIMESTAMP))
+        .isPresent();
+    TheSurfacesOfAnUnrecordedKey.showIt(http, "worldline", RUN.value(), KEY, "k-recorded-whole");
   }
 
   private String aStoredToken() {
@@ -283,6 +310,9 @@ class WorldlineReplayRaceIntegrationTest extends PostgresBackedTest {
 
     @Override
     public void observed(KeyedObservation observation) {
+      if (NOT_RECORDED.getAndSet(false)) {
+        throw new IllegalStateException("the exchange could not be recorded");
+      }
       stored.observed(observation);
     }
 

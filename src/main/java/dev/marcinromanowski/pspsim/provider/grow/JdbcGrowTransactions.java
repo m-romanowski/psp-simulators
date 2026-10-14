@@ -148,8 +148,8 @@ final class JdbcGrowTransactions implements GrowTransactions {
       return Objects.requireNonNull(
           transactions.execute(status -> chargeInOneTransaction(status, transaction, submission)),
           "the unit of work answered nothing where its callback answers a Charged on every path");
-    } catch (DuplicateKeyException theGroupWasChargedByARequestThatCommittedFirst) {
-      return Charged.GROUP_ALREADY_CHARGED;
+    } catch (DuplicateKeyException aClaimAnotherRequestCommittedFirst) {
+      return GrowGroupCharges.theGroupOrRethrown(aClaimAnotherRequestCommittedFirst);
     }
   }
 
@@ -219,7 +219,7 @@ final class JdbcGrowTransactions implements GrowTransactions {
                 """
                 select e.merchant_id, e.key_name, e.key_value, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.at
                 from grow_keyed_exchange e
                 join (select merchant_id, key_name, key_value, arrival
                       from grow_keyed_exchange
@@ -257,7 +257,8 @@ final class JdbcGrowTransactions implements GrowTransactions {
         rs.getString("provider_object_id"),
         rs.getBoolean("state_changed"),
         null,
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 
   @Override

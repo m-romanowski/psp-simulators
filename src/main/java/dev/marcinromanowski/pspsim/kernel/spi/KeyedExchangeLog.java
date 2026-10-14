@@ -32,6 +32,20 @@ public final class KeyedExchangeLog {
     this.json = json;
   }
 
+  public static void recordedThenCompleted(Runnable record, Runnable complete) {
+    try {
+      record.run();
+    } catch (RuntimeException notRecorded) {
+      try {
+        complete.run();
+      } catch (RuntimeException notCompleted) {
+        notRecorded.addSuppressed(notCompleted);
+      }
+      throw notRecorded;
+    }
+    complete.run();
+  }
+
   public String fingerprintOf(TestRunId testRunId, FingerprintedRequest request) {
     return RequestFingerprint.of(keys.of(testRunId), request);
   }

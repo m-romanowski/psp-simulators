@@ -13,11 +13,11 @@ import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BooleanSupplier;
 import org.jspecify.annotations.Nullable;
 
 final class Authorize {
@@ -61,12 +61,14 @@ final class Authorize {
         now,
         askedBy,
         message.presentedCard(now),
-        () -> claimTheTraceNumber(message, testRunId, terminal, now));
+        new AzericardTraceClaim(
+            AzericardOrderTrace.dayOf(now),
+            () -> claimTheTraceNumber(message, testRunId, terminal, now)));
   }
 
   AzericardOperationResult aDuplicate(
       AzericardMessage message, TestRunId testRunId, AzericardTerminal terminal, Instant now) {
-    return duplicate(message, testRunId, terminal, now);
+    return duplicate(message, testRunId, terminal, now, AzericardOrderTrace.dayOf(now));
   }
 
   AzericardOperationResult handle(
@@ -77,7 +79,7 @@ final class Authorize {
       Instant now,
       ObjectOrigin askedBy,
       AzericardPresentedCard presented,
-      BooleanSupplier traceClaim) {
+      AzericardTraceClaim traceClaim) {
     String storedCard = null;
     if (message.paysWithAStoredCard()) {
       Optional<AzericardStoredCard> usable = theCardItWasSent(message, testRunId, terminal);
@@ -162,9 +164,9 @@ final class Authorize {
       @Nullable String paidWith,
       ObjectOrigin askedBy,
       @Nullable String last4,
-      BooleanSupplier traceClaim) {
-    if (!traceClaim.getAsBoolean()) {
-      return duplicate(message, testRunId, terminal, now);
+      AzericardTraceClaim traceClaim) {
+    if (!traceClaim.isTaken()) {
+      return duplicate(message, testRunId, terminal, now, traceClaim.day());
     }
     String intRef = anIntRefClaimedForThisPayment(testRunId);
     String rrn = ids.digits(RRN_DIGITS);
@@ -205,7 +207,7 @@ final class Authorize {
                 approval,
                 rrn,
                 intRef));
-    theTraceItClaimed(message, testRunId, terminal, now, intRef, result);
+    theTraceItClaimed(message, testRunId, terminal, now, traceClaim.day(), intRef, result);
     return result;
   }
 
@@ -218,9 +220,9 @@ final class Authorize {
       @Nullable String paidWith,
       ObjectOrigin askedBy,
       @Nullable String last4,
-      BooleanSupplier traceClaim) {
-    if (!traceClaim.getAsBoolean()) {
-      return duplicate(message, testRunId, terminal, now);
+      AzericardTraceClaim traceClaim) {
+    if (!traceClaim.isTaken()) {
+      return duplicate(message, testRunId, terminal, now, traceClaim.day());
     }
     String intRef = anIntRefClaimedForThisPayment(testRunId);
     String rrn = ids.digits(RRN_DIGITS);
@@ -252,12 +254,16 @@ final class Authorize {
                 AzericardOutcomes.ABSENT,
                 rrn,
                 intRef));
-    theTraceItClaimed(message, testRunId, terminal, now, intRef, result);
+    theTraceItClaimed(message, testRunId, terminal, now, traceClaim.day(), intRef, result);
     return result;
   }
 
   private AzericardOperationResult duplicate(
-      AzericardMessage message, TestRunId testRunId, AzericardTerminal terminal, Instant now) {
+      AzericardMessage message,
+      TestRunId testRunId,
+      AzericardTerminal terminal,
+      Instant now,
+      LocalDate traceDay) {
     AzericardOperationResult result =
         AzericardOperationResult.failed(
             RefusalSubject.anObjectItWillNotName(
@@ -272,7 +278,7 @@ final class Authorize {
                 AzericardOutcomes.ABSENT,
                 AzericardOutcomes.ABSENT,
                 AzericardOutcomes.ABSENT));
-    theTraceItCollidedWith(message, testRunId, terminal, now, result);
+    theTraceItCollidedWith(message, testRunId, terminal, now, traceDay, result);
     return result;
   }
 
@@ -281,9 +287,19 @@ final class Authorize {
       TestRunId testRunId,
       AzericardTerminal terminal,
       Instant now,
+      LocalDate traceDay,
       String intRef,
       AzericardOperationResult result) {
-    record(message, testRunId, terminal, now, KeyedOutcome.RAN_THE_OPERATION, intRef, true, result);
+    record(
+        message,
+        testRunId,
+        terminal,
+        now,
+        traceDay,
+        KeyedOutcome.RAN_THE_OPERATION,
+        intRef,
+        true,
+        result);
   }
 
   private void theTraceItCollidedWith(
@@ -291,12 +307,14 @@ final class Authorize {
       TestRunId testRunId,
       AzericardTerminal terminal,
       Instant now,
+      LocalDate traceDay,
       AzericardOperationResult result) {
     record(
         message,
         testRunId,
         terminal,
         now,
+        traceDay,
         KeyedOutcome.REFUSED_AS_A_DUPLICATE,
         null,
         false,
@@ -308,6 +326,7 @@ final class Authorize {
       TestRunId testRunId,
       AzericardTerminal terminal,
       Instant now,
+      LocalDate traceDay,
       KeyedOutcome outcome,
       @Nullable String providerObjectId,
       boolean stateChanged,
@@ -317,7 +336,7 @@ final class Authorize {
             testRunId,
             terminal.accountId(),
             AzericardKeyMechanisms.ORDER,
-            AzericardOrderTrace.exchangeKeyOf(message.order(), now),
+            AzericardOrderTrace.exchangeKeyOf(message.order(), traceDay),
             message.operationName(),
             outcome,
             message.fingerprinted(),

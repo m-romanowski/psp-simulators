@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.TheRequestsUnderOneKey;
+import dev.marcinromanowski.pspsim.TheSurfacesOfAnUnrecordedKey;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
@@ -22,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +45,8 @@ import org.springframework.web.client.RestClient;
 class StripeReplayRaceIntegrationTest extends PostgresBackedTest {
 
   private static final AtomicReference<Runnable> ARMED = new AtomicReference<>();
+
+  private static final AtomicBoolean NOT_RECORDED = new AtomicBoolean();
 
   private static final TestRunId RUN = TestRunId.of("stripe-replay-race-it");
   private static final Instant FIXED_NOW = Instant.parse("2026-09-11T12:00:00Z");
@@ -105,13 +109,37 @@ class StripeReplayRaceIntegrationTest extends PostgresBackedTest {
     TheRequestsUnderOneKey.isReadableOnTheInspector(http, "stripe", RUN.value());
   }
 
+  @Test
+  void a_key_whose_first_request_went_unrecorded_reads_back_as_such_on_every_surface() {
+    Map<String, String> hold = new LinkedHashMap<>();
+    hold.put("amount", "1099");
+    hold.put("currency", "pln");
+    hold.put("capture_method", "manual");
+    hold.put("payment_method", "pm_card_visa");
+    hold.put("confirm", "true");
+    assertThat(postUnder(hold, "a-key-recorded-whole").statusCode()).isEqualTo(200);
+    NOT_RECORDED.set(true);
+
+    int unrecorded = post(hold).statusCode();
+    HttpResponse<byte[]> retried = post(hold);
+
+    assertThat(unrecorded).isEqualTo(500);
+    assertThat(retried.statusCode()).isEqualTo(200);
+    assertThat(retried.headers().firstValue("Idempotent-Replayed")).contains("true");
+    TheSurfacesOfAnUnrecordedKey.showIt(http, "stripe", RUN.value(), KEY, "a-key-recorded-whole");
+  }
+
   private HttpResponse<byte[]> post(Map<String, String> form) {
+    return postUnder(form, KEY);
+  }
+
+  private HttpResponse<byte[]> postUnder(Map<String, String> form, String key) {
     try {
       return wire.send(
           HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v1/payment_intents"))
               .header("Content-Type", "application/x-www-form-urlencoded")
               .header("Authorization", "Bearer " + SECRET_KEY)
-              .header("Idempotency-Key", KEY)
+              .header("Idempotency-Key", key)
               .POST(HttpRequest.BodyPublishers.ofString(encoded(form)))
               .build(),
           HttpResponse.BodyHandlers.ofByteArray());
@@ -152,6 +180,7 @@ class StripeReplayRaceIntegrationTest extends PostgresBackedTest {
   @AfterEach
   void disarm() {
     ARMED.set(null);
+    NOT_RECORDED.set(false);
   }
 
   private void reset() {
@@ -210,6 +239,9 @@ class StripeReplayRaceIntegrationTest extends PostgresBackedTest {
 
     @Override
     public void observed(KeyedObservation observation) {
+      if (NOT_RECORDED.getAndSet(false)) {
+        throw new IllegalStateException("the exchange could not be recorded");
+      }
       stored.observed(observation);
     }
 

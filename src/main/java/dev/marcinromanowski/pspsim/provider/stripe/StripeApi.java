@@ -19,6 +19,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunCandidates;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunHeader;
@@ -572,33 +573,33 @@ public final class StripeApi {
       keys.released(testRunId, account.accountId(), key);
       return answered;
     }
-    try {
-      keys.observed(
-          new KeyedObservation(
-              testRunId,
-              account.accountId(),
-              StripeKeyMechanisms.IDEMPOTENCY_KEY,
-              key,
-              operationName,
-              KeyedOutcome.RAN_THE_OPERATION,
-              request,
-              new KeyedAnswer(result.httpStatus(), result.body().flatten()),
-              result.providerObjectId(),
-              result.stateChanged(),
-              answered.delivery().fault(),
-              now));
-    } finally {
-      keys.completed(
-          testRunId,
-          account.accountId(),
-          key,
-          new StripeStoredAnswer(
-              result.httpStatus(),
-              CONTENT_TYPE,
-              StripeJsonWriter.toText(result.body()),
-              result.outcome(),
-              result.providerObjectId()));
-    }
+    KeyedExchangeLog.recordedThenCompleted(
+        () ->
+            keys.observed(
+                new KeyedObservation(
+                    testRunId,
+                    account.accountId(),
+                    StripeKeyMechanisms.IDEMPOTENCY_KEY,
+                    key,
+                    operationName,
+                    KeyedOutcome.RAN_THE_OPERATION,
+                    request,
+                    new KeyedAnswer(result.httpStatus(), result.body().flatten()),
+                    result.providerObjectId(),
+                    result.stateChanged(),
+                    answered.delivery().fault(),
+                    now)),
+        () ->
+            keys.completed(
+                testRunId,
+                account.accountId(),
+                key,
+                new StripeStoredAnswer(
+                    result.httpStatus(),
+                    CONTENT_TYPE,
+                    StripeJsonWriter.toText(result.body()),
+                    result.outcome(),
+                    result.providerObjectId())));
     return answered;
   }
 

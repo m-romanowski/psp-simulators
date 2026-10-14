@@ -253,4 +253,62 @@ class KeyedExchangeLogTest {
             AT));
     return written.get(written.size() - 1);
   }
+
+  @Test
+  void a_key_is_completed_after_its_exchange_is_recorded() {
+    List<String> done = new ArrayList<>();
+
+    KeyedExchangeLog.recordedThenCompleted(() -> done.add("recorded"), () -> done.add("completed"));
+
+    assertThat(done).containsExactly("recorded", "completed");
+  }
+
+  @Test
+  void a_key_whose_exchange_could_not_be_recorded_is_completed_before_the_failure_is_thrown() {
+    List<String> done = new ArrayList<>();
+    IllegalStateException notRecorded = new IllegalStateException("not recorded");
+
+    assertThatThrownBy(
+            () ->
+                KeyedExchangeLog.recordedThenCompleted(
+                    () -> {
+                      throw notRecorded;
+                    },
+                    () -> done.add("completed")))
+        .isSameAs(notRecorded);
+    assertThat(done).containsExactly("completed");
+    assertThat(notRecorded.getSuppressed()).isEmpty();
+  }
+
+  @Test
+  void a_completion_that_also_fails_is_kept_beside_the_failure_it_followed_and_never_masks_it() {
+    IllegalStateException notRecorded = new IllegalStateException("not recorded");
+    IllegalStateException notCompleted = new IllegalStateException("not completed");
+
+    assertThatThrownBy(
+            () ->
+                KeyedExchangeLog.recordedThenCompleted(
+                    () -> {
+                      throw notRecorded;
+                    },
+                    () -> {
+                      throw notCompleted;
+                    }))
+        .isSameAs(notRecorded);
+    assertThat(notRecorded.getSuppressed()).containsExactly(notCompleted);
+  }
+
+  @Test
+  void a_completion_that_fails_after_a_recorded_exchange_is_thrown_as_it_is() {
+    IllegalStateException notCompleted = new IllegalStateException("not completed");
+
+    assertThatThrownBy(
+            () ->
+                KeyedExchangeLog.recordedThenCompleted(
+                    () -> {},
+                    () -> {
+                      throw notCompleted;
+                    }))
+        .isSameAs(notCompleted);
+  }
 }

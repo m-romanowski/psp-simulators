@@ -187,7 +187,8 @@ final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
                 """
                 select e.account_id, e.idempotency_key, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.fault_kind, e.fault_placement, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.fault_kind,
+                       e.fault_placement, e.at
                 from stripe_idempotency_exchange e
                 join (select account_id, idempotency_key, arrival
                       from stripe_idempotency_exchange
@@ -229,7 +230,8 @@ final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
             ? null
             : new AppliedFault(
                 TransportFaultKind.valueOf(faultKind), FaultPlacement.valueOf(faultPlacement)),
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 
   @Override

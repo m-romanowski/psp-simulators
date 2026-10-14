@@ -110,7 +110,7 @@ class AzericardConcurrentExchangeIntegrationTest extends PostgresBackedTest {
             jdbc,
             "azericard_keyed_exchange",
             AzericardKeyMechanisms.ORDER,
-            AzericardOrderTrace.exchangeKeyOf(ORDER, FIXED_NOW),
+            AzericardOrderTrace.exchangeKeyOf(ORDER, AzericardOrderTrace.dayOf(FIXED_NOW)),
             RUN.value()),
         CONCURRENT,
         Set.of(ExchangeVerdict.DUPLICATE_KEY_REFUSAL));

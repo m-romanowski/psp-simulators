@@ -5,6 +5,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.assertj.core.api.Assertions.tuple;
 
 import dev.marcinromanowski.pspsim.TheLabelEveryIdentifierGets;
 import dev.marcinromanowski.pspsim.TheSequenceOneAnswerIsIn;
@@ -14,11 +15,14 @@ import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditDirection;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
 import dev.marcinromanowski.pspsim.kernel.credentials.ProviderConfigurationPlan;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
+import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchange;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import dev.marcinromanowski.pspsim.kernel.scenario.DeliveryShaping;
@@ -61,6 +65,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -99,6 +104,8 @@ class AzericardPayerPageTest {
   private final AzericardDoubles.PayerSessions sessions = new AzericardDoubles.PayerSessions();
   private final List<String> postedCallbacks = new ArrayList<>();
   private final AzericardDoubles.CountingIds ids = new AzericardDoubles.CountingIds();
+  private final AtomicReference<Instant> now = new AtomicReference<>(NOW);
+  private final SimulatorClock clock = testRunId -> now.get();
 
   private final WebhookDispatcher dispatcher =
       new WebhookDispatcher(
@@ -108,7 +115,7 @@ class AzericardPayerPageTest {
             return new MerchantResponse.Answered(200, "");
           },
           audit,
-          AzericardDoubles.clockAt(NOW),
+          clock,
           new AzericardDoubles.CountingIds(),
           new RetryPlan(List.of(Duration.ZERO)),
           new DeliveryShaping(scenarioRules),
@@ -117,28 +124,20 @@ class AzericardPayerPageTest {
           OutsideAnyUnitOfWork.RUNS_AT_ONCE);
 
   private final AzericardCallbacks callbacks =
-      new AzericardCallbacks(
-          payments, accounts, accounts, dispatcher, AzericardDoubles.clockAt(NOW), ids);
+      new AzericardCallbacks(payments, accounts, accounts, dispatcher, clock, ids);
 
   private final Authorize authorize = new Authorize(payments, cards, ids, scenarioEngine);
 
   private final AzericardPayerCheckout checkout =
       AzericardDoubles.checkoutOf(
-          sessions,
-          payments,
-          accounts,
-          authorize,
-          callbacks,
-          audit,
-          AzericardDoubles.clockAt(NOW),
-          ids);
+          sessions, payments, accounts, authorize, callbacks, audit, clock, ids);
 
   private final AzericardGateway gateway =
       new AzericardGateway(
           accounts,
           testRuns,
           audit,
-          AzericardDoubles.clockAt(NOW),
+          clock,
           ids,
           DEFAULT_RUN,
           authorize,
@@ -157,7 +156,7 @@ class AzericardPayerPageTest {
           AzericardDoubles.heldResponses(),
           callbacks,
           dispatcher,
-          AzericardDoubles.clockAt(NOW),
+          clock,
           ids,
           authorize,
           new CompleteOrReverse(payments, scenarioEngine),
@@ -727,6 +726,31 @@ class AzericardPayerPageTest {
 
     assertThat(bodyOf(again)).contains("<action>1</action>");
     assertThat(sessions.all()).hasSize(1);
+  }
+
+  @Test
+  void a_page_paid_the_day_after_it_opened_is_recorded_under_the_day_its_trace_was_held() {
+    gateway.tokenLink(tokenCall(signed(cardSave())));
+    now.set(NOW.plus(Duration.ofDays(1)));
+    submit(pay(A_PUBLISHED_PAN, "05/31", ITS_CVC));
+    Map<String, String> theNextDay = cardSave();
+    theNextDay.putAll(AzericardKeyFixture.THE_PUBLISHED_TEST_CARD_SENT_S2S);
+    theNextDay.put(AzericardFields.NONCE, "0A0B0C0D0E0F1011");
+    theNextDay.put(AzericardFields.TIMESTAMP, AzericardTimestamp.write(now.get()));
+
+    gateway.tokenLink(tokenCall(signed(theNextDay)));
+
+    assertThat(
+            payments
+                .exchanges(
+                    new KeyedExchangeQuery(
+                        RUN, KeyedExchangeQuery.FROM_THE_NEWEST, KeyedExchangeQuery.DEFAULT_LIMIT))
+                .exchanges())
+        .filteredOn(exchange -> exchange.keyName().equals(AzericardKeyMechanisms.ORDER))
+        .extracting(KeyedExchange::keyValue, exchange -> exchange.requests().get(0).verdict())
+        .containsExactlyInAnyOrder(
+            tuple("2026-09-29 120001", ExchangeVerdict.FIRST_REQUEST),
+            tuple("2026-09-30 120001", ExchangeVerdict.FIRST_REQUEST));
   }
 
   @Test

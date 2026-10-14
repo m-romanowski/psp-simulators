@@ -4,6 +4,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
@@ -105,30 +106,30 @@ final class WorldlineIdempotentCall {
       return answered;
     }
     WorldlineBody body = answered.body();
-    try {
-      record(
-          keys,
-          testRunId,
-          merchant,
-          key,
-          operation,
-          request,
-          KeyedOutcome.RAN_THE_OPERATION,
-          body.asAKeyedAnswer(),
-          answered.providerObjectId(),
-          answered.outcome() == ProviderOutcome.SUCCESS,
-          now);
-    } finally {
-      keys.completed(
-          testRunId,
-          merchant.accountId(),
-          key.value(),
-          new WorldlineStoredAnswer(
-              body.httpStatus(),
-              String.valueOf(body.contentType()),
-              body.text(),
-              answered.providerObjectId()));
-    }
+    KeyedExchangeLog.recordedThenCompleted(
+        () ->
+            record(
+                keys,
+                testRunId,
+                merchant,
+                key,
+                operation,
+                request,
+                KeyedOutcome.RAN_THE_OPERATION,
+                body.asAKeyedAnswer(),
+                answered.providerObjectId(),
+                answered.outcome() == ProviderOutcome.SUCCESS,
+                now),
+        () ->
+            keys.completed(
+                testRunId,
+                merchant.accountId(),
+                key.value(),
+                new WorldlineStoredAnswer(
+                    body.httpStatus(),
+                    String.valueOf(body.contentType()),
+                    body.text(),
+                    answered.providerObjectId())));
     return answered;
   }
 

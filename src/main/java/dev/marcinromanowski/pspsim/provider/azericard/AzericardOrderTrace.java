@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.azericard;
 
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchange;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -30,8 +31,8 @@ final class AzericardOrderTrace {
     return order.substring(order.length() - TRACE_LENGTH);
   }
 
-  static String exchangeKeyOf(String order, Instant at) {
-    return dayOf(at) + " " + of(order);
+  static String exchangeKeyOf(String order, LocalDate day) {
+    return day + KeyedExchange.SCOPE_THEN_VALUE + of(order);
   }
 
   static LocalDate dayOf(Instant at) {

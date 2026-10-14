@@ -40,7 +40,7 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
                 """
                 select e.account_id, e.key_name, e.key_value, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.at
                 from tranzila_keyed_exchange e
                 join (select account_id, key_name, key_value, arrival
                       from tranzila_keyed_exchange
@@ -90,6 +90,7 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
         rs.getString("provider_object_id"),
         rs.getBoolean("state_changed"),
         null,
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 }
