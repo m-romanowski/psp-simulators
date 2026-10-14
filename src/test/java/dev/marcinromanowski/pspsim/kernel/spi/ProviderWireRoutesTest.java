@@ -33,13 +33,19 @@ class ProviderWireRoutesTest {
   }
 
   @Test
-  void an_address_is_covered_as_deeply_as_the_longest_namespace_it_lies_in() {
+  void an_address_is_covered_as_deeply_as_the_most_segments_of_a_namespace_it_lies_in() {
     ProviderWireRoutes routes =
         new ProviderWireRoutes(ProviderId.of("p"), List.of("/v2", "/v2/handshake"));
+    ProviderWireRoutes slashed =
+        new ProviderWireRoutes(ProviderId.of("q"), List.of("/v2/", "/v22222222"));
 
-    assertThat(routes.howDeeplyItCovers("/v2/handshake/create")).isEqualTo(13);
-    assertThat(routes.howDeeplyItCovers("/v2/handshake")).isEqualTo(13);
-    assertThat(routes.howDeeplyItCovers("/v2/handshakes")).isEqualTo(3);
+    assertThat(routes.howDeeplyItCovers("/v2/handshake/create")).isEqualTo(2);
+    assertThat(routes.howDeeplyItCovers("/v2/handshake")).isEqualTo(2);
+    assertThat(routes.howDeeplyItCovers("/v2/handshakes")).isEqualTo(1);
+    assertThat(slashed.howDeeplyItCovers("/v2/handshake"))
+        .as("a trailing slash adds no segment, so it ranks no deeper than the same path without")
+        .isEqualTo(1);
+    assertThat(slashed.howDeeplyItCovers("/v22222222/x")).isEqualTo(1);
     assertThat(routes.howDeeplyItCovers("/v1")).isEqualTo(ProviderWireRoutes.COVERS_NOTHING);
     assertThat(ProviderWireRoutes.COVERS_NOTHING).isEqualTo(-1);
   }
@@ -67,9 +73,11 @@ class ProviderWireRoutesTest {
     ProviderDouble twin =
         new ProviderDouble("twin")
             .answering(
-                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+                List.of("/v2/"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
     assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(outer, twin), "/v2/x"))
-        .as("a claim no deeper than one already read does not take the address from it")
+        .as(
+            "a claim no deeper than one already read does not take the address from it, and a"
+                + " trailing slash makes no claim deeper")
         .contains(outer);
   }
 

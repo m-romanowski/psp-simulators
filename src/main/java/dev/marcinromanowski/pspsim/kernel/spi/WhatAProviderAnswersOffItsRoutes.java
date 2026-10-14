@@ -119,7 +119,7 @@ public final class WhatAProviderAnswersOffItsRoutes {
       SimulatorProvider provider, WireFault fault, String address, int statusNothingElseChose) {
     return switch (provider.theAnswerOffItsRoutes(fault, address)) {
       case ProviderWireAnswer.InThisProvidersOwnWords own ->
-          new WireAnswer(own.httpStatus(), own.contentType(), own.body());
+          new WireAnswer(own.httpStatus(), own.contentType(), own.body(), own.headers());
       case ProviderWireAnswer.NothingThisContractPublishes missing ->
           switch (fault) {
             case A_FAILURE_NOTHING_ELSE_ANSWERED ->

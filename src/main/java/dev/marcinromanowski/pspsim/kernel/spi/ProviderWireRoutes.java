@@ -52,10 +52,20 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
     int deepest = COVERS_NOTHING;
     for (String namespace : namespaces) {
       if (isUnder(address, namespace)) {
-        deepest = Math.max(deepest, namespace.length());
+        deepest = Math.max(deepest, theSegmentsOf(namespace));
       }
     }
     return deepest;
+  }
+
+  static int theSegmentsOf(String namespace) {
+    int segments = 0;
+    for (String segment : namespace.split("/", -1)) {
+      if (!segment.isEmpty()) {
+        segments++;
+      }
+    }
+    return segments;
   }
 
   public static Optional<SimulatorProvider> theDeepestClaimOn(

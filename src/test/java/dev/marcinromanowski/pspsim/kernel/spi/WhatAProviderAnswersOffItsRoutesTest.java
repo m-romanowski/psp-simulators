@@ -2,10 +2,12 @@ package dev.marcinromanowski.pspsim.kernel.spi;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -73,6 +75,36 @@ class WhatAProviderAnswersOffItsRoutesTest {
         .isEqualTo(200);
     assertThat(answered.contentType()).isEqualTo("text/html");
     assertThat(answered.body()).isEqualTo(AN_ENVELOPE_OF_ITS_OWN);
+  }
+
+  @Test
+  void the_headers_a_provider_names_beside_its_own_words_are_carried_and_the_bodys_are_refused() {
+    ProviderDouble paging =
+        new ProviderDouble("paging")
+            .answering(
+                List.of("/pages"),
+                new ProviderWireAnswer.InThisProvidersOwnWords(
+                    404, "text/html", AN_ENVELOPE_OF_ITS_OWN, Map.of("X-One", "1")));
+
+    WireAnswer answered =
+        new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(paging)))
+            .to(WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/pages/x", 404)
+            .orElseThrow();
+
+    assertThat(answered.headers()).containsExactly(Map.entry("X-One", "1")).isUnmodifiable();
+    assertThat(WireAnswer.withNothingInIt(500).headers()).isEmpty();
+    assertThat(
+            new ProviderWireAnswer.InThisProvidersOwnWords(200, "text/html", new byte[0]).headers())
+        .isEmpty();
+    assertThatThrownBy(
+            () ->
+                new ProviderWireAnswer.InThisProvidersOwnWords(
+                    200, "text/html", new byte[0], Map.of("content-TYPE", "text/plain")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("content-TYPE is decided by the body");
+    assertThatThrownBy(
+            () -> new WireAnswer(200, "text/html", new byte[0], Map.of("Content-Length", "1")))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
