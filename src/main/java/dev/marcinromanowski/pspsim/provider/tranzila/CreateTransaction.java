@@ -3,13 +3,14 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDecision;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -29,8 +30,6 @@ import org.jspecify.annotations.Nullable;
 final class CreateTransaction {
 
   static final int TRANSACTION_ID_ATTEMPTS = 5;
-
-  static final int OBSERVATION_ATTEMPTS = 100;
 
   static final Set<String> THE_CARD_FIELDS_NO_FINGERPRINT_READS =
       Set.of(
@@ -172,10 +171,6 @@ final class CreateTransaction {
   }
 
   private TranzilaOperationResult underTheDcDisable(Asked asked, TranzilaDcDisableKey key) {
-    boolean seen =
-        exchanges.howOftenSeen(
-                asked.testRunId(), asked.accountId(), key.exchangeKeyName(), key.dcDisable())
-            > 0;
     Optional<TranzilaTransaction> original =
         transactions.approvedUnderDcDisable(key, asked.now().minus(THE_DUPLICATE_CHECK_LOOKS_BACK));
     if (original.isPresent()) {
@@ -185,17 +180,13 @@ final class CreateTransaction {
           asked,
           key.exchangeKeyName(),
           key.dcDisable(),
-          ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+          KeyedOutcome.REFUSED_AS_A_DUPLICATE,
           duplicate);
       return duplicate.result();
     }
     Answered answered = answered(asked);
     observe(
-        asked,
-        key.exchangeKeyName(),
-        key.dcDisable(),
-        seen ? ExchangeVerdict.REPEAT_ADMITTED : ExchangeVerdict.FIRST_REQUEST,
-        answered);
+        asked, key.exchangeKeyName(), key.dcDisable(), KeyedOutcome.RAN_THE_OPERATION, answered);
     return observedUnderTheReference(asked, answered);
   }
 
@@ -203,55 +194,35 @@ final class CreateTransaction {
     Long reference = asked.request().referenceTxnId();
     if (reference != null) {
       String named = reference.toString();
-      boolean seen =
-          exchanges.howOftenSeen(
-                  asked.testRunId(), asked.accountId(), TranzilaFields.REFERENCE_TXN_ID, named)
-              > 0;
       observe(
-          asked,
-          TranzilaFields.REFERENCE_TXN_ID,
-          named,
-          seen ? ExchangeVerdict.CORRELATED_RETRY : ExchangeVerdict.FIRST_REQUEST,
-          answered);
+          asked, TranzilaFields.REFERENCE_TXN_ID, named, KeyedOutcome.RAN_THE_OPERATION, answered);
     }
     return answered.result();
   }
 
   private void observe(
-      Asked asked, String keyName, String keyValue, ExchangeVerdict verdict, Answered answered) {
+      Asked asked, String keyName, String keyValue, KeyedOutcome outcome, Answered answered) {
     TranzilaOperationResult result = answered.result();
     if (result.outcome() == ProviderOutcome.UNKNOWN) {
       return;
     }
-    TranzilaBody body = result.body();
-    TranzilaObservedRequest observed =
-        new TranzilaObservedRequest(
+    exchanges.observed(
+        new KeyedObservation(
             asked.testRunId(),
             asked.accountId(),
             keyName,
             keyValue,
             asked.request().type().wire(),
-            RequestFingerprint.of(
+            outcome,
+            new FingerprintedRequest(
                 asked.call().method(),
                 asked.request().type().wire(),
                 theFieldsAFingerprintReads(asked.call())),
-            verdict,
-            body.httpStatus(),
-            TranzilaFields.JSON,
-            TranzilaWithheld.theTextOf(body),
+            result.body().asAKeyedAnswer(),
             result.providerObjectId(),
             answered.stored(),
-            asked.now());
-    for (int attempt = 1; exchanges.observed(observed) != 1; attempt++) {
-      if (attempt >= OBSERVATION_ATTEMPTS) {
-        throw new IllegalStateException(
-            "the exchange under "
-                + keyName
-                + " could not be recorded in "
-                + OBSERVATION_ATTEMPTS
-                + " attempts, each of which lost its sequence number to another request");
-      }
-    }
+            null,
+            asked.now()));
   }
 
   static Map<String, List<String>> theFieldsAFingerprintReads(TranzilaApiCall call) {

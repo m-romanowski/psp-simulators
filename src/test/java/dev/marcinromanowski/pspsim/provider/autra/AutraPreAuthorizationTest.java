@@ -7,6 +7,7 @@ import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
@@ -388,7 +389,7 @@ class AutraPreAuthorizationTest {
     preAuthorize(api, schemaBody("500.00", "pedido-abc-123"));
 
     assertThat(payments.observedRequests())
-        .extracting(AutraObservedRequest::verdict)
+        .extracting(RecordedKeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.REPEAT_ADMITTED);
   }
 

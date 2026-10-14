@@ -1003,7 +1003,8 @@ class TimelineScreenTest {
                 TestKeyClaims.NEVER_HELD)),
         Map.of(
             KeyRole.TRUE_IDEMPOTENCY_KEY,
-            "provider grow publishes no idempotency header anywhere in this contract"));
+            "provider grow publishes no idempotency header anywhere in this contract"),
+        answered -> answered);
   }
 
   private static AuditRecord inbound(String auditId, String method, String path) {

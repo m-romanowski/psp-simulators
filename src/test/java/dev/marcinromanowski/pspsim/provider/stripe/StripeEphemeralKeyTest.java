@@ -261,7 +261,7 @@ class StripeEphemeralKeyTest {
             request ->
                 assertThat(request.body())
                     .doesNotContain(secret)
-                    .contains("\"secret\":\"" + Redaction.REDACTED + "\""));
+                    .contains("\"secret\":[\"" + Redaction.REDACTED + "\"]"));
   }
 
   @Test

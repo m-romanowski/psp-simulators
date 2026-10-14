@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -26,6 +27,11 @@ record TranzilaBody(int httpStatus, @Nullable TranzilaJson json) {
   String text() {
     TranzilaJson rendered = json;
     return rendered == null ? "" : TranzilaJsonWriter.toText(rendered);
+  }
+
+  @Nullable KeyedAnswer asAKeyedAnswer() {
+    TranzilaJson rendered = json;
+    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

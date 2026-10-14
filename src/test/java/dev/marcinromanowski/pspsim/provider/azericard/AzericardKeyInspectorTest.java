@@ -34,7 +34,9 @@ class AzericardKeyInspectorTest {
   private static final String MERCHANT = "merchant-1";
   private static final String ORDER = "20220628084800";
   private static final String ANOTHER_ORDER_ENDING_THE_SAME = "20230101084800";
-  private static final String TRACE = "084800";
+  private static final String TRACE = "2026-09-10 084800";
+  private static final String THE_SAME_TRACE_A_DAY_LATER = "2026-09-11 084800";
+  private static final Instant A_DAY_LATER = Instant.parse("2026-09-11T12:00:00Z");
   private static final String DECLINE_CODE = "05";
   private static final String NONCE = "F2B2DD7E603A7ADA";
   private static final String ROUTE = "/cgi-bin/cgi_link";
@@ -69,6 +71,26 @@ class AzericardKeyInspectorTest {
   }
 
   @Test
+  void a_trace_reused_on_the_next_day_is_the_first_request_of_that_day_and_not_a_repeat() {
+    accounts.with(AzericardDoubles.terminal(E2E_RUN, MERCHANT, TERMINAL_ID));
+    gateway().cgiLink(call(signed(authorization(ORDER))));
+
+    AzericardApiResponse nextDay =
+        gatewayAt(A_DAY_LATER)
+            .cgiLink(
+                call(signed(authorizationAt(ANOTHER_ORDER_ENDING_THE_SAME, "20260911120000"))));
+
+    assertThat(nextDay.outcome()).isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(theExchangeUnder(AzericardKeyMechanisms.ORDER, TRACE).requests())
+        .extracting(KeyedRequest::verdict)
+        .containsExactly(ExchangeVerdict.FIRST_REQUEST);
+    assertThat(
+            theExchangeUnder(AzericardKeyMechanisms.ORDER, THE_SAME_TRACE_A_DAY_LATER).requests())
+        .extracting(KeyedRequest::verdict)
+        .containsExactly(ExchangeVerdict.FIRST_REQUEST);
+  }
+
+  @Test
   void a_declined_authorization_is_recorded_under_its_order_as_the_first_request_of_that_trace() {
     accounts.with(AzericardDoubles.terminal(E2E_RUN, MERCHANT, TERMINAL_ID));
     scenarioRules.add(
@@ -88,7 +110,9 @@ class AzericardKeyInspectorTest {
         .extracting(KeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST);
     KeyedRequest recorded = exchange.firstRequest();
-    assertThat(recorded.body()).contains("<action>2</action>").contains("<rc>" + DECLINE_CODE);
+    assertThat(recorded.body())
+        .contains("\"action\":[\"2\"]")
+        .contains("\"rc\":[\"" + DECLINE_CODE);
     assertThat(recorded.providerObjectId()).isEqualTo(INT_REF);
     assertThat(recorded.stateChanged()).isTrue();
   }
@@ -129,7 +153,7 @@ class AzericardKeyInspectorTest {
         .extracting(KeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
     KeyedRequest refusal = exchange.repeats().get(0);
-    assertThat(refusal.body()).contains("<action>1</action>");
+    assertThat(refusal.body()).contains("\"action\":[\"1\"]");
     assertThat(refusal.providerObjectId()).isNull();
     assertThat(refusal.stateChanged()).isFalse();
   }
@@ -199,7 +223,7 @@ class AzericardKeyInspectorTest {
 
     KeyedExchange exchange = theExchangeUnder(AzericardKeyMechanisms.INT_REF, INT_REF);
     assertThat(exchange.firstRequest().stateChanged()).isFalse();
-    assertThat(exchange.firstRequest().body()).contains("<action>3</action>");
+    assertThat(exchange.firstRequest().body()).contains("\"action\":[\"3\"]");
   }
 
   @Test
@@ -280,30 +304,38 @@ class AzericardKeyInspectorTest {
   }
 
   private AzericardGateway gateway() {
+    return gatewayAt(NOW);
+  }
+
+  private AzericardGateway gatewayAt(Instant now) {
     accounts.all().forEach(terminal -> testRuns.register(terminal.testRunId()));
     AzericardDoubles.CountingIds ids = new AzericardDoubles.CountingIds();
     return new AzericardGateway(
         accounts,
         testRuns,
         audit,
-        AzericardDoubles.clockAt(NOW),
+        AzericardDoubles.clockAt(now),
         ids,
         DEFAULT_RUN,
         new Authorize(payments, cards, ids, scenarioEngine),
         new CompleteOrReverse(payments, scenarioEngine),
         new LookUpStatus(payments, scenarioEngine),
         AzericardDoubles.checkoutOf(
-            payments, cards, accounts, scenarioEngine, audit, AzericardDoubles.clockAt(NOW), ids));
+            payments, cards, accounts, scenarioEngine, audit, AzericardDoubles.clockAt(now), ids));
   }
 
   private static Map<String, String> authorization(String order) {
+    return authorizationAt(order, NOW_ON_THE_WIRE);
+  }
+
+  private static Map<String, String> authorizationAt(String order, String timestamp) {
     Map<String, String> form = new LinkedHashMap<>();
     form.put(AzericardFields.TERMINAL, TERMINAL_ID);
     form.put(AzericardFields.TRTYPE, "0");
     form.put(AzericardFields.ORDER, order);
     form.put(AzericardFields.AMOUNT, HELD);
     form.put(AzericardFields.CURRENCY, "AZN");
-    form.put(AzericardFields.TIMESTAMP, NOW_ON_THE_WIRE);
+    form.put(AzericardFields.TIMESTAMP, timestamp);
     form.put(AzericardFields.NONCE, NONCE);
     form.put(AzericardFields.MERCH_URL, "https://merchant.example");
     form.put(AzericardFields.DESC, "IT Books. Qty: 2");

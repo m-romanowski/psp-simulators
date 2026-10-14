@@ -294,7 +294,7 @@ public final class TimelineScreen {
   private static @Nullable Subject theKeyedRequestThatCarriesIt(
       String key, KeyedExchangePage exchanges) {
     for (KeyedExchange exchange : exchanges.exchanges()) {
-      if (!key.equals(exchange.keyValue())) {
+      if (!exchange.isKeyedBy(key)) {
         continue;
       }
       String object = exchange.firstRequest().providerObjectId();

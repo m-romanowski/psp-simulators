@@ -17,6 +17,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixturePlan;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
@@ -26,7 +27,7 @@ import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
-import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderPaymentMethodFields;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -588,7 +589,7 @@ final class AutraDoubles {
     private final List<AutraPayment> stored = new ArrayList<>();
     private final Set<String> claimedPaymentIds = new LinkedHashSet<>();
     private final Map<String, Claim> orders = new LinkedHashMap<>();
-    private final List<ObservedUnderOneKey> observed = new ArrayList<>();
+    private final InMemoryKeyedExchanges exchanged = new InMemoryKeyedExchanges();
     private final List<AutraPaymentEvent> timeline = new ArrayList<>();
     private int claimsToLose;
     private int paymentIdsToRefuse;
@@ -853,45 +854,22 @@ final class AutraDoubles {
     }
 
     @Override
-    public boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-      return observed.stream()
-          .anyMatch(row -> row.isUnder(testRunId, accountId, keyName, keyValue));
+    public void observed(KeyedObservation observation) {
+      exchanged.logOf(AutraKeyMechanisms.MECHANISMS).record(observation);
     }
 
-    @Override
-    public void observed(AutraObservedRequest request) {
-      observed.add(new ObservedUnderOneKey(theNextArrival(), sequenceOf(request), request));
-    }
-
-    private int sequenceOf(AutraObservedRequest request) {
-      int under = 0;
-      for (ObservedUnderOneKey row : observed) {
-        if (row.isUnder(
-            request.testRunId(), request.accountId(), request.keyName(), request.keyValue())) {
-          under++;
-        }
-      }
-      return under;
-    }
-
-    List<AutraObservedRequest> observedRequests() {
-      return observed.stream().map(ObservedUnderOneKey::request).toList();
+    List<RecordedKeyedRequest> observedRequests() {
+      return exchanged.recorded();
     }
 
     @Override
     public KeyedExchangePage exchanges(KeyedExchangeQuery query) {
-      List<RecordedKeyedRequest> rows = new ArrayList<>();
-      for (ObservedUnderOneKey row : observed) {
-        if (row.request().testRunId().equals(query.testRunId())) {
-          rows.add(row.asRecorded());
-        }
-      }
-      return KeyedExchanges.pageOf(AutraKeyMechanisms.MECHANISMS, query.testRunId(), rows);
+      return exchanged.exchanges(AutraKeyMechanisms.MECHANISMS, query);
     }
 
     @Override
     public int clear(TestRunId testRunId) {
-      observed.removeIf(row -> row.request().testRunId().equals(testRunId));
+      exchanged.clear(testRunId);
       orders.keySet().removeIf(key -> key.startsWith(testRunId.value() + '\u0000'));
       claimedPaymentIds.removeIf(claim -> claim.startsWith(testRunId.value() + '\u0000'));
       List<AutraPayment> doomed =
@@ -902,7 +880,7 @@ final class AutraDoubles {
 
     @Override
     public int clearAll() {
-      observed.clear();
+      exchanged.clearAll();
       orders.clear();
       claimedPaymentIds.clear();
       int size = stored.size();
@@ -911,35 +889,6 @@ final class AutraDoubles {
     }
 
     private record Claim(@Nullable String paymentId) {}
-  }
-
-  record ObservedUnderOneKey(long arrival, int sequence, AutraObservedRequest request) {
-
-    boolean isUnder(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-      return request.testRunId().equals(testRunId)
-          && request.accountId().equals(accountId)
-          && request.keyName().equals(keyName)
-          && request.keyValue().equals(keyValue);
-    }
-
-    RecordedKeyedRequest asRecorded() {
-      return new RecordedKeyedRequest(
-          request.accountId(),
-          request.keyName(),
-          request.keyValue(),
-          arrival,
-          sequence,
-          request.verdict(),
-          request.fingerprint(),
-          request.operation(),
-          request.httpStatus(),
-          request.contentType(),
-          request.body(),
-          request.providerObjectId(),
-          request.stateChanged(),
-          null,
-          request.at());
-    }
   }
 
   static final class HeldResponses implements DelayedDeliveries {

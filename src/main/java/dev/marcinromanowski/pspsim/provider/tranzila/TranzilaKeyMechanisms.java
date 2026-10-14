@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
 import dev.marcinromanowski.pspsim.kernel.spi.DeclaredKey;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyCarriage;
@@ -63,7 +64,8 @@ final class TranzilaKeyMechanisms {
       new ProviderKeyMechanisms(
           TranzilaApi.TRANZILA,
           theKeys(),
-          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY));
+          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY),
+          answered -> Redaction.redact(answered, TranzilaFields.SENSITIVE_RESPONSE_FIELDS));
 
   private static List<DeclaredKey> theKeys() {
     List<DeclaredKey> keys = new ArrayList<>();

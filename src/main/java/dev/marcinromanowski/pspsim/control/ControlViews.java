@@ -590,6 +590,7 @@ final class ControlViews {
               request.stateChanged(),
               request.whenTheFaultLanded(),
               exchange.conflictReasonOf(request),
+              request.whyNoAnswerIsShown(),
               request.at()));
     }
     return new KeyedExchangeView(
@@ -604,6 +605,7 @@ final class ControlViews {
         exchange.firstRequestAt(),
         exchange.replayTimestamps(),
         exchange.stateChanged(),
+        exchange.whatThisLogDidNotRecord(),
         requests);
   }
 

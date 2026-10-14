@@ -90,7 +90,7 @@ class StripeKeyInspectorTest {
 
     KeyedRequest original = exchange.firstRequest();
     KeyedRequest replayed = exchange.repeats().get(0);
-    assertThat(original.body()).contains("\"id\":\"" + FIRST_INTENT + "\"");
+    assertThat(original.body()).contains("\"id\":[\"" + FIRST_INTENT + "\"]");
     assertThat(replayed.body()).isEqualTo(original.body());
     assertThat(original.httpStatus()).isEqualTo(first.httpStatus()).isEqualTo(replay.httpStatus());
     assertThat(original.stateChanged()).isTrue();
@@ -115,7 +115,7 @@ class StripeKeyInspectorTest {
             request ->
                 assertThat(request.body())
                     .doesNotContain(clientSecret)
-                    .contains("\"client_secret\":\"" + Redaction.REDACTED + "\""));
+                    .contains("\"client_secret\":[\"" + Redaction.REDACTED + "\"]"));
   }
 
   @Test
@@ -334,7 +334,7 @@ class StripeKeyInspectorTest {
 
     KeyedRequest refused = theOnlyExchange().repeats().get(0);
     assertThat(refused.httpStatus()).isEqualTo(409);
-    assertThat(refused.body()).contains("\"code\":\"idempotency_key_in_use\"");
+    assertThat(refused.body()).contains("\"error.code\":[\"idempotency_key_in_use\"]");
     assertThat(refused.operation()).isEqualTo(StripeOperations.CREATE);
     assertThat(refused.at()).isEqualTo(A_MINUTE_LATER);
   }

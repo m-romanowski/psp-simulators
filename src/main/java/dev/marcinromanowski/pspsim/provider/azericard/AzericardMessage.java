@@ -1,6 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.azericard;
 
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -170,8 +170,8 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
     return AzericardCardCheck.ofTheWire(this, now);
   }
 
-  String fingerprint() {
-    return RequestFingerprint.of(
+  FingerprintedRequest fingerprinted() {
+    return new FingerprintedRequest(
         AzericardGateway.WIRE_METHOD, operationName(), withoutWhatIsNeverKept());
   }
 

@@ -4404,6 +4404,12 @@
           "stateChanged": {
             "type": "boolean"
           },
+          "notRecorded": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "requests": {
             "type": "array",
             "items": {
@@ -4479,6 +4485,12 @@
             ]
           },
           "conflictReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "noAnswerBecause": {
             "type": [
               "string",
               "null"

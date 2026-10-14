@@ -7,13 +7,16 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.ProviderId;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixturePlan;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
+import dev.marcinromanowski.pspsim.kernel.spi.SequencedRows;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -450,7 +453,7 @@ class CreateTransactionTest {
     assertThat(repeat.providerObjectId()).isEqualTo("10000001");
     assertThat(wired.stored()).hasSize(1);
     assertThat(wired.exchanges.everythingItObserved())
-        .extracting(TranzilaObservedRequest::verdict, TranzilaObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::verdict, RecordedKeyedRequest::stateChanged)
         .containsExactly(
             Tuple.tuple(ExchangeVerdict.FIRST_REQUEST, true),
             Tuple.tuple(ExchangeVerdict.DUPLICATE_KEY_REFUSAL, false));
@@ -493,20 +496,19 @@ class CreateTransactionTest {
   void the_first_request_under_a_dc_disable_is_observed_with_what_it_answered() {
     String answered = wired.answered(underDcDisable("order-5"));
 
-    TranzilaObservedRequest observed = wired.exchanges.everythingItObserved().get(0);
+    RecordedKeyedRequest observed = wired.exchanges.everythingItObserved().get(0);
     assertThat(observed.keyName()).isEqualTo("DCdisable debit");
     assertThat(observed.keyValue()).isEqualTo("order-5");
     assertThat(observed.operation()).isEqualTo("debit");
     assertThat(observed.httpStatus()).isEqualTo(200);
     assertThat(observed.contentType()).isEqualTo("application/json");
+    assertThat(answered).contains("t000000000000014245");
     assertThat(observed.body())
-        .isEqualTo(
-            answered
-                .replace("\"token\":\"t000000000000014245\"", "\"token\":\"[redacted]\"")
-                .replace("\"card_number\":\"458021xxxxxx4245\"", "\"card_number\":\"[redacted]\""));
+        .contains("\"transaction_result.token\":[\"" + Redaction.REDACTED + "\"]")
+        .contains("\"original_request.card_number\":[\"" + Redaction.REDACTED + "\"]")
+        .doesNotContain("t000000000000014245");
     assertThat(observed.providerObjectId()).isEqualTo("10000001");
     assertThat(observed.accountId()).isEqualTo(TranzilaWiring.ACCOUNT);
-    assertThat(observed.testRunId()).isEqualTo(TranzilaWiring.RUN);
     assertThat(observed.at()).isEqualTo(TranzilaWiring.NOW);
     assertThat(observed.fingerprint()).hasSize(64);
     assertThat(wired.transactions.theKeysHeld()).hasSize(1);
@@ -514,7 +516,7 @@ class CreateTransactionTest {
 
   @Test
   void an_observation_another_request_took_the_place_of_is_written_again_until_it_is_recorded() {
-    wired.exchanges.takenMeanwhile(99);
+    wired.exchanges.takenMeanwhile(SequencedRows.ATTEMPTS - 1);
 
     wired.answered(underDcDisable("order-8"));
 
@@ -523,12 +525,12 @@ class CreateTransactionTest {
   }
 
   @Test
-  void an_observation_that_cannot_be_recorded_in_a_hundred_attempts_undoes_the_transaction() {
-    wired.exchanges.takenMeanwhile(100);
+  void an_observation_that_cannot_be_recorded_in_every_attempt_undoes_the_transaction() {
+    wired.exchanges.takenMeanwhile(SequencedRows.ATTEMPTS);
 
     assertThatThrownBy(() -> wired.create(underDcDisable("order-9")))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("100 attempts");
+        .hasMessageContaining(SequencedRows.ATTEMPTS + " attempts");
     assertThat(wired.stored()).isEmpty();
     assertThat(wired.exchanges.everythingItObserved()).isEmpty();
   }
@@ -537,7 +539,7 @@ class CreateTransactionTest {
   void a_follow_on_observation_that_cannot_be_recorded_undoes_the_follow_on_too() {
     long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
     String auth = String.valueOf(wired.theLastStored().authNumber());
-    wired.exchanges.takenMeanwhile(100);
+    wired.exchanges.takenMeanwhile(SequencedRows.ATTEMPTS);
 
     assertThatThrownBy(() -> wired.create(TranzilaWire.aCancel(debit, auth)))
         .isInstanceOf(IllegalStateException.class);
@@ -558,7 +560,7 @@ class CreateTransactionTest {
 
     List<String> fingerprints =
         wired.exchanges.everythingItObserved().stream()
-            .map(TranzilaObservedRequest::fingerprint)
+            .map(RecordedKeyedRequest::fingerprint)
             .toList();
     assertThat(fingerprints.get(1)).isEqualTo(fingerprints.get(0));
     assertThat(fingerprints.get(2)).isNotEqualTo(fingerprints.get(0));
@@ -570,14 +572,14 @@ class CreateTransactionTest {
         underDcDisable("order-11")
             .replace("}],\"user", "}],\"cvv\":\"987\",\"card_holder_id\":\"123456789\",\"user"));
 
-    TranzilaObservedRequest observed = wired.exchanges.everythingItObserved().get(0);
+    RecordedKeyedRequest observed = wired.exchanges.everythingItObserved().get(0);
     assertThat(observed.body())
         .doesNotContain("4580210000004245")
         .doesNotContain("987")
         .doesNotContain("123456789")
         .doesNotContain("t000000000000014245")
-        .contains("\"card_holder_id\":\"[redacted]\"")
-        .contains("\"cvv\":\"***\"");
+        .contains("\"original_request.card_holder_id\":[\"[redacted]\"]")
+        .contains("\"original_request.cvv\":[\"***\"]");
     assertThat(
             CreateTransaction.theFieldsAFingerprintReads(
                 TranzilaApiCall.of(
@@ -598,7 +600,7 @@ class CreateTransactionTest {
 
     assertThat(wired.exchanges.everythingItObserved())
         .singleElement()
-        .extracting(TranzilaObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::stateChanged)
         .isEqualTo(false);
   }
 
@@ -609,7 +611,7 @@ class CreateTransactionTest {
 
     assertThat(wired.exchanges.everythingItObserved())
         .singleElement()
-        .extracting(TranzilaObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::stateChanged)
         .isEqualTo(true);
   }
 
@@ -622,9 +624,9 @@ class CreateTransactionTest {
 
     assertThat(wired.exchanges.everythingItObserved())
         .extracting(
-            TranzilaObservedRequest::keyName,
-            TranzilaObservedRequest::keyValue,
-            TranzilaObservedRequest::verdict)
+            RecordedKeyedRequest::keyName,
+            RecordedKeyedRequest::keyValue,
+            RecordedKeyedRequest::verdict)
         .containsExactly(
             Tuple.tuple("reference_txn_id", Long.toString(j5), ExchangeVerdict.FIRST_REQUEST),
             Tuple.tuple("reference_txn_id", Long.toString(j5), ExchangeVerdict.CORRELATED_RETRY));
@@ -640,7 +642,7 @@ class CreateTransactionTest {
             .replace("}", ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"c\"}]}"));
 
     assertThat(wired.exchanges.everythingItObserved())
-        .extracting(TranzilaObservedRequest::keyName)
+        .extracting(RecordedKeyedRequest::keyName)
         .containsExactly("DCdisable cancel", "reference_txn_id");
   }
 

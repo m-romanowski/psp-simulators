@@ -507,9 +507,7 @@ class TrailWithholdingConventionTest {
   @Test
   void every_module_of_this_build_is_compared_the_way_its_own_redactor_compares() {
     assertThat(theModuleOf("stripe").theRedactorsThatConsumeIt())
-        .containsExactly(
-            "dev.marcinromanowski.pspsim.provider.stripe.StripeFields.withholding",
-            "dev.marcinromanowski.pspsim.provider.stripe.StripeJson.withholding");
+        .containsExactly("dev.marcinromanowski.pspsim.provider.stripe.StripeFields.withholding");
     assertThat(theModuleOf("stripe").itsRedactorMatchesAWholeKey()).isFalse();
     for (String provider : List.of("autra", "azericard", "grow", "worldline")) {
       assertThat(theModuleOf(provider).theRedactorsThatConsumeIt())
@@ -711,12 +709,12 @@ class TrailWithholdingConventionTest {
                 + " name, each excused in the initializer that stores it")
         .isEqualTo(25);
     assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(204);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(555);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(540);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(784);
+        .isEqualTo(769);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"

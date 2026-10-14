@@ -5,10 +5,14 @@ import dev.marcinromanowski.pspsim.kernel.fault.AppliedFault;
 import dev.marcinromanowski.pspsim.kernel.fault.FaultPlacement;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFaultKind;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeTable;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,12 +28,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
 
+  static final KeyedExchangeTable EXCHANGES =
+      KeyedExchangeTable.underItsOnlyKey(
+          "stripe_idempotency_exchange", "account_id", "idempotency_key", true);
+
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final KeyedExchangeLog exchanges;
 
-  JdbcStripeIdempotencyKeys(JdbcClient jdbc, TransactionTemplate transactions) {
+  JdbcStripeIdempotencyKeys(
+      JdbcClient jdbc, TransactionTemplate transactions, KeyedExchangeLog exchanges) {
     this.jdbc = jdbc;
     this.transactions = transactions;
+    this.exchanges = exchanges;
   }
 
   @Override
@@ -160,68 +171,13 @@ final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
   }
 
   @Override
-  public void observed(StripeObservedRequest request) {
-    for (int attempt = 0; attempt < StripeIdempotency.SEQUENCES_TO_TRY; attempt++) {
-      if (recordedAtTheNextFreeSequence(request) == 1) {
-        return;
-      }
-    }
-    throw new IllegalStateException(
-        "provider stripe could not number a request under its idempotency key after "
-            + StripeIdempotency.SEQUENCES_TO_TRY
-            + " attempts, because that many other requests took the sequence it had read");
-  }
-
-  private int recordedAtTheNextFreeSequence(StripeObservedRequest request) {
-    AppliedFault fault = request.transportFault();
-    return jdbc.sql(
-            """
-            insert into stripe_idempotency_exchange
-                (test_run_id, account_id, idempotency_key, seq, operation, fingerprint, verdict,
-                 http_status, content_type, body, provider_object_id, state_changed, fault_kind,
-                 fault_placement, at)
-            select ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            from stripe_idempotency_exchange
-            where test_run_id = ? and account_id = ? and idempotency_key = ?
-            on conflict (test_run_id, account_id, idempotency_key, seq) do nothing
-            """)
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.idempotencyKey())
-        .param(request.operation())
-        .param(request.fingerprint())
-        .param(request.verdict().name())
-        .param(request.httpStatus())
-        .param(request.contentType())
-        .param(request.body())
-        .param(request.providerObjectId())
-        .param(request.stateChanged())
-        .param(fault == null ? null : fault.kind().name())
-        .param(fault == null ? null : fault.placement().name())
-        .param(request.at().atOffset(ZoneOffset.UTC))
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.idempotencyKey())
-        .update();
+  public String fingerprintOf(TestRunId testRunId, FingerprintedRequest request) {
+    return exchanges.fingerprintOf(testRunId, request);
   }
 
   @Override
-  public String theAnswerTheTrailAlreadyHolds(TestRunId testRunId, String accountId, String key) {
-    return jdbc.sql(
-            """
-            select body from stripe_idempotency_exchange
-            where test_run_id = ? and account_id = ? and idempotency_key = ? and verdict = ?
-            order by seq
-            limit 1
-            """)
-        .params(testRunId.value(), accountId, key, ExchangeVerdict.FIRST_REQUEST.name())
-        .query(String.class)
-        .optional()
-        .orElseThrow(
-            () ->
-                new IllegalStateException(
-                    "this simulator replayed an answer it had stored under an idempotency key and"
-                        + " the trail holds no first request under that key to have stored it"));
+  public void observed(KeyedObservation observation) {
+    exchanges.record(observation);
   }
 
   @Override
@@ -231,7 +187,8 @@ final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
                 """
                 select e.account_id, e.idempotency_key, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.fault_kind, e.fault_placement, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.fault_kind,
+                       e.fault_placement, e.at
                 from stripe_idempotency_exchange e
                 join (select account_id, idempotency_key, arrival
                       from stripe_idempotency_exchange
@@ -273,7 +230,8 @@ final class JdbcStripeIdempotencyKeys implements StripeIdempotencyKeys {
             ? null
             : new AppliedFault(
                 TransportFaultKind.valueOf(faultKind), FaultPlacement.valueOf(faultPlacement)),
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 
   @Override

@@ -441,6 +441,49 @@ Duplicate handling differs by provider in its key, its storage and its outcome, 
 
 The per-provider key table is in `testing-support-features.md`, "Retry, Idempotency and Correlation Inspector".
 
+### A keyed exchange is recorded by the kernel, never by a provider's own insert
+
+A provider hands `KeyedExchangeLog` a `KeyedObservation`: the request it fingerprints, a `KeyedOutcome` (it ran the
+operation, or it refused or replayed) and the fields of its answer. It never hands a fingerprint, a verdict of a request
+that ran, or a body text, so no provider can number, judge or redact an exchange on its own.
+
+- Numbering. A row takes the next free `seq` under its key and is inserted with `on conflict (<primary key>) do
+  nothing`. `SequencedTable` writes that statement, so the conflict target is always the whole primary key and any other
+  violated constraint still fails the request. A row that lost its number is inserted again, up to
+  `SequencedRows.ATTEMPTS` times, and then the request fails. Autra's payment timeline is numbered by the same helper.
+- Verdict. The verdict of a request that ran the operation is decided by the insert from the rows it follows: a first
+  request only where no request that ran precedes it, otherwise the repeat its key's role names (`REPEAT_ADMITTED` for a
+  duplicate check, `CORRELATED_RETRY` for a correlation key, a first request for a true idempotency key, where it means
+  the provider forgot the key). The reason: a read separate from the insert lets concurrent requests all read "first".
+  A key value is scoped to what the provider's duplicate rule scopes, so azericard's `ORDER` value is the UTC day of the
+  trace a request holds, a space, and the trace: a trace reused on another day is a first request, and a payer page
+  paid on a later day is recorded under the day its trace was held. A screen asked for the value a client sent finds
+  the scoped value that ends in it (`KeyedExchange.isKeyedBy`).
+- Order. Rows are numbered in the order they are recorded. A refusal keeps its verdict wherever it lands, so a
+  duplicate refusal may precede the request that ran: azericard's payer page claims a trace and records nothing under
+  it, and a claim is visible to a duplicate before its claimant records. A replay and a conflict answer from a stored
+  answer, and stripe and worldline record the request that ran before storing its answer. When that record fails, the
+  key is still completed, so a later replay or conflict has no recorded request before it; `KeyedExchange` then names
+  that state (`THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED`) and every surface shows the key with it. `KeyedExchange` refuses
+  only an exchange whose earliest request that ran is not a first request, which the insert cannot produce.
+- Body. The stored body is the answer's fields after the provider's `ProviderKeyMechanisms.withholding`, the redaction
+  its `OUTBOUND_RESPONSE` rows apply, written as JSON of each field to its values, and its `content_type` is
+  `application/json`, which describes that JSON and not the wire. `EveryKeyedExchangeIsWithheldTest` reads every
+  module's `SENSITIVE_RESPONSE_FIELDS` and fails when that module's withholding keeps any of them. A row with
+  `answer_kept` false carries no status, content type or body, and the screens say its answer was given and not kept
+  rather than that nothing was answered; every row recorded before V86 is such a row.
+- Completion. Stripe and worldline complete a claimed key with its answer even when recording its exchange fails, so a
+  retry is replayed rather than refused as still running. A completion that fails too is kept as suppressed on the
+  recording failure, which is the one thrown.
+- Fingerprint. `RequestFingerprint` is HMAC-SHA256 keyed with the run's `FingerprintKey`: 256 bits from `IdGenerator`,
+  minted on first use and kept in `simulator_fingerprint_key`, which registers no run; forgetting a run removes its key,
+  and a provider reset keeps it, because the other providers of the run still compare against it. The key is never
+  displayed, exported or logged, so a fingerprint compares two requests of one run and can be checked against no
+  guessed input. The reason: an unkeyed digest of a card number, a CVV or an account secret is a dictionary oracle.
+  A fingerprint stored before V86 is rehashed with a salt V86 discards: equal ones stay equal, none can be recomputed,
+  and none matches a fingerprint minted under a run's key, so a repeat of a key claimed before V86 compares as different
+  parameters.
+
 ### Webhook delivery is not "2xx means delivered"
 
 Acknowledgement belongs to the provider and may need a separate inbound call. Grow can hold a delivery until

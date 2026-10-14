@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -119,7 +120,7 @@ class AutraCaptureTest {
     capture(second, captureBody("120.00"));
 
     assertThat(payments.observedRequests())
-        .extracting(AutraObservedRequest::fingerprint)
+        .extracting(RecordedKeyedRequest::fingerprint)
         .doesNotHaveDuplicates();
   }
 

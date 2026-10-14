@@ -8,6 +8,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLogs;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -39,8 +40,11 @@ public class AzericardModule {
 
   @Bean
   AzericardPayments azericardPayments(
-      JdbcClient jdbc, PlatformTransactionManager transactionManager) {
-    return new JdbcAzericardPayments(jdbc, new TransactionTemplate(transactionManager));
+      JdbcClient jdbc, PlatformTransactionManager transactionManager, KeyedExchangeLogs exchanges) {
+    return new JdbcAzericardPayments(
+        jdbc,
+        new TransactionTemplate(transactionManager),
+        exchanges.of(AzericardKeyMechanisms.MECHANISMS, JdbcAzericardPayments.EXCHANGES));
   }
 
   @Bean

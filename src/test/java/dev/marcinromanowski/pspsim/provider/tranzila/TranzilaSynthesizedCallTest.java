@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectAction;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.OriginationRequest;
@@ -168,15 +170,18 @@ class TranzilaSynthesizedCallTest {
                     + "\"list\":[{\"token\":\"t2\"}],\"token\":\"t3\"}")
             .orElseThrow();
 
-    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.of(200, body)))
-        .isEqualTo(
-            "{\"Transaction_Result\":{\"token\":\"[redacted]\",\"keep\":1},"
-                + "\"original_request\":{\"card_number\":\"[redacted]\","
-                + "\"card_holder_id\":\"[redacted]\",\"cvv\":\"***\"},"
-                + "\"list\":[{\"token\":\"t2\"}],\"token\":\"t3\"}");
-    assertThat(TranzilaWithheld.isWithheld("transaction_result.token")).isTrue();
-    assertThat(TranzilaWithheld.isWithheld("transaction_result.last_4")).isFalse();
-    assertThat(TranzilaWithheld.theTextOf(TranzilaBody.nothingRendered())).isEmpty();
+    KeyedAnswer answer = TranzilaBody.of(200, body).asAKeyedAnswer();
+
+    assertThat(answer).isNotNull();
+    assertThat(answer.httpStatus()).isEqualTo(200);
+    assertThat(TranzilaKeyMechanisms.MECHANISMS.withholding().withheld(answer.fields()))
+        .containsEntry("Transaction_Result.token", List.of(Redaction.REDACTED))
+        .containsEntry("Transaction_Result.keep", List.of("1"))
+        .containsEntry("original_request.card_number", List.of(Redaction.REDACTED))
+        .containsEntry("original_request.card_holder_id", List.of(Redaction.REDACTED))
+        .containsEntry("original_request.cvv", List.of("***"))
+        .containsEntry("token", List.of("t3"));
+    assertThat(TranzilaBody.nothingRendered().asAKeyedAnswer()).isNull();
   }
 
   @Test

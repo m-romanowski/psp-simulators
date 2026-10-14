@@ -201,35 +201,55 @@ class KeyedExchangeTest {
   }
 
   @Test
-  void an_exchange_that_begins_with_a_repeat_is_refused_because_it_repeats_nothing() {
-    List<KeyedRequest> onlyARepeat =
-        List.of(
-            new KeyedRequest(
-                0,
-                ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY,
-                FIRST_FINGERPRINT,
-                CHARGE,
-                200,
-                "application/json",
-                "{}",
-                null,
-                false,
-                null,
-                NOON));
+  void an_exchange_that_begins_with_a_replay_says_the_request_that_ran_was_not_recorded() {
+    KeyedRequest replay = repeat(0, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY, FIRST_FINGERPRINT, 0);
 
-    assertThatThrownBy(
-            () ->
-                new KeyedExchange(
-                    PROVIDER,
-                    RUN,
-                    ACCOUNT,
-                    "Idempotency-Key",
-                    KeyRole.TRUE_IDEMPOTENCY_KEY,
-                    "k-1",
-                    1L,
-                    onlyARepeat))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("a repeat with nothing to repeat");
+    KeyedExchange exchange = exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, replay);
+
+    assertThat(exchange.whatThisLogDidNotRecord())
+        .isEqualTo(KeyedExchange.THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED);
+    assertThat(exchange.firstRequest()).isEqualTo(replay);
+  }
+
+  @Test
+  void a_conflict_recorded_before_any_request_that_ran_says_the_same() {
+    KeyedRequest conflict = repeat(0, ExchangeVerdict.CONFLICTING_PAYLOAD, OTHER_FINGERPRINT, 0);
+
+    assertThat(exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, conflict).whatThisLogDidNotRecord())
+        .isEqualTo(KeyedExchange.THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED);
+  }
+
+  @Test
+  void an_exchange_whose_first_request_was_recorded_is_missing_nothing() {
+    KeyedRequest held =
+        repeat(0, ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, FIRST_FINGERPRINT, 0);
+    KeyedRequest claiming = claimant(1, FIRST_FINGERPRINT, 1);
+    KeyedRequest replay = repeat(2, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY, FIRST_FINGERPRINT, 2);
+
+    assertThat(
+            exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, held, claiming, replay)
+                .whatThisLogDidNotRecord())
+        .isNull();
+    assertThat(exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, held).whatThisLogDidNotRecord()).isNull();
+  }
+
+  @Test
+  void a_value_a_provider_scopes_is_found_by_the_value_a_client_sent() {
+    KeyedExchange scoped =
+        new KeyedExchange(
+            PROVIDER,
+            RUN,
+            ACCOUNT,
+            "ORDER",
+            KeyRole.DUPLICATE_DETECTION_KEY,
+            "2026-09-10 084800",
+            1L,
+            List.of(claimant(0, FIRST_FINGERPRINT, 0)));
+
+    assertThat(scoped.isKeyedBy("084800")).isTrue();
+    assertThat(scoped.isKeyedBy("2026-09-10 084800")).isTrue();
+    assertThat(scoped.isKeyedBy("84800")).isFalse();
+    assertThat(scoped.isKeyedBy("2026-09-10")).isFalse();
   }
 
   @Test
@@ -514,12 +534,44 @@ class KeyedExchangeTest {
   }
 
   @Test
-  void a_replay_recorded_before_the_request_that_claimed_the_key_is_still_refused() {
+  void a_replay_recorded_before_the_request_that_ran_is_kept_and_named_as_missing_its_original() {
     KeyedRequest replayFirst =
         repeat(0, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY, FIRST_FINGERPRINT, 0);
     KeyedRequest claiming = claimant(1, FIRST_FINGERPRINT, 1);
 
-    assertThatThrownBy(() -> exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, replayFirst, claiming))
+    KeyedExchange exchange = exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, replayFirst, claiming);
+
+    assertThat(exchange.firstRequest()).isEqualTo(claiming);
+    assertThat(exchange.whatThisLogDidNotRecord())
+        .isEqualTo(KeyedExchange.THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED);
+  }
+
+  @Test
+  void
+      a_refusal_as_a_duplicate_answered_before_the_request_that_claimed_the_key_is_kept_before_it() {
+    KeyedRequest refusedFirst =
+        repeat(0, ExchangeVerdict.DUPLICATE_KEY_REFUSAL, FIRST_FINGERPRINT, 0);
+    KeyedRequest claiming = claimant(1, FIRST_FINGERPRINT, 1);
+
+    KeyedExchange exchange = exchange(KeyRole.DUPLICATE_DETECTION_KEY, refusedFirst, claiming);
+
+    assertThat(exchange.firstRequest()).isEqualTo(claiming);
+    assertThat(exchange.repeats()).containsExactly(refusedFirst);
+  }
+
+  @Test
+  void a_key_whose_only_record_is_a_refusal_as_a_duplicate_reports_that_refusal_as_its_first() {
+    KeyedRequest refused = repeat(0, ExchangeVerdict.DUPLICATE_KEY_REFUSAL, FIRST_FINGERPRINT, 0);
+
+    assertThat(exchange(KeyRole.DUPLICATE_DETECTION_KEY, refused).firstRequest())
+        .isEqualTo(refused);
+  }
+
+  @Test
+  void a_repeat_that_ran_recorded_before_any_first_request_is_refused() {
+    KeyedRequest admittedFirst = repeat(0, ExchangeVerdict.REPEAT_ADMITTED, FIRST_FINGERPRINT, 0);
+
+    assertThatThrownBy(() -> exchange(KeyRole.DUPLICATE_DETECTION_KEY, admittedFirst))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("a repeat with nothing to repeat");
   }

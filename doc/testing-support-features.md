@@ -138,6 +138,13 @@ answer only by writing a scenario rule.
 | Autra | none | `orderId`: a sale `409`. A pre-authorization `409` is released when the attempt fails. PIX has no idempotency. `paymentId` is used for lookup. `rrn` is used for a reversal. `transactionalToken` is single-use | payload not compared (`autra.md`, "Idempotency") |
 | Azericard | none | `TERMINAL`+`ORDER` (last six digits, per terminal, per day), `RRN`, `INT_REF`. Status inquiry uses terminal, order and original type | no published rule |
 
+A request's body is its answer's fields as its audit trail row keeps them, with the provider's withheld fields
+redacted, written as JSON. It is not the bytes the client read, and the content type shown is that JSON's. A request
+whose answer was given and not kept says so. Its fingerprint is keyed per test run: it tells two requests of one run
+apart and identifies no input. Requests are numbered in the order they were recorded, so a duplicate refusal answered
+while the request that claimed the key was still running appears before that request. A key whose request that ran
+was not recorded is shown with its replays and says that its original was not recorded.
+
 The inspector names only conditions the provider publishes. A condition that is new to a provider gets its own name.
 Worldline shows no duplicate-key rejection. An Autra `409` names no payment, so the original payment id is shown only
 here, from the simulator's own record (`DUPLICATE_KEY_REFUSAL`), and never on the wire.

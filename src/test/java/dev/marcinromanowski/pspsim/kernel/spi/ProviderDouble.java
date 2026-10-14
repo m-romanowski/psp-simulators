@@ -330,7 +330,8 @@ public final class ProviderDouble implements SimulatorProvider {
             KeyRole.DUPLICATE_DETECTION_KEY,
             "this double refuses no repeat",
             KeyRole.CORRELATION_KEY,
-            "this double correlates nothing"));
+            "this double correlates nothing"),
+        answered -> answered);
   }
 
   @Override

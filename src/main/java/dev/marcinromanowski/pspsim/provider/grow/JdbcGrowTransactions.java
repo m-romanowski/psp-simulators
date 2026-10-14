@@ -14,7 +14,10 @@ import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.money.OperationOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeTable;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.sql.ResultSet;
@@ -28,6 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntSupplier;
 import org.jspecify.annotations.Nullable;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,16 +40,25 @@ import tools.jackson.databind.ObjectMapper;
 
 final class JdbcGrowTransactions implements GrowTransactions {
 
+  static final KeyedExchangeTable EXCHANGES =
+      KeyedExchangeTable.underANamedKey("grow_keyed_exchange", "merchant_id", true);
+
   private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {};
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
   private final ObjectMapper json;
+  private final KeyedExchangeLog exchanges;
 
-  JdbcGrowTransactions(JdbcClient jdbc, TransactionTemplate transactions, ObjectMapper json) {
+  JdbcGrowTransactions(
+      JdbcClient jdbc,
+      TransactionTemplate transactions,
+      ObjectMapper json,
+      KeyedExchangeLog exchanges) {
     this.jdbc = jdbc;
     this.transactions = transactions;
     this.json = json;
+    this.exchanges = exchanges;
   }
 
   @Override
@@ -131,9 +144,13 @@ final class JdbcGrowTransactions implements GrowTransactions {
 
   @Override
   public Charged charge(GrowTransaction transaction, GrowStoredCardCharge submission) {
-    return Objects.requireNonNull(
-        transactions.execute(status -> chargeInOneTransaction(status, transaction, submission)),
-        "the unit of work answered nothing where its callback answers a Charged on every path");
+    try {
+      return Objects.requireNonNull(
+          transactions.execute(status -> chargeInOneTransaction(status, transaction, submission)),
+          "the unit of work answered nothing where its callback answers a Charged on every path");
+    } catch (DuplicateKeyException aClaimAnotherRequestCommittedFirst) {
+      return GrowGroupCharges.theGroupOrRethrown(aClaimAnotherRequestCommittedFirst);
+    }
   }
 
   private Charged chargeInOneTransaction(
@@ -191,47 +208,8 @@ final class JdbcGrowTransactions implements GrowTransactions {
   }
 
   @Override
-  public boolean hasSeen(TestRunId testRunId, String merchantId, String keyName, String keyValue) {
-    return !jdbc.sql(
-            """
-            select seq from grow_keyed_exchange
-            where test_run_id = ? and merchant_id = ? and key_name = ? and key_value = ?
-            """)
-        .params(testRunId.value(), merchantId, keyName, keyValue)
-        .query(Integer.class)
-        .list()
-        .isEmpty();
-  }
-
-  @Override
-  public void observed(GrowObservedRequest request) {
-    jdbc.sql(
-            """
-            insert into grow_keyed_exchange
-                (test_run_id, merchant_id, key_name, key_value, seq, operation, fingerprint,
-                 verdict, http_status, content_type, body, provider_object_id, state_changed, at)
-            select ?, ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?
-            from grow_keyed_exchange
-            where test_run_id = ? and merchant_id = ? and key_name = ? and key_value = ?
-            """)
-        .param(request.testRunId().value())
-        .param(request.merchantId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .param(request.operation())
-        .param(request.fingerprint())
-        .param(request.verdict().name())
-        .param(request.httpStatus())
-        .param(request.contentType())
-        .param(request.body())
-        .param(request.providerObjectId())
-        .param(request.stateChanged())
-        .param(request.at().atOffset(ZoneOffset.UTC))
-        .param(request.testRunId().value())
-        .param(request.merchantId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .update();
+  public void observed(KeyedObservation observation) {
+    exchanges.record(observation);
   }
 
   @Override
@@ -241,7 +219,7 @@ final class JdbcGrowTransactions implements GrowTransactions {
                 """
                 select e.merchant_id, e.key_name, e.key_value, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.at
                 from grow_keyed_exchange e
                 join (select merchant_id, key_name, key_value, arrival
                       from grow_keyed_exchange
@@ -279,7 +257,8 @@ final class JdbcGrowTransactions implements GrowTransactions {
         rs.getString("provider_object_id"),
         rs.getBoolean("state_changed"),
         null,
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 
   @Override

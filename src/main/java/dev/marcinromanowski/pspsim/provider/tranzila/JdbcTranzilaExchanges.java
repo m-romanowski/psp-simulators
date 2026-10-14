@@ -4,66 +4,33 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeTable;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 final class JdbcTranzilaExchanges implements TranzilaExchanges {
 
+  static final KeyedExchangeTable EXCHANGES =
+      KeyedExchangeTable.underANamedKey("tranzila_keyed_exchange", "account_id", false);
+
   private final JdbcClient jdbc;
+  private final KeyedExchangeLog exchanges;
 
-  JdbcTranzilaExchanges(JdbcClient jdbc) {
+  JdbcTranzilaExchanges(JdbcClient jdbc, KeyedExchangeLog exchanges) {
     this.jdbc = jdbc;
+    this.exchanges = exchanges;
   }
 
   @Override
-  public int howOftenSeen(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-    return jdbc.sql(
-            """
-            select count(*) from tranzila_keyed_exchange
-            where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
-            """)
-        .params(testRunId.value(), accountId, keyName, keyValue)
-        .query(Integer.class)
-        .single()
-        .intValue();
-  }
-
-  @Override
-  public int observed(TranzilaObservedRequest request) {
-    return jdbc.sql(
-            """
-            insert into tranzila_keyed_exchange
-                (test_run_id, account_id, key_name, key_value, seq, operation, fingerprint,
-                 verdict, http_status, content_type, body, provider_object_id, state_changed, at)
-            select ?, ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?
-            from tranzila_keyed_exchange
-            where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
-            on conflict do nothing
-            """)
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .param(request.operation())
-        .param(request.fingerprint())
-        .param(request.verdict().name())
-        .param(Integer.valueOf(request.httpStatus()))
-        .param(request.contentType())
-        .param(request.body())
-        .param(request.providerObjectId())
-        .param(request.stateChanged())
-        .param(request.at().atOffset(ZoneOffset.UTC))
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .update();
+  public void observed(KeyedObservation observation) {
+    exchanges.record(observation);
   }
 
   @Override
@@ -73,7 +40,7 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
                 """
                 select e.account_id, e.key_name, e.key_value, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.at
                 from tranzila_keyed_exchange e
                 join (select account_id, key_name, key_value, arrival
                       from tranzila_keyed_exchange
@@ -123,6 +90,7 @@ final class JdbcTranzilaExchanges implements TranzilaExchanges {
         rs.getString("provider_object_id"),
         rs.getBoolean("state_changed"),
         null,
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 }

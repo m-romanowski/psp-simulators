@@ -19,7 +19,43 @@ public record RecordedKeyedRequest(
     @Nullable String providerObjectId,
     boolean stateChanged,
     @Nullable AppliedFault transportFault,
-    Instant at) {
+    Instant at,
+    boolean answerKept) {
+
+  public RecordedKeyedRequest(
+      String accountId,
+      String keyName,
+      String keyValue,
+      long arrival,
+      int sequence,
+      ExchangeVerdict verdict,
+      String fingerprint,
+      String operation,
+      @Nullable Integer httpStatus,
+      @Nullable String contentType,
+      @Nullable String body,
+      @Nullable String providerObjectId,
+      boolean stateChanged,
+      @Nullable AppliedFault transportFault,
+      Instant at) {
+    this(
+        accountId,
+        keyName,
+        keyValue,
+        arrival,
+        sequence,
+        verdict,
+        fingerprint,
+        operation,
+        httpStatus,
+        contentType,
+        body,
+        providerObjectId,
+        stateChanged,
+        transportFault,
+        at,
+        true);
+  }
 
   public KeyedRequest asRequest() {
     return new KeyedRequest(
@@ -33,6 +69,7 @@ public record RecordedKeyedRequest(
         providerObjectId,
         stateChanged,
         transportFault,
-        at);
+        at,
+        answerKept);
   }
 }

@@ -1,21 +1,21 @@
-package dev.marcinromanowski.pspsim.provider.stripe;
+package dev.marcinromanowski.pspsim.kernel.spi;
 
 import dev.marcinromanowski.pspsim.kernel.fault.AppliedFault;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import org.jspecify.annotations.Nullable;
 
-record StripeObservedRequest(
+public record KeyedObservation(
     TestRunId testRunId,
     String accountId,
-    String idempotencyKey,
+    String keyName,
+    String keyValue,
     String operation,
-    String fingerprint,
-    ExchangeVerdict verdict,
-    @Nullable Integer httpStatus,
-    @Nullable String contentType,
-    @Nullable String body,
+    KeyedOutcome outcome,
+    FingerprintedRequest request,
+    @Nullable KeyedAnswer answer,
     @Nullable String providerObjectId,
     boolean stateChanged,
     @Nullable AppliedFault transportFault,

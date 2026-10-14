@@ -17,6 +17,12 @@ public record KeyedExchange(
     long arrival,
     List<KeyedRequest> requests) {
 
+  public static final String SCOPE_THEN_VALUE = " ";
+
+  public static final String THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED =
+      "the request that ran the operation under this key, and stored the answer these requests"
+          + " were given, was not recorded, so its answer is shown only as they replayed it";
+
   public KeyedExchange {
     if (requests.isEmpty()) {
       throw new IllegalArgumentException(
@@ -53,7 +59,7 @@ public record KeyedExchange(
       throw new IllegalArgumentException(
           "the earliest request recorded under key "
               + keyName
-              + " that this simulator answered from what the key already held is a "
+              + " that ran the operation is a "
               + claimant.verdict().name()
               + ", and a repeat with nothing to repeat is a record of an answer this simulator"
               + " never gave");
@@ -63,11 +69,27 @@ public record KeyedExchange(
 
   private static @Nullable KeyedRequest theRequestThatClaimedTheKey(List<KeyedRequest> requests) {
     for (KeyedRequest request : requests) {
-      if (request.verdict().isOrderedAgainstTheRequestThatClaimedTheKey()) {
+      if (request.verdict().couldHaveChangedState()) {
         return request;
       }
     }
     return null;
+  }
+
+  public @Nullable String whatThisLogDidNotRecord() {
+    for (KeyedRequest request : requests) {
+      if (request.verdict().couldHaveChangedState()) {
+        return null;
+      }
+      if (request.verdict().answersFromWhatTheRequestThatRanStored()) {
+        return THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED;
+      }
+    }
+    return null;
+  }
+
+  public boolean isKeyedBy(String sent) {
+    return keyValue.equals(sent) || keyValue.endsWith(SCOPE_THEN_VALUE + sent);
   }
 
   public KeyedRequest firstRequest() {
