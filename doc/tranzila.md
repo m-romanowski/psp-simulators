@@ -395,7 +395,7 @@ match is `{"transactions":[],"user_defined":[…],"total":"0","rows":0}`, `user_
 | dates                                        | `YYYY-MM-DD`; end "inclusive" (reports)    | calendar dates from `0001-01-01`, both ends inclusive, read on the run clock in UTC; a start after the end finds nothing |
 | `page`                                       | "the next 1000 rows" (`/v1/transactions`); `minimum: 1` (reports) | 1 to 2147483647, default 1                                                  |
 | rows a page                                  | 1000 (`/v1/transactions`); `page_results` 1–1000, default 1000 (reports) | as published                                                   |
-| order                                        | "by transaction date", default `desc` (reports); unpublished for `/v1/transactions` | reports as published; `/v1/transactions` oldest first, so a page read keeps its rows as transactions arrive (simulator decision); equal times in arrival order |
+| order                                        | "by transaction date", default `desc` (reports); unpublished for `/v1/transactions` | reports as published; `/v1/transactions` oldest first, so a page read keeps its rows as transactions arrive (simulator decision); equal times oldest first in arrival order, and newest first in reverse arrival order under `desc` |
 | `total`, `rows`                              | "across all pages", "in this response page" (reports) | as published                                                                    |
 | any other body field                         | schema                                     | refused: `/v1/transactions` `400` `20004`, reports `400`                                       |
 | a lookup                                     | a read                                     | recorded in the trail both ways; no keyed exchange; no scenario rule applies to it (simulator decision) |
@@ -426,15 +426,28 @@ Fields (`/v1/transactions` as strings; the report host typed as its schema, `nul
 | `bank`, `bank_branch`, `bank_account`                    | empty on `/v1/transactions`, `null` on the report host ("`null` for card transactions")           |
 | `txnfdid`, `cancelfdid`, `txnfdnumber`, `cancelfdnumber` | `null` (no invoice is served)                                                                      |
 
-User-defined fields (simulator decisions; Tranzila assigns slots in a terminal's settings, which no route publishes):
+User-defined fields (simulator decisions): Tranzila configures a terminal's slots in its settings and publishes
+`POST /v1/terminals/settings/fields/list` to read them, which is not served here; the simulator has no terminal field
+configuration, so a name takes a slot the first time a transaction carries it.
 
 - Kept per transaction, in the order sent: on create, every `user_defined_fields` entry, `DCdisable` included; on the
-  payment page, its `DCdisable` and then every parameter it does not read itself (all but `sum`, `currency`,
-  `tranmode`, `cred_type`, the three addresses, `DCdisable`, `thtk` and `myid`); on Hosted Fields, its `DCdisable` and
-  then every `user_form_data` key but `notify_url` and `identity_number`. The published example lists the page's own
+  payment page, its `DCdisable` and then every parameter it echoes except those it reads, displays or keeps as a
+  setting: `sum`, `currency`, `tranmode`, `cred_type`, the three addresses, `DCdisable`, `thtk`, `myid`, `pdesc`,
+  `lang`, `accessibility`, `opensum`, `trBgColor`, `trTextColor`, `trButtonColor`, `buttonLabel`, `hidesum`, `nologo`,
+  `hide_cc`, `apple_pay`, `google_pay`, `bit_pay`, `ppnewwin`, `recur_payments`, `recur_start_date`, `recur_sum`,
+  `recur_transaction`, `npay`, `fpay`, `spay`, `maxpay`, `Ilang`, `IMaam`, `Z_field`, `business_id`,
+  `json_purchase_data`, and the names the return sets itself (`supplier`, `Response`, `transaction_id`, `index`,
+  `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK`, `txn_type`,
+  `ConfirmationCode`); on Hosted Fields, its `DCdisable` and then every `user_form_data` key but `notify_url`, `pdesc`,
+  `json_purchase_data`, `force_txn_on_3ds_fail` and `force_challenge`. The published example lists the page's own
   `email` and `contact` as user-defined fields.
-- A name takes the next free slot of its terminal the first time a transaction of the run carries it, 25 at most; a
-  name past the 25th is kept and answered in no slot. A name a transaction carries twice answers its last value.
+- No slot keeps a name the trail withholds as an identity (`card_number`, `cvv`, `card_holder_id`, `myid`,
+  `credit_card_number`, `card_holder_id_number`, `identity_number`), compared without regard to case, from any of the
+  three.
+- A terminal of a run numbers each name once, when the first transaction carrying it is recorded, in the order that
+  transaction sent its new names; two transactions recorded at once number their names one after the other, never
+  interleaved. A terminal holds 25 slots; a name arriving after the 25th is not kept. A name a transaction carries
+  twice answers its last value.
 - `/v1/transactions` answers slots 1–20, the report host 1–25. `user_defined` describes each slot answered, highest
   `FIELD_ID` first as both published lists order them: `TERMINAL_ID` the terminal, `FIELD_ID` (a string on
   `/v1/transactions` as its example, an integer on the report host as `UserDefinedFieldMeta`), `API_PARAMETER_NAME`
@@ -444,9 +457,12 @@ User-defined fields (simulator decisions; Tranzila assigns slots in a terminal's
 `items` (report host, `detailed` `Y`): each item a create charged, in order: `item_id` the simulator's own number,
 `item_name`, `quantity` the units with two decimals, `price` the unit price in minor units (an `N` item's with its VAT
 added), `item_type` the item's `type` or `I`. A page payment and a Hosted Fields charge carry one item named
-`simulator` at the amount; a `cancel` or `reversal` carries none.
+`simulator` at the amount; a `cancel` or `reversal` carries none, even when sent with items, since its amount is the
+transaction it acts on.
 
-`transactions.credit_card_token` and `transactions.credit_card_owner_id` are withheld from the trail. Simulator
+`transactions.credit_card_token` and `transactions.credit_card_owner_id` are withheld from the trail, and so is each of
+the seven identity names above wherever it appears as a field of any trail row: a request, a page's return, a Hosted
+Fields answer's `user_form_data`, or a notify. Simulator
 decision: `ufields` and `dfields` are refused rather than ignored, because an ignored filter answers rows the caller
 excluded; an empty array filters nothing and is accepted.
 
@@ -756,6 +772,7 @@ and `google_pay` are ignored).
 | `credit_card_token`            | `'2312'`, four digits (`/v1/transactions` example)                                     | "Tranzila token representing the card" (reports)                                                   | the token on both                          |
 | `/v1/transactions` `txn_type`  | `''` (example)                                                                         | the `tranmode` table's names (`debit`, `j2`, …)                                                    | the table's name                           |
 | `user_defined` metadata        | in the `/v1/transactions` example; `UserDefinedFieldMeta` "Returned in the `user_defined` array of the `/v1/transaction` response" (reports) | absent from the reports' response schema and example                     | answered on both                           |
+| card issuer of a Visa          | `card_issuer` `2` (C.A.L) for a Visa (reports example)                                  | `cardissuer=1` beside `cardtype=1` (DirectNG return sample)                                        | `1` for every card on the page and both lookups |
 | date range                     | end "inclusive" (reports)                                                              | an example whose start (`2023-11-12`) follows its end (`2023-08-31`) (`/v1/transactions`)          | accepted; such a range finds nothing       |
 
 ## What This Contract Could Not Settle
