@@ -1,0 +1,157 @@
+package dev.marcinromanowski.pspsim.provider.tranzila;
+
+import dev.marcinromanowski.pspsim.kernel.spi.WhatAPayerPageMayLoad;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+final class TranzilaHostedControlPage {
+
+  static final String THE_SCRIPT =
+      "(function () {"
+          + "var asked = new URLSearchParams(location.search);"
+          + "var instance = asked.get(\"instance_identifier\") || \"\";"
+          + "var base = location.pathname.substring(0, location.pathname.indexOf(\"/assets/\"));"
+          + "var hosted = {credit_card_number: true, cvv: true, expiry: true, card_holder_id_number: true};"
+          + "var values = {};"
+          + "function read(text) {"
+          + "try {"
+          + "return JSON.parse(text);"
+          + "} catch (notJson) {"
+          + "return null;"
+          + "}"
+          + "}"
+          + "function luhn(digits) {"
+          + "var sum = 0;"
+          + "for (var at = 0; at < digits.length; at++) {"
+          + "var digit = Number(digits.charAt(digits.length - 1 - at));"
+          + "if (at % 2 === 1) {"
+          + "digit = digit * 2;"
+          + "if (digit > 9) {"
+          + "digit = digit - 9;"
+          + "}"
+          + "}"
+          + "sum = sum + digit;"
+          + "}"
+          + "return sum % 10 === 0;"
+          + "}"
+          + "function expiresLater(value) {"
+          + "var parts = value.split(\"/\");"
+          + "if (parts.length !== 2 || !/^[0-9]{1,2}$/.test(parts[0]) || !/^([0-9]{2}|[0-9]{4})$/.test(parts[1])) {"
+          + "return false;"
+          + "}"
+          + "var month = Number(parts[0]);"
+          + "var year = parts[1].length === 2 ? 2000 + Number(parts[1]) : Number(parts[1]);"
+          + "var today = new Date();"
+          + "var thisYear = today.getFullYear();"
+          + "return month >= 1 && month <= 12 && (year > thisYear || (year === thisYear && month >= today.getMonth() + 1));"
+          + "}"
+          + "function theExpiry(params) {"
+          + "if (typeof values.expiry === \"string\") {"
+          + "return values.expiry;"
+          + "}"
+          + "return params.expiry_month && params.expiry_year ? params.expiry_month + \"/\" + params.expiry_year : \"\";"
+          + "}"
+          + "function refusal(code, message, param) {"
+          + "return {code: code, message: message, param: param};"
+          + "}"
+          + "function judged(params) {"
+          + "var refused = [];"
+          + "if (!params.terminal_name) {"
+          + "refused.push(refusal(\"terminal_name_invalid\", \"A terminal name is required\", \"terminal_name\"));"
+          + "}"
+          + "var number = values.credit_card_number || \"\";"
+          + "if (!/^[0-9]{8,19}$/.test(number) || !luhn(number)) {"
+          + "refused.push(refusal(\"credit_card_number_invalid\", \"The card number is not valid\", \"credit_card_number\"));"
+          + "}"
+          + "if (!expiresLater(theExpiry(params))) {"
+          + "refused.push(refusal(\"expiry_invalid\", \"The expiry date is not valid\", \"expiry\"));"
+          + "}"
+          + "if (typeof values.cvv === \"string\" && !/^[0-9]{3,4}$/.test(values.cvv)) {"
+          + "refused.push(refusal(\"cvv_invalid\", \"The CVV is not valid\", \"cvv\"));"
+          + "}"
+          + "if (typeof values.card_holder_id_number === \"string\" && !/^[0-9]{1,9}$/.test(values.card_holder_id_number)) {"
+          + "refused.push(refusal(\"card_holder_id_number_invalid\", \"The ID number is not valid\", \"card_holder_id_number\"));"
+          + "}"
+          + "return refused;"
+          + "}"
+          + "function theForm(params) {"
+          + "var form = new URLSearchParams();"
+          + "Object.keys(params).forEach(function (key) {"
+          + "var value = params[key];"
+          + "if (value === undefined || value === null || hosted[key] || key === \"expiry_month\" || key === \"expiry_year\") {"
+          + "return;"
+          + "}"
+          + "form.append(key, typeof value === \"object\" ? JSON.stringify(value) : String(value));"
+          + "});"
+          + "form.append(\"credit_card_number\", values.credit_card_number);"
+          + "if (typeof values.cvv === \"string\") {"
+          + "form.append(\"cvv\", values.cvv);"
+          + "}"
+          + "if (typeof values.card_holder_id_number === \"string\") {"
+          + "form.append(\"card_holder_id_number\", values.card_holder_id_number);"
+          + "}"
+          + "var parts = theExpiry(params).split(\"/\");"
+          + "form.append(\"expiry_month\", parts[0]);"
+          + "form.append(\"expiry_year\", parts[1].length === 2 ? \"20\" + parts[1] : parts[1]);"
+          + "return form;"
+          + "}"
+          + "function answer(arrived, requestId, err, response) {"
+          + "var reply = JSON.stringify({type: \"chargeResponse\", requestId: requestId, err: err, response: response});"
+          + "arrived.source.postMessage(reply, arrived.origin === \"null\" ? \"*\" : arrived.origin);"
+          + "}"
+          + "function charge(message, arrived) {"
+          + "var params = message.params && typeof message.params === \"object\" ? message.params : {};"
+          + "var refused = judged(params);"
+          + "if (refused.length) {"
+          + "answer(arrived, message.requestId, {error: \"invalid_resource\", error_description: \"One or more parameters were missing or invalid\", messages: refused}, null);"
+          + "return;"
+          + "}"
+          + "fetch(base + \"/process/ajax_process_transaction\", {method: \"POST\", body: theForm(params), credentials: \"omit\"})"
+          + ".then(function (answered) {"
+          + "return answered.json();"
+          + "})"
+          + ".then(function (response) {"
+          + "answer(arrived, message.requestId, null, response);"
+          + "}, function (failed) {"
+          + "answer(arrived, message.requestId, {error: \"network_error\", error_description: String(failed)}, null);"
+          + "});"
+          + "}"
+          + "window.addEventListener(\"message\", function (arrived) {"
+          + "if (typeof arrived.data !== \"string\") {"
+          + "return;"
+          + "}"
+          + "var message = read(arrived.data);"
+          + "if (!message || typeof message !== \"object\") {"
+          + "return;"
+          + "}"
+          + "if (message.type === \"update\" && arrived.origin === location.origin && message.instance === instance && hosted[message.fieldName] === true && typeof message.data === \"string\") {"
+          + "values[message.fieldName] = message.data;"
+          + "} else if (message.type === \"charge\" && arrived.source === parent) {"
+          + "charge(message, arrived);"
+          + "}"
+          + "});"
+          + "})();";
+
+  static final String WHAT_IT_PERMITS =
+      WhatAPayerPageMayLoad.NOTHING_BUT_THE_PAGES_OWN_STYLE
+          + "; script-src 'sha256-bhdK+jHv3z6Q3Gp3dR7aH9MtJSKXJ40xFuHmNzAVKk4='; connect-src 'self'";
+
+  static final Map<String, List<String>> DEFENCE_HEADERS =
+      WhatAPayerPageMayLoad.eachOnADocumentDeclaring(WHAT_IT_PERMITS);
+
+  static final String TITLE = "Tranzila hosted fields";
+
+  static final String THE_DOCUMENT =
+      "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>"
+          + TITLE
+          + "</title></head><body><script>"
+          + THE_SCRIPT
+          + "</script></body></html>";
+
+  private TranzilaHostedControlPage() {}
+
+  static byte[] theDocument() {
+    return THE_DOCUMENT.getBytes(StandardCharsets.UTF_8);
+  }
+}

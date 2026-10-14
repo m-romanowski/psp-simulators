@@ -144,7 +144,13 @@ public final class NoWorkingPayerAddressOnAScreen {
 
   private static SequencedMap<String, List<String>> theSubmissionRoutes() {
     SequencedMap<String, List<String>> declared = new LinkedHashMap<>();
-    declared.put("tranzila", List.of("/tranzila/directng/{terminal}/payer/{pageId}"));
+    declared.put(
+        "tranzila",
+        List.of(
+            "/tranzila/directng/{terminal}/payer/{pageId}",
+            "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
+            "/tranzila/hf/assets/js/hfields_depend/genfield.php",
+            "/tranzila/hf/process/ajax_process_transaction"));
     return Collections.unmodifiableSequencedMap(declared);
   }
 

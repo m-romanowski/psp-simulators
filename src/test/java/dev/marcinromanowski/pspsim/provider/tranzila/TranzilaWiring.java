@@ -32,6 +32,8 @@ final class TranzilaWiring {
 
   static final Instant NOW = Instant.parse("2026-10-13T12:00:00Z");
 
+  static final String THE_SCRIPT = "var TzlaHostedFields = {};";
+
   final TranzilaDoubles.Terminals terminals = new TranzilaDoubles.Terminals();
   final TranzilaDoubles.Transactions transactions = new TranzilaDoubles.Transactions();
   final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
@@ -101,6 +103,19 @@ final class TranzilaWiring {
           RUN,
           create,
           new CreateHandshake(handshakes, ids));
+  final TranzilaHostedFields hostedFields =
+      new TranzilaHostedFields(
+          terminals,
+          handshakes,
+          transactions,
+          create,
+          new TranzilaHostedCards(fixtures, ids),
+          new TranzilaDoubles.Runs(RUN),
+          audit,
+          clock,
+          ids,
+          RUN,
+          THE_SCRIPT.getBytes(StandardCharsets.UTF_8));
   final TranzilaProvider provider =
       new TranzilaProvider(
           terminals,

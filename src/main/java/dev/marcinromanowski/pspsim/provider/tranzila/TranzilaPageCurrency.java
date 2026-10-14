@@ -35,4 +35,13 @@ enum TranzilaPageCurrency {
     }
     return Optional.empty();
   }
+
+  static Optional<TranzilaPageCurrency> alphabetic(String sent) {
+    for (TranzilaPageCurrency published : values()) {
+      if (published.alpha.equals(sent)) {
+        return Optional.of(published);
+      }
+    }
+    return Optional.empty();
+  }
 }

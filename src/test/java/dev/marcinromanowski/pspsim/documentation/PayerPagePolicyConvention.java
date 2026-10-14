@@ -79,6 +79,25 @@ public final class PayerPagePolicyConvention {
               "its form posts to this origin and is answered with a document; the shop frames"
                   + " this page, which is why it names no frame-ancestors"),
           new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+              "script-src 'sha256-bhdK+jHv3z6Q3Gp3dR7aH9MtJSKXJ40xFuHmNzAVKk4='",
+              "the one inline script of the hidden frame tranzila's hosted fields charge from: it"
+                  + " keeps what the card fields share with it and posts the charge to this origin;"
+                  + " the hash admits that script and nothing else, and the frame names no"
+                  + " frame-ancestors because every merchant's own page frames it"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+              "connect-src 'self'",
+              "the hidden frame posts the charge to the process route of this same origin, as"
+                  + " tranzila's own frame posts it to its own host, and reads the answer back"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
+              "script-src 'sha256-23jK9lXHhnkwUTXXOCCNQUQxFvItoQmpsKOELlvNc18='",
+              "the one inline script of a card field frame: it builds the field the payer types"
+                  + " into and shares its value with the hidden frame of this origin only; the"
+                  + " hash admits that script and nothing else, and the frame names no"
+                  + " frame-ancestors because every merchant's own page frames it"),
+          new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
               "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
               "the one inline script that submits the return form to the shop's own address, as"

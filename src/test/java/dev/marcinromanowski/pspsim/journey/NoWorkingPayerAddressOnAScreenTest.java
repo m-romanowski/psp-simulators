@@ -44,7 +44,12 @@ class NoWorkingPayerAddressOnAScreenTest {
     assertThat(NoWorkingPayerAddressOnAScreen.THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO)
         .containsExactly(
             java.util.Map.entry(
-                "tranzila", List.of("/tranzila/directng/{terminal}/payer/{pageId}")));
+                "tranzila",
+                List.of(
+                    "/tranzila/directng/{terminal}/payer/{pageId}",
+                    "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
+                    "/tranzila/hf/assets/js/hfields_depend/genfield.php",
+                    "/tranzila/hf/process/ajax_process_transaction")));
   }
 
   @Test

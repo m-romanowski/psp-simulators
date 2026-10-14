@@ -26,6 +26,8 @@ class TranzilaCompatibilityChecksTest {
 
   private static final String PAGE = "/tranzila/directng/smoketerminal/iframenew.php";
 
+  private static final String PROCESS = "/tranzila/hf/process/ajax_process_transaction";
+
   private static final Instant AT = Instant.parse("2026-10-13T12:00:00Z");
 
   private static final String A_DEBIT =
@@ -67,6 +69,17 @@ class TranzilaCompatibilityChecksTest {
         .containsExactly("httpStatus=401", "error_code=401", "message=Unauthorized");
     assertThat(expectedBy(checks.get(6)))
         .containsExactly("Response=000", "txn_type=debit", "tranmode=A");
+    assertThat(expectedBy(checks.get(7)))
+        .containsExactly(
+            "transaction_response.success=true",
+            "transaction_response.processor_response_code=000",
+            "transaction_response.currency_code=1",
+            "transaction_response.card_locality=domestic",
+            "transaction_response.txn_type=debit",
+            "transaction_response.tranmode=A",
+            "transaction_response.payment_plan=1");
+    assertThat(expectedBy(checks.get(8)))
+        .containsExactly("code=10007", "message=INVALID PAYMENT PLAN");
     assertThat(checks)
         .extracting(ContractCheck::operation)
         .containsExactly(
@@ -76,7 +89,9 @@ class TranzilaCompatibilityChecksTest {
             TranzilaCompatibilityChecks.THE_TRAIL_RECORDS,
             TranzilaCompatibilityChecks.THE_HANDSHAKE_LOCKS_A_SUM,
             TranzilaCompatibilityChecks.THE_HANDSHAKE_REFUSES_A_TOKEN,
-            TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER);
+            TranzilaCompatibilityChecks.THE_PAGE_RETURNS_THE_PAYER,
+            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_CHARGE,
+            TranzilaCompatibilityChecks.THE_HOSTED_FIELDS_REFUSE_A_PLAN);
   }
 
   @Test
@@ -332,6 +347,73 @@ class TranzilaCompatibilityChecksTest {
         .isEqualTo("Response");
     assertThat(failedField(6, prepared().answering("GET", PAGE, 400, "refused")))
         .isEqualTo("Response");
+  }
+
+  @Test
+  void the_hosted_fields_charge_holds_on_the_published_answer_and_fails_naming_what_differs() {
+    String created = "{\"error_code\":0,\"message\":\"Success\",\"thtk\":\"w1\"}";
+    String charged =
+        "{\"errors\":null,\"transaction_response\":{\"success\":true,"
+            + "\"processor_response_code\":\"000\",\"currency_code\":1,"
+            + "\"card_locality\":\"domestic\",\"txn_type\":\"debit\",\"tranmode\":\"A\","
+            + "\"payment_plan\":1},\"response_hash\":\"h\"}";
+    CannedTransport transport =
+        prepared()
+            .answering("POST", HANDSHAKE, 200, created)
+            .answering("POST", PROCESS, 200, charged);
+
+    assertThat(run(7, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    CheckRequest sent = transport.sent().get(transport.sent().size() - 1);
+    assertThat(sent.path()).isEqualTo(PROCESS);
+    assertThat(String.valueOf(sent.body()))
+        .isEqualTo(
+            "terminal_name=smoketerminal&thtk=w1&amount=10.53"
+                + "&credit_card_number=4907639999909022&expiry_month=12&expiry_year=2030");
+    assertThat(
+            failedField(
+                7,
+                prepared()
+                    .answering("POST", HANDSHAKE, 200, created)
+                    .answering(
+                        "POST",
+                        PROCESS,
+                        200,
+                        charged.replace("\"currency_code\":1", "\"currency_code\":2"))))
+        .isEqualTo("transaction_response.currency_code");
+    assertThat(
+            failedField(
+                7,
+                prepared()
+                    .answering("POST", HANDSHAKE, 200, created)
+                    .answering("POST", PROCESS, 200, charged.replace("true", "false"))))
+        .isEqualTo("transaction_response.success");
+  }
+
+  @Test
+  void the_hosted_fields_refusal_of_a_plan_holds_on_10007_and_fails_on_another_code() {
+    String created = "{\"error_code\":0,\"message\":\"Success\",\"thtk\":\"w1\"}";
+    String refused =
+        "{\"errors\":[{\"code\":10007,\"param\":\"payment_plan\","
+            + "\"message\":\"INVALID PAYMENT PLAN\"}],\"transaction_response\":null}";
+    CannedTransport transport =
+        prepared()
+            .answering("POST", HANDSHAKE, 200, created)
+            .answering("POST", PROCESS, 200, refused);
+
+    assertThat(run(8, transport).verdicts())
+        .singleElement()
+        .isInstanceOf(SmokeVerdict.Passed.class);
+    assertThat(String.valueOf(transport.sent().get(transport.sent().size() - 1).body()))
+        .endsWith("&expiry_year=2030&payment_plan=6");
+    assertThat(
+            failedField(
+                8,
+                prepared()
+                    .answering("POST", HANDSHAKE, 200, created)
+                    .answering("POST", PROCESS, 200, refused.replace("10007", "10006"))))
+        .isEqualTo("code");
   }
 
   private SmokeRun run(int check, CannedTransport transport) {

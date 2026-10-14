@@ -145,6 +145,32 @@ public class TranzilaModule {
   }
 
   @Bean
+  TranzilaHostedFields tranzilaHostedFields(
+      TranzilaTerminals terminals,
+      TranzilaHandshakes handshakes,
+      TranzilaTransactions transactions,
+      CreateTransaction createTransaction,
+      PaymentMethodFixtures fixtures,
+      TestRuns testRuns,
+      AuditTrail audit,
+      SimulatorClock clock,
+      IdGenerator ids,
+      @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
+    return new TranzilaHostedFields(
+        terminals,
+        handshakes,
+        transactions,
+        createTransaction,
+        new TranzilaHostedCards(fixtures, ids),
+        testRuns,
+        audit,
+        clock,
+        ids,
+        TestRunId.of(defaultTestRunId),
+        TranzilaHostedFieldsScript.read());
+  }
+
+  @Bean
   TranzilaDelivery tranzilaDelivery(DelayedDeliveries delays, FaultDelayCeiling faultDelayCeiling) {
     return new TranzilaDelivery(delays, faultDelayCeiling.deliveryDeadline());
   }

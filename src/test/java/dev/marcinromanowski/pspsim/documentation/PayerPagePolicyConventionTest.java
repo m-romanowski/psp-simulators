@@ -22,6 +22,9 @@ class PayerPagePolicyConventionTest {
           "dev.marcinromanowski.pspsim.provider.azericard.AzericardPayerPage",
           "dev.marcinromanowski.pspsim.provider.grow.GrowHostedPage",
           "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsRefusalPage",
           "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
           "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage");
 
@@ -32,7 +35,7 @@ class PayerPagePolicyConventionTest {
   private static final String A_STYLED_DOCUMENT = "<!DOCTYPE html><html lang=\"en\"><style>";
 
   @Test
-  void the_compiled_build_renders_seven_pages_and_every_one_of_them_declares_a_policy() {
+  void the_compiled_build_renders_ten_pages_and_every_one_of_them_declares_a_policy() {
     List<APage> pages = PayerPageDeclarations.inTheBuild(COMPILED_MAIN);
 
     assertThat(PayerPagePolicyConvention.theNamesOf(pages))
@@ -40,13 +43,15 @@ class PayerPagePolicyConventionTest {
             "the denominator of this gate: a sweep that matched nothing would pass forever, so"
                 + " the pages it examined are named one by one")
         .containsExactlyElementsOf(THE_PAGES_THIS_SIMULATOR_RENDERS);
-    assertThat(pages).hasSize(7);
+    assertThat(pages).hasSize(10);
     assertThat(PayerPagePolicyConvention.howManyPolicies(pages))
         .as("one policy read out of each page, and no page declaring two of them")
-        .isEqualTo(7);
+        .isEqualTo(10);
     assertThat(PayerPagePolicyConvention.howManyCarryTheirOwnStyle(pages))
-        .as("every page but azericard's error page carries its own style")
-        .isEqualTo(6);
+        .as(
+            "every page but azericard's error page and the hidden frame tranzila's hosted fields"
+                + " charge from carries its own style")
+        .isEqualTo(8);
     assertThat(PayerPagePolicyConvention.theProvidersOf(pages))
         .containsExactly("autra", "azericard", "grow", "tranzila", "worldline");
     assertThat(pages)
@@ -64,9 +69,9 @@ class PayerPagePolicyConventionTest {
     List<String> read = PayerPagePolicyConvention.verdictOn(COMPILED_MAIN).read();
 
     assertThat(read).hasSize(5);
-    assertThat(read.get(0)).contains("examined the 7 that render an HTML document");
-    assertThat(read.get(1)).contains("read 7 policies").contains("6 of which carry their own");
-    assertThat(read.get(2)).contains("10 directive(s) beyond that floor are registered, over 6");
+    assertThat(read.get(0)).contains("examined the 10 that render an HTML document");
+    assertThat(read.get(1)).contains("read 10 policies").contains("8 of which carry their own");
+    assertThat(read.get(2)).contains("13 directive(s) beyond that floor are registered, over 8");
     assertThat(read.get(3)).contains("[autra, azericard, grow, tranzila, worldline]");
     assertThat(read.get(4)).contains(PayerPageDeclarations.THE_CLASS_THAT_OWNS_THE_DECLARATION);
   }
@@ -75,20 +80,25 @@ class PayerPagePolicyConventionTest {
   void every_directive_beyond_the_floor_is_registered_against_one_page_with_its_reason() {
     assertThat(PayerPagePolicyConvention.THE_FURTHER_DIRECTIVES_A_PAGE_MAY_NAME)
         .as("the registry is the whole of what any payer page may name beyond the floor")
-        .hasSize(10)
+        .hasSize(13)
         .allSatisfy(admitted -> assertThat(admitted.why()).isNotBlank())
         .extracting(AFurtherDirective::directive)
         .containsOnly(
             "form-action 'self'",
             "frame-ancestors 'none'",
             "base-uri 'none'",
-            "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='");
+            "connect-src 'self'",
+            "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
+            "script-src 'sha256-23jK9lXHhnkwUTXXOCCNQUQxFvItoQmpsKOELlvNc18='",
+            "script-src 'sha256-bhdK+jHv3z6Q3Gp3dR7aH9MtJSKXJ40xFuHmNzAVKk4='");
     assertThat(PayerPagePolicyConvention.thePagesThatRegisterADirective())
         .containsExactly(
             "dev.marcinromanowski.pspsim.provider.autra.AutraCardPage",
             "dev.marcinromanowski.pspsim.provider.azericard.AzericardErrorPage",
             "dev.marcinromanowski.pspsim.provider.azericard.AzericardPayerPage",
             "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
             "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage");
     assertThat(PayerPagePolicyConvention.THE_FURTHER_DIRECTIVES_A_PAGE_MAY_NAME)

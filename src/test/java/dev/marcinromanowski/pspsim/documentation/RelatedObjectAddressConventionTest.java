@@ -529,7 +529,10 @@ class RelatedObjectAddressConventionTest {
                 "tranzila",
                 List.of(
                     "/tranzila/directng/{terminal}/iframenew.php",
-                    "/tranzila/directng/{terminal}/payer/{pageId}"),
+                    "/tranzila/directng/{terminal}/payer/{pageId}",
+                    "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
+                    "/tranzila/hf/assets/js/hfields_depend/genfield.php",
+                    "/tranzila/hf/process/ajax_process_transaction"),
                 "worldline",
                 List.of(A_PAGE_WITH_A_VARIABLE)));
     assertThat(RelatedObjectAddressConvention.theModulesThatDeclareNoPageOfTheirOwn(build, pages))

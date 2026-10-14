@@ -14,7 +14,8 @@ final class TranzilaWireFaults {
           List.of(
               TranzilaApiController.TRANSACTION,
               TranzilaApiController.CREATE_HANDSHAKE,
-              TranzilaDirectNgPage.HOST));
+              TranzilaDirectNgPage.HOST,
+              TranzilaHostedFieldsPage.HOST));
 
   static final String THE_ADDRESS_DOES_NOT_ANSWER_THIS_METHOD =
       "This address does not answer this HTTP method";
@@ -36,6 +37,12 @@ final class TranzilaWireFaults {
           + " tranzila's look would tell a payer that tranzila answered when this simulator is"
           + " what failed";
 
+  static final String WHAT_THE_HOSTED_FIELDS_PUBLISH_FOR_A_FAILURE_INSIDE_THEM =
+      "nothing for a failure of their own: the hosted fields publish their script, their charge"
+          + " keys, their answer and their error table, and no answer for a failure beside them,"
+          + " so a body in tranzila's field names would tell a client that tranzila answered when"
+          + " this simulator is what failed";
+
   private TranzilaWireFaults() {}
 
   static ProviderWireAnswer theAnswerTo(WireFault fault, String address) {
@@ -44,6 +51,9 @@ final class TranzilaWireFaults {
     }
     if (address.startsWith(TranzilaDirectNgPage.HOST)) {
       return thePagesAnswerTo(fault);
+    }
+    if (address.startsWith(TranzilaHostedFieldsPage.HOST)) {
+      return theHostedFieldsAnswerTo(fault);
     }
     return switch (fault) {
       case AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE ->
@@ -85,6 +95,28 @@ final class TranzilaWireFaults {
           new ProviderWireAnswer.NothingThisContractPublishes(
               WHAT_THE_PAGE_PUBLISHES_FOR_A_FAILURE_INSIDE_IT);
     };
+  }
+
+  static ProviderWireAnswer theHostedFieldsAnswerTo(WireFault fault) {
+    return switch (fault) {
+      case AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE ->
+          aHostedFieldsPage(
+              TranzilaAnswers.NOT_FOUND, TranzilaHostedFieldsRefusalPage.NO_SUCH_ADDRESS);
+      case A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER ->
+          aHostedFieldsPage(
+              TranzilaAnswers.METHOD_NOT_ALLOWED, TranzilaHostedFieldsRefusalPage.NO_SUCH_METHOD);
+      case A_FAILURE_NOTHING_ELSE_ANSWERED ->
+          new ProviderWireAnswer.NothingThisContractPublishes(
+              WHAT_THE_HOSTED_FIELDS_PUBLISH_FOR_A_FAILURE_INSIDE_THEM);
+    };
+  }
+
+  private static ProviderWireAnswer aHostedFieldsPage(int httpStatus, String said) {
+    return new ProviderWireAnswer.InThisProvidersOwnWords(
+        httpStatus,
+        TranzilaHostedFieldsPage.CONTENT_TYPE,
+        TranzilaHostedFieldsRefusalPage.refusing(said).getBytes(StandardCharsets.UTF_8),
+        TranzilaHostedFieldsRefusalPage.DEFENCES);
   }
 
   private static ProviderWireAnswer handshakeShape(int httpStatus, String message) {

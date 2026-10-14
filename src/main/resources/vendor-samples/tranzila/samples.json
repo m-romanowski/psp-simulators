@@ -53,5 +53,22 @@
       "txn_type": "debit",
       "tranmode": "A"
     }
+  },
+  "hosted-fields-charged": {
+    "evidence": "published example",
+    "note": "the Regular Transaction response of Hosted Fields: field names, types and key order as published, values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/hosted-fields",
+    "reference": "tranzila.md, Hosted Fields",
+    "body": "hosted-fields-charged.json"
+  },
+  "hosted-fields-payment-plan": {
+    "evidence": "published rule",
+    "note": "the Error Messages table of Hosted Fields: 10007 INVALID PAYMENT PLAN, answered in errors as code, param and message",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/hosted-fields",
+    "reference": "tranzila.md, Hosted Fields",
+    "rules": {
+      "code": "10007",
+      "message": "INVALID PAYMENT PLAN"
+    }
   }
 }

@@ -173,10 +173,35 @@ final class TranzilaFields {
 
   static final String CONFIRMATION_CODE = "ConfirmationCode";
 
+  static final String CREDIT_CARD_NUMBER = "credit_card_number";
+
+  static final String CARD_HOLDER_ID_NUMBER = "card_holder_id_number";
+
+  static final String TRAN_MODE = "tran_mode";
+
+  static final String TOKENIZE = "tokenize";
+
+  static final String IDENTITY_NUMBER = "identity_number";
+
+  static final String USER_FORM_DATA = "user_form_data";
+
+  static final String ERRORS = "errors";
+
+  static final String TRANSACTION_RESPONSE = "transaction_response";
+
+  static final String RESPONSE_HASH = "response_hash";
+
   static final Set<String> SENSITIVE_HEADERS = Set.of("x-tranzila-api-access-token");
 
   static final Set<String> SENSITIVE_REQUEST_FIELDS =
-      Set.of(CARD_NUMBER, CVV, CARD_HOLDER_ID, MYID);
+      Set.of(
+          CARD_NUMBER,
+          CVV,
+          CARD_HOLDER_ID,
+          MYID,
+          CREDIT_CARD_NUMBER,
+          CARD_HOLDER_ID_NUMBER,
+          IDENTITY_NUMBER);
 
   static final Set<String> SENSITIVE_RESPONSE_FIELDS =
       Set.of(
@@ -184,7 +209,9 @@ final class TranzilaFields {
           ORIGINAL_REQUEST + "." + CARD_NUMBER,
           ORIGINAL_REQUEST + "." + CARD_HOLDER_ID,
           TRANZILA_TK,
-          MYID);
+          MYID,
+          TRANSACTION_RESPONSE + "." + TOKEN,
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID);
 

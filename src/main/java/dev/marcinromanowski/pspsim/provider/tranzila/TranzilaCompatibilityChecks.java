@@ -15,6 +15,7 @@ import dev.marcinromanowski.pspsim.kernel.smoke.SmokeNamespace;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSample;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSamples;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,22 @@ public final class TranzilaCompatibilityChecks {
   static final String THE_PAGE_RETURNS_THE_PAYER =
       "GET /tranzila/directng/{terminal}/iframenew.php tranmode A, paid with the published card";
 
+  static final String THE_HOSTED_FIELDS_CHARGE =
+      "POST /tranzila/hf/process/ajax_process_transaction tran_mode A, a published test card";
+
+  static final String THE_HOSTED_FIELDS_REFUSE_A_PLAN =
+      "POST /tranzila/hf/process/ajax_process_transaction payment_plan 6";
+
+  static final List<String> THE_RESPONSE_FIELDS_THE_HOSTED_FIELDS_SAMPLE_PUBLISHES =
+      List.of(
+          "success",
+          TranzilaFields.PROCESSOR_RESPONSE_CODE,
+          TranzilaFields.CURRENCY_CODE,
+          TranzilaFields.CARD_LOCALITY,
+          TranzilaFields.TXN_TYPE,
+          TranzilaFields.TRANMODE,
+          TranzilaFields.PAYMENT_PLAN);
+
   static final String THE_SHOPS_ADDRESS = "https://shop.invalid/paid";
 
   static final String THE_PAGE =
@@ -64,6 +81,8 @@ public final class TranzilaCompatibilityChecks {
   private static final String TERMINAL = "smoketerminal";
 
   private static final String A_CARD = "4580210000004245";
+
+  private static final String A_PUBLISHED_TEST_CARD = "4907639999909022";
 
   private static final String A_TOKEN_NO_SECRET_PRODUCED = "not-the-access-token";
 
@@ -95,7 +114,9 @@ public final class TranzilaCompatibilityChecks {
         auditTrail(),
         handshake(),
         handshakeRefused(),
-        pageReturn());
+        pageReturn(),
+        hostedFieldsCharge(),
+        hostedFieldsRefuseAPlan());
   }
 
   private ContractCheck charge() {
@@ -266,6 +287,69 @@ public final class TranzilaCompatibilityChecks {
           prepare(transport);
           return theReturnedFields(transport);
         });
+  }
+
+  private ContractCheck hostedFieldsCharge() {
+    VendorSample published = tranzila.sample("hosted-fields-charged");
+    List<ContractExpectation> expected = new ArrayList<>();
+    for (String field : THE_RESPONSE_FIELDS_THE_HOSTED_FIELDS_SAMPLE_PUBLISHES) {
+      expected.add(
+          new ContractExpectation(
+              TranzilaFields.TRANSACTION_RESPONSE + "." + field,
+              published.json("/" + TranzilaFields.TRANSACTION_RESPONSE + "/" + field)));
+    }
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_HOSTED_FIELDS_CHARGE,
+        published.provenance(),
+        expected,
+        transport -> {
+          CheckResponse charged = aHostedFieldsCharge(transport, Map.of());
+          Map<String, String> read = new LinkedHashMap<>();
+          for (String field : THE_RESPONSE_FIELDS_THE_HOSTED_FIELDS_SAMPLE_PUBLISHES) {
+            Observed.put(
+                read,
+                TranzilaFields.TRANSACTION_RESPONSE + "." + field,
+                json.at(charged.body(), "/" + TranzilaFields.TRANSACTION_RESPONSE + "/" + field));
+          }
+          return read;
+        });
+  }
+
+  private ContractCheck hostedFieldsRefuseAPlan() {
+    VendorSample published = tranzila.sample("hosted-fields-payment-plan");
+    return DeclaredCheck.applying(
+        TRANZILA,
+        THE_HOSTED_FIELDS_REFUSE_A_PLAN,
+        published.provenance(),
+        List.of(
+            new ContractExpectation("code", published.rule("code")),
+            new ContractExpectation(
+                TranzilaFields.MESSAGE, published.rule(TranzilaFields.MESSAGE))),
+        transport -> {
+          CheckResponse refused =
+              aHostedFieldsCharge(transport, Map.of(TranzilaFields.PAYMENT_PLAN, "6"));
+          Map<String, String> read = new LinkedHashMap<>();
+          Observed.put(read, "code", json.at(refused.body(), "/errors/0/code"));
+          Observed.put(read, TranzilaFields.MESSAGE, json.at(refused.body(), "/errors/0/message"));
+          return read;
+        });
+  }
+
+  private CheckResponse aHostedFieldsCharge(CheckTransport transport, Map<String, String> more) {
+    Credentials credentials = prepare(transport);
+    CheckResponse created = transport.send(signed(aHandshake(), credentials));
+    Map<String, String> fields = new LinkedHashMap<>();
+    fields.put(TranzilaFields.TERMINAL_NAME, TERMINAL);
+    fields.put(TranzilaFields.THTK, String.valueOf(json.at(created.body(), "/thtk")));
+    fields.put(TranzilaFields.AMOUNT, "10.53");
+    fields.put(TranzilaFields.CREDIT_CARD_NUMBER, A_PUBLISHED_TEST_CARD);
+    fields.put(TranzilaHostedFieldsRequest.EXPIRY_MONTH, "12");
+    fields.put(TranzilaHostedFieldsRequest.EXPIRY_YEAR, "2030");
+    fields.putAll(more);
+    return transport.send(
+        CheckRequest.form(
+            TranzilaObjectActions.WIRE_METHOD, TranzilaHostedFieldsPage.PROCESS_ROUTE, fields));
   }
 
   private static Map<String, String> theReturnedFields(CheckTransport transport) {

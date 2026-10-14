@@ -62,7 +62,8 @@ class TranzilaProviderTest {
   void the_provider_is_named_tranzila_and_claims_the_transaction_handshake_and_page_namespaces() {
     assertThat(provider.id().value()).isEqualTo("tranzila");
     assertThat(provider.wireRoutes().namespaces())
-        .containsExactly("/v1/transaction", "/v2/handshake/create", "/tranzila/directng");
+        .containsExactly(
+            "/v1/transaction", "/v2/handshake/create", "/tranzila/directng", "/tranzila/hf");
     assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v1/transactions")).isFalse();
     assertThat(provider.wireRoutes().covers("/v1/payment_intents")).isFalse();
@@ -71,6 +72,8 @@ class TranzilaProviderTest {
     assertThat(provider.wireRoutes().covers("/v2/handshake/payments")).isFalse();
     assertThat(provider.wireRoutes().covers("/v2/m-1/payments")).isFalse();
     assertThat(provider.wireRoutes().covers("/tranzila/directng/myterminal/iframenew.php"))
+        .isTrue();
+    assertThat(provider.wireRoutes().covers("/tranzila/hf/process/ajax_process_transaction"))
         .isTrue();
   }
 
@@ -186,7 +189,7 @@ class TranzilaProviderTest {
             TranzilaOrigination.A_DEBIT,
             TranzilaOrigination.A_J5,
             TranzilaOrigination.A_PAGE_PAYMENT);
-    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(7);
+    assertThat(provider.compatibilityChecks(new CheckJson(), wired.ids)).hasSize(9);
   }
 
   @Test

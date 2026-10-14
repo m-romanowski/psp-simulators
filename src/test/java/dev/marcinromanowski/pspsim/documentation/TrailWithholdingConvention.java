@@ -271,6 +271,12 @@ public final class TrailWithholdingConvention {
                   + " object and reaches a trail row under no field"),
           new AnAddressInTheClear(
               "tranzila",
+              "TRANZILA_HF_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the hosted fields host; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
               "fail_url",
               "the column the merchant-supplied fail_url_address is stored under in this build's"
                   + " own database, which a trail row is never written from"),

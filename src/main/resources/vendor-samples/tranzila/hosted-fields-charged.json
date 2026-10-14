@@ -1,0 +1,43 @@
+{
+  "errors": null,
+  "transaction_response": {
+    "success": true,
+    "error": null,
+    "processor_response_code": "000",
+    "transaction_id": "97588",
+    "auth_number": "0000000",
+    "amount": "10.00",
+    "currency_code": 1,
+    "credit_card_last_4_digits": "2312",
+    "expiry_month": "12",
+    "expiry_year": "26",
+    "user_form_data": {
+      "response_language": "",
+      "contact": "john.doe@example.com",
+      "company": "Example Corp",
+      "business_id": "515123456",
+      "json_purchase_data": "",
+      "force_challenge": "0",
+      "force_txn_on_3ds_fail": "N",
+      "expiry": "",
+      "notify_url": "",
+      "shopify_id": "",
+      "DCdisable": "",
+      "requested_by_user": "merchant_user",
+      "card_holder_id_number": ""
+    },
+    "card_type": "5",
+    "card_mask": "458059****2312",
+    "card_locality": "domestic",
+    "txn_type": "debit",
+    "tranmode": "A",
+    "card_type_name": "Isracard",
+    "cvv_status": "3",
+    "id_status": "0",
+    "card_issuer": "1",
+    "token": "me4b50240d8c6222312",
+    "payment_plan": 1,
+    "total_installments_number": null
+  },
+  "response_hash": "7d7dfdbbd6e863ebb8b68c74a6080cdd26bbac4b39fe01a0aa3839ee6c63d217"
+}

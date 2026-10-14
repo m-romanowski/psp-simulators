@@ -113,6 +113,79 @@
         }
       }
     },
+    "/tranzila/hf/assets/js/hfields_depend/controlfields.html": {
+      "get": {
+        "operationId": "control",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tranzila/hf/assets/js/hfields_depend/genfield.php": {
+      "get": {
+        "operationId": "field",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tranzila/hf/assets/js/thostedf.js": {
+      "get": {
+        "operationId": "script",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tranzila/hf/process/ajax_process_transaction": {
+      "post": {
+        "operationId": "charged",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider tranzila reads this body in its own wire format, specified in doc/tranzila.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    },
     "/v1/transaction/credit_card/create": {
       "post": {
         "operationId": "create",
