@@ -308,7 +308,9 @@ class TrailWithholdingConventionTest {
     List<String> read = TrailWithholdingConvention.verdictOn(COMPILED_MAIN).read();
 
     assertThat(read).hasSize(12);
-    assertThat(read.get(0)).contains("examined the 6 provider module(s)");
+    assertThat(read.get(0))
+        .contains(
+            "examined the " + THE_MODULES_THIS_SIMULATOR_SERVES.size() + " provider module(s)");
     assertThat(read.get(1))
         .as("the denominator of the exclusion: what was excused, where, and what it left read")
         .contains("at the position the compiler emitted them, never across a class")
