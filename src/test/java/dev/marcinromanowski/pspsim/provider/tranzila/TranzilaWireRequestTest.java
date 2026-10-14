@@ -26,6 +26,7 @@ class TranzilaWireRequestTest {
 
     TranzilaApiCall call = TranzilaWireRequest.callOf(request);
 
+    assertThat(call).isNotNull();
     assertThat(call.method()).isEqualTo("POST");
     assertThat(call.path()).isEqualTo("/v1/transaction/credit_card/create");
     assertThat(call.headers()).containsEntry("Accept", List.of("application/json", "text/plain"));
@@ -49,7 +50,10 @@ class TranzilaWireRequestTest {
           }
         };
 
-    assertThat(TranzilaWireRequest.callOf(request).rawBody()).isEmpty();
+    TranzilaApiCall call = TranzilaWireRequest.callOf(request);
+
+    assertThat(call).isNotNull();
+    assertThat(call.rawBody()).isEmpty();
   }
 
   @Test
