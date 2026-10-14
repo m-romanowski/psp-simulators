@@ -293,6 +293,30 @@ class TranzilaLookupAnswersTest {
   }
 
   @Test
+  void an_identity_named_user_defined_value_is_withheld_at_any_depth_and_every_other_kept() {
+    TranzilaJson sent =
+        TranzilaJsonReader.objectIn(
+                "{\"user_defined_fields\":[{\"name\":\"MyID\",\"value\":\"1\"},"
+                    + "{\"name\":\"orderid\",\"value\":\"2\"},{\"name\":\"CVV\"},7,"
+                    + "{\"name\":3,\"value\":\"4\"}],\"original_request\":{"
+                    + "\"user_defined_fields\":[{\"value\":5,\"name\":\"identity_number\"}],"
+                    + "\"items\":[{\"user_defined_fields\":\"x\"}]},\"user_defined\":["
+                    + "{\"name\":\"cvv\",\"value\":\"6\"}]}")
+            .orElseThrow();
+
+    assertThat(TranzilaJsonWriter.toText(TranzilaUserField.withTheIdentitiesWithheld(sent)))
+        .isEqualTo(
+            "{\"user_defined_fields\":[{\"name\":\"MyID\",\"value\":\"[redacted]\"},"
+                + "{\"name\":\"orderid\",\"value\":\"2\"},{\"name\":\"CVV\"},7,"
+                + "{\"name\":3,\"value\":\"4\"}],\"original_request\":{"
+                + "\"user_defined_fields\":[{\"value\":\"[redacted]\","
+                + "\"name\":\"identity_number\"}],\"items\":[{\"user_defined_fields\":\"x\"}]},"
+                + "\"user_defined\":[{\"name\":\"cvv\",\"value\":\"6\"}]}");
+    assertThat(TranzilaUserField.namesAnIdentity("Card_Holder_Id_Number")).isTrue();
+    assertThat(TranzilaUserField.namesAnIdentity("card_holder")).isFalse();
+  }
+
+  @Test
   void the_slots_of_a_terminal_are_claimed_under_one_lock_of_its_run_and_account() {
     assertThat(TranzilaUserSlot.lockOf(TranzilaWiring.RUN, "a-1"))
         .isEqualTo((TranzilaWiring.RUN.value() + "\u0000a-1").hashCode())

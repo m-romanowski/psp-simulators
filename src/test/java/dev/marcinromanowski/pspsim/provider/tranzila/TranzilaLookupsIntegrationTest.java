@@ -617,6 +617,42 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
         .doesNotContainIgnoringCase("\"API_PARAMETER_NAME\":\"identity_number\"");
   }
 
+  @Test
+  void an_identity_named_user_defined_field_keeps_its_value_out_of_every_trail_and_exchange() {
+    HttpResponse<String> charged =
+        signed(
+            CREATE,
+            aDebitOf(
+                String.join(
+                    ",",
+                    "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":1}]",
+                    "\"user_defined_fields\":[{\"name\":\"MyID\",\"value\":\"123456782\"}",
+                    "{\"name\":\"orderid\",\"value\":\"ORD-VISIBLE\"}",
+                    "{\"name\":\"DCdisable\",\"value\":\"dc-identity\"}]")));
+
+    String api = signed(TRANSACTIONS, aLookup(THE_FIRST_DAY)).body();
+    String report = signed(REPORT, aLookup(THE_FIRST_DAY)).body();
+    String trail =
+        http.get()
+            .uri("/__simulator/tranzila/audit?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+    String exchanges =
+        http.get()
+            .uri("/__simulator/tranzila/idempotency?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+
+    assertThat(charged.body()).contains("123456782");
+    assertThat(trail).doesNotContain("123456782").contains("ORD-VISIBLE").contains("[redacted]");
+    assertThat(exchanges)
+        .doesNotContain("123456782")
+        .contains("ORD-VISIBLE")
+        .contains("dc-identity");
+    assertThat(api).doesNotContain("123456782").contains("ORD-VISIBLE");
+    assertThat(report).doesNotContain("123456782").contains("ORD-VISIBLE");
+  }
+
   private List<HttpResponse<String>> atOnce(List<String> bodies) throws Exception {
     ExecutorService senders = Executors.newFixedThreadPool(bodies.size());
     CountDownLatch start = new CountDownLatch(1);

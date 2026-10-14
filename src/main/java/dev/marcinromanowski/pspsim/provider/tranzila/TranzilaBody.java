@@ -31,11 +31,16 @@ record TranzilaBody(int httpStatus, @Nullable TranzilaJson json) {
 
   @Nullable KeyedAnswer asAKeyedAnswer() {
     TranzilaJson rendered = json;
-    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
+    return rendered == null
+        ? null
+        : new KeyedAnswer(
+            httpStatus, TranzilaUserField.withTheIdentitiesWithheld(rendered).flatten());
   }
 
   Map<String, List<String>> fields() {
     TranzilaJson rendered = json;
-    return rendered == null ? Map.of() : rendered.flatten();
+    return rendered == null
+        ? Map.of()
+        : TranzilaUserField.withTheIdentitiesWithheld(rendered).flatten();
   }
 }

@@ -462,7 +462,9 @@ transaction it acts on.
 
 `transactions.credit_card_token` and `transactions.credit_card_owner_id` are withheld from the trail, and so is each of
 the seven identity names above wherever it appears as a field of any trail row: a request, a page's return, a Hosted
-Fields answer's `user_form_data`, or a notify. Simulator
+Fields answer's `user_form_data`, or a notify. A `user_defined_fields` entry whose `name` is one of them, in any case,
+has its `value` withheld from the request row, from `original_request` in the response row and from the keyed exchange
+answer, and a duplicate check's fingerprint does not read it; every other entry's value stays readable. Simulator
 decision: `ufields` and `dfields` are refused rather than ignored, because an ignored filter answers rows the caller
 excluded; an empty array filters nothing and is accepted.
 

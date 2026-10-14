@@ -227,7 +227,11 @@ final class CreateTransaction {
 
   static Map<String, List<String>> theFieldsAFingerprintReads(TranzilaApiCall call) {
     Map<String, List<String>> read =
-        new LinkedHashMap<>(call.body().map(TranzilaJson::flatten).orElseGet(Map::of));
+        new LinkedHashMap<>(
+            call.body()
+                .map(TranzilaUserField::withTheIdentitiesWithheld)
+                .map(TranzilaJson::flatten)
+                .orElseGet(Map::of));
     read.keySet().removeAll(THE_CARD_FIELDS_NO_FINGERPRINT_READS);
     return read;
   }

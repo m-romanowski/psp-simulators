@@ -274,7 +274,10 @@ public final class TranzilaApi {
   }
 
   static Map<String, List<String>> theRequestFieldsOf(TranzilaApiCall call) {
-    return call.body().map(TranzilaJson::flatten).orElseGet(Map::of);
+    return call.body()
+        .map(TranzilaUserField::withTheIdentitiesWithheld)
+        .map(TranzilaJson::flatten)
+        .orElseGet(Map::of);
   }
 
   private void recordOutbound(

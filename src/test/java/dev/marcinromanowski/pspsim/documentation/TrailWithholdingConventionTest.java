@@ -99,7 +99,7 @@ class TrailWithholdingConventionTest {
           "worldline hostedTokenizationUrl",
           "worldline partialRedirectUrl");
 
-  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 88;
+  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 90;
 
   private static final String A_PROVIDER_PACKAGE_OF_ITS_OWN =
       "dev.marcinromanowski.pspsim.provider.sixth";
