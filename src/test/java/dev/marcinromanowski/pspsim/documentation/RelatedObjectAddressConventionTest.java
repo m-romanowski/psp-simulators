@@ -528,6 +528,7 @@ class RelatedObjectAddressConventionTest {
                 List.of(A_PAGE),
                 "tranzila",
                 List.of(
+                    "/tranzila/3ds/challenge/{trackId}",
                     "/tranzila/directng/{terminal}/iframenew.php",
                     "/tranzila/directng/{terminal}/payer/{pageId}",
                     "/tranzila/hf/assets/js/hfields_depend/controlfields.html",

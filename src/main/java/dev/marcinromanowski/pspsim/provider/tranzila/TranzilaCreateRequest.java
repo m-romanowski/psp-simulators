@@ -20,7 +20,7 @@ record TranzilaCreateRequest(
     @Nullable Long referenceTxnId,
     @Nullable String authorizationNumber,
     @Nullable String dcDisable,
-    boolean asksFor3ds,
+    @Nullable TranzilaThreeDSecure threeDSecure,
     @Nullable String sentCurrency) {
 
   static final String THE_DEFAULT_CURRENCY = "ILS";
@@ -70,7 +70,8 @@ record TranzilaCreateRequest(
 
   static TranzilaCreateRequest read(TranzilaJson.JsonObject body) {
     for (String sent : body.members().keySet()) {
-      if (!TranzilaFields.THE_REQUEST_FIELDS_THE_SCHEMA_PUBLISHES.contains(sent)) {
+      if (!TranzilaFields.THE_REQUEST_FIELDS_THE_SCHEMA_PUBLISHES.contains(sent)
+          && !TranzilaThreeDSecure.AUTH_3DS_REDIRECT.equals(sent)) {
         throw new TranzilaSchemaMismatch(sent + " is not a field of the Transactions API schema");
       }
     }
@@ -104,6 +105,15 @@ record TranzilaCreateRequest(
     }
     String currencyCode = currencyIn(body);
     String amount = amountIn(body, type, verifyMode, currencyCode);
+    TranzilaThreeDSecure.refuseWhatTheSchemaDoesNotAdmit(body);
+    boolean asksFor3ds = body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent();
+    if (asksFor3ds && !type.carriesACardholder()) {
+      throw new TranzilaSchemaMismatch(
+          TranzilaFields.ACTIVATE_3DS
+              + " Y authenticates the card holder of a debit or a verify, and a "
+              + type.wire()
+              + " acts on a transaction already made");
+    }
     return new TranzilaCreateRequest(
         terminalName,
         type,
@@ -118,8 +128,31 @@ record TranzilaCreateRequest(
         integer(body, TranzilaFields.REFERENCE_TXN_ID).orElse(null),
         text(body, TranzilaFields.AUTHORIZATION_NUMBER).orElse(null),
         dcDisableIn(body),
-        body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent(),
+        asksFor3ds ? TranzilaThreeDSecure.read(body) : null,
         body.has(TranzilaFields.TXN_CURRENCY_CODE) ? currencyCode : null);
+  }
+
+  static TranzilaCreateRequest ofTheChallenge(TranzilaChallenge challenge) {
+    return new TranzilaCreateRequest(
+        challenge.terminalName(),
+        challenge.type(),
+        challenge.verifyMode(),
+        challenge.token(),
+        Integer.valueOf(challenge.card().expiryMonth()),
+        Integer.valueOf(challenge.card().expiryYear()),
+        CreateTransaction.ENTERED_AND_VALID.equals(challenge.responseCvv())
+            ? TranzilaHostedFieldsCharge.AN_ENTERED_CVV_NOT_CARRIED
+            : null,
+        CreateTransaction.ENTERED_AND_VALID.equals(challenge.responseId())
+            ? TranzilaHostedFieldsCharge.AN_ENTERED_ID_NOT_CARRIED
+            : null,
+        challenge.currencyCode(),
+        challenge.amount(),
+        null,
+        null,
+        challenge.dcDisable(),
+        null,
+        challenge.currencyCode());
   }
 
   boolean isInTheCurrencyOf(TranzilaTransaction original) {

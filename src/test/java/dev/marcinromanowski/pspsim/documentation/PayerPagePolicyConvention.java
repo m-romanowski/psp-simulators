@@ -74,13 +74,27 @@ public final class PayerPagePolicyConvention {
               "base-uri 'none'",
               "the page resolves no relative address, so nothing may set one for it"),
           new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengeAnsweredPage",
+              "script-src 'sha256-E3IReQae+CUjgO0MER6cFqfFAwEvPuxJ6hVgfkQhLjo='",
+              "the one inline script of the page a hosted fields challenge answers with: it tells"
+                  + " the frames of this origin beside it the track_id the payer answered, so the"
+                  + " hidden frame posts the continuation; the hash admits that script and nothing"
+                  + " else, and the page names no frame-ancestors because a merchant's page frames"
+                  + " the challenge"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengePage",
+              "form-action 'self'",
+              "its form posts the payer's code to this origin and is answered with a document;"
+                  + " the merchant's hosted fields frame this page, which is why it names no"
+                  + " frame-ancestors"),
+          new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
               "form-action 'self'",
               "its form posts to this origin and is answered with a document; the shop frames"
                   + " this page, which is why it names no frame-ancestors"),
           new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
-              "script-src 'sha256-0TKOdY0iR2Ag9nQD1ziosya2RBnuq2SkJMKeding214='",
+              "script-src 'sha256-LYRWxyDGTMxSrunbITKeP9IfOfj7AJ0NV+ijgde4SBc='",
               "the one inline script of the hidden frame tranzila's hosted fields charge from: it"
                   + " keeps what the card fields share with it and posts the charge to this origin;"
                   + " the hash admits that script and nothing else, and the frame names no"

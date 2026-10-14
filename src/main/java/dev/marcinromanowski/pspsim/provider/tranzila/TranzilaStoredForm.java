@@ -42,6 +42,30 @@ final class TranzilaStoredForm {
     return stored == null ? null : PayerOutcome.valueOf(stored);
   }
 
+  static @Nullable String verdictNameOf(TranzilaChallenge.@Nullable Verdict verdict) {
+    return verdict == null ? null : verdict.name();
+  }
+
+  static TranzilaChallenge.@Nullable Verdict verdictOf(@Nullable String stored) {
+    return stored == null ? null : TranzilaChallenge.Verdict.valueOf(stored);
+  }
+
+  static @Nullable String theHostedFieldsOf(@Nullable TranzilaHostedFieldsEcho hosted) {
+    return hosted == null ? null : encoded(hosted.stored());
+  }
+
+  static @Nullable String theFormDataOf(@Nullable TranzilaHostedFieldsEcho hosted) {
+    return hosted == null ? null : encoded(hosted.userFormData());
+  }
+
+  static @Nullable TranzilaHostedFieldsEcho hostedFieldsOf(
+      @Nullable String kept, @Nullable String formData) {
+    if (kept == null || formData == null) {
+      return null;
+    }
+    return TranzilaHostedFieldsEcho.ofTheStored(decoded(kept), decoded(formData));
+  }
+
   static TranzilaTranmode tranmodeOf(String stored) {
     return TranzilaTranmode.named(stored)
         .orElseThrow(

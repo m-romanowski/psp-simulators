@@ -15,7 +15,8 @@ final class TranzilaWireFaults {
               TranzilaApiController.TRANSACTION,
               TranzilaApiController.CREATE_HANDSHAKE,
               TranzilaDirectNgPage.HOST,
-              TranzilaHostedFieldsPage.HOST));
+              TranzilaHostedFieldsPage.HOST,
+              TranzilaChallengePage.HOST));
 
   static final String THE_ADDRESS_DOES_NOT_ANSWER_THIS_METHOD =
       "This address does not answer this HTTP method";
@@ -43,6 +44,12 @@ final class TranzilaWireFaults {
           + " so a body in tranzila's field names would tell a client that tranzila answered when"
           + " this simulator is what failed";
 
+  static final String WHAT_THE_CHALLENGE_PUBLISHES_FOR_A_FAILURE_INSIDE_IT =
+      "nothing at all: the 3DS process publishes only that the browser opens challengeUrl and is"
+          + " sent to auth_3ds_redirect afterwards, and no page of its own for an error, so a page"
+          + " in tranzila's look would tell a payer that tranzila answered when this simulator is"
+          + " what failed";
+
   private TranzilaWireFaults() {}
 
   static ProviderWireAnswer theAnswerTo(WireFault fault, String address) {
@@ -54,6 +61,9 @@ final class TranzilaWireFaults {
     }
     if (address.startsWith(TranzilaHostedFieldsPage.HOST)) {
       return theHostedFieldsAnswerTo(fault);
+    }
+    if (address.startsWith(TranzilaChallengePage.HOST)) {
+      return theChallengesAnswerTo(fault);
     }
     return switch (fault) {
       case AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE ->
@@ -109,6 +119,26 @@ final class TranzilaWireFaults {
           new ProviderWireAnswer.NothingThisContractPublishes(
               WHAT_THE_HOSTED_FIELDS_PUBLISH_FOR_A_FAILURE_INSIDE_THEM);
     };
+  }
+
+  static ProviderWireAnswer theChallengesAnswerTo(WireFault fault) {
+    return switch (fault) {
+      case AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE ->
+          aChallengePage(TranzilaAnswers.NOT_FOUND, TranzilaChallengePage.NO_SUCH_ADDRESS);
+      case A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER ->
+          aChallengePage(TranzilaAnswers.METHOD_NOT_ALLOWED, TranzilaChallengePage.NO_SUCH_METHOD);
+      case A_FAILURE_NOTHING_ELSE_ANSWERED ->
+          new ProviderWireAnswer.NothingThisContractPublishes(
+              WHAT_THE_CHALLENGE_PUBLISHES_FOR_A_FAILURE_INSIDE_IT);
+    };
+  }
+
+  private static ProviderWireAnswer aChallengePage(int httpStatus, String said) {
+    return new ProviderWireAnswer.InThisProvidersOwnWords(
+        httpStatus,
+        TranzilaChallengePage.CONTENT_TYPE,
+        TranzilaChallengePage.refusing(said).getBytes(StandardCharsets.UTF_8),
+        TranzilaChallengePage.DEFENCES);
   }
 
   private static ProviderWireAnswer aHostedFieldsPage(int httpStatus, String said) {

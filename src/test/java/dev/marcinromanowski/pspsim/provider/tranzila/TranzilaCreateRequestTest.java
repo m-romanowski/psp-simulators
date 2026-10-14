@@ -340,11 +340,11 @@ class TranzilaCreateRequestTest {
 
   @Test
   void a_request_asking_for_3_d_secure_is_read_as_asking_and_one_saying_n_is_not() {
-    assertThat(read("{" + t("\"activate_3ds\":\"Y\"," + CARD + "," + ITEMS) + "}").asksFor3ds())
-        .isTrue();
-    assertThat(read("{" + t("\"activate_3ds\":\"N\"," + CARD + "," + ITEMS) + "}").asksFor3ds())
-        .isFalse();
-    assertThat(read("{" + t(CARD + "," + ITEMS) + "}").asksFor3ds()).isFalse();
+    assertThat(read("{" + t("\"activate_3ds\":\"Y\"," + CARD + "," + ITEMS) + "}").threeDSecure())
+        .isNotNull();
+    assertThat(read("{" + t("\"activate_3ds\":\"N\"," + CARD + "," + ITEMS) + "}").threeDSecure())
+        .isNull();
+    assertThat(read("{" + t(CARD + "," + ITEMS) + "}").threeDSecure()).isNull();
   }
 
   private static String t(String members) {

@@ -26,12 +26,16 @@ final class TranzilaOperations {
 
   static final String CANCEL = TranzilaTxnType.CANCEL.wire();
 
+  static final String THREE_D_SECURE = "3ds";
+
   static final String THE_ORIGINAL_TRANSACTION =
       "the original transaction, a debit or a verify, which provider tranzila names by the"
           + " integer transaction_id it answers. A force, a reversal, a credit and a cancel are"
           + " transactions of their own with their own transaction_id, and a story about any of"
           + " them stands on the original they reach through reference_txn_id, so one story"
-          + " follows a J5, its force and the credits of that force";
+          + " follows a J5, its force and the credits of that force. The 3ds step of a debit or a"
+          + " verify sent with activate_3ds Y stands on the transaction it authenticates, which"
+          + " a challenge makes only once it is completed";
 
   static final String NO_ORDER_ID =
       "provider tranzila publishes no order reference on the create request: the fields a"
@@ -68,6 +72,7 @@ final class TranzilaOperations {
       new ProviderVocabulary(
           TranzilaApi.TRANZILA,
           List.of(
+              operation(THREE_D_SECURE, OF_AN_ORIGINAL),
               operation(DEBIT, OF_AN_ORIGINAL),
               operation(VERIFY, OF_AN_ORIGINAL),
               operation(FORCE, OF_A_FOLLOW_ON),

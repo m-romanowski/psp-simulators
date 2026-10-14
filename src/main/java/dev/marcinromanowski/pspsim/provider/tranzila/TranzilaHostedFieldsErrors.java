@@ -74,6 +74,13 @@ final class TranzilaHostedFieldsErrors {
         THE_NOTIFY_URL_IS_NO_TARGET, TranzilaHostedFieldsRequest.NOTIFY_URL, inItsOwnWords);
   }
 
+  static TranzilaHostedFieldsRequest.Refusal noChallengeToContinue() {
+    return new TranzilaHostedFieldsRequest.Refusal(
+        Integer.parseInt(TranzilaResponseCodes.THREE_D_SECURE_FAILED),
+        TranzilaThreeDSecureAnswers.TRACK_ID,
+        TranzilaResponseCodes.THREE_D_SECURE_FAILED_TEXT);
+  }
+
   static TranzilaHostedFieldsRequest.Refusal theHandshakeDoesNotLockIt() {
     return new TranzilaHostedFieldsRequest.Refusal(
         ILLEGAL_OPERATION, TranzilaFields.THTK, ILLEGAL_OPERATION_TEXT);

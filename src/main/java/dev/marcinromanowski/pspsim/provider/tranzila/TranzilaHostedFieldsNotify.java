@@ -13,6 +13,13 @@ final class TranzilaHostedFieldsNotify {
       TranzilaTransaction transaction,
       TranzilaHostedFieldsRequest request,
       @Nullable String requestParams) {
+    return theFieldsOf(transaction, request.echo(), requestParams);
+  }
+
+  static SequencedMap<String, String> theFieldsOf(
+      TranzilaTransaction transaction,
+      TranzilaHostedFieldsEcho request,
+      @Nullable String requestParams) {
     TranzilaCard card = transaction.card();
     SequencedMap<String, String> fields = new LinkedHashMap<>();
     fields.put(TranzilaFields.SUPPLIER, transaction.terminalName());

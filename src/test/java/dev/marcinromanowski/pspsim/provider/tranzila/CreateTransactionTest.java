@@ -372,19 +372,20 @@ class CreateTransactionTest {
   }
 
   @Test
-  void a_request_asking_for_3_d_secure_is_refused_400_20004_and_charges_nothing() {
+  void a_request_asking_for_3_d_secure_is_authenticated_frictionlessly_and_charged() {
     TranzilaOperationResult answered =
         wired.create(
             TranzilaWire.aDebit().replace("{\"terminal", "{\"activate_3ds\":\"Y\",\"terminal"));
 
-    assertThat(answered.body().httpStatus()).isEqualTo(400);
+    assertThat(answered.body().httpStatus()).isEqualTo(200);
     assertThat(answered.body().text())
-        .isEqualTo(
-            "{\"error_code\":\"20004\",\"message\":\"JSON Schema mismatch: activate_3ds Y asks"
-                + " for 3-D Secure, which this simulator does not perform on this route; nothing"
-                + " was charged\"}");
-    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.FAILURE);
-    assertThat(wired.stored()).isEmpty();
+        .contains("\"error_code\":0,\"message\":\"success\"")
+        .contains("\"t3ds_data\":{\"version\":\"1.0\",\"statusCode\":\"YA\"");
+    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(wired.stored())
+        .singleElement()
+        .extracting(TranzilaTransaction::approved)
+        .isEqualTo(true);
   }
 
   @Test

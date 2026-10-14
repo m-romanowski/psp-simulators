@@ -75,6 +75,11 @@ final class TranzilaProvider implements SimulatorProvider {
           + " or a token the merchant already holds and keeps nothing waiting for a payer; the"
           + " object a payer finishes is the DirectNG payment page";
 
+  static final String NO_CHALLENGE_STEP_ON_A_SCREEN =
+      "this object is a 3-D Secure challenge of provider tranzila's card API: the card holder"
+          + " answers it with a code on the page at challengeUrl, and the merchant completes it by"
+          + " track_id over 3ds/complete, so no step of a payer is taken on it from a screen";
+
   static final String HOLD_EXPIRES_AT = "hold_expires_at";
 
   private final TranzilaTerminals terminals;
@@ -91,6 +96,7 @@ final class TranzilaProvider implements SimulatorProvider {
   private final TranzilaHandshakes handshakes;
   private final TranzilaDirectNg directNg;
   private final TranzilaNotify notify;
+  private final TranzilaChallenges challenges;
 
   TranzilaProvider(
       TranzilaTerminals terminals,
@@ -106,7 +112,8 @@ final class TranzilaProvider implements SimulatorProvider {
       TranzilaPages pages,
       TranzilaHandshakes handshakes,
       TranzilaDirectNg directNg,
-      TranzilaNotify notify) {
+      TranzilaNotify notify,
+      TranzilaChallenges challenges) {
     this.terminals = terminals;
     this.transactions = transactions;
     this.nonces = nonces;
@@ -121,6 +128,7 @@ final class TranzilaProvider implements SimulatorProvider {
     this.handshakes = handshakes;
     this.directNg = directNg;
     this.notify = notify;
+    this.challenges = challenges;
   }
 
   @Override
@@ -246,6 +254,7 @@ final class TranzilaProvider implements SimulatorProvider {
       return new ResetOutcome(
           transactions.clearAll()
               + pages.clearAll()
+              + challenges.clearAll()
               + handshakes.clearAll()
               + nonces.clearAll()
               + exchanges.clearAll()
@@ -257,6 +266,7 @@ final class TranzilaProvider implements SimulatorProvider {
     return new ResetOutcome(
         transactions.clear(testRunId)
             + pages.clear(testRunId)
+            + challenges.clear(testRunId)
             + handshakes.clear(testRunId)
             + nonces.clear(testRunId)
             + exchanges.clear(testRunId)
@@ -271,6 +281,10 @@ final class TranzilaProvider implements SimulatorProvider {
     Optional<TranzilaPage> page = pages.find(testRunId, providerObjectId);
     if (page.isPresent()) {
       return Optional.of(stateOf(page.get(), now));
+    }
+    Optional<TranzilaChallenge> challenge = challenges.find(testRunId, providerObjectId);
+    if (challenge.isPresent()) {
+      return Optional.of(stateOf(challenge.get(), now));
     }
     return TranzilaIdentifiers.transactionIdIn(providerObjectId)
         .flatMap(
@@ -294,7 +308,24 @@ final class TranzilaProvider implements SimulatorProvider {
     TranzilaGroups.theObjectsNamed(asked, transactions.paymentsHolding(testRunId, asked))
         .forEach(object -> held.add(stateOf(object, now)));
     pages.allById(testRunId, providerObjectIds).forEach(page -> held.add(stateOf(page, now)));
+    challenges
+        .allById(testRunId, providerObjectIds)
+        .forEach(challenge -> held.add(stateOf(challenge, now)));
     return List.copyOf(held);
+  }
+
+  ProviderObjectState stateOf(TranzilaChallenge challenge, Instant now) {
+    if (!challenge.isCompleted()) {
+      return TranzilaChallengeObject.stateOf(challenge, null, now);
+    }
+    long made = challenge.transactionId();
+    return TranzilaChallengeObject.stateOf(
+        challenge,
+        transactions
+            .paymentHolding(challenge.testRunId(), made)
+            .flatMap(payment -> TranzilaObject.of(payment, made))
+            .orElse(null),
+        now);
   }
 
   ProviderObjectState stateOf(TranzilaPage page, Instant now) {
@@ -394,7 +425,15 @@ final class TranzilaProvider implements SimulatorProvider {
         .find(testRunId, providerObjectId)
         .map(directNg::offeredOn)
         .orElseGet(
-            () -> new HostedCompletionOffer.NotOffered(TranzilaApi.TRANZILA, NO_PAGE_TO_COMPLETE));
+            () ->
+                new HostedCompletionOffer.NotOffered(
+                    TranzilaApi.TRANZILA, whyNothingIsCompletedOn(testRunId, providerObjectId)));
+  }
+
+  String whyNothingIsCompletedOn(TestRunId testRunId, String providerObjectId) {
+    return challenges.find(testRunId, providerObjectId).isPresent()
+        ? NO_CHALLENGE_STEP_ON_A_SCREEN
+        : NO_PAGE_TO_COMPLETE;
   }
 
   @Override
@@ -404,7 +443,8 @@ final class TranzilaProvider implements SimulatorProvider {
       return directNg.complete(page.get(), request);
     }
     return state(request.testRunId(), request.providerObjectId()).isPresent()
-        ? new HostedCompletionOutcome.NotOffered(NO_PAGE_TO_COMPLETE)
+        ? new HostedCompletionOutcome.NotOffered(
+            whyNothingIsCompletedOn(request.testRunId(), request.providerObjectId()))
         : new HostedCompletionOutcome.NoSuchObject();
   }
 
@@ -418,6 +458,7 @@ final class TranzilaProvider implements SimulatorProvider {
           TranzilaIdentifiers.transactionIdIn(cursor)
               .flatMap(id -> transactions.placeOf(testRunId, id.longValue()))
               .or(() -> pages.placeOf(testRunId, cursor))
+              .or(() -> challenges.placeOf(testRunId, cursor))
               .orElse(null);
       if (after == null) {
         return new ProviderObjectPage.NoSuchCursor();
@@ -438,6 +479,14 @@ final class TranzilaProvider implements SimulatorProvider {
       placed.add(
           new PlacedProviderObject(
               new ProviderObjectCursor(arrived.arrival(), page.pageId()), stateOf(page, now)));
+    }
+    for (ArrivalOf<TranzilaChallenge> arrived :
+        challenges.newestFirst(testRunId, after, query.limit())) {
+      TranzilaChallenge challenge = arrived.row();
+      placed.add(
+          new PlacedProviderObject(
+              new ProviderObjectCursor(arrived.arrival(), challenge.trackId()),
+              stateOf(challenge, now)));
     }
     return ProviderObjectPages.newestFirst(placed, query.limit());
   }

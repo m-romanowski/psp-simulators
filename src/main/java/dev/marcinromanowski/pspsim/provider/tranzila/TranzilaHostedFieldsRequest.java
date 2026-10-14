@@ -23,7 +23,8 @@ record TranzilaHostedFieldsRequest(
     int expiryYear,
     @Nullable String dcDisable,
     @Nullable String notifyUrl,
-    SequencedMap<String, String> userFormData) {
+    SequencedMap<String, String> userFormData,
+    TranzilaThreeDSecure threeDSecure) {
 
   static final String EXPIRY_MONTH = "expiry_month";
 
@@ -36,6 +37,10 @@ record TranzilaHostedFieldsRequest(
   static final String THE_ONE_PAYMENT_PLAN_SERVED = "1";
 
   static final String TOKENIZE_YES = "true";
+
+  static final String DO_NOT_FORCE_THE_TRANSACTION = "N";
+
+  static final String FORCE_THE_CHALLENGE = "1";
 
   static final List<String> THE_MANDATORY_KEYS =
       List.of(
@@ -199,7 +204,20 @@ record TranzilaHostedFieldsRequest(
             Integer.parseInt(String.valueOf(year)),
             dcDisable,
             first(sent, NOTIFY_URL),
-            theUserFormDataIn(sent)));
+            theUserFormDataIn(sent),
+            theThreeDSecureIn(sent)));
+  }
+
+  static TranzilaThreeDSecure theThreeDSecureIn(Map<String, List<String>> sent) {
+    return TranzilaThreeDSecure.asTheHostedFieldsAsk(
+        !DO_NOT_FORCE_THE_TRANSACTION.equals(
+            first(sent, TranzilaThreeDSecure.FORCE_TXN_ON_3DS_FAIL)),
+        FORCE_THE_CHALLENGE.equals(first(sent, TranzilaThreeDSecure.FORCE_CHALLENGE)));
+  }
+
+  TranzilaHostedFieldsEcho echo() {
+    return new TranzilaHostedFieldsEcho(
+        thtk, amount, currency, tranmode, tokenize, notifyUrl, userFormData);
   }
 
   BigDecimal theAmount() {

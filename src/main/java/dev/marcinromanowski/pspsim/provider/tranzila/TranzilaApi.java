@@ -71,6 +71,7 @@ public final class TranzilaApi {
   private final TestRunId defaultTestRun;
   private final CreateTransaction createTransaction;
   private final CreateHandshake createHandshake;
+  private final CompleteThreeDSecure completeThreeDSecure;
 
   TranzilaApi(
       TranzilaTerminals terminals,
@@ -81,7 +82,8 @@ public final class TranzilaApi {
       IdGenerator ids,
       TestRunId defaultTestRun,
       CreateTransaction createTransaction,
-      CreateHandshake createHandshake) {
+      CreateHandshake createHandshake,
+      CompleteThreeDSecure completeThreeDSecure) {
     this.terminals = terminals;
     this.nonces = nonces;
     this.testRuns = testRuns;
@@ -91,6 +93,7 @@ public final class TranzilaApi {
     this.defaultTestRun = defaultTestRun;
     this.createTransaction = createTransaction;
     this.createHandshake = createHandshake;
+    this.completeThreeDSecure = completeThreeDSecure;
   }
 
   public TranzilaApiResponse create(TranzilaApiCall call) {
@@ -100,6 +103,13 @@ public final class TranzilaApi {
         (testRunId, terminal, now) ->
             createTransaction.handle(
                 call, call.headers(), testRunId, terminal, now, ObjectOrigin.PROVIDER_API));
+  }
+
+  public TranzilaApiResponse complete(TranzilaApiCall call) {
+    return answered(
+        call,
+        refusal -> refusal,
+        (testRunId, terminal, now) -> completeThreeDSecure.handle(call, testRunId, terminal, now));
   }
 
   public TranzilaApiResponse handshake(TranzilaApiCall call) {

@@ -634,6 +634,121 @@ final class TranzilaDoubles {
     }
   }
 
+  static final class Challenges implements TranzilaChallenges {
+
+    private final List<TranzilaChallenge> stored = new ArrayList<>();
+    private final Map<String, Long> arrivedAt = new HashMap<>();
+    private final Transactions arrivals;
+    private int takenIds;
+
+    Challenges(Transactions arrivals) {
+      this.arrivals = arrivals;
+    }
+
+    Challenges theNextIdsAreTaken(int howMany) {
+      takenIds = howMany;
+      return this;
+    }
+
+    List<TranzilaChallenge> all() {
+      return List.copyOf(stored);
+    }
+
+    @Override
+    public int open(TranzilaChallenge challenge) {
+      if (takenIds > 0) {
+        takenIds--;
+        return 0;
+      }
+      stored.add(challenge);
+      arrivedAt.put(challenge.trackId(), Long.valueOf(arrivals.nextArrival()));
+      return 1;
+    }
+
+    @Override
+    public Optional<TranzilaChallenge> find(String trackId) {
+      return stored.stream().filter(held -> held.trackId().equals(trackId)).findFirst();
+    }
+
+    @Override
+    public Optional<TranzilaChallenge> find(TestRunId testRunId, String trackId) {
+      return find(trackId).filter(held -> held.testRunId().equals(testRunId));
+    }
+
+    @Override
+    public Optional<TranzilaChallenge> lockedUntilCompleted(
+        TestRunId testRunId, String accountId, String trackId) {
+      return find(testRunId, trackId)
+          .filter(held -> held.accountId().equals(accountId))
+          .filter(held -> !held.isCompleted());
+    }
+
+    @Override
+    public int answer(TranzilaChallenge answered) {
+      Optional<TranzilaChallenge> waiting =
+          find(answered.trackId()).filter(held -> !held.isAnswered());
+      if (waiting.isEmpty()) {
+        return 0;
+      }
+      stored.replaceAll(held -> held.trackId().equals(answered.trackId()) ? answered : held);
+      return 1;
+    }
+
+    @Override
+    public int complete(TranzilaChallenge completed) {
+      Optional<TranzilaChallenge> open =
+          find(completed.trackId()).filter(held -> !held.isCompleted());
+      if (open.isEmpty()) {
+        return 0;
+      }
+      stored.replaceAll(held -> held.trackId().equals(completed.trackId()) ? completed : held);
+      return 1;
+    }
+
+    @Override
+    public List<TranzilaChallenge> allById(TestRunId testRunId, List<String> trackIds) {
+      return stored.stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> trackIds.contains(held.trackId()))
+          .toList();
+    }
+
+    @Override
+    public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, String trackId) {
+      return find(testRunId, trackId)
+          .map(held -> new ProviderObjectCursor(arrivedAt.get(trackId).longValue(), trackId));
+    }
+
+    @Override
+    public List<ArrivalOf<TranzilaChallenge>> newestFirst(
+        TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit) {
+      List<ArrivalOf<TranzilaChallenge>> listed = new ArrayList<>();
+      for (TranzilaChallenge held : stored.reversed()) {
+        long arrival = arrivedAt.get(held.trackId()).longValue();
+        if (held.testRunId().equals(testRunId)
+            && arrival < ProviderObjectCursor.walkingBackFrom(after)
+            && listed.size() < limit) {
+          listed.add(new ArrivalOf<>(arrival, held));
+        }
+      }
+      return List.copyOf(listed);
+    }
+
+    @Override
+    public int clear(TestRunId testRunId) {
+      int before = stored.size();
+      stored.removeIf(held -> held.testRunId().equals(testRunId));
+      return before - stored.size();
+    }
+
+    @Override
+    public int clearAll() {
+      int before = stored.size();
+      stored.clear();
+      return before;
+    }
+  }
+
   static final class Handshakes implements TranzilaHandshakes {
 
     private final List<TranzilaHandshake> stored = new ArrayList<>();

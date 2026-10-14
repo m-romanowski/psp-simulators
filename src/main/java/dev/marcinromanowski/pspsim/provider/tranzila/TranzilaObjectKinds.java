@@ -53,6 +53,13 @@ final class TranzilaObjectKinds {
               + " payer, and once they pay it names the transaction it made, which is listed on"
               + " its own.");
 
+  static final ProviderObjectKind A_CHALLENGE =
+      new ProviderObjectKind(
+          "a 3-D Secure challenge",
+          "A debit or a verify sent with activate_3ds Y whose card holder is asked for a code at"
+              + " challengeUrl: it makes no transaction until the merchant completes it by"
+              + " track_id, and then names the transaction it made, which is listed on its own.");
+
   private TranzilaObjectKinds() {}
 
   static ProviderObjectKind of(TranzilaTransaction transaction) {

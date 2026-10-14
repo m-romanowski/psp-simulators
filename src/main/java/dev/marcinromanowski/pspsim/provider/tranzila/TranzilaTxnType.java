@@ -44,6 +44,10 @@ enum TranzilaTxnType {
     return this != CANCEL && this != REVERSAL;
   }
 
+  boolean carriesACardholder() {
+    return this == DEBIT || this == VERIFY;
+  }
+
   boolean carriesAnAmount() {
     return this == DEBIT || this == VERIFY || this == FORCE || this == CREDIT;
   }

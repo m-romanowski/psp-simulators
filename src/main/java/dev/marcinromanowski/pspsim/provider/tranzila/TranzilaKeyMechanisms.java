@@ -45,6 +45,19 @@ final class TranzilaKeyMechanisms {
               + " that transaction already exists, and a second follow-on of it is refused on what"
               + " it holds now, not because another request is still holding it");
 
+  static final String SCOPED_BY_THE_CHALLENGE =
+      "the track_id a create with activate_3ds Y answers beside challengeUrl, which"
+          + " 3ds/complete names to finish that challenge once the card holder answered it. A"
+          + " challenge is completed once: a second complete naming it runs nothing and is answered"
+          + " error_code 900, the code the complete route publishes for a failed 3-D Secure"
+          + " validation";
+
+  static final KeyClaim ONE_COMPLETE_AT_A_TIME_UNDER_A_TRACK_ID =
+      new KeyClaim.ClaimedBeforeTheOperationRuns(
+          "this simulator holds a challenge while the complete naming its track_id runs, so a"
+              + " second complete naming it waits rather than charging the card twice, and is"
+              + " then answered error_code 900 because the challenge is completed");
+
   static final String NO_IDEMPOTENCY_KEY =
       "provider tranzila publishes no idempotency key or header. Its one duplicate protection is"
           + " DCdisable, whose repeat is answered with a duplicate message rather than with the"
@@ -85,6 +98,13 @@ final class TranzilaKeyMechanisms {
             KeyCarriage.REQUEST_FIELD,
             SCOPED_BY_THE_ORIGINAL,
             THE_ORIGINAL_IS_NEVER_CLAIMED));
+    keys.add(
+        new DeclaredKey(
+            TranzilaThreeDSecureAnswers.TRACK_ID,
+            KeyRole.DUPLICATE_DETECTION_KEY,
+            KeyCarriage.REQUEST_FIELD,
+            SCOPED_BY_THE_CHALLENGE,
+            ONE_COMPLETE_AT_A_TIME_UNDER_A_TRACK_ID));
     return List.copyOf(keys);
   }
 

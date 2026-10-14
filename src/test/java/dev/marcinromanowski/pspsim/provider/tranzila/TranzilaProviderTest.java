@@ -63,7 +63,11 @@ class TranzilaProviderTest {
     assertThat(provider.id().value()).isEqualTo("tranzila");
     assertThat(provider.wireRoutes().namespaces())
         .containsExactly(
-            "/v1/transaction", "/v2/handshake/create", "/tranzila/directng", "/tranzila/hf");
+            "/v1/transaction",
+            "/v2/handshake/create",
+            "/tranzila/directng",
+            "/tranzila/hf",
+            "/tranzila/3ds");
     assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/create")).isTrue();
     assertThat(provider.wireRoutes().covers("/v1/transactions")).isFalse();
     assertThat(provider.wireRoutes().covers("/v1/payment_intents")).isFalse();
@@ -75,6 +79,8 @@ class TranzilaProviderTest {
         .isTrue();
     assertThat(provider.wireRoutes().covers("/tranzila/hf/process/ajax_process_transaction"))
         .isTrue();
+    assertThat(provider.wireRoutes().covers("/v1/transaction/credit_card/3ds/complete")).isTrue();
+    assertThat(provider.wireRoutes().covers("/tranzila/3ds/challenge/3ds_1")).isTrue();
   }
 
   @Test
@@ -166,8 +172,13 @@ class TranzilaProviderTest {
   @Test
   void the_vocabulary_names_every_transaction_type_this_route_serves_by_its_wire_spelling() {
     assertThat(provider.vocabulary().operationNames())
-        .containsExactly("debit", "verify", "force", "reversal", "credit", "cancel");
+        .containsExactly("3ds", "debit", "verify", "force", "reversal", "credit", "cancel");
     assertThat(provider.vocabulary().failureCodes().admits("004")).isTrue();
+    assertThat(provider.vocabulary().failureCodes().admits("900")).isTrue();
+    assertThat(provider.vocabulary().failureCodes().admits("928")).isTrue();
+    assertThat(provider.vocabulary().failureCodes().admits("929")).isFalse();
+    assertThat(provider.vocabulary().failureCodes().admits("930")).isTrue();
+    assertThat(provider.vocabulary().failureCodes().admits("931")).isFalse();
     assertThat(provider.vocabulary().failureCodes().admits("017")).isTrue();
     assertThat(provider.vocabulary().failureCodes().admits("507")).isFalse();
     assertThat(provider.vocabulary().failureCodes().admits("4")).isFalse();
@@ -761,7 +772,7 @@ class TranzilaProviderTest {
     assertThat(operationsOf(ScenarioPreset.REFUND_PARTIAL_THEN_FULL)).containsExactly("credit");
     assertThat(operationsOf(ScenarioPreset.CARD_ADD_SUCCESS)).containsExactly("verify");
     assertThat(operationsOf(ScenarioPreset.CARD_ADD_FAILED)).containsExactly("verify");
-    assertThat(operationsOf(ScenarioPreset.PSP_5XX_THEN_SUCCESS)).hasSize(12);
+    assertThat(operationsOf(ScenarioPreset.PSP_5XX_THEN_SUCCESS)).hasSize(14);
     for (ScenarioPreset unexpressible :
         List.of(
             ScenarioPreset.PREAUTH_SUCCESS_CAPTURE_TIMEOUT_THEN_SUCCESS,

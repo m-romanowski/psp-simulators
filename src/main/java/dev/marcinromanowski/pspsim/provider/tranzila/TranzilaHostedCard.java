@@ -1,5 +1,7 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import java.util.Optional;
+
 final class TranzilaHostedCard {
 
   private final String number;
@@ -29,6 +31,10 @@ final class TranzilaHostedCard {
         cardType(),
         expiryMonth,
         expiryYear % 100);
+  }
+
+  Optional<TranzilaThreeDSecureOutcome> theThreeDSecureOutcome() {
+    return TranzilaThreeDSecureCards.ofThePan(number);
   }
 
   boolean cvvEntered() {

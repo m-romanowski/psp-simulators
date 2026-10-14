@@ -46,6 +46,7 @@ class NoWorkingPayerAddressOnAScreenTest {
             java.util.Map.entry(
                 "tranzila",
                 List.of(
+                    "/tranzila/3ds/challenge/{trackId}",
                     "/tranzila/directng/{terminal}/payer/{pageId}",
                     "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
                     "/tranzila/hf/assets/js/hfields_depend/genfield.php",

@@ -34,6 +34,8 @@ final class TranzilaWiring {
 
   static final String THE_SCRIPT = "var TzlaHostedFields = {};";
 
+  static final String PUBLIC_BASE_URL = "https://simulator.test";
+
   final TranzilaDoubles.Terminals terminals = new TranzilaDoubles.Terminals();
   final TranzilaDoubles.Transactions transactions = new TranzilaDoubles.Transactions();
   final TranzilaDoubles.Pages pages = new TranzilaDoubles.Pages(transactions);
@@ -45,6 +47,7 @@ final class TranzilaWiring {
   final InMemoryScenarioRules rules = new InMemoryScenarioRules();
   final TranzilaDoubles.MovableClock clock = new TranzilaDoubles.MovableClock(NOW);
   final TranzilaDoubles.CountingIds ids = new TranzilaDoubles.CountingIds();
+  final TranzilaDoubles.Challenges challenges = new TranzilaDoubles.Challenges(transactions);
   final CreateTransaction create =
       new CreateTransaction(
           transactions,
@@ -52,7 +55,13 @@ final class TranzilaWiring {
           new TranzilaPayerCards(fixtures),
           exchanges,
           ids,
-          new ScenarioEngine(rules));
+          new ScenarioEngine(rules),
+          challenges,
+          PUBLIC_BASE_URL);
+  final CompleteThreeDSecure complete =
+      new CompleteThreeDSecure(challenges, transactions, create, exchanges, ids);
+  final TranzilaThreeDSecureChallenge challengePage =
+      new TranzilaThreeDSecureChallenge(challenges, audit, clock, ids);
   final RecordedUnitsOfWork units = new RecordedUnitsOfWork();
   final TranzilaDoubles.Handshakes handshakes = new TranzilaDoubles.Handshakes();
   final TranzilaDoubles.Accounts accounts = new TranzilaDoubles.Accounts();
@@ -102,7 +111,8 @@ final class TranzilaWiring {
           ids,
           RUN,
           create,
-          new CreateHandshake(handshakes, ids));
+          new CreateHandshake(handshakes, ids),
+          complete);
   final TranzilaHostedFields hostedFields =
       new TranzilaHostedFields(
           terminals,
@@ -116,7 +126,9 @@ final class TranzilaWiring {
           clock,
           ids,
           RUN,
-          THE_SCRIPT.getBytes(StandardCharsets.UTF_8));
+          THE_SCRIPT.getBytes(StandardCharsets.UTF_8),
+          challenges,
+          complete);
   final TranzilaProvider provider =
       new TranzilaProvider(
           terminals,
@@ -132,7 +144,8 @@ final class TranzilaWiring {
           pages,
           handshakes,
           directNg,
-          notify);
+          notify,
+          challenges);
 
   TranzilaWiring() {
     terminals.with(

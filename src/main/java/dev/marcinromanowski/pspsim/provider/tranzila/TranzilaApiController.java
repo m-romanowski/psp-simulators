@@ -11,6 +11,8 @@ class TranzilaApiController {
 
   static final String CREATE = TRANSACTION + "/credit_card/create";
 
+  static final String COMPLETE = TRANSACTION + "/credit_card/3ds/complete";
+
   static final String VERSION_2 = "/v2";
 
   static final String HANDSHAKE = VERSION_2 + "/handshake";
@@ -28,6 +30,11 @@ class TranzilaApiController {
   @PostMapping(CREATE)
   Object create(HttpServletRequest request) {
     return delivery.delivered(api.create(TranzilaWireRequest.callOf(request)));
+  }
+
+  @PostMapping(COMPLETE)
+  Object complete(HttpServletRequest request) {
+    return delivery.delivered(api.complete(TranzilaWireRequest.callOf(request)));
   }
 
   @PostMapping(CREATE_HANDSHAKE)

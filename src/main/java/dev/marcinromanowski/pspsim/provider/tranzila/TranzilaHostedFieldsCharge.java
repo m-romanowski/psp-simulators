@@ -45,6 +45,17 @@ final class TranzilaHostedFieldsCharge {
           TranzilaFields.USER_DEFINED_FIELDS,
           TranzilaJson.array(List.of(TranzilaJson.object(field))));
     }
+    TranzilaThreeDSecure secure = request.threeDSecure();
+    Map<String, TranzilaJson> settings = new LinkedHashMap<>();
+    settings.put(
+        TranzilaThreeDSecure.FORCE_TXN_ON_3DS_FAIL,
+        TranzilaJson.text(
+            secure.forceTxnOnFail() ? TranzilaThreeDSecure.YES : TranzilaThreeDSecure.NO));
+    settings.put(
+        TranzilaThreeDSecure.FORCE_CHALLENGE,
+        TranzilaJson.number(secure.forceChallenge() ? "1" : "0"));
+    body.put(TranzilaFields.ACTIVATE_3DS, TranzilaJson.text(TranzilaThreeDSecure.YES));
+    body.put(TranzilaThreeDSecure.THREE_DS_SETTINGS, TranzilaJson.object(settings));
     return TranzilaApiCall.of(
         TranzilaObjectActions.WIRE_METHOD,
         TranzilaHostedFieldsPage.PROCESS_ROUTE,

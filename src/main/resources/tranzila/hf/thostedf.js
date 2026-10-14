@@ -4,6 +4,9 @@ var TzlaHostedFields = (function () {
   var optional = {cvv: true, expiry: true, card_holder_id_number: true};
   var titles = {credit_card_number: "Card number", cvv: "CVV", expiry: "Expiry", card_holder_id_number: "ID number"};
   var frameStyle = "border: none; width: 100%; height: 100%; float: left; overflow: hidden;";
+  var challengeHolderStyle = "position: fixed; transform: translate(-50%, -50%); z-index: 1000000; background-color: #fff; top: 50%; left: 50%; width: 410px; max-width: 100vw; height: 650px; max-height: 100vh; border: none; box-sizing: border-box;";
+  var challengeFrameStyle = "width: 400px; max-width: 100%; height: 650px; max-height: calc(100% - 44px); border: none;";
+  var challengeCloseStyle = "display: block; margin-left: auto; min-width: 44px; min-height: 44px; border: none; background: transparent; color: #6b6b6b; font-size: 28px; font-weight: bold; cursor: pointer;";
 
   function whereItWasLoadedFrom() {
     var current = document.currentScript;
@@ -77,6 +80,7 @@ var TzlaHostedFields = (function () {
     var frames = {};
     var loaded = {};
     var control = null;
+    var challenge = null;
     var requests = 0;
     var self = this;
 
@@ -159,6 +163,45 @@ var TzlaHostedFields = (function () {
       }
     }
 
+    function closeTheChallenge() {
+      if (challenge) {
+        challenge.remove();
+        challenge = null;
+      }
+    }
+
+    function showTheChallenge(address) {
+      var shown;
+      try {
+        shown = new URL(address, location.href);
+      } catch (notAnAddress) {
+        return;
+      }
+      if (shown.origin !== origin) {
+        return;
+      }
+      closeTheChallenge();
+      var holder = document.createElement("div");
+      var close = document.createElement("button");
+      var frame = document.createElement("iframe");
+      holder.id = "hf-challenge-cont";
+      holder.className = "hf-challenge-cont";
+      holder.style.cssText = challengeHolderStyle;
+      close.type = "button";
+      close.textContent = "\u00d7";
+      close.setAttribute("aria-label", "Close the verification");
+      close.style.cssText = challengeCloseStyle;
+      close.addEventListener("click", closeTheChallenge);
+      frame.id = "hf-challenge-frame";
+      frame.title = "3-D Secure verification";
+      frame.src = shown.href;
+      frame.style.cssText = challengeFrameStyle;
+      holder.appendChild(close);
+      holder.appendChild(frame);
+      document.body.appendChild(holder);
+      challenge = holder;
+    }
+
     function insertTheFields() {
       Object.keys(fields).forEach(function (id) {
         loaded[id] = false;
@@ -189,7 +232,12 @@ var TzlaHostedFields = (function () {
       if (!message || typeof message.type !== "string") {
         return;
       }
-      if (message.type === "chargeResponse") {
+      if (message.type === "showChallenge") {
+        if (control && arrived.source === control.contentWindow && message.response && typeof message.response.challengeUrl === "string") {
+          showTheChallenge(message.response.challengeUrl);
+        }
+      } else if (message.type === "chargeResponse") {
+        closeTheChallenge();
         (callbacks["charge." + message.requestId] || []).forEach(function (callback) {
           callback(message.err, message.response);
         });

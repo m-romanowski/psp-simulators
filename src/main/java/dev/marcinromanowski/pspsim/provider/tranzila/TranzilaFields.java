@@ -89,7 +89,7 @@ final class TranzilaFields {
           "created_by_user",
           "created_by_system",
           ACTIVATE_3DS,
-          "3ds_settings");
+          TranzilaThreeDSecure.THREE_DS_SETTINGS);
 
   static final String ERROR_CODE = "error_code";
 
@@ -211,7 +211,10 @@ final class TranzilaFields {
           TRANZILA_TK,
           MYID,
           TRANSACTION_RESPONSE + "." + TOKEN,
-          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER);
+          TRANSACTION_RESPONSE + "." + USER_FORM_DATA + "." + IDENTITY_NUMBER,
+          TranzilaThreeDSecureAnswers.CHALLENGE_URL,
+          TranzilaThreeDSecureAnswers.T3DS_DATA + "." + TranzilaThreeDSecureAnswers.CAVV,
+          TranzilaThreeDSecureAnswers.T3DS_DATA + "." + TranzilaThreeDSecureAnswers.XID);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of(TRANZILA_TK, MYID, IDENTITY_NUMBER);
 

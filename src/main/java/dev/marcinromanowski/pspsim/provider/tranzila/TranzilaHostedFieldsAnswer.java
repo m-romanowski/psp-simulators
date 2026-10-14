@@ -41,6 +41,11 @@ final class TranzilaHostedFieldsAnswer {
 
   static TranzilaJson.JsonObject theResponseOf(
       TranzilaTransaction transaction, TranzilaHostedFieldsRequest request) {
+    return theResponseOf(transaction, request.echo());
+  }
+
+  static TranzilaJson.JsonObject theResponseOf(
+      TranzilaTransaction transaction, TranzilaHostedFieldsEcho request) {
     TranzilaCard card = transaction.card();
     boolean approved = transaction.approved();
     String code = transaction.processorResponseCode();
@@ -101,10 +106,17 @@ final class TranzilaHostedFieldsAnswer {
     return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP).toPlainString();
   }
 
-  static TranzilaJson.JsonObject theUserFormDataOf(TranzilaHostedFieldsRequest request) {
+  static TranzilaJson.JsonObject theUserFormDataOf(TranzilaHostedFieldsEcho request) {
     Map<String, TranzilaJson> echoed = new LinkedHashMap<>();
     request.userFormData().forEach((name, value) -> echoed.put(name, TranzilaJson.text(value)));
     return TranzilaJson.object(echoed);
+  }
+
+  static TranzilaJson.JsonObject aChallenge(String challengeUrl, String trackId) {
+    Map<String, TranzilaJson> answered = new LinkedHashMap<>();
+    answered.put(TranzilaThreeDSecureAnswers.CHALLENGE_URL, TranzilaJson.text(challengeUrl));
+    answered.put(TranzilaThreeDSecureAnswers.TRACK_ID, TranzilaJson.text(trackId));
+    return TranzilaJson.object(answered);
   }
 
   static TranzilaJson.JsonArray theErrorsOf(List<TranzilaHostedFieldsRequest.Refusal> refusals) {

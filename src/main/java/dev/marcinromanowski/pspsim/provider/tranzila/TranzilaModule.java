@@ -60,6 +60,27 @@ public class TranzilaModule {
   }
 
   @Bean
+  TranzilaChallenges tranzilaChallenges(JdbcClient jdbc) {
+    return new JdbcTranzilaChallenges(jdbc);
+  }
+
+  @Bean
+  TranzilaThreeDSecureChallenge tranzilaThreeDSecureChallenge(
+      TranzilaChallenges challenges, AuditTrail audit, SimulatorClock clock, IdGenerator ids) {
+    return new TranzilaThreeDSecureChallenge(challenges, audit, clock, ids);
+  }
+
+  @Bean
+  CompleteThreeDSecure tranzilaCompleteThreeDSecure(
+      TranzilaChallenges challenges,
+      TranzilaTransactions transactions,
+      CreateTransaction createTransaction,
+      TranzilaExchanges exchanges,
+      IdGenerator ids) {
+    return new CompleteThreeDSecure(challenges, transactions, createTransaction, exchanges, ids);
+  }
+
+  @Bean
   TranzilaHandshakes tranzilaHandshakes(JdbcClient jdbc) {
     return new JdbcTranzilaHandshakes(jdbc);
   }
@@ -116,9 +137,18 @@ public class TranzilaModule {
       PaymentMethodFixtures fixtures,
       TranzilaExchanges exchanges,
       IdGenerator ids,
-      ScenarioEngine scenarios) {
+      ScenarioEngine scenarios,
+      TranzilaChallenges challenges,
+      @Value("${simulator.public-base-url}") String publicBaseUrl) {
     return new CreateTransaction(
-        transactions, pages, new TranzilaPayerCards(fixtures), exchanges, ids, scenarios);
+        transactions,
+        pages,
+        new TranzilaPayerCards(fixtures),
+        exchanges,
+        ids,
+        scenarios,
+        challenges,
+        publicBaseUrl);
   }
 
   @Bean
@@ -131,6 +161,7 @@ public class TranzilaModule {
       IdGenerator ids,
       CreateTransaction createTransaction,
       TranzilaHandshakes handshakes,
+      CompleteThreeDSecure completeThreeDSecure,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new TranzilaApi(
         terminals,
@@ -141,7 +172,8 @@ public class TranzilaModule {
         ids,
         TestRunId.of(defaultTestRunId),
         createTransaction,
-        new CreateHandshake(handshakes, ids));
+        new CreateHandshake(handshakes, ids),
+        completeThreeDSecure);
   }
 
   @Bean
@@ -156,6 +188,8 @@ public class TranzilaModule {
       AuditTrail audit,
       SimulatorClock clock,
       IdGenerator ids,
+      TranzilaChallenges challenges,
+      CompleteThreeDSecure completeThreeDSecure,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new TranzilaHostedFields(
         terminals,
@@ -169,7 +203,9 @@ public class TranzilaModule {
         clock,
         ids,
         TestRunId.of(defaultTestRunId),
-        TranzilaHostedFieldsScript.read());
+        TranzilaHostedFieldsScript.read(),
+        challenges,
+        completeThreeDSecure);
   }
 
   @Bean
@@ -192,7 +228,8 @@ public class TranzilaModule {
       TranzilaPages pages,
       TranzilaHandshakes handshakes,
       TranzilaDirectNg directNg,
-      TranzilaNotify notify) {
+      TranzilaNotify notify,
+      TranzilaChallenges challenges) {
     return new TranzilaProvider(
         terminals,
         transactions,
@@ -207,6 +244,7 @@ public class TranzilaModule {
         pages,
         handshakes,
         directNg,
-        notify);
+        notify,
+        challenges);
   }
 }

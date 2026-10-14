@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
@@ -62,6 +63,8 @@ final class TranzilaHostedFields {
   private final IdGenerator ids;
   private final TestRunId defaultTestRun;
   private final byte[] script;
+  private final TranzilaChallenges challenges;
+  private final CompleteThreeDSecure completeThreeDSecure;
 
   TranzilaHostedFields(
       TranzilaTerminals terminals,
@@ -75,7 +78,9 @@ final class TranzilaHostedFields {
       SimulatorClock clock,
       IdGenerator ids,
       TestRunId defaultTestRun,
-      byte[] script) {
+      byte[] script,
+      TranzilaChallenges challenges,
+      CompleteThreeDSecure completeThreeDSecure) {
     this.terminals = terminals;
     this.handshakes = handshakes;
     this.transactions = transactions;
@@ -88,6 +93,8 @@ final class TranzilaHostedFields {
     this.ids = ids;
     this.defaultTestRun = defaultTestRun;
     this.script = script.clone();
+    this.challenges = challenges;
+    this.completeThreeDSecure = completeThreeDSecure;
   }
 
   sealed interface Charged {
@@ -103,10 +110,12 @@ final class TranzilaHostedFields {
 
     record Made(
         TranzilaTransaction transaction,
-        TranzilaHostedFieldsRequest request,
+        TranzilaHostedFieldsEcho request,
         @Nullable TransportFault fault,
         @Nullable String scenarioId)
         implements Charged {}
+
+    record Challenged(String challengeUrl, String trackId) implements Charged {}
   }
 
   TranzilaApiResponse script() {
@@ -138,6 +147,10 @@ final class TranzilaHostedFields {
   }
 
   TranzilaApiResponse charge(TranzilaPageCall call) {
+    String trackId = call.parameter(TranzilaThreeDSecureAnswers.TRACK_ID);
+    if (trackId != null) {
+      return continued(call, trackId);
+    }
     String terminalName = call.parameter(TranzilaFields.TERMINAL_NAME);
     List<TranzilaTerminal> named = terminalName == null ? List.of() : terminals.named(terminalName);
     TestRunResolution resolution = resolve(call, named, call.parameter(TranzilaFields.THTK));
@@ -212,9 +225,15 @@ final class TranzilaHostedFields {
             terminal,
             now,
             ObjectOrigin.PROVIDER_API,
-            Map.of(card.token(), card.card()));
+            Map.of(card.token(), card.card()),
+            request.card().theThreeDSecureOutcome().orElse(null),
+            request.echo());
     if (result.insteadOfTheOperation() != null) {
       return new Charged.AnsweredInstead(result);
+    }
+    Optional<Charged.Challenged> challenged = theChallengeIn(result);
+    if (challenged.isPresent()) {
+      return challenged.get();
     }
     Optional<TranzilaTransaction> made =
         Optional.ofNullable(result.providerObjectId())
@@ -241,7 +260,120 @@ final class TranzilaHostedFields {
               transaction, request, locking.get().requestParams()),
           target);
     }
-    return new Charged.Made(transaction, request, result.fault(), result.scenarioId());
+    return new Charged.Made(transaction, request.echo(), result.fault(), result.scenarioId());
+  }
+
+  static Optional<Charged.Challenged> theChallengeIn(TranzilaOperationResult result) {
+    if (!(result.body().json() instanceof TranzilaJson.JsonObject answered)) {
+      return Optional.empty();
+    }
+    Optional<String> address = answered.text(TranzilaThreeDSecureAnswers.CHALLENGE_URL);
+    Optional<String> trackId = answered.text(TranzilaThreeDSecureAnswers.TRACK_ID);
+    if (address.isEmpty() || trackId.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(new Charged.Challenged(address.get(), trackId.get()));
+  }
+
+  TranzilaApiResponse continued(TranzilaPageCall call, String trackId) {
+    String supplier = call.parameter(TranzilaFields.SUPPLIER);
+    List<TranzilaTerminal> named = supplier == null ? List.of() : terminals.named(supplier);
+    Optional<TranzilaChallenge> found =
+        challenges
+            .find(trackId)
+            .filter(held -> held.terminalName().equals(supplier))
+            .filter(TranzilaChallenge::isOnTheHostedFields);
+    TestRunResolution resolution =
+        found
+            .map(
+                held ->
+                    new TestRunResolution(
+                        held.testRunId(), TestRunResolutionRule.OBJECT_CORRELATION))
+            .orElseGet(() -> resolve(call, named, null));
+    TestRunId testRunId = resolution.testRunId();
+    Instant now = clock.now(testRunId);
+    Optional<TranzilaTerminal> terminal =
+        named.stream().filter(held -> held.testRunId().equals(testRunId)).findFirst();
+    String account = terminal.map(TranzilaTerminal::accountId).orElse(null);
+    record(
+        resolution,
+        account,
+        call,
+        AuditDirection.INBOUND_REQUEST,
+        null,
+        null,
+        null,
+        null,
+        Redaction.redact(call.headers(), TranzilaFields.SENSITIVE_HEADERS),
+        Redaction.redact(call.parameters(), TranzilaFields.SENSITIVE_REQUEST_FIELDS),
+        null,
+        null,
+        now);
+    Charged charged =
+        terminal
+            .map(held -> continuedOn(held, trackId, now))
+            .orElseGet(
+                () ->
+                    new Charged.Refused(
+                        List.of(
+                            TranzilaHostedFieldsErrors.of(
+                                TranzilaHostedFieldsErrors.TERMINAL_NOT_FOUND,
+                                TranzilaFields.SUPPLIER))));
+    return answered(
+        resolution,
+        call,
+        account,
+        terminal.map(TranzilaTerminal::appSecret).orElse(null),
+        now,
+        charged);
+  }
+
+  Charged continuedOn(TranzilaTerminal terminal, String trackId, Instant now) {
+    CompleteThreeDSecure.Reached reached =
+        completeThreeDSecure.reach(
+            TranzilaApiCall.of(
+                TranzilaObjectActions.WIRE_METHOD,
+                TranzilaHostedFieldsPage.PROCESS_ROUTE,
+                Map.of(),
+                ""),
+            Map.of(),
+            terminal.testRunId(),
+            terminal,
+            trackId,
+            true,
+            now);
+    return switch (reached) {
+      case CompleteThreeDSecure.Reached.NoChallenge _, CompleteThreeDSecure.Reached.NotAnswered _ ->
+          new Charged.Refused(List.of(TranzilaHostedFieldsErrors.noChallengeToContinue()));
+      case CompleteThreeDSecure.Reached.AnsweredInstead instead ->
+          new Charged.AnsweredInstead(instead.result());
+      case CompleteThreeDSecure.Reached.ADuplicate duplicate ->
+          new Charged.Made(duplicate.original(), theEchoOf(duplicate.challenge()), null, null);
+      case CompleteThreeDSecure.Reached.Made made -> {
+        TranzilaTransaction transaction = made.transaction();
+        TranzilaHostedFieldsEcho echo = theEchoOf(made.challenge());
+        TestRunId testRunId = terminal.testRunId();
+        Optional<TranzilaHandshake> locking = handshakes.find(testRunId, echo.thtk());
+        if (transaction.approved()) {
+          handshakes.retainUntil(
+              testRunId, echo.thtk(), now.plus(TranzilaHandshake.IT_IS_RETAINED_FOR));
+        }
+        notify.deliverOnce(
+            testRunId,
+            terminal.accountId(),
+            transaction.transactionIdAsText(),
+            TranzilaHostedFieldsNotify.theFieldsOf(
+                transaction, echo, locking.map(TranzilaHandshake::requestParams).orElse(null)),
+            notify.targetOf(testRunId, terminal.accountId(), echo.notifyUrl()));
+        yield new Charged.Made(
+            transaction, echo, made.result().fault(), made.result().scenarioId());
+      }
+    };
+  }
+
+  private static TranzilaHostedFieldsEcho theEchoOf(TranzilaChallenge challenge) {
+    return Objects.requireNonNull(
+        challenge.hostedFields(), "a challenge continued on the hosted fields carries their echo");
   }
 
   static IllegalStateException theCardApiRefusedWhatItAdmitted(TranzilaOperationResult result) {
@@ -274,6 +406,19 @@ final class TranzilaHostedFields {
               null);
       case Charged.AnsweredInstead instead ->
           answeredInstead(resolution, call, accountId, now, instead);
+      case Charged.Challenged challenged ->
+          delivered(
+              resolution,
+              call,
+              accountId,
+              now,
+              ProviderOutcome.SUCCESS,
+              challenged.trackId(),
+              null,
+              TranzilaHostedFieldsAnswer.aChallenge(
+                  challenged.challengeUrl(), challenged.trackId()),
+              null,
+              null);
       case Charged.Made made -> {
         TranzilaTransaction transaction = made.transaction();
         boolean approved = transaction.approved();

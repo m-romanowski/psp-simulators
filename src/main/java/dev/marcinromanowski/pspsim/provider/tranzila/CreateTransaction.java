@@ -58,6 +58,8 @@ final class CreateTransaction {
   private final TranzilaExchanges exchanges;
   private final IdGenerator ids;
   private final ScenarioEngine scenarios;
+  private final TranzilaChallenges challenges;
+  private final String publicBaseUrl;
 
   CreateTransaction(
       TranzilaTransactions transactions,
@@ -65,13 +67,17 @@ final class CreateTransaction {
       TranzilaPayerCards cards,
       TranzilaExchanges exchanges,
       IdGenerator ids,
-      ScenarioEngine scenarios) {
+      ScenarioEngine scenarios,
+      TranzilaChallenges challenges,
+      String publicBaseUrl) {
     this.transactions = transactions;
     this.pages = pages;
     this.cards = cards;
     this.exchanges = exchanges;
     this.ids = ids;
     this.scenarios = scenarios;
+    this.challenges = challenges;
+    this.publicBaseUrl = publicBaseUrl;
   }
 
   record Asked(
@@ -83,7 +89,9 @@ final class CreateTransaction {
       TranzilaJson originalRequest,
       Instant now,
       ObjectOrigin askedBy,
-      Map<String, TranzilaCard> cardsThePageOffers) {
+      Map<String, TranzilaCard> cardsThePageOffers,
+      @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
+      @Nullable TranzilaHostedFieldsEcho hostedFields) {
 
     String accountId() {
       return terminal.accountId();
@@ -119,6 +127,19 @@ final class CreateTransaction {
       Instant now,
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers) {
+    return handle(call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null, null);
+  }
+
+  TranzilaOperationResult handle(
+      TranzilaApiCall call,
+      Map<String, List<String>> headers,
+      TestRunId testRunId,
+      TranzilaTerminal terminal,
+      Instant now,
+      ObjectOrigin askedBy,
+      Map<String, TranzilaCard> cardsThePageOffers,
+      @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
+      @Nullable TranzilaHostedFieldsEcho hostedFields) {
     Optional<TranzilaJson.JsonObject> parsed = call.body();
     if (parsed.isEmpty()) {
       return TranzilaAnswers.refusedBody(
@@ -138,9 +159,6 @@ final class CreateTransaction {
           TranzilaErrors.AUTHORIZATION_FAILED_TEXT,
           ANOTHER_TERMINAL);
     }
-    if (request.asksFor3ds()) {
-      return TranzilaAnswers.refusedSchema(TranzilaErrors.THREE_D_SECURE_IS_NOT_SERVED);
-    }
     Asked asked =
         new Asked(
             call,
@@ -151,7 +169,9 @@ final class CreateTransaction {
             TranzilaOriginalRequest.of(parsed.get()),
             now,
             askedBy,
-            cardsThePageOffers);
+            cardsThePageOffers,
+            theTypedCardsOutcome,
+            hostedFields);
     Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
     if (inAnotherCurrency.isPresent()) {
       return inAnotherCurrency.get().result();
@@ -243,14 +263,22 @@ final class CreateTransaction {
   }
 
   private Answered anOriginal(Asked asked) {
-    TranzilaCreateRequest request = asked.request();
     Optional<Presented> presented = thePresentedCard(asked);
     if (presented.isEmpty()) {
       return theTokenIsUnknown();
     }
-    TranzilaCard card = presented.get().card();
     long drawn = TranzilaIdentifiers.aTransactionId(ids);
-    String amount = String.valueOf(request.amount() == null ? BigDecimal.ZERO : request.amount());
+    TranzilaThreeDSecure secure = asked.request().threeDSecure();
+    if (secure == null) {
+      return charged(asked, presented.get(), drawn);
+    }
+    return authenticated(asked, presented.get(), secure, drawn);
+  }
+
+  private Answered charged(Asked asked, Presented presented, long drawn) {
+    TranzilaCreateRequest request = asked.request();
+    TranzilaCard card = presented.card();
+    String amount = theAmountOf(request);
     String code =
         request.type() == TranzilaTxnType.VERIFY
             ? asked.terminal().verificationApprovalCode().code()
@@ -265,7 +293,7 @@ final class CreateTransaction {
         null,
         amount,
         request.currencyCode(),
-        presented.get().token(),
+        presented.token(),
         () ->
             stored(
                 asked,
@@ -280,26 +308,214 @@ final class CreateTransaction {
                         amount,
                         request.currencyCode(),
                         TranzilaIdentifiers.anAuthNumber(ids),
-                        presented.get().tokenFor(ids),
+                        presented.tokenFor(ids),
                         card,
                         expires)),
-        decline ->
-            stored(
+        decline -> unauthenticated(asked, presented, drawn, decline));
+  }
+
+  private Answered unauthenticated(Asked asked, Presented presented, long drawn, String code) {
+    TranzilaCreateRequest request = asked.request();
+    String amount = theAmountOf(request);
+    return stored(
+        asked,
+        drawn,
+        id ->
+            aTransaction(
+                asked,
+                id,
+                id,
+                null,
+                code,
+                amount,
+                request.currencyCode(),
+                null,
+                null,
+                presented.card(),
+                null));
+  }
+
+  private static String theAmountOf(TranzilaCreateRequest request) {
+    return String.valueOf(request.amount() == null ? BigDecimal.ZERO : request.amount());
+  }
+
+  private Answered authenticated(
+      Asked asked, Presented presented, TranzilaThreeDSecure secure, long drawn) {
+    Optional<TranzilaThreeDSecureOutcome> published = thePublishedOutcomeOf(asked, presented);
+    TranzilaThreeDSecureOutcome asked3ds =
+        published.orElse(
+            secure.forceChallenge()
+                ? TranzilaThreeDSecureOutcome.CHALLENGED
+                : TranzilaThreeDSecureOutcome.AUTHENTICATED);
+    if (published.isPresent()) {
+      return afterTheAuthentication(
+          asked, presented, secure, drawn, asked3ds, TranzilaResponseCodes.THREE_D_SECURE_FAILED);
+    }
+    ScenarioDecision decision =
+        scenarios.decide(
+            theScenarioRequest(
                 asked,
                 drawn,
-                id ->
-                    aTransaction(
-                        asked,
-                        id,
-                        id,
-                        null,
-                        decline,
-                        amount,
-                        request.currencyCode(),
-                        null,
-                        null,
-                        card,
-                        null)));
+                null,
+                theAmountOf(asked.request()),
+                asked.request().currencyCode(),
+                presented.token(),
+                TranzilaOperations.THREE_D_SECURE));
+    return switch (decision) {
+      case ScenarioDecision.NoScenario _ ->
+          afterTheAuthentication(
+              asked,
+              presented,
+              secure,
+              drawn,
+              asked3ds,
+              TranzilaResponseCodes.THREE_D_SECURE_FAILED);
+      case ScenarioDecision.Proceed matched ->
+          afterTheAuthentication(
+                  asked,
+                  presented,
+                  secure,
+                  drawn,
+                  asked3ds,
+                  TranzilaResponseCodes.THREE_D_SECURE_FAILED)
+              .mapped(result -> result.proceededUnder(matched.scenarioId()));
+      case ScenarioDecision.Disrupt disrupted ->
+          afterTheAuthentication(
+                  asked,
+                  presented,
+                  secure,
+                  drawn,
+                  asked3ds,
+                  TranzilaResponseCodes.THREE_D_SECURE_FAILED)
+              .mapped(result -> result.faultedBy(disrupted.scenarioId(), disrupted.fault()));
+      case ScenarioDecision.Preempt preempted ->
+          Answered.refused(
+              TranzilaOperationResult.answeredInsteadOf(
+                  preempted.scenarioId(), preempted.answer()));
+      case ScenarioDecision.Fail declined ->
+          afterTheAuthentication(
+                  asked,
+                  presented,
+                  secure,
+                  drawn,
+                  TranzilaThreeDSecureOutcome.FAILED,
+                  declined.providerCode())
+              .mapped(result -> result.declinedBy(declined.scenarioId()));
+      case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
+    };
+  }
+
+  Optional<TranzilaThreeDSecureOutcome> thePublishedOutcomeOf(Asked asked, Presented presented) {
+    TranzilaThreeDSecureOutcome typed = asked.theTypedCardsOutcome();
+    if (typed != null) {
+      return Optional.of(typed);
+    }
+    if (!asked.request().namesAToken()) {
+      return TranzilaThreeDSecureCards.ofThePan(String.valueOf(asked.request().cardNumber()));
+    }
+    return TranzilaThreeDSecureCards.ofTheCard(presented.card());
+  }
+
+  private Answered afterTheAuthentication(
+      Asked asked,
+      Presented presented,
+      TranzilaThreeDSecure secure,
+      long drawn,
+      TranzilaThreeDSecureOutcome outcome,
+      String failure) {
+    return switch (outcome) {
+      case AUTHENTICATED ->
+          charged(asked, presented, drawn)
+              .mapped(
+                  result ->
+                      TranzilaThreeDSecureAnswers.withTheAuthentication(
+                          result, TranzilaThreeDSecureAnswers.theAuthentication(ids)));
+      case FAILED ->
+          secure.forceTxnOnFail()
+              ? charged(asked, presented, drawn)
+              : unauthenticated(asked, presented, drawn, failure);
+      case CHALLENGED -> challenged(asked, presented, secure, drawn);
+    };
+  }
+
+  private Answered challenged(
+      Asked asked, Presented presented, TranzilaThreeDSecure secure, long drawn) {
+    TranzilaCreateRequest request = asked.request();
+    String token = presented.tokenFor(ids);
+    for (int attempt = 0; attempt < TRANSACTION_ID_ATTEMPTS; attempt++) {
+      TranzilaChallenge challenge =
+          new TranzilaChallenge(
+              TranzilaChallenge.ID_LEAD + ids.hex(TranzilaChallenge.ID_HEX),
+              asked.testRunId(),
+              asked.accountId(),
+              asked.terminal().terminalName(),
+              drawn,
+              request.type(),
+              request.verifyMode(),
+              theAmountOf(request),
+              request.currencyCode(),
+              token,
+              presented.card(),
+              request.cvv() == null ? NOT_ENTERED : ENTERED_AND_VALID,
+              request.cardHolderId() == null ? NOT_ENTERED : ENTERED_AND_VALID,
+              request.dcDisable(),
+              secure.forceTxnOnFail(),
+              TranzilaJsonWriter.toText(asked.originalRequest()),
+              secure.redirectUrl(),
+              secure.redirectParams(),
+              asked.hostedFields(),
+              asked.askedBy(),
+              asked.now(),
+              null,
+              null,
+              null);
+      if (challenges.open(challenge) == 1) {
+        return new Answered(
+            TranzilaThreeDSecureAnswers.aChallenge(
+                TranzilaChallengePage.addressOf(publicBaseUrl, challenge.trackId()),
+                challenge.trackId()),
+            true);
+      }
+    }
+    throw new IllegalStateException(
+        "no Tranzila track_id could be claimed in " + TRANSACTION_ID_ATTEMPTS + " attempts");
+  }
+
+  record Completed(TranzilaOperationResult result, TranzilaChallenge challenge) {}
+
+  Completed completing(
+      TranzilaApiCall call,
+      Map<String, List<String>> headers,
+      TranzilaTerminal terminal,
+      TranzilaChallenge challenge,
+      Instant now) {
+    Asked asked =
+        new Asked(
+            call,
+            headers,
+            challenge.testRunId(),
+            terminal,
+            TranzilaCreateRequest.ofTheChallenge(challenge),
+            TranzilaJsonReader.objectIn(challenge.originalRequest())
+                .orElseThrow(
+                    () ->
+                        new IllegalStateException(
+                            "the store holds an original_request that is no JSON object")),
+            now,
+            challenge.origin(),
+            Map.of(challenge.token(), challenge.card()),
+            null,
+            challenge.hostedFields());
+    Presented presented = new Presented(challenge.card(), challenge.token());
+    Answered answered =
+        challenge.passed() || challenge.forceTxnOnFail()
+            ? charged(asked, presented, challenge.transactionId())
+            : unauthenticated(
+                asked,
+                presented,
+                challenge.transactionId(),
+                TranzilaResponseCodes.THREE_D_SECURE_FAILED);
+    return new Completed(answered.result(), challenge);
   }
 
   private Answered aForce(Asked asked) {
@@ -589,19 +805,8 @@ final class CreateTransaction {
       Function<String, Answered> decline) {
     ScenarioDecision decision =
         scenarios.decide(
-            new ScenarioRequest(
-                TranzilaApi.TRANZILA,
-                asked.testRunId(),
-                TranzilaStoryKey.ofPayment(original == null ? drawn : original.transactionId()),
-                asked.accountId(),
-                null,
-                original == null ? null : String.valueOf(asked.request().referenceTxnId()),
-                null,
-                token,
-                Amount.of(amount),
-                currency,
-                asked.request().type().wire(),
-                asked.headers()));
+            theScenarioRequest(
+                asked, drawn, original, amount, currency, token, asked.request().type().wire()));
     return switch (decision) {
       case ScenarioDecision.NoScenario _ -> approve.get();
       case ScenarioDecision.Proceed matched ->
@@ -620,6 +825,29 @@ final class CreateTransaction {
               .mapped(result -> result.declinedBy(declined.scenarioId()));
       case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
     };
+  }
+
+  private static ScenarioRequest theScenarioRequest(
+      Asked asked,
+      long drawn,
+      @Nullable TranzilaTransaction original,
+      String amount,
+      String currency,
+      @Nullable String token,
+      String operation) {
+    return new ScenarioRequest(
+        TranzilaApi.TRANZILA,
+        asked.testRunId(),
+        TranzilaStoryKey.ofPayment(original == null ? drawn : original.transactionId()),
+        asked.accountId(),
+        null,
+        original == null ? null : String.valueOf(asked.request().referenceTxnId()),
+        null,
+        token,
+        Amount.of(amount),
+        currency,
+        operation,
+        asked.headers());
   }
 
   private Answered stored(

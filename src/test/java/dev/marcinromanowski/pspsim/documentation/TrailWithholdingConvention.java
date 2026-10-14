@@ -298,6 +298,11 @@ public final class TrailWithholdingConvention {
                   + " field"),
           new AnAddressInTheClear(
               "tranzila",
+              "redirect_url",
+              "the column the merchant-supplied auth_3ds_redirect url is stored under in this"
+                  + " build's own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
               "success_url",
               "the column the merchant-supplied success_url_address is stored under in this"
                   + " build's own database, which a trail row is never written from"),
@@ -306,6 +311,13 @@ public final class TrailWithholdingConvention {
               "success_url_address",
               "a parameter the merchant sends to the payment page, naming the merchant's own site;"
                   + " the page posts the payer's browser there and answers it back in no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "url",
+              "the member of auth_3ds_redirect a merchant sends on a create with activate_3ds Y,"
+                  + " naming the merchant's own site the payer's browser is posted to after a"
+                  + " challenge; original_request echoes it as the merchant sent it, and this"
+                  + " build mints no part of it"),
           new AnAddressInTheClear(
               "worldline",
               "Location",
