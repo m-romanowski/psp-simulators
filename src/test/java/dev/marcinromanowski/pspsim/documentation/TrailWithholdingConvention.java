@@ -358,8 +358,8 @@ public final class TrailWithholdingConvention {
             + verdict.offences().size()
             + " place(s) break it, each named above. A module is found by the package it compiles"
             + " into, its declaration by the field name every module shares, and the names it"
-            + " publishes by the string constants of its own compiled classes, so a sixth"
-            + " provider is held to this rule by compiling rather than by an edit here. Three"
+            + " publishes by the string constants of its own compiled classes, so a"
+            + " provider added later is held to this rule by compiling rather than by an edit here. Three"
             + " positions are excused, each at the occurrence it sits at and nowhere else in that"
             + " class: "
             + TrailWithholdingDeclarations.AS_AN_ENTRY_OF_ITS_OWN_DECLARATION

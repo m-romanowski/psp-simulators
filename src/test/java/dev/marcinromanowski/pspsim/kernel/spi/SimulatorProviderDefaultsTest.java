@@ -31,7 +31,7 @@ class SimulatorProviderDefaultsTest {
 
     assertThat(held)
         .as(
-            "a sixth provider that never learns to answer in bulk keeps working on the core"
+            "a provider added later that never learns to answer in bulk keeps working on the core"
                 + " minimum, and what it answers for many identifiers is what it answers for one")
         .containsExactly(
             batchingNothing.state(RUN, "pay-1").orElseThrow(),

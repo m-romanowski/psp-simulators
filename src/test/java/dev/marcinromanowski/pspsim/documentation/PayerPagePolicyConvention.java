@@ -140,7 +140,7 @@ public final class PayerPagePolicyConvention {
             + verdict.offences().size()
             + " place(s) break it, each named above. A page is found by the HTML document it"
             + " renders, read out of the compiled string constants of the class that builds it, so"
-            + " a sixth provider widens this gate by serving a page rather than by an edit here."
+            + " a provider added later widens this gate by serving a page rather than by an edit here."
             + " Two shapes are missed on purpose: a document assembled so that no single constant"
             + " opens it, and a page rendered from a Thymeleaf template rather than built in Java,"
             + " which is how this UI's own screens are written and which no payer page is. The"
@@ -159,7 +159,7 @@ public final class PayerPagePolicyConvention {
               + classes
               + " renders an HTML document, so this gate would examine nothing and report that"
               + " every page it examined declares a policy. This simulator serves the payer's page"
-              + " for four of its providers, so a run that reads no page has a broken classpath,"
+              + " for some of its providers, so a run that reads no page has a broken classpath,"
               + " not a clean tree. "
               + classesRead
               + " class file(s) were read.");

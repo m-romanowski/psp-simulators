@@ -21,7 +21,7 @@ class ProviderWireRoutesTest {
     assertThat(routes.covers("/api/light/server/1.0/createPaymentProcess")).isTrue();
     assertThat(routes.covers("/tokenize/sessions/abc"))
         .as(
-            "two providers of this build own addresses that begin with the same letters, and a"
+            "some providers of this build own addresses that begin with the same letters, and a"
                 + " plain prefix match would hand one provider's address to the other, whose"
                 + " envelope and status are not the same")
         .isFalse();

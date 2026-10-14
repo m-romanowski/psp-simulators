@@ -281,7 +281,7 @@ class DashboardScreenIntegrationTest extends PostgresBackedTest {
     assertThat(reset.location()).doesNotContain("cleared");
     assertThat(cleared)
         .contains("<div class=\"done\" role=\"status\">This test run is reset in every provider.")
-        .contains("across 6 provider(s).");
+        .contains("across " + providers.modules().size() + " provider(s).");
     assertThat(reopened).doesNotContain("This test run is reset").doesNotContain("It cleared");
     assertThat(cleared)
         .contains("No provider of this test run has answered a call or attempted a callback yet")
