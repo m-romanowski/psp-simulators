@@ -365,8 +365,7 @@ final class CreateTransaction {
                 theAmountOf(asked.request()),
                 asked.request().currencyCode(),
                 presented.token(),
-                TranzilaOperations.THREE_D_SECURE),
-            TranzilaOperations.VOCABULARY.theCodesAnswered(TranzilaOperations.THREE_D_SECURE));
+                TranzilaOperations.THREE_D_SECURE));
     return switch (decision) {
       case ScenarioDecision.NoScenario _ ->
           afterTheAuthentication(
@@ -809,8 +808,7 @@ final class CreateTransaction {
     String operation = asked.request().type().wire();
     ScenarioDecision decision =
         scenarios.decide(
-            theScenarioRequest(asked, drawn, original, amount, currency, token, operation),
-            TranzilaOperations.VOCABULARY.theCodesAnswered(operation));
+            theScenarioRequest(asked, drawn, original, amount, currency, token, operation));
     return switch (decision) {
       case ScenarioDecision.NoScenario _ -> approve.get();
       case ScenarioDecision.Proceed matched ->

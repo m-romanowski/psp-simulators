@@ -59,22 +59,32 @@ class ScenarioSelectionTest {
     ScenarioRule declining = register(RUN, 5, ScenarioMatch.anyRequest(), decline("701"));
     ScenarioRule proceeding =
         register(RUN, 0, ScenarioMatch.anyRequest(), new ScenarioAction.FixedSuccess());
+    List<String> asked = new ArrayList<>();
+    ScenarioEngine judging =
+        new ScenarioEngine(
+            rules,
+            (provider, operation, code) -> {
+              asked.add(provider.value() + " " + operation + " " + code);
+              return !"refund".equals(operation);
+            });
 
-    assertThat(engine.decide(request(), code -> !code.equals("701")))
+    assertThat(judging.decide(about("refund")))
         .isEqualTo(new ScenarioDecision.Proceed(proceeding.scenarioId()));
-    assertThat(engine.decide(request(), code -> code.equals("701")))
+    assertThat(judging.decide(about("capture")))
         .isEqualTo(new ScenarioDecision.Fail(declining.scenarioId(), "701"));
-    assertThat(engine.decide(request()))
-        .as("by default every operation answers every code the provider declares")
+    assertThat(asked).containsExactly("grow refund 701", "grow capture 701");
+    assertThat(engine.decide(about("refund")))
+        .as("an engine told nothing lets every operation answer every code")
         .isEqualTo(new ScenarioDecision.Fail(declining.scenarioId(), "701"));
   }
 
   @Test
   void a_step_whose_failure_the_operation_does_not_answer_moves_no_story() {
     step("declines", null, "declined", decline("701"));
+    ScenarioEngine answeringNothing =
+        new ScenarioEngine(rules, (provider, operation, code) -> false);
 
-    assertThat(engine.decide(request(), code -> false))
-        .isEqualTo(new ScenarioDecision.NoScenario());
+    assertThat(answeringNothing.decide(request())).isEqualTo(new ScenarioDecision.NoScenario());
     assertThat(rules.storyStatesOf(GROW, RUN, new StoryKey(StoryKeying.FLOW, ONE_FLOW)))
         .doesNotContainKey("declines");
     assertThat(engine.decide(request())).isInstanceOf(ScenarioDecision.Fail.class);
@@ -91,6 +101,7 @@ class ScenarioSelectionTest {
     assertThat(ScenarioEngine.itsCodeIsOneTheOperationAnswers(decline("7"), code -> false))
         .isFalse();
     assertThat(ScenarioEngine.itsCodeIsOneTheOperationAnswers(decline("7"), code -> true)).isTrue();
+    assertThat(OperationCodes.EVERY_CODE.answers(GROW, null, "7")).isTrue();
   }
 
   @Test

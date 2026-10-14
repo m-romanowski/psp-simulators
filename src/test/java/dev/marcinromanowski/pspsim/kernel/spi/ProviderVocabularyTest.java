@@ -66,13 +66,14 @@ class ProviderVocabularyTest {
 
     assertThat(vocabulary.theCodesOf("capture")).isSameAs(vocabulary.failureCodes());
     assertThat(vocabulary.theCodesOf(null)).isSameAs(vocabulary.failureCodes());
-    assertThat(vocabulary.theCodesAnswered("capture").test("DECLINED")).isTrue();
-    assertThat(vocabulary.theCodesAnswered("capture").test("declined")).isFalse();
+    assertThat(vocabulary.theCodesOf("capture").admits("DECLINED")).isTrue();
+    assertThat(vocabulary.theCodesOf("capture").admits("declined")).isFalse();
     assertThat(split.theCodesOf("capture").describedAs()).isEqualTo("a letter");
-    assertThat(split.theCodesOf("ping")).isSameAs(split.failureCodes());
-    assertThat(split.theCodesAnswered("capture").test("X")).isTrue();
-    assertThat(split.theCodesAnswered("capture").test("XY")).isFalse();
-    assertThat(split.theCodesAnswered(null).test("XY")).isTrue();
+    assertThat(split.theCodesOf("ping").describedAs())
+        .isEqualTo("this provider declines with an upper-case word");
+    assertThat(split.theCodesOf("capture").admits("X")).isTrue();
+    assertThat(split.theCodesOf("capture").admits("XY")).isFalse();
+    assertThat(split.theCodesOf(null).admits("XY")).isTrue();
   }
 
   @Test
@@ -105,14 +106,34 @@ class ProviderVocabularyTest {
                 + " vocabulary exposes no operation of that name");
   }
 
+  @Test
+  void a_vocabulary_declaring_codes_for_some_operations_declares_them_for_every_one() {
+    assertThatThrownBy(
+            () ->
+                new ProviderVocabulary(
+                    vocabulary.provider(),
+                    vocabulary.operations(),
+                    vocabulary.factsItNeverCarries(),
+                    vocabulary.failureCodes(),
+                    vocabulary.processingStates(),
+                    Map.of("capture", new FailureCodes("[A-Z]", "a letter"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageEndingWith("it names none for openSession, readSession, ping");
+  }
+
   private ProviderVocabulary withTheCodesOf(Map<String, FailureCodes> codes) {
+    Map<String, FailureCodes> every = new java.util.LinkedHashMap<>();
+    for (String operation : vocabulary.operationNames()) {
+      every.put(operation, vocabulary.failureCodes());
+    }
+    every.putAll(codes);
     return new ProviderVocabulary(
         vocabulary.provider(),
         vocabulary.operations(),
         vocabulary.factsItNeverCarries(),
         vocabulary.failureCodes(),
         vocabulary.processingStates(),
-        codes);
+        every);
   }
 
   private static NewScenarioRule aFailing(@Nullable String operation, String code) {

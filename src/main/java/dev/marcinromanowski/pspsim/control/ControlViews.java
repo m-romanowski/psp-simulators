@@ -155,7 +155,8 @@ final class ControlViews {
               exposed.theFactsItCarries(),
               exposed.storiesKeyedOn(),
               exposed.itsFlowKeyMayBeReplaced(),
-              vocabulary.processingStates().reachedBy(exposed.name())));
+              vocabulary.processingStates().reachedBy(exposed.name()),
+              vocabulary.theCodesOf(exposed.name()).describedAs()));
     }
     return new OperationsResponse(testRunId.value(), provider, List.copyOf(views));
   }

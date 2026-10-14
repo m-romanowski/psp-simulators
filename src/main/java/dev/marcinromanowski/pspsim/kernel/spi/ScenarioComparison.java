@@ -291,15 +291,30 @@ public final class ScenarioComparison {
       return theOperationsItExposes(onTheLeft, onTheRight, vocabulary);
     }
     if (property.equals(PROVIDER_CODE)) {
-      return "provider "
-          + vocabulary.provider().value()
-          + " declines with "
-          + vocabulary.failureCodes().describedAs();
+      return theCodesItDeclinesWith(onTheLeft, onTheRight, vocabulary);
     }
     if (property.equals(ACTION_TYPE) || property.equals(SETTLES_AFTER)) {
       return theOperationsThatReportAProcessingState(onTheLeft, onTheRight, vocabulary);
     }
     return null;
+  }
+
+  static String theCodesItDeclinesWith(
+      ScenarioRule onTheLeft, ScenarioRule onTheRight, ProviderVocabulary vocabulary) {
+    StringBuilder said =
+        new StringBuilder("provider ")
+            .append(vocabulary.provider().value())
+            .append(" declines with ")
+            .append(vocabulary.failureCodes().describedAs());
+    for (String operation : theOperationsNamedBy(onTheLeft, onTheRight)) {
+      if (vocabulary.declaresTheCodesOf(operation)) {
+        said.append("; operation ")
+            .append(operation)
+            .append(" with ")
+            .append(vocabulary.theCodesOf(operation).describedAs());
+      }
+    }
+    return said.toString();
   }
 
   private static String theOperationsItExposes(

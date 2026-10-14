@@ -170,6 +170,7 @@
                 <tr>
                   <th>operation</th>
                   <th>facts it carries</th>
+                  <th>fails with</th>
                   <th>reports a processing state</th>
                   <th>its flow key may be replaced</th>
                   <th>rules of this run naming it</th>
@@ -179,6 +180,7 @@
                 <tr th:each="operation : ${workbench.operations}">
                   <td class="id" th:text="${operation.name}"></td>
                   <td class="wrap" th:text="${#strings.listJoin(operation.carries, ', ')}"></td>
+                  <td class="wrap" th:text="${operation.failsWith}"></td>
                   <td>
                     <span
                       class="tag"

@@ -3092,6 +3092,9 @@
           },
           "reportsAProcessingState": {
             "type": "boolean"
+          },
+          "failsWith": {
+            "type": "string"
           }
         },
         "required": [
@@ -3099,7 +3102,8 @@
           "carries",
           "storiesKeyedOn",
           "itsFlowKeyMayBeReplaced",
-          "reportsAProcessingState"
+          "reportsAProcessingState",
+          "failsWith"
         ],
         "additionalProperties": false
       },

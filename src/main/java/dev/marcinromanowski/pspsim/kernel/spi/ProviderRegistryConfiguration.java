@@ -8,6 +8,7 @@ import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.routing.RouteAliases;
+import dev.marcinromanowski.pspsim.kernel.scenario.OperationCodes;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioGrammar;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.settings.DeclaredProviderSettings;
@@ -33,6 +34,11 @@ public class ProviderRegistryConfiguration {
   @Bean
   public ProviderRegistry providerRegistry(List<SimulatorProvider> providers) {
     return new ProviderRegistry(providers);
+  }
+
+  @Bean
+  public OperationCodes operationCodes(ObjectProvider<ProviderRegistry> providers) {
+    return new VocabularyCodes(providers::getObject);
   }
 
   @Bean

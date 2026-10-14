@@ -99,7 +99,7 @@ All paths are under `/__simulator/{provider}`. The screen is the one `verifyClic
 | `GET /audit?auditId=&accountId=&origin=&direction=&method=&status=&providerObjectId=&scenarioId=&from=&until=&after=&limit=` | the sanitized trail, oldest first | `/ui/audit`           |
 | `GET /idempotency?after=&limit=`                      | keyed exchanges: first request, replays, conflicts (`testing-support-features.md`, "Retry, Idempotency and Correlation Inspector") | `/ui/idempotency` |
 | `GET /address`                                        | `publicBaseUrl`, `apiBasePath`, `providerBaseUrl`, `testRunHeader`, `testRunId`, and how a request names its account | `/ui/pairing`                     |
-| `GET /operations`                                     | every operation, with the `match.*` it carries, `storiesKeyedOn`, `itsFlowKeyMayBeReplaced`, `reportsAProcessingState` | `/ui`                          |
+| `GET /operations`                                     | every operation, with the `match.*` it carries, `storiesKeyedOn`, `itsFlowKeyMayBeReplaced`, `reportsAProcessingState`, `failsWith` | `/ui`                          |
 | `GET /originations?accountId=&startedAs=`                | every way this provider declares a payment may be started: each way's label, what it leaves behind, what the payer does next and the payer page this simulator serves for it, and each field's key, label, sentence, whether it is required and the query parameter a value is sent in. Beside the ways: the accounts this run configures and the fields the simulator fills in itself, each with the provider's own words for where its value comes from. With an account and a way named, a field also carries the values this test run has already produced for it | `/ui/objects/new` |
 | `POST /originations?accountId=&startedAs=&field=`        | start one payment. Each value is one `field` parameter spelling `key=value`. `201` carries the `providerObjectId` and the provider's own words for what exists now, and the rule that decided it when one did. The provider's own refusal is `422` in its own words, and a rule that answered instead of the provider is `422` naming it. The core refuses only a missing required field, a key no way declares and a callback target this run does not configure | `/ui/objects/start` |
 | `GET /reads?accountId=&readNamed=`                    | every read this provider publishes: the question each answers, what an empty answer would mean, and each field's key, label, sentence, whether it is required and the query parameter a value is sent in. With an account and a read named, each field also carries the values this test run has already produced for it. A provider that publishes none answers `200` saying what it has instead | `/ui/reads` |
@@ -305,7 +305,8 @@ A rule has `priority`, `match` and `action`, and optionally `story`, `keyedOn`, 
 | `DELIVERY_DROPPED`                     | record a delivery as dropped and never post it                                                            |
 
 - A provider's vocabulary may declare the failure codes each operation answers; otherwise every operation answers every
-  code the provider declares (`ProviderVocabulary.theCodesAnswered`). A rule naming `match.operation` and a
+  code the provider declares; `GET /operations` answers each operation's in `failsWith`. A vocabulary declaring
+  them for some operations declares them for every one. A rule naming `match.operation` and a
   `providerCode` that operation does not answer is refused `422`, naming both. A rule naming no operation and a
   `providerCode` matches only the operations that answer that code: elsewhere it is no match, the next rule or the
   provider's default decides, and its story does not move.

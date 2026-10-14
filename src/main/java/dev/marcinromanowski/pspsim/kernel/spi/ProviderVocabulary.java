@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 public record ProviderVocabulary(
@@ -78,18 +77,28 @@ public record ProviderVocabulary(
                 + " exposes no operation of that name");
       }
     }
+    if (!theCodesAnOperationAnswers.isEmpty()
+        && !theCodesAnOperationAnswers.keySet().containsAll(byName.keySet())) {
+      List<String> unnamed = new ArrayList<>(byName.keySet());
+      unnamed.removeAll(theCodesAnOperationAnswers.keySet());
+      throw new IllegalArgumentException(
+          "a vocabulary that declares the failure codes of some operations declares them for every"
+              + " operation it exposes, so that one it adds later cannot answer the provider-wide"
+              + " codes unnoticed; it names none for "
+              + String.join(", ", unnamed));
+    }
     operations = List.copyOf(operations);
     factsItNeverCarries = Map.copyOf(factsItNeverCarries);
     theCodesAnOperationAnswers = Map.copyOf(theCodesAnOperationAnswers);
   }
 
+  public boolean declaresTheCodesOf(String operation) {
+    return theCodesAnOperationAnswers.containsKey(operation);
+  }
+
   public FailureCodes theCodesOf(@Nullable String operation) {
     FailureCodes its = operation == null ? null : theCodesAnOperationAnswers.get(operation);
     return its == null ? failureCodes : its;
-  }
-
-  public Predicate<String> theCodesAnswered(@Nullable String operation) {
-    return theCodesOf(operation)::admits;
   }
 
   private static void refuseAProcessingStateOnAnOperationThisProviderDoesNotExpose(

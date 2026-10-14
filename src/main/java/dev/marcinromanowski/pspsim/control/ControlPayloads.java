@@ -318,7 +318,8 @@ final class ControlPayloads {
       List<String> carries,
       String storiesKeyedOn,
       boolean itsFlowKeyMayBeReplaced,
-      boolean reportsAProcessingState) {}
+      boolean reportsAProcessingState,
+      String failsWith) {}
 
   record AccountFieldsResponse(String provider, List<AccountFieldView> accountFields) {}
 

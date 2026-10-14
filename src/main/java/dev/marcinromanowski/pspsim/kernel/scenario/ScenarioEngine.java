@@ -13,18 +13,21 @@ import org.jspecify.annotations.Nullable;
 public final class ScenarioEngine {
 
   private final ScenarioRules rules;
+  private final OperationCodes codes;
 
   public ScenarioEngine(ScenarioRules rules) {
+    this(rules, OperationCodes.EVERY_CODE);
+  }
+
+  public ScenarioEngine(ScenarioRules rules, OperationCodes codes) {
     this.rules = rules;
+    this.codes = codes;
   }
 
   public ScenarioDecision decide(ScenarioRequest request) {
-    return decide(request, code -> true);
-  }
-
-  public ScenarioDecision decide(
-      ScenarioRequest request, Predicate<String> theCodesItsOperationAnswers) {
-    List<ScenarioRule> matching = theRulesThisRequestMatches(request, theCodesItsOperationAnswers);
+    List<ScenarioRule> matching =
+        theRulesThisRequestMatches(
+            request, code -> codes.answers(request.provider(), request.operation(), code));
     List<StoryKey> keys = theKeysTheStepsAmongThemStandOn(request, matching);
     return rules.decidingOneRequestAtATimeAbout(
         request.provider(),

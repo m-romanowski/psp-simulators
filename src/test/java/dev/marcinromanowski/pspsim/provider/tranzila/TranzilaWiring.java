@@ -56,7 +56,12 @@ final class TranzilaWiring {
           new TranzilaPayerCards(fixtures),
           exchanges,
           ids,
-          new ScenarioEngine(rules),
+          new ScenarioEngine(
+              rules,
+              new dev.marcinromanowski.pspsim.kernel.spi.VocabularyCodes(
+                  () ->
+                      new dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry(
+                          List.of(this.provider)))),
           challenges,
           PUBLIC_BASE_URL);
   final CompleteThreeDSecure complete =
