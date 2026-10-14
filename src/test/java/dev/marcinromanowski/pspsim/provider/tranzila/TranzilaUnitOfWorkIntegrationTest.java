@@ -6,8 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,7 +54,8 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
     transactions.together(
         () -> {
           transactions.insert(aDebit());
-          return exchanges.observed(anExchange());
+          exchanges.observed(anExchange());
+          return aDebit();
         });
 
     assertThat(count("tranzila_transaction")).isEqualTo(1);
@@ -88,20 +93,19 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
         AT);
   }
 
-  private static TranzilaObservedRequest anExchange() {
-    return new TranzilaObservedRequest(
+  private static KeyedObservation anExchange() {
+    return new KeyedObservation(
         RUN,
         "account-1",
-        "DCdisable debit",
+        TranzilaDcDisableKey.keyNameOf(TranzilaTxnType.DEBIT, null),
         "order-1",
         "debit",
-        "fp",
         ExchangeVerdict.FIRST_REQUEST,
-        200,
-        "application/json",
-        "{}",
+        new FingerprintedRequest("POST", "debit", Map.of()),
+        new KeyedAnswer(200, "application/json", Map.of()),
         "7001",
         true,
+        null,
         AT);
   }
 }

@@ -45,7 +45,8 @@ class KeyedExchangesTest {
                   KeyCarriage.REQUEST_FIELD,
                   "the transaction it names",
                   TestKeyClaims.NEVER_HELD)),
-          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, "provider grow replays nothing"));
+          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, "provider grow replays nothing"),
+          answered -> answered);
 
   @Test
   void every_request_under_one_key_value_is_gathered_into_the_one_row_a_tester_reads() {
@@ -241,7 +242,8 @@ class KeyedExchangesTest {
               KeyRole.DUPLICATE_DETECTION_KEY,
               "no duplicate check",
               KeyRole.CORRELATION_KEY,
-              "no correlation key"));
+              "no correlation key"),
+          answered -> answered);
 
   @Test
   void a_key_its_provider_declares_claimed_reads_back_a_request_refused_while_it_was_held() {

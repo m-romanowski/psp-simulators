@@ -53,7 +53,7 @@ public record KeyedExchange(
       throw new IllegalArgumentException(
           "the earliest request recorded under key "
               + keyName
-              + " that this simulator answered from what the key already held is a "
+              + " that ran the operation or answered from what one stored is a "
               + claimant.verdict().name()
               + ", and a repeat with nothing to repeat is a record of an answer this simulator"
               + " never gave");
@@ -63,7 +63,8 @@ public record KeyedExchange(
 
   private static @Nullable KeyedRequest theRequestThatClaimedTheKey(List<KeyedRequest> requests) {
     for (KeyedRequest request : requests) {
-      if (request.verdict().isOrderedAgainstTheRequestThatClaimedTheKey()) {
+      ExchangeVerdict verdict = request.verdict();
+      if (verdict.couldHaveChangedState() || verdict.answersFromWhatTheRequestThatRanStored()) {
         return request;
       }
     }

@@ -2,7 +2,7 @@ package dev.marcinromanowski.pspsim.provider.autra;
 
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -10,6 +10,7 @@ import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDecision;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -226,23 +227,19 @@ final class CaptureHold {
       Instant now,
       boolean stateChanged,
       AutraOperationResult result) {
-    boolean seen =
-        payments.hasSeen(
-            testRunId, merchant.accountId(), AutraKeyMechanisms.PAYMENT_ID, payment.paymentId());
     payments.observed(
-        new AutraObservedRequest(
+        new KeyedObservation(
             testRunId,
             merchant.accountId(),
             AutraKeyMechanisms.PAYMENT_ID,
             payment.paymentId(),
             AutraOperations.CAPTURE,
-            RequestFingerprint.of(call.method(), AutraOperations.CAPTURE, theFieldsOf(call)),
-            seen ? ExchangeVerdict.CORRELATED_RETRY : ExchangeVerdict.FIRST_REQUEST,
-            result.body().httpStatus(),
-            result.body().contentType(),
-            result.body().text(),
+            ExchangeVerdict.FIRST_REQUEST,
+            new FingerprintedRequest(call.method(), AutraOperations.CAPTURE, theFieldsOf(call)),
+            result.body().asAKeyedAnswer(),
             payment.paymentId(),
             stateChanged,
+            null,
             now));
   }
 

@@ -3,7 +3,10 @@ package dev.marcinromanowski.pspsim.provider.azericard;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.marcinromanowski.pspsim.AtOnce;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
+import dev.marcinromanowski.pspsim.TheRequestsUnderOneKey;
+import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -15,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -92,6 +96,50 @@ class AzericardConcurrentExchangeIntegrationTest extends PostgresBackedTest {
     assertThat(recordedUnder(AzericardKeyMechanisms.RRN, rrn)).isEqualTo(CONCURRENT * ROUNDS);
     assertThat(recordedUnder(AzericardKeyMechanisms.INT_REF, intRef))
         .isEqualTo(CONCURRENT * ROUNDS);
+  }
+
+  @Test
+  void authorizations_sent_at_once_under_one_trace_are_numbered_after_the_one_that_claimed_it()
+      throws Exception {
+    Map<String, String> authorization = signed(authorization());
+
+    List<Integer> statuses = AtOnce.sent(CONCURRENT, () -> post(authorization).statusCode());
+
+    assertThat(statuses).hasSize(CONCURRENT).containsOnly(200);
+    TheRequestsUnderOneKey.areNumberedAfterTheOneThatClaimedTheKey(
+        TheRequestsUnderOneKey.recordedUnderTheName(
+            jdbc,
+            "azericard_keyed_exchange",
+            AzericardKeyMechanisms.ORDER,
+            AzericardOrderTrace.of(ORDER),
+            RUN.value()),
+        CONCURRENT,
+        Set.of(ExchangeVerdict.DUPLICATE_KEY_REFUSAL));
+    TheRequestsUnderOneKey.isReadableOnTheInspector(http, "azericard", RUN.value());
+  }
+
+  @Test
+  void settlements_sent_at_once_are_each_recorded_as_a_retry_of_the_one_recorded_first()
+      throws Exception {
+    String body = new String(post(signed(authorization())).body(), UTF_8);
+    String rrn = valueIn(body, "rrn");
+    String intRef = valueIn(body, "intref");
+    Map<String, String> refused = signed(settlement(MORE_THAN_HELD, rrn, intRef));
+
+    List<Integer> statuses = AtOnce.sent(CONCURRENT, () -> post(refused).statusCode());
+
+    assertThat(statuses).hasSize(CONCURRENT).containsOnly(200);
+    TheRequestsUnderOneKey.areNumberedAfterTheOneThatClaimedTheKey(
+        TheRequestsUnderOneKey.recordedUnderTheName(
+            jdbc, "azericard_keyed_exchange", AzericardKeyMechanisms.RRN, rrn, RUN.value()),
+        CONCURRENT,
+        Set.of(ExchangeVerdict.CORRELATED_RETRY));
+    TheRequestsUnderOneKey.areNumberedAfterTheOneThatClaimedTheKey(
+        TheRequestsUnderOneKey.recordedUnderTheName(
+            jdbc, "azericard_keyed_exchange", AzericardKeyMechanisms.INT_REF, intRef, RUN.value()),
+        CONCURRENT,
+        Set.of(ExchangeVerdict.CORRELATED_RETRY));
+    TheRequestsUnderOneKey.isReadableOnTheInspector(http, "azericard", RUN.value());
   }
 
   private List<Integer> sentAtOnce(Map<String, String> form) throws Exception {

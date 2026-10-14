@@ -9,6 +9,8 @@ import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.List;
@@ -310,21 +312,22 @@ final class Authorize {
       @Nullable String providerObjectId,
       boolean stateChanged,
       AzericardOperationResult result) {
-    AzericardObservation.recorded(
-        payments::observed,
-        new AzericardObservedRequest(
+    payments.observed(
+        new KeyedObservation(
             testRunId,
             terminal.accountId(),
             AzericardKeyMechanisms.ORDER,
             AzericardOrderTrace.of(message.order()),
             message.operationName(),
-            message.fingerprint(),
             verdict,
-            AzericardGateway.GATEWAY_HTTP_STATUS,
-            result.body().contentType(),
-            result.body().text(),
+            message.fingerprinted(),
+            new KeyedAnswer(
+                AzericardGateway.GATEWAY_HTTP_STATUS,
+                result.body().contentType(),
+                result.body().fields()),
             providerObjectId,
             stateChanged,
+            null,
             now));
   }
 

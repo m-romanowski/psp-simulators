@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.util.List;
@@ -39,9 +40,7 @@ interface GrowTransactions {
     GROUP_ALREADY_CHARGED
   }
 
-  boolean hasSeen(TestRunId testRunId, String merchantId, String keyName, String keyValue);
-
-  void observed(GrowObservedRequest request);
+  void observed(KeyedObservation observation);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

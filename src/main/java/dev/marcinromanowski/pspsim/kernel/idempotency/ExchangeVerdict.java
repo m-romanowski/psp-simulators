@@ -1,5 +1,7 @@
 package dev.marcinromanowski.pspsim.kernel.idempotency;
 
+import java.util.List;
+
 public enum ExchangeVerdict {
   FIRST_REQUEST("the first request this simulator answered under this key"),
   TRUE_IDEMPOTENT_REPLAY("the original response, replayed without running the operation again"),
@@ -12,6 +14,9 @@ public enum ExchangeVerdict {
           + " answering, so there was no stored answer to replay and no completed request to"
           + " compare against");
 
+  public static final List<ExchangeVerdict> THAT_RAN_THE_OPERATION =
+      List.of(FIRST_REQUEST, REPEAT_ADMITTED, CORRELATED_RETRY);
+
   private final String describedAs;
 
   ExchangeVerdict(String describedAs) {
@@ -23,18 +28,23 @@ public enum ExchangeVerdict {
   }
 
   public boolean couldHaveChangedState() {
-    return switch (this) {
-      case FIRST_REQUEST, REPEAT_ADMITTED, CORRELATED_RETRY -> true;
-      case TRUE_IDEMPOTENT_REPLAY,
-          DUPLICATE_KEY_REFUSAL,
-          CONFLICTING_PAYLOAD,
-          REFUSED_WHILE_THE_KEY_WAS_HELD ->
-          false;
-    };
+    return THAT_RAN_THE_OPERATION.contains(this);
+  }
+
+  public boolean answersFromWhatTheRequestThatRanStored() {
+    return this == TRUE_IDEMPOTENT_REPLAY || this == CONFLICTING_PAYLOAD;
   }
 
   public boolean isOrderedAgainstTheRequestThatClaimedTheKey() {
     return this != REFUSED_WHILE_THE_KEY_WAS_HELD;
+  }
+
+  public ExchangeVerdict recordedWhereNoRequestClaimedTheKey() {
+    return couldHaveChangedState() ? FIRST_REQUEST : this;
+  }
+
+  public ExchangeVerdict recordedAfterTheRequestThatClaimedTheKey(KeyRole role) {
+    return couldHaveChangedState() ? role.aRepeatThatRanTheOperation() : this;
   }
 
   public boolean isAdmittedUnder(KeyRole role) {

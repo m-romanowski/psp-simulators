@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.azericard;
 
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
 import dev.marcinromanowski.pspsim.kernel.spi.DeclaredKey;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyCarriage;
@@ -70,7 +71,8 @@ final class AzericardKeyMechanisms {
                   KeyCarriage.REQUEST_FIELD,
                   SCOPED_BY_THE_GATEWAY_REFERENCE,
                   AZERICARD_CLAIMS_NOTHING_IN_ADVANCE)),
-          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY));
+          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY),
+          answered -> Redaction.redact(answered, AzericardFields.SENSITIVE_RESPONSE_FIELDS));
 
   private AzericardKeyMechanisms() {}
 }

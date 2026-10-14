@@ -8,7 +8,9 @@ import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchange;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedRequest;
@@ -16,12 +18,15 @@ import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -401,8 +406,8 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
 
   @Test
   void reads_back_a_refusal_recorded_before_the_request_that_was_holding_the_key_answered() {
-    keys.observed(observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, "{\"held\":1}"));
-    keys.observed(observed(ExchangeVerdict.FIRST_REQUEST, 200, "{\"id\":\"pi_1\"}"));
+    keys.observed(observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
+    keys.observed(observed(ExchangeVerdict.FIRST_REQUEST, 200, Map.of("id", List.of("pi_1"))));
 
     KeyedExchange exchange =
         keys.exchanges(new KeyedExchangeQuery(RUN_ID, KeyedExchangeQuery.FROM_THE_NEWEST, 50))
@@ -417,12 +422,23 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void hands_a_replay_the_body_of_the_request_that_claimed_the_key_and_not_of_the_row_before_it() {
-    keys.observed(observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, "{\"held\":1}"));
-    keys.observed(observed(ExchangeVerdict.FIRST_REQUEST, 200, "{\"id\":\"pi_1\"}"));
+  void keeps_the_answer_of_a_request_under_a_key_with_the_secrets_the_trail_withholds_redacted() {
+    keys.observed(
+        observed(
+            ExchangeVerdict.FIRST_REQUEST,
+            200,
+            Map.of("id", List.of("pi_1"), "client_secret", List.of("pi_1_secret_kept"))));
 
-    assertThat(keys.theAnswerTheTrailAlreadyHolds(RUN_ID, MERCHANT, A_KEY))
-        .isEqualTo("{\"id\":\"pi_1\"}");
+    assertThat(
+            jdbc.queryForObject(
+                "select body from stripe_idempotency_exchange where test_run_id = ?"
+                    + " and idempotency_key = ?",
+                String.class,
+                RUN,
+                A_KEY))
+        .contains("pi_1")
+        .contains(Redaction.REDACTED)
+        .doesNotContain("pi_1_secret_kept");
   }
 
   @Test
@@ -439,8 +455,7 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
                 () -> {
                   together.await(10, TimeUnit.SECONDS);
                   keys.observed(
-                      observed(
-                          ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, "{\"held\":1}"));
+                      observed(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD, 409, held()));
                   return null;
                 }));
       }
@@ -462,18 +477,21 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
         .containsExactly(0, 1, 2, 3, 4, 5, 6, 7);
   }
 
-  private static StripeObservedRequest observed(
-      ExchangeVerdict verdict, int httpStatus, String body) {
-    return new StripeObservedRequest(
+  private static Map<String, List<String>> held() {
+    return Map.of("held", List.of("1"));
+  }
+
+  private static KeyedObservation observed(
+      ExchangeVerdict verdict, int httpStatus, Map<String, List<String>> answered) {
+    return new KeyedObservation(
         RUN_ID,
         MERCHANT,
+        StripeKeyMechanisms.IDEMPOTENCY_KEY,
         A_KEY,
         "createPaymentIntent",
-        A_FINGERPRINT,
         verdict,
-        httpStatus,
-        "application/json",
-        body,
+        new FingerprintedRequest("POST", "/v1/payment_intents", Map.of()),
+        new KeyedAnswer(httpStatus, "application/json", answered),
         null,
         false,
         null,

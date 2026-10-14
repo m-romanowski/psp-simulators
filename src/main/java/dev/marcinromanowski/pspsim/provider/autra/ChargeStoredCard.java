@@ -4,7 +4,7 @@ import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -13,6 +13,7 @@ import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDecision;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -116,11 +117,7 @@ final class ChargeStoredCard {
         return refusedAsADuplicate(call, testRunId, merchant, now, orderId, approved.get());
       }
     }
-    boolean repeated =
-        orderId != null
-            && payments.hasSeen(
-                testRunId, merchant.accountId(), AutraKeyMechanisms.ORDER_ID, orderId);
-    return decided(call, body, headers, testRunId, merchant, now, askedBy, orderId, repeated);
+    return decided(call, body, headers, testRunId, merchant, now, askedBy, orderId);
   }
 
   private @Nullable AutraOperationResult theRefusalOf(
@@ -207,8 +204,7 @@ final class ChargeStoredCard {
       AutraMerchant merchant,
       Instant now,
       ObjectOrigin askedBy,
-      @Nullable String orderId,
-      boolean repeated) {
+      @Nullable String orderId) {
     String paymentId = aPaymentIdClaimedFor(testRunId);
     ScenarioDecision decision =
         scenarios.decide(requestOf(body, headers, testRunId, merchant, paymentId, orderId));
@@ -217,10 +213,8 @@ final class ChargeStoredCard {
     }
     return AutraOperationResult.decidedBy(
         decision,
-        () -> accepted(call, body, testRunId, merchant, now, askedBy, orderId, repeated, paymentId),
-        code ->
-            declined(
-                call, body, testRunId, merchant, now, askedBy, orderId, repeated, paymentId, code));
+        () -> accepted(call, body, testRunId, merchant, now, askedBy, orderId, paymentId),
+        code -> declined(call, body, testRunId, merchant, now, askedBy, orderId, paymentId, code));
   }
 
   private static ScenarioRequest requestOf(
@@ -253,7 +247,6 @@ final class ChargeStoredCard {
       Instant now,
       ObjectOrigin askedBy,
       @Nullable String orderId,
-      boolean repeated,
       String paymentId) {
     String amount = AutraAmounts.lexicalIn(body, AutraFields.AMOUNT).orElseThrow();
     String currency = PreAuthorize.textIn(body, AutraFields.CURRENCY).orElseThrow();
@@ -290,7 +283,16 @@ final class ChargeStoredCard {
     AutraOperationResult result =
         AutraOperationResult.succeeded(
             paymentId, AutraBody.of(AutraAnswers.OK, AutraJson.object(answer)));
-    record(call, testRunId, merchant, orderId, now, verdictOf(repeated), paymentId, true, result);
+    record(
+        call,
+        testRunId,
+        merchant,
+        orderId,
+        now,
+        ExchangeVerdict.FIRST_REQUEST,
+        paymentId,
+        true,
+        result);
     return result;
   }
 
@@ -302,7 +304,6 @@ final class ChargeStoredCard {
       Instant now,
       ObjectOrigin askedBy,
       @Nullable String orderId,
-      boolean repeated,
       String paymentId,
       String code) {
     String amount = AutraAmounts.lexicalIn(body, AutraFields.AMOUNT).orElseThrow();
@@ -338,7 +339,16 @@ final class ChargeStoredCard {
             : AutraOperationResult.failed(
                 AutraRefusals.aDeclinedSaleAt422(),
                 AutraBody.of(where.httpStatus(), AutraErrors.envelope(code, msg)));
-    record(call, testRunId, merchant, orderId, now, verdictOf(repeated), paymentId, true, result);
+    record(
+        call,
+        testRunId,
+        merchant,
+        orderId,
+        now,
+        ExchangeVerdict.FIRST_REQUEST,
+        paymentId,
+        true,
+        result);
     return result;
   }
 
@@ -370,10 +380,6 @@ final class ChargeStoredCard {
         false,
         result);
     return result;
-  }
-
-  private static ExchangeVerdict verdictOf(boolean repeated) {
-    return repeated ? ExchangeVerdict.REPEAT_ADMITTED : ExchangeVerdict.FIRST_REQUEST;
   }
 
   private AutraPayment stored(
@@ -453,22 +459,21 @@ final class ChargeStoredCard {
       return;
     }
     payments.observed(
-        new AutraObservedRequest(
+        new KeyedObservation(
             testRunId,
             merchant.accountId(),
             AutraKeyMechanisms.ORDER_ID,
             orderId,
             AutraOperations.SALE,
-            RequestFingerprint.of(
+            verdict,
+            new FingerprintedRequest(
                 call.method(),
                 AutraOperations.SALE,
                 call.body().orElse(AutraJson.empty()).flatten()),
-            verdict,
-            result.body().httpStatus(),
-            result.body().contentType(),
-            result.body().text(),
+            result.body().asAKeyedAnswer(),
             providerObjectId,
             stateChanged,
+            null,
             now));
   }
 

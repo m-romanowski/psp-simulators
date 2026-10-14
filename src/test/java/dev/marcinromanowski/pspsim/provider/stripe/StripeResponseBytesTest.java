@@ -146,26 +146,4 @@ class StripeResponseBytesTest {
     assertThat(StripeIdempotency.keyIn(Map.of("Idempotency-Key", List.of("  ")))).isNull();
     assertThat(StripeIdempotency.keyIn(Map.of("Idempotency-Key", List.of("k")))).isEqualTo("k");
   }
-
-  @Test
-  void tells_two_requests_apart_by_the_endpoint_as_well_as_the_parameters() {
-    Map<String, List<String>> form = Map.of("amount", List.of("1099"));
-
-    assertThat(StripeIdempotency.fingerprintOf("POST", "/v1/payment_intents", form))
-        .isNotEqualTo(
-            StripeIdempotency.fingerprintOf("POST", "/v1/payment_intents/pi/capture", form))
-        .isEqualTo(StripeIdempotency.fingerprintOf("POST", "/v1/payment_intents", form));
-  }
-
-  @Test
-  void tells_two_requests_apart_by_a_repeated_parameter_the_forms_do_not_share() {
-    assertThat(
-            StripeIdempotency.fingerprintOf(
-                "POST", "/v1/payment_intents", Map.of("expand", List.of("customer"))))
-        .isNotEqualTo(
-            StripeIdempotency.fingerprintOf(
-                "POST",
-                "/v1/payment_intents",
-                Map.of("expand", List.of("customer", "payment_method"))));
-  }
 }

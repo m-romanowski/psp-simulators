@@ -16,7 +16,10 @@ import dev.marcinromanowski.pspsim.kernel.fault.FaultedDelivery;
 import dev.marcinromanowski.pspsim.kernel.fault.RenderedResponse;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunCandidates;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunHeader;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -433,13 +436,14 @@ public final class StripeApi {
       String operationName,
       StripeOperation operation,
       String key) {
-    String fingerprint = StripeIdempotency.fingerprintOf(call.method(), call.path(), call.form());
+    FingerprintedRequest request =
+        new FingerprintedRequest(call.method(), call.path(), call.form());
     StripeIdempotencyClaim claim =
         keys.claim(
             testRunId,
             account.accountId(),
             key,
-            fingerprint,
+            keys.fingerprintOf(testRunId, request),
             now,
             now.minus(StripeIdempotency.WINDOW));
     return switch (claim) {
@@ -449,19 +453,33 @@ public final class StripeApi {
               account,
               key,
               operationName,
-              fingerprint,
+              request,
               operation,
               form,
               call.headers(),
               now);
       case StripeIdempotencyClaim.Replayed replayed ->
-          observedReplay(
-              testRunId, account, key, operationName, fingerprint, replayed.answer(), now);
+          observedReplay(testRunId, account, key, operationName, request, replayed.answer(), now);
       case StripeIdempotencyClaim.InProgressElsewhere _ ->
-          observedAKeyAnotherRequestStillHeld(
-              testRunId, account, key, operationName, fingerprint, now);
+          observedARefusal(
+              testRunId,
+              account,
+              key,
+              operationName,
+              request,
+              ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD,
+              StripeErrors.idempotencyKeyInUse(),
+              now);
       case StripeIdempotencyClaim.ReusedWithOtherParameters _ ->
-          observedConflict(testRunId, account, key, operationName, fingerprint, now);
+          observedARefusal(
+              testRunId,
+              account,
+              key,
+              operationName,
+              request,
+              ExchangeVerdict.CONFLICTING_PAYLOAD,
+              StripeErrors.idempotencyKeyReused(),
+              now);
     };
   }
 
@@ -470,20 +488,22 @@ public final class StripeApi {
       StripeAccount account,
       String key,
       String operationName,
-      String fingerprint,
+      FingerprintedRequest request,
       StripeStoredAnswer answer,
       Instant now) {
     keys.observed(
-        new StripeObservedRequest(
+        new KeyedObservation(
             testRunId,
             account.accountId(),
+            StripeKeyMechanisms.IDEMPOTENCY_KEY,
             key,
             operationName,
-            fingerprint,
             ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY,
-            answer.httpStatus(),
-            answer.contentType(),
-            keys.theAnswerTheTrailAlreadyHolds(testRunId, account.accountId(), key),
+            request,
+            new KeyedAnswer(
+                answer.httpStatus(),
+                answer.contentType(),
+                StripeJsonReader.read(answer.body()).flatten()),
             answer.providerObjectId(),
             false,
             null,
@@ -491,59 +511,30 @@ public final class StripeApi {
     return replayed(answer);
   }
 
-  private Answered observedAKeyAnotherRequestStillHeld(
+  private Answered observedARefusal(
       TestRunId testRunId,
       StripeAccount account,
       String key,
       String operationName,
-      String fingerprint,
+      FingerprintedRequest request,
+      ExchangeVerdict verdict,
+      StripeError error,
       Instant now) {
     StripeOperationResult refusal =
         StripeOperationResult.refusedBeforeExecuting(
             RefusalSubject.anObjectItWillNotName(
                 StripeRefusals.THE_IDEMPOTENCY_KEY_IS_ALREADY_CLAIMED),
-            StripeErrors.idempotencyKeyInUse());
+            error);
     keys.observed(
-        new StripeObservedRequest(
+        new KeyedObservation(
             testRunId,
             account.accountId(),
+            StripeKeyMechanisms.IDEMPOTENCY_KEY,
             key,
             operationName,
-            fingerprint,
-            ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD,
-            refusal.httpStatus(),
-            CONTENT_TYPE,
-            StripeJsonWriter.toText(refusal.body()),
-            null,
-            false,
-            null,
-            now));
-    return rendered(refusal, Map.of());
-  }
-
-  private Answered observedConflict(
-      TestRunId testRunId,
-      StripeAccount account,
-      String key,
-      String operationName,
-      String fingerprint,
-      Instant now) {
-    StripeOperationResult refusal =
-        StripeOperationResult.refusedBeforeExecuting(
-            RefusalSubject.anObjectItWillNotName(
-                StripeRefusals.THE_IDEMPOTENCY_KEY_IS_ALREADY_CLAIMED),
-            StripeErrors.idempotencyKeyReused());
-    keys.observed(
-        new StripeObservedRequest(
-            testRunId,
-            account.accountId(),
-            key,
-            operationName,
-            fingerprint,
-            ExchangeVerdict.CONFLICTING_PAYLOAD,
-            refusal.httpStatus(),
-            CONTENT_TYPE,
-            StripeJsonWriter.toText(refusal.body()),
+            verdict,
+            request,
+            new KeyedAnswer(refusal.httpStatus(), CONTENT_TYPE, refusal.body().flatten()),
             null,
             false,
             null,
@@ -556,7 +547,7 @@ public final class StripeApi {
       StripeAccount account,
       String key,
       String operationName,
-      String fingerprint,
+      FingerprintedRequest request,
       StripeOperation operation,
       StripeForm form,
       Map<String, List<String>> headers,
@@ -568,7 +559,7 @@ public final class StripeApi {
       keys.released(testRunId, account.accountId(), key);
       throw unanswerable;
     }
-    return storedUnder(testRunId, account, key, operationName, fingerprint, result, now);
+    return storedUnder(testRunId, account, key, operationName, request, result, now);
   }
 
   private Answered storedUnder(
@@ -576,7 +567,7 @@ public final class StripeApi {
       StripeAccount account,
       String key,
       String operationName,
-      String fingerprint,
+      FingerprintedRequest request,
       StripeOperationResult result,
       Instant now) {
     Answered answered = rendered(result, Map.of());
@@ -584,30 +575,30 @@ public final class StripeApi {
       keys.released(testRunId, account.accountId(), key);
       return answered;
     }
-    String body = StripeJsonWriter.toText(result.body());
-    String bodyTheTrailShows =
-        StripeJsonWriter.toText(result.body().withholding(StripeFields.SENSITIVE_RESPONSE_FIELDS));
+    keys.observed(
+        new KeyedObservation(
+            testRunId,
+            account.accountId(),
+            StripeKeyMechanisms.IDEMPOTENCY_KEY,
+            key,
+            operationName,
+            ExchangeVerdict.FIRST_REQUEST,
+            request,
+            new KeyedAnswer(result.httpStatus(), CONTENT_TYPE, result.body().flatten()),
+            result.providerObjectId(),
+            result.stateChanged(),
+            answered.delivery().fault(),
+            now));
     keys.completed(
         testRunId,
         account.accountId(),
         key,
         new StripeStoredAnswer(
-            result.httpStatus(), CONTENT_TYPE, body, result.outcome(), result.providerObjectId()));
-    keys.observed(
-        new StripeObservedRequest(
-            testRunId,
-            account.accountId(),
-            key,
-            operationName,
-            fingerprint,
-            ExchangeVerdict.FIRST_REQUEST,
             result.httpStatus(),
             CONTENT_TYPE,
-            bodyTheTrailShows,
-            result.providerObjectId(),
-            result.stateChanged(),
-            answered.delivery().fault(),
-            now));
+            StripeJsonWriter.toText(result.body()),
+            result.outcome(),
+            result.providerObjectId()));
     return answered;
   }
 

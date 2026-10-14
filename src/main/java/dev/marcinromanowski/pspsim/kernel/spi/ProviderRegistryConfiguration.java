@@ -12,6 +12,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioGrammar;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.settings.DeclaredProviderSettings;
 import dev.marcinromanowski.pspsim.kernel.settings.TestRunSettings;
+import dev.marcinromanowski.pspsim.kernel.testrun.FingerprintKeys;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
@@ -23,6 +24,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 public class ProviderRegistryConfiguration {
@@ -30,6 +33,12 @@ public class ProviderRegistryConfiguration {
   @Bean
   public ProviderRegistry providerRegistry(List<SimulatorProvider> providers) {
     return new ProviderRegistry(providers);
+  }
+
+  @Bean
+  public KeyedExchangeLogs keyedExchangeLogs(
+      JdbcClient jdbc, FingerprintKeys fingerprintKeys, ObjectMapper json) {
+    return new KeyedExchangeLogs(jdbc, fingerprintKeys, new SequencedRows(), json);
   }
 
   @Bean

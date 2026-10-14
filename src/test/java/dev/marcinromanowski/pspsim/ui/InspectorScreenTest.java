@@ -58,7 +58,8 @@ class InspectorScreenTest {
               KeyRole.TRUE_IDEMPOTENCY_KEY,
               NO_REPLAY,
               KeyRole.CORRELATION_KEY,
-              "provider grow correlates nothing on this contract"));
+              "provider grow correlates nothing on this contract"),
+          answered -> answered);
 
   private static final ProviderKeyMechanisms REPLAYING =
       new ProviderKeyMechanisms(
@@ -74,7 +75,8 @@ class InspectorScreenTest {
               KeyRole.DUPLICATE_DETECTION_KEY,
               "this contract refuses no repeat of a merchant's own reference",
               KeyRole.CORRELATION_KEY,
-              "this contract correlates nothing"));
+              "this contract correlates nothing"),
+          answered -> answered);
 
   @Test
   void the_screen_prints_what_a_repeat_does_beside_every_key_the_provider_declares() {

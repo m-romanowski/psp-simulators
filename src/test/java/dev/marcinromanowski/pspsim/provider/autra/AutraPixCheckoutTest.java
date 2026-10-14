@@ -147,7 +147,7 @@ class AutraPixCheckoutTest {
     checkout(api, body(api, "99.90", ORDER, null));
     checkout(api, body(api, "99.90", ORDER, null));
 
-    assertThat(payments.hasSeen(RUN, ACCOUNT, AutraKeyMechanisms.ORDER_ID, ORDER)).isFalse();
+    assertThat(payments.observedRequests()).isEmpty();
   }
 
   @Test

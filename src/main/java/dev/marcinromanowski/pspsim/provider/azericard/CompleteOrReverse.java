@@ -9,6 +9,8 @@ import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -118,23 +120,24 @@ final class CompleteOrReverse {
       String keyValue,
       String providerObjectId,
       AzericardOperationResult result) {
-    AzericardObservation.recorded(
-        payments::observed,
-        new AzericardObservedRequest(
+    payments.observed(
+        new KeyedObservation(
             testRunId,
             terminal.accountId(),
             keyName,
             keyValue,
             message.operationName(),
-            message.fingerprint(),
-            payments.hasSeen(testRunId, terminal.accountId(), keyName, keyValue)
-                ? ExchangeVerdict.CORRELATED_RETRY
-                : ExchangeVerdict.FIRST_REQUEST,
-            answeredNothing(result) ? null : AzericardGateway.GATEWAY_HTTP_STATUS,
-            answeredNothing(result) ? null : result.body().contentType(),
-            answeredNothing(result) ? null : result.body().text(),
+            ExchangeVerdict.FIRST_REQUEST,
+            message.fingerprinted(),
+            answeredNothing(result)
+                ? null
+                : new KeyedAnswer(
+                    AzericardGateway.GATEWAY_HTTP_STATUS,
+                    result.body().contentType(),
+                    result.body().fields()),
             providerObjectId,
             result.outcome() == ProviderOutcome.SUCCESS,
+            null,
             now));
   }
 

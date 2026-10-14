@@ -35,7 +35,8 @@ class ProviderKeyMechanismsTest {
                 KeyRole.TRUE_IDEMPOTENCY_KEY,
                 NO_REPLAY,
                 KeyRole.CORRELATION_KEY,
-                "provider grow correlates nothing on this contract"));
+                "provider grow correlates nothing on this contract"),
+            answered -> answered);
 
     assertThat(mechanisms.has(KeyRole.TRUE_IDEMPOTENCY_KEY)).isFalse();
     assertThat(mechanisms.theAbsenceOf(KeyRole.TRUE_IDEMPOTENCY_KEY)).isEqualTo(NO_REPLAY);
@@ -63,7 +64,10 @@ class ProviderKeyMechanismsTest {
     assertThatThrownBy(
             () ->
                 new ProviderKeyMechanisms(
-                    GROW, oneDuplicateDetectionKey, sayingNothingOfCorrelation))
+                    GROW,
+                    oneDuplicateDetectionKey,
+                    sayingNothingOfCorrelation,
+                    answered -> answered))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("correlation key")
         .hasMessageContaining("neither having nor lacking");
@@ -90,7 +94,8 @@ class ProviderKeyMechanismsTest {
 
     assertThatThrownBy(
             () ->
-                new ProviderKeyMechanisms(GROW, oneDuplicateDetectionKey, denyingTheRoleItDeclared))
+                new ProviderKeyMechanisms(
+                    GROW, oneDuplicateDetectionKey, denyingTheRoleItDeclared, answered -> answered))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("at the same time declares that it has none");
   }
@@ -115,7 +120,9 @@ class ProviderKeyMechanismsTest {
         Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_REPLAY);
 
     assertThatThrownBy(
-            () -> new ProviderKeyMechanisms(GROW, oneNameTwice, withoutATrueIdempotencyKey))
+            () ->
+                new ProviderKeyMechanisms(
+                    GROW, oneNameTwice, withoutATrueIdempotencyKey, answered -> answered))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("declared twice");
   }
@@ -139,7 +146,9 @@ class ProviderKeyMechanismsTest {
     Map<KeyRole, String> sayingNothingInItsOwnWords = Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, "  ");
 
     assertThatThrownBy(
-            () -> new ProviderKeyMechanisms(GROW, twoNamedKeys, sayingNothingInItsOwnWords))
+            () ->
+                new ProviderKeyMechanisms(
+                    GROW, twoNamedKeys, sayingNothingInItsOwnWords, answered -> answered))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must say, in its own words");
   }
@@ -208,6 +217,7 @@ class ProviderKeyMechanismsTest {
                 KeyCarriage.REQUEST_FIELD,
                 "the group it names",
                 TestKeyClaims.NEVER_HELD)),
-        Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_REPLAY));
+        Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_REPLAY),
+        answered -> answered);
   }
 }

@@ -88,7 +88,9 @@ class AzericardKeyInspectorTest {
         .extracting(KeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST);
     KeyedRequest recorded = exchange.firstRequest();
-    assertThat(recorded.body()).contains("<action>2</action>").contains("<rc>" + DECLINE_CODE);
+    assertThat(recorded.body())
+        .contains("\"action\":[\"2\"]")
+        .contains("\"rc\":[\"" + DECLINE_CODE);
     assertThat(recorded.providerObjectId()).isEqualTo(INT_REF);
     assertThat(recorded.stateChanged()).isTrue();
   }
@@ -129,7 +131,7 @@ class AzericardKeyInspectorTest {
         .extracting(KeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
     KeyedRequest refusal = exchange.repeats().get(0);
-    assertThat(refusal.body()).contains("<action>1</action>");
+    assertThat(refusal.body()).contains("\"action\":[\"1\"]");
     assertThat(refusal.providerObjectId()).isNull();
     assertThat(refusal.stateChanged()).isFalse();
   }
@@ -199,7 +201,7 @@ class AzericardKeyInspectorTest {
 
     KeyedExchange exchange = theExchangeUnder(AzericardKeyMechanisms.INT_REF, INT_REF);
     assertThat(exchange.firstRequest().stateChanged()).isFalse();
-    assertThat(exchange.firstRequest().body()).contains("<action>3</action>");
+    assertThat(exchange.firstRequest().body()).contains("\"action\":[\"3\"]");
   }
 
   @Test

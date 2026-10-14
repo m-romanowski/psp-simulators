@@ -1,10 +1,14 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeTable;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,10 +25,15 @@ final class JdbcWorldlineIdempotenceKeys implements WorldlineIdempotenceKeys {
 
   static final String COMPLETED = "COMPLETED";
 
-  private final JdbcClient jdbc;
+  static final KeyedExchangeTable EXCHANGES =
+      KeyedExchangeTable.underANamedKey("worldline_keyed_exchange", "account_id", false);
 
-  JdbcWorldlineIdempotenceKeys(JdbcClient jdbc) {
+  private final JdbcClient jdbc;
+  private final KeyedExchangeLog exchanges;
+
+  JdbcWorldlineIdempotenceKeys(JdbcClient jdbc, KeyedExchangeLog exchanges) {
     this.jdbc = jdbc;
+    this.exchanges = exchanges;
   }
 
   @Override
@@ -114,34 +123,13 @@ final class JdbcWorldlineIdempotenceKeys implements WorldlineIdempotenceKeys {
   }
 
   @Override
-  public void observed(WorldlineObservedRequest request) {
-    jdbc.sql(
-            """
-            insert into worldline_keyed_exchange
-                (test_run_id, account_id, key_name, key_value, seq, operation, fingerprint,
-                 verdict, http_status, content_type, body, provider_object_id, state_changed, at)
-            select ?, ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?
-            from worldline_keyed_exchange
-            where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
-            """)
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .param(request.operation())
-        .param(request.fingerprint())
-        .param(request.verdict().name())
-        .param(request.httpStatus())
-        .param(request.contentType())
-        .param(request.body())
-        .param(request.providerObjectId())
-        .param(request.stateChanged())
-        .param(request.at().atOffset(ZoneOffset.UTC))
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .update();
+  public String fingerprintOf(TestRunId testRunId, FingerprintedRequest request) {
+    return exchanges.fingerprintOf(testRunId, request);
+  }
+
+  @Override
+  public void observed(KeyedObservation observation) {
+    exchanges.record(observation);
   }
 
   @Override

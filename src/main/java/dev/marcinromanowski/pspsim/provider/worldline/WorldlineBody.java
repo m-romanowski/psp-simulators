@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +44,13 @@ record WorldlineBody(
   String text() {
     WorldlineJson rendered = json;
     return rendered == null ? "" : WorldlineJsonWriter.toText(rendered);
+  }
+
+  @Nullable KeyedAnswer asAKeyedAnswer() {
+    WorldlineJson rendered = json;
+    return rendered == null
+        ? null
+        : new KeyedAnswer(httpStatus, WorldlineFields.JSON, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

@@ -2,6 +2,9 @@ package dev.marcinromanowski.pspsim.provider.worldline;
 
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -57,9 +60,10 @@ final class WorldlineIdempotentCall {
     if (WorldlineIdempotence.isNotAscii(key.value())) {
       return answers.refusedValue(key.headerName(), WorldlineIdempotence.THE_KEY_IS_NOT_ASCII);
     }
-    String fingerprint =
-        WorldlineIdempotence.fingerprintOf(
+    FingerprintedRequest request =
+        new FingerprintedRequest(
             call.method(), operation, call.body().map(WorldlineJson::flatten).orElseGet(Map::of));
+    String fingerprint = keys.fingerprintOf(testRunId, request);
     WorldlineIdempotenceClaim claim =
         keys.claim(
             testRunId,
@@ -71,12 +75,12 @@ final class WorldlineIdempotentCall {
             now);
     return switch (claim) {
       case WorldlineIdempotenceClaim.Fresh _ ->
-          theFirstRequestUnder(keys, testRunId, merchant, key, operation, fingerprint, now, run);
+          theFirstRequestUnder(keys, testRunId, merchant, key, operation, request, now, run);
       case WorldlineIdempotenceClaim.Replayed replayed ->
-          theStoredAnswerOf(keys, testRunId, merchant, key, operation, fingerprint, now, replayed);
+          theStoredAnswerOf(keys, testRunId, merchant, key, operation, request, now, replayed);
       case WorldlineIdempotenceClaim.HeldByARequestStillRunning _ ->
           theRefusalWhileTheKeyIsHeld(
-              keys, answers, testRunId, merchant, key, operation, fingerprint, now);
+              keys, answers, testRunId, merchant, key, operation, request, now);
     };
   }
 
@@ -86,7 +90,7 @@ final class WorldlineIdempotentCall {
       WorldlineMerchant merchant,
       WorldlineIdempotence.Sent key,
       String operation,
-      String fingerprint,
+      FingerprintedRequest request,
       Instant now,
       Supplier<WorldlineOperationResult> run) {
     WorldlineOperationResult answered;
@@ -101,6 +105,18 @@ final class WorldlineIdempotentCall {
       return answered;
     }
     WorldlineBody body = answered.body();
+    record(
+        keys,
+        testRunId,
+        merchant,
+        key,
+        operation,
+        request,
+        ExchangeVerdict.FIRST_REQUEST,
+        body.asAKeyedAnswer(),
+        answered.providerObjectId(),
+        answered.outcome() == ProviderOutcome.SUCCESS,
+        now);
     keys.completed(
         testRunId,
         merchant.accountId(),
@@ -110,20 +126,6 @@ final class WorldlineIdempotentCall {
             String.valueOf(body.contentType()),
             body.text(),
             answered.providerObjectId()));
-    record(
-        keys,
-        testRunId,
-        merchant,
-        key,
-        operation,
-        fingerprint,
-        ExchangeVerdict.FIRST_REQUEST,
-        body.httpStatus(),
-        body.contentType(),
-        body.text(),
-        answered.providerObjectId(),
-        answered.outcome() == ProviderOutcome.SUCCESS,
-        now);
     return answered;
   }
 
@@ -133,7 +135,7 @@ final class WorldlineIdempotentCall {
       WorldlineMerchant merchant,
       WorldlineIdempotence.Sent key,
       String operation,
-      String fingerprint,
+      FingerprintedRequest request,
       Instant now,
       WorldlineIdempotenceClaim.Replayed replayed) {
     WorldlineStoredAnswer answer = replayed.answer();
@@ -159,11 +161,9 @@ final class WorldlineIdempotentCall {
         merchant,
         key,
         operation,
-        fingerprint,
+        request,
         ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY,
-        answer.httpStatus(),
-        answer.contentType(),
-        answer.body(),
+        body.asAKeyedAnswer(),
         answer.providerObjectId(),
         false,
         now);
@@ -177,7 +177,7 @@ final class WorldlineIdempotentCall {
       WorldlineMerchant merchant,
       WorldlineIdempotence.Sent key,
       String operation,
-      String fingerprint,
+      FingerprintedRequest request,
       Instant now) {
     WorldlineOperationResult refused = answers.refusedWhileTheKeyWasHeld(THE_KEY_IS_STILL_RUNNING);
     record(
@@ -186,11 +186,9 @@ final class WorldlineIdempotentCall {
         merchant,
         key,
         operation,
-        fingerprint,
+        request,
         ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD,
-        refused.body().httpStatus(),
-        refused.body().contentType(),
-        refused.body().text(),
+        refused.body().asAKeyedAnswer(),
         null,
         false,
         now);
@@ -203,28 +201,25 @@ final class WorldlineIdempotentCall {
       WorldlineMerchant merchant,
       WorldlineIdempotence.Sent key,
       String operation,
-      String fingerprint,
+      FingerprintedRequest request,
       ExchangeVerdict verdict,
-      int httpStatus,
-      @Nullable String contentType,
-      String body,
+      @Nullable KeyedAnswer answer,
       @Nullable String providerObjectId,
       boolean stateChanged,
       Instant now) {
     keys.observed(
-        new WorldlineObservedRequest(
+        new KeyedObservation(
             testRunId,
             merchant.accountId(),
             WorldlineKeyMechanisms.IDEMPOTENCE_KEY,
             key.value(),
             operation,
-            fingerprint,
             verdict,
-            Integer.valueOf(httpStatus),
-            contentType,
-            body,
+            request,
+            answer,
             providerObjectId,
             stateChanged,
+            null,
             now));
   }
 }

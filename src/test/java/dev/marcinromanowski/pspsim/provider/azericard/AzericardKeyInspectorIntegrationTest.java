@@ -82,7 +82,7 @@ class AzericardKeyInspectorIntegrationTest extends PostgresBackedTest {
     assertThat(requests).hasSize(2);
     assertThat(requests.get(0)).containsEntry("verdict", "FIRST_REQUEST");
     assertThat(requests.get(1)).containsEntry("verdict", "DUPLICATE_KEY_REFUSAL");
-    assertThat(String.valueOf(requests.get(1).get("body"))).contains("<action>1</action>");
+    assertThat(String.valueOf(requests.get(1).get("body"))).contains("\"action\":[\"1\"]");
     assertThat(replayTimestampsOf(exchange)).isEmpty();
   }
 

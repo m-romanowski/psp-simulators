@@ -8,6 +8,7 @@ import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -411,10 +412,10 @@ class AutraVoidTest {
     reverse(api, paymentId, voidBody("500.00"));
 
     assertThat(payments.observedRequests())
-        .extracting(AutraObservedRequest::verdict)
+        .extracting(RecordedKeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.CORRELATED_RETRY);
     assertThat(payments.observedRequests())
-        .extracting(AutraObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::stateChanged)
         .containsExactly(true, true);
   }
 
@@ -470,7 +471,7 @@ class AutraVoidTest {
               assertThat(observed.keyName()).isEqualTo(AutraKeyMechanisms.PAYMENT_ID);
               assertThat(observed.keyValue()).isEqualTo(paymentId);
             })
-        .extracting(AutraObservedRequest::operation)
+        .extracting(RecordedKeyedRequest::operation)
         .containsExactly(AutraOperations.CAPTURE, AutraOperations.VOID);
   }
 

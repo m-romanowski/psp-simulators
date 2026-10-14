@@ -6,6 +6,7 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
@@ -133,7 +134,7 @@ class WorldlineIdempotenceTest {
     assertThat(repeat.httpStatus()).isEqualTo(first.httpStatus());
     assertThat(WorldlineWire.bodyOf(repeat)).isEqualTo(WorldlineWire.bodyOf(first));
     assertThat(keys.everythingItObserved())
-        .extracting(WorldlineObservedRequest::verdict)
+        .extracting(RecordedKeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY);
   }
 
@@ -178,7 +179,7 @@ class WorldlineIdempotenceTest {
             under(WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT, KEY));
     assertThat(refused.httpStatus()).isEqualTo(WorldlineAnswers.CONFLICT);
     assertThat(keys.everythingItObserved())
-        .extracting(WorldlineObservedRequest::verdict)
+        .extracting(RecordedKeyedRequest::verdict)
         .contains(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD);
   }
 
@@ -231,7 +232,7 @@ class WorldlineIdempotenceTest {
         WorldlineWire.aPaymentBody(9999L, "EUR", token, "PRE_AUTHORIZATION"),
         under(WorldlineFields.IDEMPOTENCE_KEY_AS_THE_IDEMPOTENT_REQUESTS_PAGE_SPELLS_IT, KEY));
 
-    List<WorldlineObservedRequest> recorded = keys.everythingItObserved();
+    List<RecordedKeyedRequest> recorded = keys.everythingItObserved();
 
     assertThat(recorded).hasSize(2);
     assertThat(recorded.get(0).fingerprint()).isNotBlank();
@@ -250,7 +251,7 @@ class WorldlineIdempotenceTest {
 
     assertThat(keys.everythingItObserved())
         .singleElement()
-        .extracting(WorldlineObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::stateChanged)
         .isEqualTo(true);
   }
 
@@ -262,7 +263,7 @@ class WorldlineIdempotenceTest {
 
     assertThat(keys.everythingItObserved())
         .singleElement()
-        .extracting(WorldlineObservedRequest::stateChanged)
+        .extracting(RecordedKeyedRequest::stateChanged)
         .isEqualTo(false);
   }
 

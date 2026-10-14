@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
@@ -43,9 +44,7 @@ interface AzericardPayments {
   Optional<AzericardPayment> findAddressed(
       TestRunId testRunId, String terminalId, String order, String rrn, String intRef);
 
-  boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue);
-
-  int observed(AzericardObservedRequest request);
+  void observed(KeyedObservation observation);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

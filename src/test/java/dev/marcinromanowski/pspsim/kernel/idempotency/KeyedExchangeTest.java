@@ -525,6 +525,36 @@ class KeyedExchangeTest {
   }
 
   @Test
+  void
+      a_refusal_as_a_duplicate_answered_before_the_request_that_claimed_the_key_is_kept_before_it() {
+    KeyedRequest refusedFirst =
+        repeat(0, ExchangeVerdict.DUPLICATE_KEY_REFUSAL, FIRST_FINGERPRINT, 0);
+    KeyedRequest claiming = claimant(1, FIRST_FINGERPRINT, 1);
+
+    KeyedExchange exchange = exchange(KeyRole.DUPLICATE_DETECTION_KEY, refusedFirst, claiming);
+
+    assertThat(exchange.firstRequest()).isEqualTo(claiming);
+    assertThat(exchange.repeats()).containsExactly(refusedFirst);
+  }
+
+  @Test
+  void a_key_whose_only_record_is_a_refusal_as_a_duplicate_reports_that_refusal_as_its_first() {
+    KeyedRequest refused = repeat(0, ExchangeVerdict.DUPLICATE_KEY_REFUSAL, FIRST_FINGERPRINT, 0);
+
+    assertThat(exchange(KeyRole.DUPLICATE_DETECTION_KEY, refused).firstRequest())
+        .isEqualTo(refused);
+  }
+
+  @Test
+  void a_repeat_that_ran_recorded_before_any_first_request_is_refused() {
+    KeyedRequest admittedFirst = repeat(0, ExchangeVerdict.REPEAT_ADMITTED, FIRST_FINGERPRINT, 0);
+
+    assertThatThrownBy(() -> exchange(KeyRole.DUPLICATE_DETECTION_KEY, admittedFirst))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("a repeat with nothing to repeat");
+  }
+
+  @Test
   void a_refusal_while_the_key_was_held_is_admitted_under_every_role_a_provider_can_declare() {
     for (KeyRole role : KeyRole.values()) {
       assertThat(ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD.isAdmittedUnder(role)).isTrue();

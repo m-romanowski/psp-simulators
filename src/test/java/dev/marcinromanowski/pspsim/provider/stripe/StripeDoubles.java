@@ -10,7 +10,7 @@ import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
 import dev.marcinromanowski.pspsim.kernel.credentials.ProviderConfigurationPlan;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fault.ScheduledDeliveries;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
@@ -23,6 +23,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -1155,8 +1156,6 @@ final class StripeDoubles {
 
     private final Map<String, Held> held = new LinkedHashMap<>();
 
-    private final Map<String, String> theTrailsFirstAnswers = new LinkedHashMap<>();
-
     private final InMemoryKeyedExchanges exchanged = new InMemoryKeyedExchanges();
 
     Keys heldInProgress(TestRunId testRunId, String accountId, String key, String fingerprint) {
@@ -1212,39 +1211,13 @@ final class StripeDoubles {
     }
 
     @Override
-    public synchronized String theAnswerTheTrailAlreadyHolds(
-        TestRunId testRunId, String accountId, String key) {
-      String answered = theTrailsFirstAnswers.get(keyOf(testRunId, accountId, key));
-      if (answered == null) {
-        throw new IllegalStateException(
-            "this simulator replayed an answer it had stored under an idempotency key and the"
-                + " trail holds no first request under that key to have stored it");
-      }
-      return answered;
+    public String fingerprintOf(TestRunId testRunId, FingerprintedRequest request) {
+      return exchanged.logOf(StripeKeyMechanisms.MECHANISMS).fingerprintOf(testRunId, request);
     }
 
     @Override
-    public synchronized void observed(StripeObservedRequest request) {
-      String body = request.body();
-      if (request.verdict() == ExchangeVerdict.FIRST_REQUEST && body != null) {
-        theTrailsFirstAnswers.put(
-            keyOf(request.testRunId(), request.accountId(), request.idempotencyKey()), body);
-      }
-      exchanged.observed(
-          request.testRunId(),
-          request.accountId(),
-          StripeKeyMechanisms.IDEMPOTENCY_KEY,
-          request.idempotencyKey(),
-          request.verdict(),
-          request.fingerprint(),
-          request.operation(),
-          request.httpStatus(),
-          request.contentType(),
-          request.body(),
-          request.providerObjectId(),
-          request.stateChanged(),
-          request.transportFault(),
-          request.at());
+    public synchronized void observed(KeyedObservation observation) {
+      exchanged.logOf(StripeKeyMechanisms.MECHANISMS).record(observation);
     }
 
     @Override
@@ -1255,9 +1228,6 @@ final class StripeDoubles {
     @Override
     public int clear(TestRunId testRunId) {
       exchanged.clear(testRunId);
-      theTrailsFirstAnswers
-          .keySet()
-          .removeIf(at -> at.startsWith(testRunId.value() + BETWEEN_PARTS));
       int size = held.size();
       held.keySet().removeIf(at -> at.startsWith(testRunId.value() + BETWEEN_PARTS));
       return size - held.size();
@@ -1266,7 +1236,6 @@ final class StripeDoubles {
     @Override
     public int clearAll() {
       exchanged.clearAll();
-      theTrailsFirstAnswers.clear();
       int size = held.size();
       held.clear();
       return size;

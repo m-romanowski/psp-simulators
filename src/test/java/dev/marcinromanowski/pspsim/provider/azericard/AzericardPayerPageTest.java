@@ -18,7 +18,9 @@ import dev.marcinromanowski.pspsim.kernel.credentials.ProviderConfigurationPlan;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import dev.marcinromanowski.pspsim.kernel.scenario.DeliveryShaping;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -986,7 +988,10 @@ class AzericardPayerPageTest {
     completion.put(
         AzericardFields.P_SIGN,
         List.of(AzericardKeyFixture.signedByTheMerchant(unsigned.macSource())));
-    String withoutTheCard = AzericardMessage.of(AzericardRoute.CGI_LINK, completion).fingerprint();
+    String withoutTheCard =
+        RequestFingerprint.of(
+            InMemoryKeyedExchanges.THE_KEY_OF_EVERY_TEST_RUN,
+            AzericardMessage.of(AzericardRoute.CGI_LINK, completion).fingerprinted());
     AzericardKeyFixture.THE_PUBLISHED_TEST_CARD_SENT_S2S.forEach(
         (name, value) -> completion.put(name, List.of(value)));
 

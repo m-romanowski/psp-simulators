@@ -7,6 +7,7 @@ import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -291,7 +292,7 @@ class AutraSaleTest {
 
     sell(api, body("150.00", ORDER));
 
-    AutraObservedRequest recorded = payments.observedRequests().get(0);
+    RecordedKeyedRequest recorded = payments.observedRequests().get(0);
     assertThat(recorded.stateChanged()).isTrue();
     assertThat(recorded.providerObjectId()).isEqualTo(payments.all().get(0).paymentId());
   }
@@ -492,7 +493,7 @@ class AutraSaleTest {
 
     sell(api, body("150.00", ORDER));
 
-    List<AutraObservedRequest> recorded = payments.observedRequests();
+    List<RecordedKeyedRequest> recorded = payments.observedRequests();
     assertThat(recorded).hasSize(2);
     assertThat(recorded.get(1).verdict()).isEqualTo(ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
     assertThat(recorded.get(1).providerObjectId()).isEqualTo(original);
@@ -553,7 +554,7 @@ class AutraSaleTest {
 
     sell(api, body("150.00", ORDER));
 
-    AutraObservedRequest recorded = payments.observedRequests().get(0);
+    RecordedKeyedRequest recorded = payments.observedRequests().get(0);
     assertThat(recorded.verdict()).isEqualTo(ExchangeVerdict.FIRST_REQUEST);
     assertThat(recorded.operation()).isEqualTo(AutraOperations.SALE);
     assertThat(recorded.stateChanged()).isTrue();

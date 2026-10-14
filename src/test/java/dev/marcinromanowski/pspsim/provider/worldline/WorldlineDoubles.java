@@ -7,6 +7,8 @@ import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
 import dev.marcinromanowski.pspsim.kernel.fault.DelayedDeliveries;
 import dev.marcinromanowski.pspsim.kernel.fault.DeliveryAbandonment;
 import dev.marcinromanowski.pspsim.kernel.fault.HeldDelivery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
@@ -16,7 +18,7 @@ import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
-import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -434,7 +436,7 @@ final class WorldlineDoubles {
   static final class Keys implements WorldlineIdempotenceKeys {
 
     private final Map<String, Claim> claims = new LinkedHashMap<>();
-    private final List<WorldlineObservedRequest> observed = new ArrayList<>();
+    private final InMemoryKeyedExchanges exchanged = new InMemoryKeyedExchanges();
 
     private record Claim(String state, @Nullable WorldlineStoredAnswer answer, Instant claimedAt) {}
 
@@ -483,42 +485,22 @@ final class WorldlineDoubles {
     }
 
     @Override
-    public void observed(WorldlineObservedRequest request) {
-      observed.add(request);
+    public String fingerprintOf(TestRunId testRunId, FingerprintedRequest request) {
+      return exchanged.logOf(WorldlineKeyMechanisms.MECHANISMS).fingerprintOf(testRunId, request);
     }
 
-    List<WorldlineObservedRequest> everythingItObserved() {
-      return List.copyOf(observed);
+    @Override
+    public void observed(KeyedObservation observation) {
+      exchanged.logOf(WorldlineKeyMechanisms.MECHANISMS).record(observation);
+    }
+
+    List<RecordedKeyedRequest> everythingItObserved() {
+      return exchanged.recorded();
     }
 
     @Override
     public KeyedExchangePage exchanges(KeyedExchangeQuery query) {
-      List<RecordedKeyedRequest> rows = new ArrayList<>();
-      int seq = 0;
-      for (WorldlineObservedRequest request : observed) {
-        if (!request.testRunId().equals(query.testRunId())) {
-          continue;
-        }
-        rows.add(
-            new RecordedKeyedRequest(
-                request.accountId(),
-                request.keyName(),
-                request.keyValue(),
-                theNextArrival(),
-                seq++,
-                request.verdict(),
-                request.fingerprint(),
-                request.operation(),
-                request.httpStatus(),
-                request.contentType(),
-                request.body(),
-                request.providerObjectId(),
-                request.stateChanged(),
-                null,
-                request.at()));
-      }
-      return KeyedExchanges.pageOf(
-          WorldlineKeyMechanisms.MECHANISMS, query.testRunId(), List.copyOf(rows));
+      return exchanged.exchanges(WorldlineKeyMechanisms.MECHANISMS, query);
     }
 
     @Override
@@ -532,7 +514,7 @@ final class WorldlineDoubles {
     public int clearAll() {
       int size = claims.size();
       claims.clear();
-      observed.clear();
+      exchanged.clearAll();
       return size;
     }
   }

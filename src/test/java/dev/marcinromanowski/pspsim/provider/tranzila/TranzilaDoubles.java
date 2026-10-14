@@ -7,13 +7,14 @@ import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
 import dev.marcinromanowski.pspsim.kernel.fault.DelayedDeliveries;
 import dev.marcinromanowski.pspsim.kernel.fault.DeliveryAbandonment;
 import dev.marcinromanowski.pspsim.kernel.fault.HeldDelivery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
-import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -314,84 +315,35 @@ final class TranzilaDoubles {
 
   static final class Exchanges implements TranzilaExchanges {
 
-    private final List<TranzilaObservedRequest> observed = new ArrayList<>();
-
-    List<TranzilaObservedRequest> everythingItObserved() {
-      return List.copyOf(observed);
-    }
-
-    @Override
-    public int howOftenSeen(
-        TestRunId testRunId, String accountId, String keyName, String keyValue) {
-      return (int)
-          observed.stream()
-              .filter(held -> held.testRunId().equals(testRunId))
-              .filter(held -> held.accountId().equals(accountId))
-              .filter(held -> held.keyName().equals(keyName))
-              .filter(held -> held.keyValue().equals(keyValue))
-              .count();
-    }
-
-    @Override
-    public int observed(TranzilaObservedRequest request) {
-      if (refusals > 0) {
-        refusals--;
-        return 0;
-      }
-      observed.add(request);
-      return 1;
-    }
-
-    private int refusals;
+    private final InMemoryKeyedExchanges exchanged = new InMemoryKeyedExchanges();
 
     Exchanges takenMeanwhile(int howOften) {
-      refusals = howOften;
+      exchanged.takenMeanwhile(howOften);
       return this;
+    }
+
+    List<RecordedKeyedRequest> everythingItObserved() {
+      return exchanged.recorded();
+    }
+
+    @Override
+    public void observed(KeyedObservation observation) {
+      exchanged.logOf(TranzilaKeyMechanisms.MECHANISMS).record(observation);
     }
 
     @Override
     public KeyedExchangePage exchanges(KeyedExchangeQuery query) {
-      List<RecordedKeyedRequest> rows = new ArrayList<>();
-      Map<String, Integer> sequences = new HashMap<>();
-      long arrival = 0;
-      for (TranzilaObservedRequest request : observed) {
-        if (!request.testRunId().equals(query.testRunId())) {
-          continue;
-        }
-        int seq = sequences.merge(request.keyName() + request.keyValue(), 1, Integer::sum) - 1;
-        rows.add(
-            new RecordedKeyedRequest(
-                request.accountId(),
-                request.keyName(),
-                request.keyValue(),
-                ++arrival,
-                seq,
-                request.verdict(),
-                request.fingerprint(),
-                request.operation(),
-                request.httpStatus(),
-                request.contentType(),
-                request.body(),
-                request.providerObjectId(),
-                request.stateChanged(),
-                null,
-                request.at()));
-      }
-      return KeyedExchanges.pageOf(TranzilaKeyMechanisms.MECHANISMS, query.testRunId(), rows);
+      return exchanged.exchanges(TranzilaKeyMechanisms.MECHANISMS, query);
     }
 
     @Override
     public int clear(TestRunId testRunId) {
-      int before = observed.size();
-      observed.removeIf(held -> held.testRunId().equals(testRunId));
-      return before - observed.size();
+      return exchanged.clear(testRunId);
     }
 
     @Override
     public int clearAll() {
-      int before = observed.size();
-      observed.clear();
-      return before;
+      return exchanged.clearAll();
     }
   }
 

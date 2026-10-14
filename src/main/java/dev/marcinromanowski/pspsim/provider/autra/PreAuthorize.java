@@ -3,7 +3,7 @@ package dev.marcinromanowski.pspsim.provider.autra;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -12,6 +12,7 @@ import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioDecision;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -103,10 +104,6 @@ final class PreAuthorize {
       return refused;
     }
     String orderId = theOrderIn(body);
-    boolean repeated =
-        orderId != null
-            && payments.hasSeen(
-                testRunId, merchant.accountId(), AutraKeyMechanisms.ORDER_ID, orderId);
     if (orderId != null) {
       AutraOrderClaim claim =
           payments.claimOrder(testRunId, merchant.accountId(), merchant.documentId(), orderId, now);
@@ -114,7 +111,7 @@ final class PreAuthorize {
         return refusedAsADuplicate(call, testRunId, merchant, now, orderId, claim);
       }
     }
-    return decided(call, body, headers, testRunId, merchant, now, askedBy, orderId, repeated);
+    return decided(call, body, headers, testRunId, merchant, now, askedBy, orderId);
   }
 
   private @Nullable AutraOperationResult theRefusalOf(
@@ -193,8 +190,7 @@ final class PreAuthorize {
       AutraMerchant merchant,
       Instant now,
       ObjectOrigin askedBy,
-      @Nullable String orderId,
-      boolean repeated) {
+      @Nullable String orderId) {
     String paymentId = aPaymentIdClaimedFor(testRunId);
     ScenarioDecision decision =
         scenarios.decide(requestOf(body, headers, testRunId, merchant, paymentId, orderId));
@@ -206,10 +202,8 @@ final class PreAuthorize {
     }
     return AutraOperationResult.decidedBy(
         decision,
-        () -> held(call, body, testRunId, merchant, now, askedBy, orderId, repeated, paymentId),
-        code ->
-            declined(
-                call, body, testRunId, merchant, now, askedBy, orderId, repeated, paymentId, code));
+        () -> held(call, body, testRunId, merchant, now, askedBy, orderId, paymentId),
+        code -> declined(call, body, testRunId, merchant, now, askedBy, orderId, paymentId, code));
   }
 
   private static ScenarioRequest requestOf(
@@ -242,7 +236,6 @@ final class PreAuthorize {
       Instant now,
       ObjectOrigin askedBy,
       @Nullable String orderId,
-      boolean repeated,
       String paymentId) {
     String amount = AutraAmounts.lexicalIn(body, AutraFields.AMOUNT).orElseThrow();
     String currency = textIn(body, AutraFields.CURRENCY).orElseThrow();
@@ -282,7 +275,16 @@ final class PreAuthorize {
     AutraOperationResult result =
         AutraOperationResult.succeeded(
             paymentId, AutraBody.of(AutraAnswers.OK, AutraJson.object(answer)));
-    record(call, testRunId, merchant, orderId, now, verdictOf(repeated), paymentId, true, result);
+    record(
+        call,
+        testRunId,
+        merchant,
+        orderId,
+        now,
+        ExchangeVerdict.FIRST_REQUEST,
+        paymentId,
+        true,
+        result);
     return result;
   }
 
@@ -294,7 +296,6 @@ final class PreAuthorize {
       Instant now,
       ObjectOrigin askedBy,
       @Nullable String orderId,
-      boolean repeated,
       String paymentId,
       String code) {
     String amount = AutraAmounts.lexicalIn(body, AutraFields.AMOUNT).orElseThrow();
@@ -331,7 +332,16 @@ final class PreAuthorize {
             AutraBody.of(
                 AutraAnswers.UNPROCESSABLE,
                 AutraErrors.envelope(code, AutraDeclineMessages.of(code, merchant))));
-    record(call, testRunId, merchant, orderId, now, verdictOf(repeated), paymentId, true, result);
+    record(
+        call,
+        testRunId,
+        merchant,
+        orderId,
+        now,
+        ExchangeVerdict.FIRST_REQUEST,
+        paymentId,
+        true,
+        result);
     return result;
   }
 
@@ -368,10 +378,6 @@ final class PreAuthorize {
         false,
         result);
     return result;
-  }
-
-  private static ExchangeVerdict verdictOf(boolean repeated) {
-    return repeated ? ExchangeVerdict.REPEAT_ADMITTED : ExchangeVerdict.FIRST_REQUEST;
   }
 
   private void theOrderThisAttemptLeaves(
@@ -459,22 +465,21 @@ final class PreAuthorize {
       return;
     }
     payments.observed(
-        new AutraObservedRequest(
+        new KeyedObservation(
             testRunId,
             merchant.accountId(),
             AutraKeyMechanisms.ORDER_ID,
             orderId,
             AutraOperations.PRE_AUTHORIZATION,
-            RequestFingerprint.of(
+            verdict,
+            new FingerprintedRequest(
                 call.method(),
                 AutraOperations.PRE_AUTHORIZATION,
                 call.body().orElse(AutraJson.empty()).flatten()),
-            verdict,
-            result.body().httpStatus(),
-            result.body().contentType(),
-            result.body().text(),
+            result.body().asAKeyedAnswer(),
             providerObjectId,
             stateChanged,
+            null,
             now));
   }
 
