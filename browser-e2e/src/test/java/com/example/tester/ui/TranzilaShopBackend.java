@@ -23,6 +23,8 @@ public final class TranzilaShopBackend {
 
   private static final int NONCE_BYTES = 40;
 
+  private static final String RESPONSE_HASH = ",\"response_hash\":\"";
+
   private final String baseUrl;
   private final TheProviderApi providerApi;
   private final String terminal;
@@ -52,6 +54,20 @@ public final class TranzilaShopBackend {
 
   public String thePaymentPage() {
     return baseUrl + "/tranzila/directng/" + terminal + "/iframenew.php";
+  }
+
+  public String theHostedFields() {
+    return baseUrl + "/tranzila/hf";
+  }
+
+  public boolean verifies(String answered) {
+    int hash = answered.lastIndexOf(RESPONSE_HASH);
+    if (hash < 0 || !answered.endsWith("\"}")) {
+      return false;
+    }
+    String hashed = answered.substring(0, hash) + "}";
+    String presented = answered.substring(hash + RESPONSE_HASH.length(), answered.length() - 2);
+    return hmac(appSecret, hashed).equals(presented);
   }
 
   public String aHandshakeLocking(String testRunId, String sum, String requestParams) {

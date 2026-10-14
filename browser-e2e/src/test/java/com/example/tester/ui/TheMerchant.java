@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class TheMerchant implements AutoCloseable {
@@ -34,12 +35,17 @@ public final class TheMerchant implements AutoCloseable {
 
   private static final String FRAMED = "src";
 
+  private static final String HOSTED_FIELDS_CHECKOUT = "/hosted-fields-checkout";
+
+  private static final String HOSTED_FIELDS_ANSWER = "/hosted-fields-answer";
+
   private static final Duration POLL = Duration.ofMillis(100);
 
   private final HttpServer server;
   private final List<String> callbacks = new CopyOnWriteArrayList<>();
   private final List<String> callbacksAtTheOtherTarget = new CopyOnWriteArrayList<>();
   private final List<String> returns = new CopyOnWriteArrayList<>();
+  private final List<String> hostedFieldsAnswers = new CopyOnWriteArrayList<>();
 
   public TheMerchant() {
     try {
@@ -53,6 +59,9 @@ public final class TheMerchant implements AutoCloseable {
     server.createContext(
         ANOTHER_TARGET, exchange -> recordACallback(exchange, callbacksAtTheOtherTarget));
     server.createContext(CHECKOUT, TheMerchant::frameThePageItWasGiven);
+    server.createContext(HOSTED_FIELDS_CHECKOUT, TheMerchant::checkOutWithHostedFields);
+    server.createContext(
+        HOSTED_FIELDS_ANSWER, exchange -> recordACallback(exchange, hostedFieldsAnswers));
     server.setExecutor(null);
     server.start();
   }
@@ -84,6 +93,29 @@ public final class TheMerchant implements AutoCloseable {
         + FRAMED
         + "="
         + URLEncoder.encode(aPageOfTheProvider, StandardCharsets.UTF_8);
+  }
+
+  public String whereTheShopChecksOutWithHostedFields(
+      String hostedFieldsBase, String terminal, String thtk, String amount) {
+    return url()
+        + HOSTED_FIELDS_CHECKOUT
+        + "?"
+        + query(
+            Map.of("hf", hostedFieldsBase, "terminal", terminal, "thtk", thtk, "amount", amount));
+  }
+
+  public List<String> hostedFieldsAnswersReceived() {
+    return List.copyOf(hostedFieldsAnswers);
+  }
+
+  public String theOnlyHostedFieldsAnswer() {
+    if (hostedFieldsAnswers.size() != 1) {
+      throw new IllegalStateException(
+          "the shop's checkout posted "
+              + hostedFieldsAnswers.size()
+              + " answers of the hosted fields to its server, not one");
+    }
+    return hostedFieldsAnswers.get(0);
   }
 
   public List<String> callbacksReceived() {
@@ -187,6 +219,92 @@ public final class TheMerchant implements AutoCloseable {
       exchange.sendResponseHeaders(200, body.length);
       exchange.getResponseBody().write(body);
     }
+  }
+
+  private static void checkOutWithHostedFields(HttpExchange exchange) throws IOException {
+    Map<String, String> asked = fieldsOf(exchange.getRequestURI().getRawQuery());
+    try (exchange) {
+      byte[] body =
+          ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+                  + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                  + "<title>the shop</title><script src=\""
+                  + attribute(asked.get("hf") + "/assets/js/thostedf.js")
+                  + "\"></script><style>.field{height:48px;border:1px solid #767676;"
+                  + "margin:0 0 .75rem}.hosted-fields-invalid{border-color:#b00020}</style></head>"
+                  + "<body><h1>Pay the shop</h1><p>"
+                  + attribute(asked.get("amount"))
+                  + " ILS</p><form id=\"payment_form\">"
+                  + "<label for=\"credit_card_number\">Card number</label>"
+                  + "<div class=\"field\" id=\"credit_card_number\"></div>"
+                  + "<p id=\"errors_for_credit_card_number\"></p>"
+                  + "<label for=\"expiry\">Expiry</label>"
+                  + "<div class=\"field\" id=\"expiry\"></div>"
+                  + "<label for=\"cvv\">CVV</label><div class=\"field\" id=\"cvv\"></div>"
+                  + "<button type=\"submit\">Pay</button></form><p id=\"outcome\"></p>"
+                  + "<script>"
+                  + "var shop = "
+                  + aScriptString(asked)
+                  + ";"
+                  + THE_CHECKOUT_SCRIPT
+                  + "</script></body></html>")
+              .getBytes(StandardCharsets.UTF_8);
+      exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+      exchange.sendResponseHeaders(200, body.length);
+      exchange.getResponseBody().write(body);
+    }
+  }
+
+  private static final String THE_CHECKOUT_SCRIPT =
+      "var fields = TzlaHostedFields.create({sandbox: false, fields: {"
+          + "credit_card_number: {selector: '#credit_card_number', placeholder: 'Card number',"
+          + " tabindex: 1},"
+          + "expiry: {selector: '#expiry', placeholder: 'MM/YY', version: '1'},"
+          + "cvv: {selector: '#cvv', placeholder: 'CVV', tabindex: 3}},"
+          + "styles: {input: {'font-size': '16px'}}});"
+          + "fields.onEvent('ready', function () {"
+          + "document.body.setAttribute('data-hosted-fields', 'ready');});"
+          + "document.getElementById('payment_form').addEventListener('submit', function (e) {"
+          + "e.preventDefault();"
+          + "fields.charge({terminal_name: shop.terminal, amount: shop.amount, thtk: shop.thtk,"
+          + " tran_mode: 'V', tokenize: true, contact: 'Dana Levi'}, function (err, response) {"
+          + "var answered = err ? 'refused ' + JSON.stringify(err) : JSON.stringify(response);"
+          + "fetch('"
+          + HOSTED_FIELDS_ANSWER
+          + "', {method: 'POST', body: answered}).then(function () {"
+          + "document.getElementById('outcome').textContent ="
+          + " response && response.transaction_response && response.transaction_response.success"
+          + " ? '"
+          + THANKS
+          + "' : 'The payment was not made';});});});";
+
+  private static String aScriptString(Map<String, String> asked) {
+    StringBuilder object = new StringBuilder("{");
+    for (String key : List.of("terminal", "thtk", "amount")) {
+      object
+          .append(key)
+          .append(": '")
+          .append(asked.get(key).replace("\\", "").replace("'", "").replace("<", ""))
+          .append("', ");
+    }
+    return object.append("}").toString();
+  }
+
+  private static String attribute(String value) {
+    return value.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;");
+  }
+
+  private static String query(Map<String, String> values) {
+    StringBuilder query = new StringBuilder();
+    for (Map.Entry<String, String> value : new TreeMap<>(values).entrySet()) {
+      if (!query.isEmpty()) {
+        query.append('&');
+      }
+      query
+          .append(URLEncoder.encode(value.getKey(), StandardCharsets.UTF_8))
+          .append('=')
+          .append(URLEncoder.encode(value.getValue(), StandardCharsets.UTF_8));
+    }
+    return query.toString();
   }
 
   private static void writeAPage(HttpExchange exchange, String sentence, List<String> returns)

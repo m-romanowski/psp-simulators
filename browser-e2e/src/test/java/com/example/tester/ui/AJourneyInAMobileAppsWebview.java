@@ -102,6 +102,15 @@ abstract class AJourneyInAMobileAppsWebview {
           .returnsReceived()
           .forEach(
               posted -> leaks.addAll(ACardNumber.leakedIn("a return to the shop", posted, held)));
+      merchant
+          .hostedFieldsAnswersReceived()
+          .forEach(
+              answered ->
+                  leaks.addAll(
+                      ACardNumber.leakedIn(
+                          "an answer of the hosted fields the shop's page posted",
+                          answered,
+                          held)));
     }
     if (webview != null) {
       webview

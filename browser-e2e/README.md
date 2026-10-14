@@ -25,6 +25,7 @@ Nothing has to be running first. It needs Docker and a JDK.
 | `APayerSavesACardInAzericardsWebviewTest` | the shop's server signs a card save; the app's webview posts it to `/token/cgi_link`; the payer types a published test card, reads **Payment successful** and returns to the shop's `MERCH_URL`; the shop gets the signed callback with a `TOKEN` and a masked `CARD`, reads the order with `TRTYPE=90`, then charges the card with `MERCH_TRAN_STATE=M` and gets its callback. A second walk types an unknown card, reads **Payment failed**, returns to the shop, and the callback and `TRTYPE=90` say it failed |
 | `APayerHoldsFundsInAzericardsWebviewTest` | the same webview posts a signed `TRTYPE=0` hold to `/cgi-bin/cgi_link`; the payer returns to the shop; after the callback the shop completes it in full, in part, or releases it with `TRTYPE=22`, and reads the payment back with `TRTYPE=90` |
 | `APayerFinishesTranzilasPaymentPageTest` | the shop's server locks the sum with `POST /v2/handshake/create`; the app's webview opens the DirectNG page with the `thtk`, the payer picks the published card and pays a `VK` hold, and the page posts the payer back to the shop's `success_url_address`; the shop's `notify_url_address` receives the return's fields and `ConfirmationCode`, and the shop's server forces the J5 with the `TranzilaTK` it was returned |
+| `APayerFinishesTranzilasHostedFieldsTest` | the shop's server locks the sum with `POST /v2/handshake/create`; the app's webview opens the shop's own checkout, which loads `thostedf.js` from the simulator's Hosted Fields host; the payer types the published test card, its expiry and its CVV into the frames and pays a `V` hold; the charge callback hands the shop's page the answer, which it posts to the shop's server; the server verifies `response_hash` with the account secret and forces the J5 with the returned `token`; neither the shop's page outside the frames, nor its server, nor any answer it got carries the card number, its first six or the CVV |
 | `ATrafficRowOpensTheExchangeItIsTest`   | configures a grow account by clicking, has the shop's server start a process and read it back, then on the dashboard clicks a traffic row's **This exchange** and lands on the trail narrowed to that one audit id, clicks the same row's **Exchanges** and lands on every exchange of the object it touched, and clicks **This exchange** on a row that names no object at all |
 | `ATesterReadsThePublishedApiTest`       | follows the **API** link from **This test run**, reads the first published definition with the method and path of every operation it publishes and no other, and switches through every document `index.json` lists, reading each one's title and operations                                                                                                               |
 
@@ -52,7 +53,7 @@ the run over `/__simulator`. Everything else is refused:
   failing assertion as suppressed, and fails the journey on its own otherwise.
 
 A card number has leaked when a provider answer (status, headers and body), a callback, a body posted back to the
-shop's return page, a document the webview
+shop's return page, an answer of the Hosted Fields the shop's page posted to its server, a document the webview
 received, a page it rendered, the page it showed last or an address it asked for or navigated a frame to carries:
 
 - a run of 13 to 19 digits, taken across groups joined by a space or `-`, that begins with an issuer prefix and passes
@@ -67,14 +68,14 @@ Every callback is found by its own identity, the process id for grow, the `ORDER
 tranzila terminals each have two callback targets, and the shop's `notifyUrl`, `BACKREF` or `notify_url_address` names
 the second: the callback must arrive there and nothing at the first.
 
-| Step                                   | Grow                        | Worldline                                   | Autra                               | Azericard                                  | Tranzila |
-|----------------------------------------|-----------------------------|---------------------------------------------|-------------------------------------|--------------------------------------------|----------|
-| the shop's server calls the provider   | `createPaymentProcess`      | `POST .../hostedtokenizations`              | `POST /v1/acquiring/card-sessions`  | signs the form; no call                    | `POST /v2/handshake/create` |
-| what the app opens                     | `url`                       | `hostedTokenizationUrl`, bare or framed      | `hostedCardUrl`                     | the signed form, posted to `cgi_link`      | the DirectNG page with the `thtk` |
-| the payer finishes                     | picks a card, pays          | picks a card, stores it                     | picks a card, saves it              | types a card, pays                         | picks a card, pays |
-| the payer lands back at the shop       | `successUrl`                | stays on the shop's page when framed         | not asserted: autra publishes no redirect | `MERCH_URL`                          | `success_url_address`, by an auto-submitted `POST` |
-| the shop's endpoint is called back     | `notifyUrl`, not the account's other target, `statusCode` `11` | not asserted: webhooks are not served     | not asserted: no tokenization webhook is published, no card webhook is served | `BACKREF`, not the account's other target, signed, masked `CARD`, found by `ORDER` | `notify_url_address`, not the account's other target, found by `transaction_id` |
-| the shop's server reads the result     | `getPaymentProcessInfo`     | `GET .../hostedtokenizations/{id}`, then a payment | the sale's answer; `GET /v1/acquiring/payments/{id}` is not served | `TRTYPE=90`, and the MIT charge's answer | a `force` of the J5 with the returned `TranzilaTK` |
+| Step                                   | Grow                        | Worldline                                   | Autra                               | Azericard                                  | Tranzila | Tranzila Hosted Fields |
+|----------------------------------------|-----------------------------|---------------------------------------------|-------------------------------------|--------------------------------------------|----------|------------------------|
+| the shop's server calls the provider   | `createPaymentProcess`      | `POST .../hostedtokenizations`              | `POST /v1/acquiring/card-sessions`  | signs the form; no call                    | `POST /v2/handshake/create` | `POST /v2/handshake/create` |
+| what the app opens                     | `url`                       | `hostedTokenizationUrl`, bare or framed      | `hostedCardUrl`                     | the signed form, posted to `cgi_link`      | the DirectNG page with the `thtk` | the shop's own checkout loading `thostedf.js` |
+| the payer finishes                     | picks a card, pays          | picks a card, stores it                     | picks a card, saves it              | types a card, pays                         | picks a card, pays | types a card, its expiry and CVV into the frames, pays |
+| the payer lands back at the shop       | `successUrl`                | stays on the shop's page when framed         | not asserted: autra publishes no redirect | `MERCH_URL`                          | `success_url_address`, by an auto-submitted `POST` | stays on the shop's page; the charge callback is called |
+| the shop's endpoint is called back     | `notifyUrl`, not the account's other target, `statusCode` `11` | not asserted: webhooks are not served     | not asserted: no tokenization webhook is published, no card webhook is served | `BACKREF`, not the account's other target, signed, masked `CARD`, found by `ORDER` | `notify_url_address`, not the account's other target, found by `transaction_id` | none at either target: no notify is sent |
+| the shop's server reads the result     | `getPaymentProcessInfo`     | `GET .../hostedtokenizations/{id}`, then a payment | the sale's answer; `GET /v1/acquiring/payments/{id}` is not served | `TRTYPE=90`, and the MIT charge's answer | a `force` of the J5 with the returned `TranzilaTK` | verifies `response_hash`, then a `force` of the J5 with the returned `token` |
 
 ## What it measures of the layout
 
@@ -104,7 +105,7 @@ wizard's "Next" a primary one, and that a green notice confirms each change it m
 - The browser console carried no error and no script threw.
 - The page does not scroll sideways at 390px, on the account form, the Configuration screen, the second step of the
   wizard, the payment's own screen, the API page, grow's hosted page, worldline's hosted tokenization page, autra's
-  hosted card page, azericard's card page and tranzila's payment page.
+  hosted card page, azericard's card page, tranzila's payment page and a shop's checkout carrying tranzila's Hosted Fields.
 - A form posts what the markup says it posts: every field is filled by its visible label, every button clicked by
   its visible text.
 - A redirect chain ends where it should: the payer's `303` off grow's hosted page lands on the shop's `successUrl`, and
