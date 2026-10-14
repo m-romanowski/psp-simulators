@@ -6,6 +6,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.MatchFact;
 import dev.marcinromanowski.pspsim.kernel.spi.ProcessingStates;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderVocabulary;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,7 +86,24 @@ final class TranzilaOperations {
               MatchFact.EVENT_TYPE, NO_EVENT_TYPE),
           new FailureCodes(
               TranzilaResponseCodes.THE_DECLINE_SHAPE, TranzilaResponseCodes.THE_DECLINE_CODES),
-          ProcessingStates.noneOfThem(NO_PROCESSING_STATE));
+          ProcessingStates.noneOfThem(NO_PROCESSING_STATE),
+          theCodesEachOperationAnswers());
+
+  private static Map<String, FailureCodes> theCodesEachOperationAnswers() {
+    FailureCodes declines =
+        new FailureCodes(
+            TranzilaResponseCodes.A_PROCESSOR_DECLINE,
+            TranzilaResponseCodes.THE_PROCESSOR_DECLINES);
+    Map<String, FailureCodes> answered = new LinkedHashMap<>();
+    answered.put(
+        THREE_D_SECURE,
+        new FailureCodes(
+            TranzilaResponseCodes.A_3DS_FAILURE, TranzilaResponseCodes.THE_3DS_FAILURE_CODES));
+    for (String type : List.of(DEBIT, VERIFY, FORCE, REVERSAL, CREDIT, CANCEL)) {
+      answered.put(type, declines);
+    }
+    return answered;
+  }
 
   private static ProviderOperation operation(String name, Set<MatchFact> carries) {
     return new ProviderOperation(

@@ -9,13 +9,18 @@ import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
 import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
+import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
+import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
+import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRefusal;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderVocabulary;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 class TranzilaThreeDSecureTest {
@@ -599,50 +604,91 @@ class TranzilaThreeDSecureTest {
   }
 
   @Test
-  void a_processor_decline_on_the_3ds_step_is_refused_naming_the_operation_and_makes_nothing() {
-    String rule =
-        aRule(TranzilaOperations.THREE_D_SECURE, new ScenarioAction.TerminalFailure("004"));
+  void a_decline_naming_no_operation_passes_the_3ds_step_and_declines_the_debit() {
+    String rule = anyOperation(new ScenarioAction.TerminalFailure("004"));
 
     TranzilaOperationResult answered = wired.create(aSecureDebit(TranzilaWire.A_VISA, ""));
 
-    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.UNKNOWN);
+    assertThat(answered.body().text())
+        .startsWith(
+            "{\"error_code\":4,\"message\":\"Refusal. Please contact the card owner to check the"
+                + " reason with his credit company.\",\"transaction_result\":{"
+                + "\"processor_response_code\":\"004\",");
     assertThat(answered.scenarioId()).isEqualTo(rule);
-    assertThat(answered.insteadOfTheOperation()).isNotNull();
-    assertThat(answered.insteadOfTheOperation().httpStatus()).isEqualTo(500);
-    assertThat(new String(answered.insteadOfTheOperation().body(), StandardCharsets.UTF_8))
-        .isEqualTo(TranzilaResponseCodes.whyNotAnsweredBy("3ds", "004"))
-        .startsWith("a scenario rule fails operation 3ds with 004,");
-    assertThat(wired.stored()).isEmpty();
-    assertThat(wired.challenges.all()).isEmpty();
+    assertThat(wired.theLastStored().processorResponseCode()).isEqualTo("004");
   }
 
   @Test
-  void a_3ds_code_on_a_transaction_type_is_refused_naming_the_operation_and_makes_nothing() {
-    String rule = aRule(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("901"));
+  void a_3ds_failure_naming_no_operation_fails_the_3ds_step_and_not_the_charge_it_forces() {
+    anyOperation(new ScenarioAction.TerminalFailure("913"));
 
-    TranzilaOperationResult answered = wired.create(TranzilaWire.aDebit());
+    String failed = wired.answered(aSecureDebit(TranzilaWire.A_VISA, ""));
+    String forced =
+        wired.answered(
+            aSecureDebit(
+                TranzilaWire.A_VISA, ",\"3ds_settings\":{\"force_txn_on_3ds_fail\":\"Y\"}"));
 
-    assertThat(answered.outcome()).isEqualTo(ProviderOutcome.UNKNOWN);
-    assertThat(answered.scenarioId()).isEqualTo(rule);
-    assertThat(new String(answered.insteadOfTheOperation().body(), StandardCharsets.UTF_8))
+    assertThat(failed)
         .isEqualTo(
-            "a scenario rule fails operation debit with 901, and provider tranzila answers the"
-                + " codes of the 3DS table, 900 to 928 and 930, only on operation 3ds and the"
-                + " processor's declines only on a transaction type, so operation debit cannot"
-                + " answer 901; nothing was charged and nothing was recorded");
-    assertThat(answered.insteadOfTheOperation().contentType())
-        .isEqualTo("text/plain; charset=utf-8");
-    assertThat(wired.stored()).isEmpty();
+            "{\"error_code\":913,\"message\":\"Cardholder not enrolled in the service.\","
+                + "\"transaction_result\":{\"processor_response_code\":\"913\","
+                + "\"transaction_id\":10000001}}");
+    assertThat(forced).contains("\"processor_response_code\":\"000\"");
   }
 
   @Test
-  void each_operation_answers_its_own_table_of_codes_only() {
-    assertThat(TranzilaResponseCodes.answeredBy("3ds", "900")).isTrue();
-    assertThat(TranzilaResponseCodes.answeredBy("3ds", "930")).isTrue();
-    assertThat(TranzilaResponseCodes.answeredBy("3ds", "004")).isFalse();
-    assertThat(TranzilaResponseCodes.answeredBy("debit", "004")).isTrue();
-    assertThat(TranzilaResponseCodes.answeredBy("verify", "901")).isFalse();
-    assertThat(TranzilaResponseCodes.answeredBy("force", "017")).isTrue();
+  void a_rule_naming_an_operation_and_a_code_of_the_other_table_is_refused_naming_both() {
+    ProviderVocabulary vocabulary = TranzilaOperations.VOCABULARY;
+
+    assertThat(vocabulary.refusals(aNewRule("debit", "913")))
+        .extracting(ScenarioRefusal::property, ScenarioRefusal::reason)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(
+                "action.providerCode",
+                "operation debit of provider tranzila answers no failure code 913: it answers "
+                    + TranzilaResponseCodes.THE_PROCESSOR_DECLINES));
+    assertThat(vocabulary.refusals(aNewRule("3ds", "004")))
+        .extracting(ScenarioRefusal::reason)
+        .containsExactly(
+            "operation 3ds of provider tranzila answers no failure code 004: it answers "
+                + TranzilaResponseCodes.THE_3DS_FAILURE_CODES);
+    assertThat(vocabulary.refusals(aNewRule("3ds", "913"))).isEmpty();
+    assertThat(vocabulary.refusals(aNewRule("force", "004"))).isEmpty();
+    assertThat(vocabulary.refusals(aNewRule(null, "004"))).isEmpty();
+    assertThat(vocabulary.refusals(aNewRule(null, "913"))).isEmpty();
+    assertThat(vocabulary.theCodesOf("3ds").admits("930")).isTrue();
+    assertThat(vocabulary.theCodesOf("3ds").admits("004")).isFalse();
+    assertThat(vocabulary.theCodesOf("verify").admits("017")).isTrue();
+    assertThat(vocabulary.theCodesOf("cancel").admits("901")).isFalse();
+    assertThat(vocabulary.theCodesOf(null).admits("901")).isTrue();
+  }
+
+  private static NewScenarioRule aNewRule(@Nullable String operation, String code) {
+    ScenarioMatch match =
+        operation == null
+            ? ScenarioMatch.anyRequest()
+            : ScenarioMatch.anyRequest().naming(operation);
+    return new NewScenarioRule(
+        TranzilaApi.TRANZILA,
+        TranzilaWiring.RUN,
+        1,
+        match,
+        new ScenarioAction.TerminalFailure(code),
+        null);
+  }
+
+  private String anyOperation(ScenarioAction action) {
+    return wired
+        .rules
+        .add(
+            new NewScenarioRule(
+                TranzilaApi.TRANZILA,
+                TranzilaWiring.RUN,
+                1,
+                ScenarioMatch.anyRequest(),
+                action,
+                null))
+        .scenarioId();
   }
 
   @Test
@@ -771,8 +817,6 @@ class TranzilaThreeDSecureTest {
     assertThat(TranzilaResponseCodes.theTextOf("004")).isEqualTo(TranzilaResponseCodes.REFUSAL);
     assertThat(TranzilaResponseCodes.theTextOf("929")).isEqualTo("929");
     assertThat(TranzilaResponseCodes.THE_3DS_FAILURES).hasSize(30);
-    assertThat(TranzilaResponseCodes.failsTheAuthentication("913")).isTrue();
-    assertThat(TranzilaResponseCodes.failsTheAuthentication("004")).isFalse();
   }
 
   static TranzilaChallenge onTheHostedFields(TranzilaChallenge made) {

@@ -280,7 +280,7 @@ application error codes, response code will be **success (200)**". The simulator
 | `015` | "Expired card. Please check the expiration date again."                                              | a scenario's decline                          |
 | `016` | "Unauthorized currency."                                                                             | a scenario's decline                          |
 | `017` | "Unauthorized credit type for this transaction."                                                     | a scenario's decline                          |
-| `900`–`928`, `930` | "Transaction failed at 3D Secure authentication stage." … (3DS Errors tab); `900` answered with the API's own "Transaction failed during 3D Secure validation" | a failed 3-D Secure authentication ("3-D Secure"), or a scenario's failure of operation `3ds` |
+| `900`–`928`, `930` | "Transaction failed at 3D Secure authentication stage." … (3DS Errors tab); `900` answered with the API's own "Transaction failed during 3D Secure validation" | a failed 3-D Secure authentication ("3-D Secure"), or a scenario's failure of operation `3ds` only |
 
 `shva` ("Pending SHVA response.") and `010` ("Partial confirmation") are never answered: no published read resolves a
 pending answer, and no published field carries a partially confirmed amount.
@@ -381,10 +381,11 @@ the identity keys of `user_form_data` wherever an answer carries them.
 Which card takes which outcome: the published test cards (`PB/hosted-fields`, "Test Credit Card Numbers for 3DS"),
 by the number sent, or for a token by its card's first six and last four; otherwise the run's scenario on the
 operation `3ds`: a failure code of the 3DS table (`900`–`928`, `930`) fails the authentication with that code, a
-success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly. A 3DS code belongs
-to `3ds` alone and a processor decline to the transaction types alone: a rule failing an operation with a code of the
-other table is admitted (the vocabulary judges codes, not operations) and refused when it fires, answered `500`
-`text/plain` naming the operation and the code, nothing made. When `force_txn_on_3ds_fail` `Y` lets a failed
+success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly. The vocabulary
+declares the 3DS codes for `3ds` alone and the processor declines for the transaction types alone: a rule naming an
+operation and a code of the other table is refused `422`, and a rule naming no operation fails only the operations
+whose table holds its code, so `004` passes the `3ds` step and declines the `debit` or `verify`, and `913` fails the
+`3ds` step and not the charge `force_txn_on_3ds_fail` `Y` lets through. When `force_txn_on_3ds_fail` `Y` lets a failed
 authentication through, the answer names the rule that decided the transaction's own operation if one did, and the
 `3ds` rule otherwise; a trail row names one rule.
 

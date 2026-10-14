@@ -304,6 +304,11 @@ A rule has `priority`, `match` and `action`, and optionally `story`, `keyedOn`, 
 | `DELIVERY_DUPLICATED`                  | post a delivery twice under one event id                                                                  |
 | `DELIVERY_DROPPED`                     | record a delivery as dropped and never post it                                                            |
 
+- A provider's vocabulary may declare the failure codes each operation answers; otherwise every operation answers every
+  code the provider declares (`ProviderVocabulary.theCodesAnswered`). A rule naming `match.operation` and a
+  `providerCode` that operation does not answer is refused `422`, naming both. A rule naming no operation and a
+  `providerCode` matches only the operations that answer that code: elsewhere it is no match, the next rule or the
+  provider's default decides, and its story does not move.
 - A delivery rule narrows only on `merchantId`, `providerObjectId` and `eventType`, and takes no `story`.
   `match.eventType` is refused on a request rule.
 - `action.failuresBeforeSuccess` and `action.terminalStatus` are refused. A retry-then-success is a two-step story.

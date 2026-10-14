@@ -31,7 +31,21 @@ final class TranzilaResponseCodes {
 
   static final SequencedMap<String, String> THE_3DS_FAILURES = threeDSecureFailures();
 
-  static final String THE_DECLINE_SHAPE = "00[1-6]|01[2567]|9[01][0-9]|92[0-8]|930";
+  static final String A_PROCESSOR_DECLINE = "00[1-6]|01[2567]";
+
+  static final String A_3DS_FAILURE = "9[01][0-9]|92[0-8]|930";
+
+  static final String THE_DECLINE_SHAPE = A_PROCESSOR_DECLINE + "|" + A_3DS_FAILURE;
+
+  static final String THE_PROCESSOR_DECLINES =
+      "a processor_response_code of the published code table that declines a card: 001 blocked,"
+          + " 002 stolen, 003 call the credit company, 004 refusal, 005 forged, 006 incorrect ID"
+          + " or CVV, 012 card not authorised for the terminal, 015 expired, 016 unauthorised"
+          + " currency or 017 unauthorised credit type. Three digits, as the table writes them";
+
+  static final String THE_3DS_FAILURE_CODES =
+      "a code of the 3DS table, 900 to 928 or 930, which fails the card holder's authentication"
+          + " and is answered as error_code. Three digits, as the table writes them";
 
   static final String THE_DECLINE_CODES =
       "a processor_response_code of the published code table that declines a card: 001 blocked,"
@@ -103,28 +117,6 @@ final class TranzilaResponseCodes {
     published.put("928", "Card authentication cancelled by user.");
     published.put("930", "Authentication was attempted but not completed by the cardholder.");
     return published;
-  }
-
-  static boolean failsTheAuthentication(String code) {
-    return THE_3DS_FAILURES.containsKey(code);
-  }
-
-  static boolean answeredBy(String operation, String code) {
-    return TranzilaOperations.THREE_D_SECURE.equals(operation) == failsTheAuthentication(code);
-  }
-
-  static String whyNotAnsweredBy(String operation, String code) {
-    return "a scenario rule fails operation "
-        + operation
-        + " with "
-        + code
-        + ", and provider tranzila answers the codes of the 3DS table, 900 to 928 and 930, only"
-        + " on operation 3ds and the processor's declines only on a transaction type, so"
-        + " operation "
-        + operation
-        + " cannot answer "
-        + code
-        + "; nothing was charged and nothing was recorded";
   }
 
   static boolean approves(String code) {

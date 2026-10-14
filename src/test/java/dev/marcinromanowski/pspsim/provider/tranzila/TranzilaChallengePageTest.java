@@ -354,6 +354,25 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_decline_naming_no_operation_declines_a_hosted_fields_charge_at_its_debit() {
+    aHandshake("10");
+    wired.rules.add(
+        new dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule(
+            TranzilaApi.TRANZILA,
+            TranzilaWiring.RUN,
+            1,
+            dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch.anyRequest(),
+            new dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction.TerminalFailure("004"),
+            null));
+
+    String answered = bodyOf(charge(aChargeOf("4111111111111111")));
+
+    assertThat(answered)
+        .contains("\"success\":false")
+        .contains("\"processor_response_code\":\"004\"");
+  }
+
+  @Test
   void a_hosted_fields_challenge_keeps_the_fault_and_the_rule_of_a_disrupting_3ds_step() {
     aHandshake("10");
     wired.writes(

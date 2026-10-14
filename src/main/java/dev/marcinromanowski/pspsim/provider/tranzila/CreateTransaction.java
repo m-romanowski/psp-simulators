@@ -3,7 +3,6 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.fault.RenderedResponse;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
@@ -15,7 +14,6 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -52,8 +50,6 @@ final class CreateTransaction {
       "terminal_name names a terminal other than the one the X-tranzila-api-app-key belongs to";
 
   static final String ENTERED_AND_VALID = "1";
-
-  static final int MISDIRECTED_STATUS = 500;
 
   static final String NOT_ENTERED = "0";
 
@@ -369,7 +365,8 @@ final class CreateTransaction {
                 theAmountOf(asked.request()),
                 asked.request().currencyCode(),
                 presented.token(),
-                TranzilaOperations.THREE_D_SECURE));
+                TranzilaOperations.THREE_D_SECURE),
+            TranzilaOperations.VOCABULARY.theCodesAnswered(TranzilaOperations.THREE_D_SECURE));
     return switch (decision) {
       case ScenarioDecision.NoScenario _ ->
           afterTheAuthentication(
@@ -404,17 +401,14 @@ final class CreateTransaction {
               TranzilaOperationResult.answeredInsteadOf(
                   preempted.scenarioId(), preempted.answer()));
       case ScenarioDecision.Fail declined ->
-          TranzilaResponseCodes.answeredBy(
-                  TranzilaOperations.THREE_D_SECURE, declined.providerCode())
-              ? afterTheAuthentication(
-                      asked,
-                      presented,
-                      secure,
-                      drawn,
-                      TranzilaThreeDSecureOutcome.FAILED,
-                      declined.providerCode())
-                  .mapped(result -> declinedUnlessDecided(result, declined.scenarioId()))
-              : misdirected(TranzilaOperations.THREE_D_SECURE, declined);
+          afterTheAuthentication(
+                  asked,
+                  presented,
+                  secure,
+                  drawn,
+                  TranzilaThreeDSecureOutcome.FAILED,
+                  declined.providerCode())
+              .mapped(result -> declinedUnlessDecided(result, declined.scenarioId()));
       case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
     };
   }
@@ -812,10 +806,11 @@ final class CreateTransaction {
       @Nullable String token,
       Supplier<Answered> approve,
       Function<String, Answered> decline) {
+    String operation = asked.request().type().wire();
     ScenarioDecision decision =
         scenarios.decide(
-            theScenarioRequest(
-                asked, drawn, original, amount, currency, token, asked.request().type().wire()));
+            theScenarioRequest(asked, drawn, original, amount, currency, token, operation),
+            TranzilaOperations.VOCABULARY.theCodesAnswered(operation));
     return switch (decision) {
       case ScenarioDecision.NoScenario _ -> approve.get();
       case ScenarioDecision.Proceed matched ->
@@ -829,25 +824,11 @@ final class CreateTransaction {
               TranzilaOperationResult.answeredInsteadOf(
                   preempted.scenarioId(), preempted.answer()));
       case ScenarioDecision.Fail declined ->
-          TranzilaResponseCodes.answeredBy(asked.request().type().wire(), declined.providerCode())
-              ? decline
-                  .apply(declined.providerCode())
-                  .mapped(result -> result.declinedBy(declined.scenarioId()))
-              : misdirected(asked.request().type().wire(), declined);
+          decline
+              .apply(declined.providerCode())
+              .mapped(result -> result.declinedBy(declined.scenarioId()));
       case ScenarioDecision.Pend pending -> throw pending.theOperationAnswersNoProcessingState();
     };
-  }
-
-  static Answered misdirected(String operation, ScenarioDecision.Fail declined) {
-    return Answered.refused(
-        TranzilaOperationResult.answeredInsteadOf(
-            declined.scenarioId(),
-            new RenderedResponse(
-                    MISDIRECTED_STATUS,
-                    TranzilaDelivery.DIAGNOSTIC_CONTENT_TYPE,
-                    TranzilaResponseCodes.whyNotAnsweredBy(operation, declined.providerCode())
-                        .getBytes(StandardCharsets.UTF_8))
-                .asDelivered()));
   }
 
   static TranzilaOperationResult proceededUnlessDecided(
