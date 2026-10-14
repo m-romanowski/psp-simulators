@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.IntSupplier;
 import org.jspecify.annotations.Nullable;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -143,9 +144,13 @@ final class JdbcGrowTransactions implements GrowTransactions {
 
   @Override
   public Charged charge(GrowTransaction transaction, GrowStoredCardCharge submission) {
-    return Objects.requireNonNull(
-        transactions.execute(status -> chargeInOneTransaction(status, transaction, submission)),
-        "the unit of work answered nothing where its callback answers a Charged on every path");
+    try {
+      return Objects.requireNonNull(
+          transactions.execute(status -> chargeInOneTransaction(status, transaction, submission)),
+          "the unit of work answered nothing where its callback answers a Charged on every path");
+    } catch (DuplicateKeyException theGroupWasChargedByARequestThatCommittedFirst) {
+      return Charged.GROUP_ALREADY_CHARGED;
+    }
   }
 
   private Charged chargeInOneTransaction(
