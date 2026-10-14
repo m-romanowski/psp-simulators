@@ -17,7 +17,7 @@ inference, simulator decision. No live probe: no sandbox host, test terminal or 
 | `POST /v2/handshake/create`                                    | mints a `thtk` bound to terminal and `sum`, 20 minutes                                                         |                                                                                                          |
 | `POST /v1/transactions`                                        | lookup by `transaction_index` or date range                                                                   | amounts in minor units, as strings (inference)                                                           |
 | `GET`/`POST /tranzila/directng/{terminal}/iframenew.php`       | the payer page: tranmodes `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; browser return and notify                      | the page is the simulator's own; notify unsigned; wallet buttons not served                              |
-| `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           | `card_mask` keeps only the last four; which refusal answers which code is a simulator decision; no notify |
+| `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           | `card_mask` keeps only the last four; which refusal answers which code is a simulator decision; the notify uses the payment page's format |
 | `POST /tranzila/report/v1/transaction`                         | lookup by `transaction_index` or date range, amounts in minor units                                           | `ufields`, `dfields` refused                                                                             |
 | STO / My Billing, Bit, PayPal, MASAV, invoices, EMV PinPad, payment requests, legacy CGI, `direct.tranzila.com`, Handshake V1, instalments | **not served** |                                                                                     |
 
@@ -476,15 +476,31 @@ because any merchant page frames it; its policy otherwise admits its one inline 
 also `connect-src 'self'`. The hidden frame answers a charge only to the page that framed it, at that page's origin.
 A charge the hidden frame refuses before posting calls back `err` with the vendor script's codes
 (`terminal_name_invalid`, `credit_card_number_invalid`, `expiry_invalid`, `cvv_invalid`,
-`card_holder_id_number_invalid`) and the simulator's own messages.
+`card_holder_id_number_invalid`) and the simulator's own messages. As the vendor script does, a server answer reaches
+the callback with `err` `false`, and an answer that is not `2xx` or not JSON as `err`
+`{error:"network_error", error_description}` with no response. A page whose origin is opaque (`"null"`) is answered
+nothing, since a frame cannot address an answer to it.
+
+The fields as the vendor script types them: the card number keeps digits only, grouped as its card type is (4-6-5
+for `ae`, 4-6-4 for `diners`, fours otherwise) and cut at that type's longest length; the expiry keeps digits only and
+is shown `MM/YY`; the CVV keeps up to four digits; the ID up to nine, padded with leading zeros to nine when the payer
+leaves the field. A card number is valid for the frame when its type is known, its length is one of that type's and
+it passes Luhn, or, for `isracard`, eight to ten digits whose weighted sum is a multiple of 11; an expiry is valid
+until its month ends. `styles` is applied as a stylesheet in each field frame, every key a selector (`input`,
+`input:focus`, `::placeholder`, `.hosted-fields-invalid`), and the `hosted-fields-valid` / `hosted-fields-invalid`
+classes are set on the input in the frame as well as on the merchant's container.
 
 - Events (published rule): `ready`, `validityChange`, `cardTypeChange`, `focus`, `blur`, `submit`; CSS classes
   `hosted-fields-invalid`, `hosted-fields-valid`. Messages between page and frames are JSON strings (vendor script).
+  The vendor script adds `empty` and `notEmpty` when a field empties or fills, sends `inputSubmitRequest` on Enter,
+  names `cardType` `ae`, `diners`, `mc`, `visa`, `isracard` or `unknown`, and passes any other type a frame sends to
+  `onEvent` as `{type, field, timestamp}`; the simulator does the same, and on Enter sends both
+  `inputSubmitRequest` and `submit` ("Vendor Contradictions"). `validityChange` carries `field` and `isValid`.
 - `charge` keys (published rule, "Request Keys"): mandatory `terminal_name`, `thtk`, `amount` ("In currency");
   `tran_mode` `A` (default), `V`, `N`; `currency_code` `ILS` (default), `USD`, `EUR`; `tokenize`; `expiry_month`,
   `expiry_year` (`YYYY`) when the expiry field is not used; `force_txn_on_3ds_fail` (default `Y` here, `N` in the 3DS
-  schema), `force_challenge`; `notify_url`, `pdesc`, `json_purchase_data`. `payment_plan` other than `1` is refused
-  `10007` INVALID PAYMENT PLAN.
+  schema), `force_challenge`; `notify_url`, `pdesc`, `json_purchase_data`. Simulator decision: `payment_plan` other
+  than `1` asks for instalments, which are not served, and is refused with the table's `10007` INVALID PAYMENT PLAN.
 - Response (published example, "Response Examples", "Regular Transaction"; in full, key order as published, which
   `response_hash` depends on):
 
@@ -534,7 +550,8 @@ A charge the hidden frame refuses before posting calls back `err` with the vendo
 }
 ```
 
-- `transaction_id`, `amount` and `card_type` are strings and `currency_code` is numeric, unlike the API.
+- `transaction_id`, `amount` and `card_type` are strings and `currency_code` is numeric, unlike the API. `amount` is
+  written with two decimals, as every published example writes it.
 - The charge is the API's: `A` a `debit`, `V` a `verify` `5`, `N` a `verify` `2`, with the API's transaction rows,
   scenario rules, `DCdisable` (a charge key, echoed in `user_form_data`) and duplicate answer (the original
   transaction). An approved charge renews the `thtk` for 20 minutes.
@@ -546,11 +563,20 @@ A charge the hidden frame refuses before posting calls back `err` with the vendo
   and `0` when not; `card_issuer` is `1`; `error` is `null` on approval and the processor code's text on a decline,
   with `success` `false` (simulator decisions).
 - `user_form_data`: every key the charge sent other than the ones it reads, in the order received, as strings
-  (simulator decision). `notify_url` is echoed there; no notify is sent.
+  (simulator decision); `notify_url` is echoed there too.
+- `notify_url` ("URL endpoint for receiving transaction data (IPN)", published rule) is notified as the payment
+  page's notify is, because no Hosted Fields notify format is published: a form `POST` acknowledged by `200` `OK`
+  and retried otherwise, sent for an approved or a declined charge and not for a `DCdisable` duplicate, carrying
+  `supplier`, `sum` as sent, `currency` numeric, `Response`, the `user_form_data` fields, `transaction_id`, `index`,
+  `ccno`, `Responsecv`, `Responseid`, `cardtype`, `cardissuer`, `cardacquirer`, `TranzilaTK` when `tokenize` is
+  `true`, `txn_type`, `tranmode`, the handshake's `request_params` and `ConfirmationCode`. The address follows the
+  page's rule: a `notify_url` must be a callback target configured for the terminal's account, else the charge is
+  refused; without one, the account's one configured target stands in, and with none or several nothing is sent.
+  `TranzilaTK` and `identity_number` are withheld from the trail.
 - `response_hash` = HMAC-SHA256, lowercase hex, over the response JSON without `response_hash`, serialised with no space
   after `,` or `:`, keyed by the account secret (published rule and example, "Response Hash"; the per-user secret for
-  `requested_by_user` is not modelled). The simulator writes characters outside ASCII as `\uXXXX` and `/` unescaped,
-  as the published Python sample re-serialises, and `response_hash` is the last key, so the answer less
+  `requested_by_user` is not modelled). The simulator writes every character below a space or above `~` as `\uXXXX`
+  (DEL included) and `/` unescaped, as `json.dumps` in the published Python sample re-serialises, and `response_hash` is the last key, so the answer less
   `,"response_hash":"…"` is the hashed text.
 - Errors: client-side validation calls back `err` as `{error:"invalid_resource", error_description, messages:[{code,
   message, param}]}` (vendor script; the prose's `error.messages.forEach` agrees); a server refusal answers
@@ -571,13 +597,14 @@ no terminal of the run, since no secret is named then. Which condition answers w
 | `currency_code` other than `ILS`, `USD`, `EUR`                                    | `10012`, `currency_code`            |
 | `tran_mode` other than `A`, `V`, `N`                                              | `10014`, `tran_mode`                |
 | `payment_plan` other than `1`                                                     | `10007`, `payment_plan`             |
-| `credit_card_number` not 8–19 digits passing Luhn (spaces dropped)                | `10002`, `credit_card_number`       |
+| `credit_card_number` not 8–19 digits passing Luhn, nor 8–10 digits passing the Isracard check (spaces dropped) | `10002`, `credit_card_number` |
 | `cvv` not 3–4 digits                                                              | `10003`, `cvv`                      |
 | `expiry_month` not 1–12; `expiry_year` not four digits                            | `10004`, `expiry_month`; `10005`, `expiry_year` |
 | `card_holder_id_number` not 1–9 digits                                            | `10011`, `card_holder_id_number`    |
 | `DCdisable` over 254 characters                                                   | `22103`, `DCdisable`, "Invalid DCdisable" |
 | `terminal_name` names no terminal of the run                                       | `10013`, `terminal_name`            |
 | `thtk` names no live handshake of this terminal locking `amount`                  | `912791`, `thtk`, "Illegal Operation 912791" (the published handshake refusal) |
+| `notify_url` names no callback target of the terminal's account                   | `400`, `notify_url`, the reason (the payment page refuses the same address with `400`) |
 
 `10001`, `10008`–`10010`, `10015` and `10016` are never answered: no rule above leaves them a condition.
 
@@ -658,6 +685,7 @@ and `google_pay` are ignored).
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |
 | Hosted Fields errors           | `errors[{code, param, message}]`, codes `10000`–`10016` (table)                        | `err.messages[]` (prose, vendor script)                                                            | client-side `err`, server `errors`         |
+| Hosted Fields Enter key        | `submit` "request upon Enter key in hosted fields" (prose)                             | `inputSubmitRequest` (vendor script)                                                               | both sent                                  |
 | user-defined slots             | 25 (Transactions API, reports)                                                         | 20 (`/v1/transactions`)                                                                            | each lookup as published                   |
 
 ## What This Contract Could Not Settle
