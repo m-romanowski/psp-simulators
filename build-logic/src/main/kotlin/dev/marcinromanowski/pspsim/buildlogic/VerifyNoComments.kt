@@ -45,7 +45,9 @@ abstract class VerifyNoComments : DefaultTask() {
                     )
                     appendLine(
                         "String literals, char literals and text blocks are not scanned, so " +
-                            "a URL and a Hebrew wire string are never reported here. A " +
+                            "a URL and a Hebrew wire string are never reported here, and in a " +
+                            "script neither are template literals nor a regular expression " +
+                            "standing where an expression opens. A " +
                             "template is scanned for the four characters that open a markup " +
                             "comment, wherever they stand."
                     )

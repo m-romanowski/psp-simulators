@@ -42,7 +42,14 @@ val conflictFreeSources =
 val commentFreeSources =
     files(
         fileTree(layout.projectDirectory) {
-            include("**/*.java", "**/*.kt", "**/*.kts", "**/templates/**/*.html")
+            include(
+                "**/*.java",
+                "**/*.kt",
+                "**/*.kts",
+                "**/*.js",
+                "**/*.mjs",
+                "**/templates/**/*.html",
+            )
             exclude(pathsGitIgnoresOrTracksAsBinary)
         },
         fileTree("src/main/resources/db/migration") { include("**/*.sql") },
@@ -144,7 +151,7 @@ val verifyNoComments =
     tasks.register<VerifyNoComments>("verifyNoComments") {
         group = "verification"
         description =
-            "Fails on any comment in Java, Kotlin, Gradle Kotlin, SQL or template sources, " +
+            "Fails on any comment in Java, Kotlin, Gradle Kotlin, JavaScript, SQL or template sources, " +
                 "anywhere in this working tree, the three sibling builds included. A claim about " +
                 "behaviour belongs in a test and prose about this system in doc/."
 

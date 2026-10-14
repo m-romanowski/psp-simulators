@@ -15,6 +15,49 @@ class CommentScannerTest {
         assertEquals(CommentDialect.KOTLIN, CommentDialect.of("PitInvocation.kt"))
         assertEquals(CommentDialect.MARKUP, CommentDialect.of("payments.html"))
         assertEquals(CommentDialect.SQL, CommentDialect.of("V1__thing.sql"))
+        assertEquals(CommentDialect.JAVASCRIPT, CommentDialect.of("thostedf.js"))
+        assertEquals(CommentDialect.JAVASCRIPT, CommentDialect.of("module.mjs"))
+    }
+
+    @Test
+    fun `a javascript line comment and block comment are found`() {
+        assertEquals(
+            listOf("line comment", "block comment"),
+            kinds("var a = 1; // one\n/* two */\nvar b = 2;\n", CommentDialect.JAVASCRIPT),
+        )
+    }
+
+    @Test
+    fun `two slashes inside a javascript string or template are not a comment`() {
+        assertEquals(
+            emptyList<String>(),
+            kinds(
+                "var u = \"https://a.test/\"; var v = 'http://b.test'; var w = `//${'$'}{u}/*`;\n",
+                CommentDialect.JAVASCRIPT,
+            ),
+        )
+    }
+
+    @Test
+    fun `a javascript regex holding slashes and stars is not a comment, and code after it is read`() {
+        assertEquals(
+            listOf("line comment"),
+            kinds(
+                "var r = /^[/*]+\\/\\/x/.test(s); if (!/a\\/*b/.test(t)) {}\nvar q = 6 / 2; // c\n",
+                CommentDialect.JAVASCRIPT,
+            ),
+        )
+    }
+
+    @Test
+    fun `a slash after a value is a division and the comment that follows is still found`() {
+        assertEquals(
+            listOf("block comment"),
+            kinds(
+                "var half = total / 2 /* why */;\nreturn /x/.test(y);\n",
+                CommentDialect.JAVASCRIPT,
+            ),
+        )
     }
 
     @Test

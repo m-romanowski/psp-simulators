@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.buildlogic
 enum class CommentDialect {
     JAVA,
     KOTLIN,
+    JAVASCRIPT,
     MARKUP,
     SQL;
 
@@ -12,6 +13,7 @@ enum class CommentDialect {
             when {
                 fileName.endsWith(".java") -> JAVA
                 fileName.endsWith(".kts") || fileName.endsWith(".kt") -> KOTLIN
+                fileName.endsWith(".js") || fileName.endsWith(".mjs") -> JAVASCRIPT
                 fileName.endsWith(".html") -> MARKUP
                 else -> SQL
             }
@@ -20,9 +22,32 @@ enum class CommentDialect {
 
 object CommentScanner {
 
+    private val wordsARegexMayFollow =
+        setOf(
+            "return",
+            "typeof",
+            "case",
+            "in",
+            "of",
+            "delete",
+            "void",
+            "throw",
+            "new",
+            "instanceof",
+            "do",
+            "else",
+            "yield",
+            "await",
+        )
+
+    private const val punctuationARegexMayFollow = "(,=:[!&|?{};+-*%<>~^"
+
     fun commentsIn(source: String, dialect: CommentDialect): List<Pair<Int, String>> =
-        if (dialect == CommentDialect.MARKUP) markupCommentsAt(source)
-        else commentsAt(source, dialect)
+        when (dialect) {
+            CommentDialect.MARKUP -> markupCommentsAt(source)
+            CommentDialect.JAVASCRIPT -> scriptCommentsAt(source)
+            else -> commentsAt(source, dialect)
+        }
 
     fun lineOf(source: String, offset: Int): Int = 1 + source.take(offset).count { it == '\n' }
 
@@ -139,6 +164,87 @@ object CommentScanner {
             at++
         }
         return found
+    }
+
+    private fun scriptCommentsAt(source: String): List<Pair<Int, String>> {
+        val found = mutableListOf<Pair<Int, String>>()
+        val length = source.length
+        var at = 0
+        while (at < length) {
+            val current = source[at]
+            if (current == '"' || current == '\'') {
+                at = endOfQuoted(source, at, current, true, false)
+                continue
+            }
+            if (current == '`') {
+                at = endOfTemplate(source, at)
+                continue
+            }
+            if (source.startsWith("//", at)) {
+                found += at to "line comment"
+                val newline = source.indexOf('\n', at)
+                at = if (newline < 0) length else newline
+                continue
+            }
+            if (source.startsWith("/*", at)) {
+                found += at to "block comment"
+                val close = source.indexOf("*/", at + 2)
+                at = if (close < 0) length else close + 2
+                continue
+            }
+            if (current == '/' && aRegexMayStartAfter(source, at)) {
+                at = endOfRegex(source, at)
+                continue
+            }
+            at++
+        }
+        return found
+    }
+
+    private fun endOfTemplate(source: String, from: Int): Int {
+        var index = from + 1
+        while (index < source.length) {
+            when (source[index]) {
+                '\\' -> index += 2
+                '`' -> return index + 1
+                else -> index++
+            }
+        }
+        return source.length
+    }
+
+    private fun aRegexMayStartAfter(source: String, slash: Int): Boolean {
+        var index = slash - 1
+        while (index >= 0 && source[index].isWhitespace()) index--
+        if (index < 0) return true
+        val before = source[index]
+        if (punctuationARegexMayFollow.indexOf(before) >= 0) return true
+        if (!before.isLetterOrDigit() && before != '_' && before != '$') return false
+        var start = index
+        while (start > 0 && (source[start - 1].isLetterOrDigit() || source[start - 1] == '_')) {
+            start--
+        }
+        return source.substring(start, index + 1) in wordsARegexMayFollow
+    }
+
+    private fun endOfRegex(source: String, from: Int): Int {
+        var index = from + 1
+        var inAClass = false
+        while (index < source.length) {
+            val current = source[index]
+            when {
+                current == '\\' -> {
+                    index += 2
+                    continue
+                }
+                current == '\n' -> return index
+                current == '[' -> inAClass = true
+                current == ']' -> inAClass = false
+                current == '/' && !inAClass -> return index + 1
+            }
+            index++
+        }
+        return source.length
     }
 
     private fun markupCommentsAt(source: String): List<Pair<Int, String>> {
