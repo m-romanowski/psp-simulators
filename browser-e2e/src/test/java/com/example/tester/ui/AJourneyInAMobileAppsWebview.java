@@ -98,6 +98,10 @@ abstract class AJourneyInAMobileAppsWebview {
       merchant
           .callbacksReceived()
           .forEach(callback -> leaks.addAll(ACardNumber.leakedIn("a callback", callback, held)));
+      merchant
+          .returnsReceived()
+          .forEach(
+              posted -> leaks.addAll(ACardNumber.leakedIn("a return to the shop", posted, held)));
     }
     if (webview != null) {
       webview

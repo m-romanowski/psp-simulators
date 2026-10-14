@@ -98,6 +98,30 @@ public final class TheTestSetup {
             + "}");
   }
 
+  public void configureATranzilaTerminal(
+      String testRunId,
+      String accountId,
+      String terminal,
+      String appKey,
+      String appSecret,
+      List<String> callbackTargets) {
+    configure(
+        "tranzila",
+        "{\"testRunId\":\""
+            + testRunId
+            + "\",\"accounts\":[{\"accountId\":\""
+            + accountId
+            + "\",\"configuration\":{\"terminalName\":\""
+            + terminal
+            + "\",\"appKey\":\""
+            + appKey
+            + "\",\"appSecret\":\""
+            + appSecret
+            + "\"}}],\"webhooks\":"
+            + targets(accountId, callbackTargets)
+            + "}");
+  }
+
   public void forgetTheTestRunAndItsAccount(String provider, String testRunId, String accountId) {
     send(
         HttpRequest.newBuilder(URI.create(baseUrl + "/__simulator/" + provider + "/reset"))

@@ -24,12 +24,13 @@ Nothing has to be running first. It needs Docker and a JDK.
 | `APayerSavesACardOnAutrasHostedPageTest` | the shop's server opens a card session; the app's webview opens `hostedCardUrl`, the payer picks a card by alias and saves it, and the page prints the slugs; the shop charges the `slugToken` over autra's sale route, and a slug the page did not hand back is refused |
 | `APayerSavesACardInAzericardsWebviewTest` | the shop's server signs a card save; the app's webview posts it to `/token/cgi_link`; the payer types a published test card, reads **Payment successful** and returns to the shop's `MERCH_URL`; the shop gets the signed callback with a `TOKEN` and a masked `CARD`, reads the order with `TRTYPE=90`, then charges the card with `MERCH_TRAN_STATE=M` and gets its callback. A second walk types an unknown card, reads **Payment failed**, returns to the shop, and the callback and `TRTYPE=90` say it failed |
 | `APayerHoldsFundsInAzericardsWebviewTest` | the same webview posts a signed `TRTYPE=0` hold to `/cgi-bin/cgi_link`; the payer returns to the shop; after the callback the shop completes it in full, in part, or releases it with `TRTYPE=22`, and reads the payment back with `TRTYPE=90` |
+| `APayerFinishesTranzilasPaymentPageTest` | the shop's server locks the sum with `POST /v2/handshake/create`; the app's webview opens the DirectNG page with the `thtk`, the payer picks the published card and pays a `VK` hold, and the page posts the payer back to the shop's `success_url_address`; the shop's `notify_url_address` receives the return's fields and `ConfirmationCode`, and the shop's server forces the J5 with the `TranzilaTK` it was returned |
 | `ATrafficRowOpensTheExchangeItIsTest`   | configures a grow account by clicking, has the shop's server start a process and read it back, then on the dashboard clicks a traffic row's **This exchange** and lands on the trail narrowed to that one audit id, clicks the same row's **Exchanges** and lands on every exchange of the object it touched, and clicks **This exchange** on a row that names no object at all |
 | `ATesterReadsThePublishedApiTest`       | follows the **API** link from **This test run**, reads the first published definition with the method and path of every operation it publishes and no other, and switches through every document `index.json` lists, reading each one's title and operations                                                                                                               |
 
 ## What a mobile app's webview may ask for
 
-The five payer journeys extend `AJourneyInAMobileAppsWebview`. Each walks one chain: the shop's server calls the
+The payer journeys extend `AJourneyInAMobileAppsWebview`. Each walks one chain: the shop's server calls the
 provider's API, the app opens what the answer names in a phone-sized webview, the payer finishes the page, the payer
 lands back at the shop where the provider sends one, the shop's endpoint receives the provider's callback where the
 provider sends one, and the shop's server reads the result over the provider's API.
@@ -50,7 +51,8 @@ the run over `/__simulator`. Everything else is refused:
   journey fails. These assertions run before the webview closes and the run is reset; a failing reset is attached to a
   failing assertion as suppressed, and fails the journey on its own otherwise.
 
-A card number has leaked when a provider answer (status, headers and body), a callback, a document the webview
+A card number has leaked when a provider answer (status, headers and body), a callback, a body posted back to the
+shop's return page, a document the webview
 received, a page it rendered, the page it showed last or an address it asked for or navigated a frame to carries:
 
 - a run of 13 to 19 digits, taken across groups joined by a space or `-`, that begins with an issuer prefix and passes
@@ -60,18 +62,19 @@ received, a page it rendered, the page it showed last or an address it asked for
 A page is read when it loads and once more at the end; a change a script makes to a page without loading it is read
 only if it is still there at the end. A leak is reported by the card's last four digits, never the whole number.
 
-Every callback is found by its own identity, the process id for grow and the `ORDER` for azericard, never by its place
-in the order of arrival. The grow account and the azericard terminal each have two callback targets, and the shop's
-`notifyUrl` or `BACKREF` names the second: the callback must arrive there and nothing at the first.
+Every callback is found by its own identity, the process id for grow, the `ORDER` for azericard and the
+`transaction_id` for tranzila, never by its place in the order of arrival. The grow account and the azericard and
+tranzila terminals each have two callback targets, and the shop's `notifyUrl`, `BACKREF` or `notify_url_address` names
+the second: the callback must arrive there and nothing at the first.
 
-| Step                                   | Grow                        | Worldline                                   | Autra                               | Azericard                                  |
-|----------------------------------------|-----------------------------|---------------------------------------------|-------------------------------------|--------------------------------------------|
-| the shop's server calls the provider   | `createPaymentProcess`      | `POST .../hostedtokenizations`              | `POST /v1/acquiring/card-sessions`  | signs the form; no call                    |
-| what the app opens                     | `url`                       | `hostedTokenizationUrl`, bare or framed      | `hostedCardUrl`                     | the signed form, posted to `cgi_link`      |
-| the payer finishes                     | picks a card, pays          | picks a card, stores it                     | picks a card, saves it              | types a card, pays                         |
-| the payer lands back at the shop       | `successUrl`                | stays on the shop's page when framed         | not asserted: autra publishes no redirect | `MERCH_URL`                          |
-| the shop's endpoint is called back     | `notifyUrl`, not the account's other target, `statusCode` `11` | not asserted: webhooks are not served     | not asserted: no tokenization webhook is published, no card webhook is served | `BACKREF`, not the account's other target, signed, masked `CARD`, found by `ORDER` |
-| the shop's server reads the result     | `getPaymentProcessInfo`     | `GET .../hostedtokenizations/{id}`, then a payment | the sale's answer; `GET /v1/acquiring/payments/{id}` is not served | `TRTYPE=90`, and the MIT charge's answer |
+| Step                                   | Grow                        | Worldline                                   | Autra                               | Azericard                                  | Tranzila |
+|----------------------------------------|-----------------------------|---------------------------------------------|-------------------------------------|--------------------------------------------|----------|
+| the shop's server calls the provider   | `createPaymentProcess`      | `POST .../hostedtokenizations`              | `POST /v1/acquiring/card-sessions`  | signs the form; no call                    | `POST /v2/handshake/create` |
+| what the app opens                     | `url`                       | `hostedTokenizationUrl`, bare or framed      | `hostedCardUrl`                     | the signed form, posted to `cgi_link`      | the DirectNG page with the `thtk` |
+| the payer finishes                     | picks a card, pays          | picks a card, stores it                     | picks a card, saves it              | types a card, pays                         | picks a card, pays |
+| the payer lands back at the shop       | `successUrl`                | stays on the shop's page when framed         | not asserted: autra publishes no redirect | `MERCH_URL`                          | `success_url_address`, by an auto-submitted `POST` |
+| the shop's endpoint is called back     | `notifyUrl`, not the account's other target, `statusCode` `11` | not asserted: webhooks are not served     | not asserted: no tokenization webhook is published, no card webhook is served | `BACKREF`, not the account's other target, signed, masked `CARD`, found by `ORDER` | `notify_url_address`, not the account's other target, found by `transaction_id` |
+| the shop's server reads the result     | `getPaymentProcessInfo`     | `GET .../hostedtokenizations/{id}`, then a payment | the sale's answer; `GET /v1/acquiring/payments/{id}` is not served | `TRTYPE=90`, and the MIT charge's answer | a `force` of the J5 with the returned `TranzilaTK` |
 
 ## What it measures of the layout
 
@@ -101,11 +104,12 @@ wizard's "Next" a primary one, and that a green notice confirms each change it m
 - The browser console carried no error and no script threw.
 - The page does not scroll sideways at 390px, on the account form, the Configuration screen, the second step of the
   wizard, the payment's own screen, the API page, grow's hosted page, worldline's hosted tokenization page, autra's
-  hosted card page and azericard's card page.
+  hosted card page, azericard's card page and tranzila's payment page.
 - A form posts what the markup says it posts: every field is filled by its visible label, every button clicked by
   its visible text.
 - A redirect chain ends where it should: the payer's `303` off grow's hosted page lands on the shop's `successUrl`, and
-  azericard's **Return to the merchant** link on the shop's `MERCH_URL`.
+  azericard's **Return to the merchant** link on the shop's `MERCH_URL`, and tranzila's auto-submitted return on the
+  shop's `success_url_address`.
 
 The one thing deliberately not watched is `/favicon.ico`: the simulator ships no icon and no screen asks for one, so a
 browser fetching it on its own gets a `404` that says nothing about a journey.
@@ -144,8 +148,8 @@ with the root wrapper every time.
 |-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
 | `SimulatorUnderTest.java`                 | starts, waits for and stops the simulator, or uses one it was given                                                                    |
 | `TheBrowser.java`                         | the browser, the viewport, and the watcher that records every console error, uncaught exception, failed request and `4xx`/`5xx` answer |
-| `TheMerchant.java`                        | the shop's own endpoint: the two pages a payer is redirected to, the page that frames a provider's page, and two callback targets, with every callback found by a field it carries |
-| `TheTestSetup.java`                       | the only fixture that calls `/__simulator`: configures a grow, worldline, autra or azericard account and its callback target, and forgets the test run afterwards |
+| `TheMerchant.java`                        | the shop's own endpoint: the two pages a payer is redirected or posted back to, keeping what was posted, the page that frames a provider's page, and two callback targets, with every callback found by a field it carries |
+| `TheTestSetup.java`                       | the only fixture that calls `/__simulator`: configures a grow, worldline, autra, azericard or tranzila account and its callback target, and forgets the test run afterwards |
 | `TheProviderApi.java`                     | the shop's server's only HTTP client, which refuses any `/__simulator` or `/ui` address and keeps every answer it got                |
 | `ATesterRoute.java`                       | what counts as a `/__simulator` or `/ui` address, after the path is made canonical                                                   |
 | `ACardNumber.java`                        | what counts as a card number that leaked                                                                                             |
@@ -153,6 +157,7 @@ with the root wrapper every time.
 | `TheWebview.java`                         | a phone-sized browser context that records and aborts requests to a `/__simulator` or `/ui` address, and keeps every address, document and page it saw |
 | `NotThroughTheBrowser.java`               | what the shop's server asks of grow, worldline and autra over their own APIs                                                         |
 | `AzericardShopBackend.java`               | what the shop's server signs and asks of azericard over its own API                                                                  |
+| `TranzilaShopBackend.java`                | what the shop's server signs and asks of tranzila over its own API: the handshake and the force                                       |
 | `AJourneyInARealBrowser.java`             | what every tester journey opens, closes and asserts in common                                                                        |
 | `AJourneyInAMobileAppsWebview.java`       | what every payer journey opens, closes and asserts in common, including that neither the app nor the shop's server asked for a `/__simulator` or `/ui` address and that no card number leaked |
 | `AnAzericardWebviewJourney.java`          | the azericard terminal, the app screen that posts a signed form, and the payer's steps on azericard's card page                      |
