@@ -229,19 +229,19 @@ public final class TranzilaCompatibilityChecks {
           String trackId = json.at(created.body(), "/" + TranzilaThreeDSecureAnswers.TRACK_ID);
           Map<String, String> read = new LinkedHashMap<>();
           Matcher path = A_PATH_AFTER_ITS_HOST.matcher(String.valueOf(address));
-          if (trackId == null || !path.matches()) {
-            return read;
-          }
-          transport.send(
-              CheckRequest.form(
-                  TranzilaObjectActions.WIRE_METHOD,
-                  path.group(1),
-                  Map.of(
-                      TranzilaChallengePage.CODE, TranzilaThreeDSecureCards.THE_CODE_THAT_PASSES)));
-          CheckResponse completed = transport.send(signed(aComplete(trackId), credentials));
-          read.put("httpStatus", String.valueOf(completed.status()));
-          for (String pointer : THE_FIELDS_THE_COMPLETE_SAMPLE_PUBLISHES) {
-            Observed.put(read, theFieldAt(pointer), json.at(completed.body(), pointer));
+          if (trackId != null && path.matches()) {
+            transport.send(
+                CheckRequest.form(
+                    TranzilaObjectActions.WIRE_METHOD,
+                    path.group(1),
+                    Map.of(
+                        TranzilaChallengePage.CODE,
+                        TranzilaThreeDSecureCards.THE_CODE_THAT_PASSES)));
+            CheckResponse completed = transport.send(signed(aComplete(trackId), credentials));
+            read.put("httpStatus", String.valueOf(completed.status()));
+            for (String pointer : THE_FIELDS_THE_COMPLETE_SAMPLE_PUBLISHES) {
+              Observed.put(read, theFieldAt(pointer), json.at(completed.body(), pointer));
+            }
           }
           return read;
         });

@@ -40,11 +40,6 @@ final class TranzilaHostedFieldsAnswer {
   private TranzilaHostedFieldsAnswer() {}
 
   static TranzilaJson.JsonObject theResponseOf(
-      TranzilaTransaction transaction, TranzilaHostedFieldsRequest request) {
-    return theResponseOf(transaction, request.echo());
-  }
-
-  static TranzilaJson.JsonObject theResponseOf(
       TranzilaTransaction transaction, TranzilaHostedFieldsEcho request) {
     TranzilaCard card = transaction.card();
     boolean approved = transaction.approved();

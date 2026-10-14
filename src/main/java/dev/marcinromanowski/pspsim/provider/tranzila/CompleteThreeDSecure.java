@@ -169,11 +169,7 @@ final class CompleteThreeDSecure {
                     transactions
                         .paymentHolding(challenge.testRunId(), id.longValue())
                         .flatMap(payment -> payment.transaction(id.longValue())))
-            .orElseThrow(
-                () ->
-                    new IllegalStateException(
-                        "completing a challenge made no transaction and answered "
-                            + result.body().text()));
+            .orElseThrow();
     TranzilaChallenge completed = challenge.completedAs(transaction.transactionId(), now);
     challenges.complete(completed);
     return new Reached.Made(completed, transaction, result);
@@ -214,11 +210,7 @@ final class CompleteThreeDSecure {
   }
 
   static TranzilaJson.JsonObject theOriginalRequestOf(TranzilaChallenge challenge) {
-    return TranzilaJsonReader.objectIn(challenge.originalRequest())
-        .orElseThrow(
-            () ->
-                new IllegalStateException(
-                    "the store holds an original_request that is no JSON object"));
+    return TranzilaJsonReader.objectIn(challenge.originalRequest()).orElseThrow();
   }
 
   private void observe(

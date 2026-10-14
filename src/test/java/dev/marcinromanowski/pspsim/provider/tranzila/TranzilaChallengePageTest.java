@@ -115,6 +115,9 @@ class TranzilaChallengePageTest {
 
     TranzilaApiResponse answered = answer("554");
 
+    AuditRecord inbound = theRow(AuditDirection.INBOUND_REQUEST);
+    assertThat(inbound.method()).isEqualTo("POST");
+    assertThat(inbound.sanitizedBody()).containsEntry("code", List.of("554"));
     assertThat(answered.outcome()).isEqualTo(ProviderOutcome.FAILURE);
     assertThat(bodyOf(answered)).contains(TranzilaChallengePage.FAILED).doesNotContain("<form");
     assertThat(theRow(AuditDirection.OUTBOUND_RESPONSE).refusal())
@@ -251,6 +254,47 @@ class TranzilaChallengePageTest {
         .isEqualTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(21)));
     assertThat(theRow(AuditDirection.INBOUND_REQUEST).resolutionRule())
         .isEqualTo(TestRunResolutionRule.OBJECT_CORRELATION);
+  }
+
+  @Test
+  void a_continuation_is_recorded_and_answered_on_the_terminal_of_the_run_holding_its_challenge() {
+    aHandshake("10");
+    charge(aCharge());
+    answer("555");
+    wired.terminals.remove(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT);
+    wired.terminals.with(
+        TranzilaDoubles.terminal(
+            dev.marcinromanowski.pspsim.kernel.testrun.TestRunId.of("another-run"),
+            TranzilaWiring.ACCOUNT,
+            TranzilaWiring.TERMINAL));
+    wired.terminals.with(
+        TranzilaDoubles.terminal(
+            TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, TranzilaWiring.TERMINAL));
+
+    TranzilaApiResponse continued = continueOn(TRACK, TranzilaWiring.TERMINAL);
+
+    assertThat(bodyOf(continued)).contains("\"success\":true");
+    AuditRecord inbound = theRow(AuditDirection.INBOUND_REQUEST);
+    assertThat(inbound.sanitizedBody())
+        .containsEntry("track_id", List.of(TRACK))
+        .containsEntry("supplier", List.of(TranzilaWiring.TERMINAL));
+    assertThat(inbound.resolutionRule()).isEqualTo(TestRunResolutionRule.OBJECT_CORRELATION);
+  }
+
+  @Test
+  void a_continuation_naming_another_terminal_of_the_run_is_resolved_by_that_terminal_only() {
+    aHandshake("10");
+    charge(aCharge());
+    answer("555");
+    wired.terminals.with(
+        TranzilaDoubles.terminal(TranzilaWiring.RUN, "account-2", "otherterminal"));
+
+    TranzilaApiResponse continued = continueOn(TRACK, "otherterminal");
+
+    assertThat(bodyOf(continued)).contains("\"code\":900");
+    assertThat(theRow(AuditDirection.INBOUND_REQUEST).resolutionRule())
+        .isEqualTo(TestRunResolutionRule.ACCOUNT_CREDENTIALS);
+    assertThat(wired.challenges.all().get(0).isCompleted()).isFalse();
   }
 
   @Test
@@ -462,7 +506,8 @@ class TranzilaChallengePageTest {
   void a_reset_of_every_run_clears_every_challenge() {
     challenged("");
 
-    wired.provider.reset(TranzilaWiring.RUN, ResetScope.ALL);
+    assertThat(wired.provider.reset(TranzilaWiring.RUN, ResetScope.ALL).clearedObjects())
+        .isEqualTo(1);
 
     assertThat(wired.challenges.all()).isEmpty();
   }

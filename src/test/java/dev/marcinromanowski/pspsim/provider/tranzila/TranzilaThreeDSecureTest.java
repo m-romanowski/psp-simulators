@@ -392,6 +392,56 @@ class TranzilaThreeDSecureTest {
     assertThat(kept)
         .extracting(RecordedKeyedRequest::verdict)
         .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
+    assertThat(kept).extracting(RecordedKeyedRequest::stateChanged).containsExactly(true, false);
+  }
+
+  @Test
+  void a_completed_challenge_of_another_account_or_of_the_hosted_fields_is_kept_as_no_duplicate() {
+    wired.create(aSecureDebit(CHALLENGED, ""));
+    TranzilaChallenge made = wired.challenges.all().get(0);
+    wired.challenges.clearAll();
+    wired.challenges.open(
+        ofTheAccount(made, "another-account")
+            .answered(TranzilaChallenge.Verdict.PASSED, TranzilaWiring.NOW)
+            .completedAs(1L, TranzilaWiring.NOW));
+    String another = complete(THE_FIRST_TRACK);
+    wired.challenges.clearAll();
+    wired.challenges.open(
+        onTheHostedFields(made)
+            .answered(TranzilaChallenge.Verdict.PASSED, TranzilaWiring.NOW)
+            .completedAs(1L, TranzilaWiring.NOW));
+    String hosted = complete(THE_FIRST_TRACK);
+
+    assertThat(another).isEqualTo(hosted).contains("\"error_code\":900");
+    assertThat(underTheTrack(THE_FIRST_TRACK)).isEmpty();
+  }
+
+  static TranzilaChallenge ofTheAccount(TranzilaChallenge made, String accountId) {
+    return new TranzilaChallenge(
+        made.trackId(),
+        made.testRunId(),
+        accountId,
+        made.terminalName(),
+        made.transactionId(),
+        made.type(),
+        made.verifyMode(),
+        made.amount(),
+        made.currencyCode(),
+        made.token(),
+        made.card(),
+        made.responseCvv(),
+        made.responseId(),
+        made.dcDisable(),
+        made.forceTxnOnFail(),
+        made.originalRequest(),
+        made.redirectUrl(),
+        made.redirectParams(),
+        made.hostedFields(),
+        made.origin(),
+        made.createdAt(),
+        made.payerVerdict(),
+        made.answeredAt(),
+        made.completedAt());
   }
 
   @Test
