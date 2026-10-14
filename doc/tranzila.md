@@ -17,6 +17,7 @@ inference, simulator decision. No live probe: no sandbox host, test terminal or 
 | `POST /v2/handshake/create`                                    | mints a `thtk` bound to terminal and `sum`, 20 minutes                                                         |                                                                                                          |
 | `POST /v1/transactions`                                        | lookup by `transaction_index` or date range                                                                   | amounts in minor units, as strings (inference)                                                           |
 | `GET`/`POST /tranzila/directng/{terminal}/iframenew.php`       | the payer page: tranmodes `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; browser return and notify                      | the page is the simulator's own; notify unsigned; wallet buttons not served                              |
+| `/tranzila/3ds/challenge/{track_id}`                            | the challenge page a 3-D Secure create answers in `challengeUrl`: a code, `555` passes                       | the page is the simulator's own; its address is unpublished                                              |
 | `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           | `card_mask` keeps only the last four; which refusal answers which code is a simulator decision; the notify uses the payment page's format |
 | `POST /tranzila/report/v1/transaction`                         | lookup by `transaction_index` or date range, amounts in minor units                                           | `ufields`, `dfields` refused                                                                             |
 | STO / My Billing, Bit, PayPal, MASAV, invoices, EMV PinPad, payment requests, legacy CGI, `direct.tranzila.com`, Handshake V1, instalments | **not served** |                                                                                     |
@@ -68,7 +69,8 @@ Where the two card API pages disagree, the visible Transactions API page governs
 | `https://report.tranzila.com`    | `/tranzila/report`                         | published schema                                                                         |
 
 Simulator decision: the three non-API hosts sit under a prefix because the payment page's first path segment is the
-terminal name, which at the root would shadow every other route. The pairing screen publishes one base URL per host,
+terminal name, which at the root would shadow every other route. The 3-D Secure challenge page is served under `/tranzila/3ds`, an address of this simulator,
+because Tranzila publishes only that its address arrives in `challengeUrl`. The pairing screen publishes one base URL per host,
 and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs. Pairing publishes
 `TRANZILA_API_BASE_URL` (`/v1`), `TRANZILA_API_V2_BASE_URL` (`/v2`), `TRANZILA_DIRECTNG_BASE_URL`
 (`/tranzila/directng`) and `TRANZILA_HF_BASE_URL` (`/tranzila/hf`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
@@ -278,6 +280,7 @@ application error codes, response code will be **success (200)**". The simulator
 | `015` | "Expired card. Please check the expiration date again."                                              | a scenario's decline                          |
 | `016` | "Unauthorized currency."                                                                             | a scenario's decline                          |
 | `017` | "Unauthorized credit type for this transaction."                                                     | a scenario's decline                          |
+| `900`–`928`, `930` | "Transaction failed at 3D Secure authentication stage." … (3DS Errors tab); `900` answered with the API's own "Transaction failed during 3D Secure validation" | a failed 3-D Secure authentication ("3-D Secure"), or a scenario's decline |
 
 `shva` ("Pending SHVA response.") and `010` ("Partial confirmation") are never answered: no published read resolves a
 pending answer, and no published field carries a partially confirmed amount.
@@ -316,24 +319,59 @@ with 3DS statuses; not authorised, which ends the flow unless `force_txn_on_3ds_
 
 | Outcome       | Simulator                                                                                                                       |
 |---------------|---------------------------------------------------------------------------------------------------------------------------------|
-| frictionless  | the normal create answer plus `t3ds_data`                                                                                       |
-| failed        | `200`, `error_code` `900`; with `force_txn_on_3ds_fail` `Y`, the normal create answer without 3-D Secure                        |
-| challenge     | `200`, `{"error_code": 0, "message": "success", "challengeUrl": "…", "track_id": "…"}`; `challengeUrl` names this simulator's challenge page |
+| frictionless  | the normal create answer plus `t3ds_data`, placed before `original_request`                                                      |
+| failed        | `200`, `error_code` `900` (or the 3DS code a scenario names), the decline envelope ("Response Codes") and a transaction recorded with that code; with `force_txn_on_3ds_fail` `Y`, the normal create answer without 3-D Secure |
+| challenge     | `200`, `{"error_code": 0, "message": "success", "challengeUrl": "…", "track_id": "…"}`; `challengeUrl` names this simulator's challenge page; no transaction yet |
+
+- 3-D Secure authenticates the card holder of a `debit` or a `verify` (`2` or `5`); `activate_3ds` `Y` on a `force`,
+  `reversal`, `credit` or `cancel` is refused `20004` (simulator decision: those act on a transaction already made).
+- `3ds_settings` is read as the schema types it: `browser` members of the published names and types (`java_enabled`
+  `0`/`1`, `color_depth` of its enum, `screen_height`/`screen_width` not negative, `time_zone` an integer, the rest
+  strings), `force_txn_on_3ds_fail` `Y`/`N`, `force_challenge` `0`/`1` as integers; anything else is refused `20004`,
+  also when `activate_3ds` is not `Y`.
+- `t3ds_data` (simulator decision, the published example's values): `version` `1.0`, `statusCode` `YA`,
+  `statusMessage` `Authenticated successfully.`, `eci` `05`; `xid` and `cavv` are 20 bytes drawn for each answer,
+  base64, never stored and withheld from the trail and the idempotency inspector, as `challengeUrl` is.
 
 Simulator decision: the challenge answer's shape is unpublished (no `200` schema for create); the two names are the
-prose's `challengeUrl` and the complete body's `track_id`. Redirect after the challenge ("Vendor Contradictions"): a
-top-level `auth_3ds_redirect` `{url, params}`, as the complete example's `original_request` carries it, is admitted on
-create and supplies the URL and params; `3ds_settings.auth_3ds_redirect`, an array of `{key, value}` with no URL,
-supplies params only; with neither, the browser is not redirected and the result reaches the client only through
-complete.
+prose's `challengeUrl` and the complete body's `track_id`. `track_id` is `3ds_` and 40 lowercase hex digits. Redirect
+after the challenge ("Vendor Contradictions"): a top-level `auth_3ds_redirect` `{url, params}`, as the complete
+example's `original_request` carries it, is admitted on create and supplies the URL (an absolute `http` or `https`
+address) and params; `3ds_settings.auth_3ds_redirect`, an array of `{key, value}` with no URL, supplies params after
+them, a key both name keeping the top-level value; with no URL, the browser is not redirected and the result reaches
+the client only through complete.
 
-Complete: `POST /v1/transaction/credit_card/3ds/complete`, `{track_id, terminal_name}` (published schema). Answers the
-published example's shape: `transaction_result` with string values (`transaction_id: "372803"`, `card_type: "2"`,
-`expiry_year: "25"`), `t3ds_data` `{version, statusCode, statusMessage, xid, cavv, eci}`, and `original_request` with a
-masked card. A `track_id` already completed or unknown → `900`.
+The challenge page (simulator decision; Tranzila publishes only that the browser opens `challengeUrl`):
+
+| Route                                     | What it does                                                                                   |
+|-------------------------------------------|------------------------------------------------------------------------------------------------|
+| `GET /tranzila/3ds/challenge/{track_id}`  | the amount, the card's type and last four, and a field for the code; framable, so no `frame-ancestors` |
+| `POST /tranzila/3ds/challenge/{track_id}` | `code` `555` passes, any other code fails, once; then the browser is `POST`ed to `auth_3ds_redirect.url` with the params and `track_id` (a param named `track_id` is not echoed), by the payment page's auto-submitting form; with no URL the page says whether the card holder was authenticated |
+
+A challenge answered once answers `410`; one this simulator does not hold `404`.
+
+Complete: `POST /v1/transaction/credit_card/3ds/complete`, `{track_id, terminal_name}` (published schema), both
+required strings, nothing else; authenticated as create. Answers the published example's shape: `transaction_result`
+with string values (`transaction_id: "372803"`, `card_type: "2"`, `expiry_month: "09"`, `expiry_year: "25"`,
+`payment_plan: "1"`), `amount` a number, `card_mask` with `*`, `message` `Success`, `t3ds_data`
+`{version, statusCode, statusMessage, xid, cavv, eci}`, and `original_request` as create sent it, card masked and
+`cvv` `***`.
+
+| Complete of                                        | Answer                                                                   |
+|----------------------------------------------------|--------------------------------------------------------------------------|
+| a challenge the payer passed                       | the transaction made now, under the run's scenario rules for its `debit` or `verify`; the complete shape with `t3ds_data`, or the decline envelope |
+| a challenge the payer failed                       | `900` and the decline envelope, the transaction recorded `900`; with `force_txn_on_3ds_fail` `Y`, the transaction made as passed, answered without `t3ds_data` |
+| a challenge the payer has not answered             | `900` `{"error_code":900,"message":"Transaction failed during 3D Secure validation"}`; the challenge stays open |
+| a challenge already completed, an unknown `track_id`, a challenge of another terminal or of the Hosted Fields | `900`, as above                                           |
+| a challenge whose `DCdisable` an approved transaction took meanwhile | the duplicate answer ("Duplicates and DCdisable"), naming that transaction |
+
+A J5 completed from a challenge is held `tranzila.j5-validity` from its completion. The idempotency inspector keeps
+`track_id` as a duplicate-detection key: the completion that ran, and each later one refused `900`.
 
 Which card takes which outcome: the published test cards (`PB/hosted-fields`, "Test Credit Card Numbers for 3DS"),
-otherwise the run's scenario:
+by the number sent, or for a token by its card's first six and last four; otherwise the run's scenario on the
+operation `3ds`: a failure code of the 3DS table (`900`–`928`, `930`) fails the authentication with that code, a
+success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly.
 
 | Card               | Published outcome                  |
 |--------------------|------------------------------------|
@@ -588,6 +626,21 @@ classes are set on the input in the frame as well as on the merchant's container
   `errors:[{code, param, message}]` with codes `10000`–`10016` (published rule, "Error Messages").
 - 3-D Secure: a `challengeUrl` in the answer opens the simulator's challenge page in a frame; on success the script
   posts `{track_id, supplier}` to the process route and the result reaches the `charge` callback (vendor script).
+  Every charge is authenticated, as a terminal enrolled in the service is ("only if your terminal has enrolled in the
+  service", published rule): the typed number decides by the published test cards, otherwise the run's scenario on
+  `3ds` and `force_challenge` (`1` challenges, anything else does not), as on the API. `force_txn_on_3ds_fail` is `Y`
+  unless sent `N` (published default), so the frictionless fail card is charged by default. A challenge answers
+  `{"challengeUrl":"…","track_id":"…"}` with no `response_hash` (simulator decision: it is no final answer), records
+  nothing and notifies nothing; the hidden frame tells the merchant's page, at that page's origin, to open
+  `challengeUrl` on this script's own origin in a frame of the vendor script's size (400×650, in a 410×650 holder,
+  bounded by the viewport) with a close control that calls nothing back, as the vendor script's does. The answered
+  challenge page tells the frames of its own origin beside it the `track_id` and nothing else; the hidden frame takes
+  it only from a frame of its own origin under the same page, for a challenge it is waiting on, and posts `track_id` and
+  `supplier`; its answer closes the challenge frame and reaches the `charge` callback, hashed. That continuation
+  completes the challenge as complete does (one transaction, once), renews the `thtk` when approved and sends the
+  notify. A continuation of no challenge waiting to be completed, or of one the payer has not answered, answers
+  `errors` `[{code: 900, param: "track_id", message: "Transaction failed during 3D Secure validation"}]`; a
+  `supplier` naming no terminal of the run answers `10013` with `param` `supplier`.
 - No server-side verification of a Hosted Fields result is published; `response_hash` is the only proof.
 
 Server refusals answer `200` `{"errors":[{code, param, message}],"transaction_response":null,"response_hash":…}`,
@@ -627,7 +680,8 @@ Tranzila has no status field. Every transaction is an object of its own; its nat
 | `verify` `5` forced                                      | `SUCCEEDED`                                    |
 | original with a credit below its amount / equal to it    | `PARTIALLY_REFUNDED` / `REFUNDED`              |
 | cancelled `debit`                                        | `CANCELLED`                                    |
-| challenged 3-D Secure, not completed                     | `NOT_INITIALIZED`                              |
+| 3-D Secure challenge `challenge awaiting the payer`, `challenge passed, not completed`, `challenge failed, not completed` | `NOT_INITIALIZED` |
+| 3-D Secure challenge completed                           | the native and normalized status of the transaction it made, or of the duplicate it answered |
 | any decline, `900`                                       | `FAILED`                                       |
 | `force`, `credit`, `reversal`, `cancel` approved / declined | `SUCCEEDED` / `FAILED`                      |
 | cancelled `force` or `credit`                            | `CANCELLED`                                    |
@@ -653,7 +707,7 @@ not count. An original whose `credit` was cancelled returns to its normalized st
 | `/v2/handshake/create`                | `400`, `401`                                | `error_code` equal to the HTTP status                                                      | published example              |
 | under `/v2/handshake/create`          | unknown address `404`; wrong method `405`  | the handshake's shape, `{"error_code":404,"message":"The specified resource was not found"}`, `405` with "This address does not answer this HTTP method" | simulator decision |
 | `report.tranzila.com`                 | `400`, `401`                                | `{"error":"Bad Request","message":"terminal_name is required."}`, `{"error":"Unauthorized","message":"Invalid access token. …"}` | published example |
-| payment page, Hosted Fields frames    | refusal                                     | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng` and `/tranzila/hf`: `404` no such terminal or page, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed | simulator decision |
+| payment page, Hosted Fields frames, 3-D Secure challenge | refusal                  | a simulator-written HTML page under the page's own policy and `Cache-Control: no-store`, also for an unknown address or a wrong method under `/tranzila/directng`, `/tranzila/hf` and `/tranzila/3ds`: `404` no such terminal, page or challenge, `400` a parameter or a `thtk` refused, `422` a payment refused (the page stays open), `409` being completed by another submission, `410` already completed or a challenge already answered | simulator decision |
 | Hosted Fields charge                  | refusal                                     | `200`, `errors` ("Hosted Fields")                                                          | published rule, simulator decision |
 
 The `Error` schema's `'response '` key (trailing space) is not answered: it is not required.
@@ -686,6 +740,7 @@ and `google_pay` are ignored).
 | error envelopes                | `error_code` integer in `200` bodies; string in the `Error` schema                    | `error_code` = HTTP status (Handshake V2); `{error, message}` (reports)                            | each host as published                     |
 | field types                    | `transaction_id` integer, `auth_number` string (API schema)                            | strings `"372803"` (3DS complete), `"97588"` (Hosted Fields)                                       | each route as its example                  |
 | `force_txn_on_3ds_fail` default | `Y` (Hosted Fields)                                                                   | `N` (3DS schema)                                                                                   | each surface as published                  |
+| Hosted Fields challenge frame  | "an iframe (400x600)" (prose)                                                          | 400×650 in a 410×650 holder (vendor script)                                                        | the vendor script's                        |
 | `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only |
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |
@@ -705,6 +760,8 @@ and `google_pay` are ignored).
 | partial `reversal`; `cancel` after settlement                | full reversal only; `cancel` any time                          |
 | arithmetic of discounts and exchange rates                   | refused `20004`                                                |
 | 3-D Secure create challenge answer; redirect method          | `challengeUrl` + `track_id`; browser `POST` to `auth_3ds_redirect.url` |
+| 3-D Secure challenge page, its failing codes, the fields posted back | the simulator's page; any code but `555` fails; the params and `track_id` |
+| `t3ds_data` values of a simulated authentication              | the published example's, `xid` and `cavv` drawn per answer      |
 | full notify field list, signature, retry schedule, on decline | the return's fields plus `ConfirmationCode`, unsigned, simulator retry plan, sent |
 | page `K` answer (no transaction recorded)                    | `Response` per `tranzila.verification-approval-code` (inference from the `777` text), `TranzilaTK`, no `index` |
 | the page's form and its cards                                | the published test card and the run's fixtures, picked by alias |
