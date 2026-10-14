@@ -60,6 +60,74 @@ class ProviderVocabularyTest {
           ProcessingStates.noneOfThem("this provider names no processing state"));
 
   @Test
+  void every_operation_answers_the_provider_wide_codes_unless_the_vocabulary_names_its_own() {
+    ProviderVocabulary split =
+        withTheCodesOf(Map.of("capture", new FailureCodes("[A-Z]", "a letter")));
+
+    assertThat(vocabulary.theCodesOf("capture")).isSameAs(vocabulary.failureCodes());
+    assertThat(vocabulary.theCodesOf(null)).isSameAs(vocabulary.failureCodes());
+    assertThat(vocabulary.theCodesAnswered("capture").test("DECLINED")).isTrue();
+    assertThat(vocabulary.theCodesAnswered("capture").test("declined")).isFalse();
+    assertThat(split.theCodesOf("capture").describedAs()).isEqualTo("a letter");
+    assertThat(split.theCodesOf("ping")).isSameAs(split.failureCodes());
+    assertThat(split.theCodesAnswered("capture").test("X")).isTrue();
+    assertThat(split.theCodesAnswered("capture").test("XY")).isFalse();
+    assertThat(split.theCodesAnswered(null).test("XY")).isTrue();
+  }
+
+  @Test
+  void a_rule_naming_an_operation_and_a_code_it_does_not_answer_is_refused_naming_both() {
+    ProviderVocabulary split =
+        withTheCodesOf(Map.of("capture", new FailureCodes("[A-Z]", "a letter")));
+
+    assertThat(split.refusals(aFailing("capture", "DECLINED")))
+        .containsExactly(
+            new ScenarioRefusal(
+                "action.providerCode",
+                "operation capture of provider twokeys answers no failure code DECLINED: it"
+                    + " answers a letter"));
+    assertThat(split.refusals(aFailing("capture", "X"))).isEmpty();
+    assertThat(split.refusals(aFailing("ping", "DECLINED"))).isEmpty();
+    assertThat(split.refusals(aFailing(null, "DECLINED"))).isEmpty();
+    assertThat(vocabulary.refusals(aFailing("capture", "DECLINED"))).isEmpty();
+    assertThat(split.refusals(aFailing("capture", "lower")))
+        .extracting(ScenarioRefusal::reason)
+        .containsExactly("this provider declines with an upper-case word");
+  }
+
+  @Test
+  void codes_of_an_operation_the_vocabulary_does_not_expose_are_refused_when_it_is_built() {
+    assertThatThrownBy(
+            () -> withTheCodesOf(Map.of("refund", new FailureCodes("[A-Z]", "a letter"))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "operation refund is declared to answer failure codes of its own, and the same"
+                + " vocabulary exposes no operation of that name");
+  }
+
+  private ProviderVocabulary withTheCodesOf(Map<String, FailureCodes> codes) {
+    return new ProviderVocabulary(
+        vocabulary.provider(),
+        vocabulary.operations(),
+        vocabulary.factsItNeverCarries(),
+        vocabulary.failureCodes(),
+        vocabulary.processingStates(),
+        codes);
+  }
+
+  private static NewScenarioRule aFailing(@Nullable String operation, String code) {
+    return new NewScenarioRule(
+        PROVIDER,
+        RUN,
+        0,
+        operation == null
+            ? ScenarioMatch.anyRequest()
+            : ScenarioMatch.anyRequest().naming(operation),
+        new ScenarioAction.TerminalFailure(code),
+        null);
+  }
+
+  @Test
   void publishes_the_operations_a_scenario_may_name_without_a_candidate_rule_being_built() {
     assertThat(vocabulary.operationNames())
         .containsExactly("openSession", "readSession", "capture", "ping");

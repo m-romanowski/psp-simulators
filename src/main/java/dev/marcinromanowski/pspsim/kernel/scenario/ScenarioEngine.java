@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 public final class ScenarioEngine {
@@ -18,7 +19,12 @@ public final class ScenarioEngine {
   }
 
   public ScenarioDecision decide(ScenarioRequest request) {
-    List<ScenarioRule> matching = theRulesThisRequestMatches(request);
+    return decide(request, code -> true);
+  }
+
+  public ScenarioDecision decide(
+      ScenarioRequest request, Predicate<String> theCodesItsOperationAnswers) {
+    List<ScenarioRule> matching = theRulesThisRequestMatches(request, theCodesItsOperationAnswers);
     List<StoryKey> keys = theKeysTheStepsAmongThemStandOn(request, matching);
     return rules.decidingOneRequestAtATimeAbout(
         request.provider(),
@@ -27,14 +33,23 @@ public final class ScenarioEngine {
         () -> theStepThisRequestIsOwed(request, matching, keys));
   }
 
-  private List<ScenarioRule> theRulesThisRequestMatches(ScenarioRequest request) {
+  private List<ScenarioRule> theRulesThisRequestMatches(
+      ScenarioRequest request, Predicate<String> theCodesItsOperationAnswers) {
     List<ScenarioRule> matching = new ArrayList<>();
     for (ScenarioRule rule : rules.of(request.provider(), request.testRunId())) {
-      if (rule.action() instanceof ScenarioAction.OnTheRequest && rule.match().matches(request)) {
+      if (rule.action() instanceof ScenarioAction.OnTheRequest
+          && rule.match().matches(request)
+          && itsCodeIsOneTheOperationAnswers(rule.action(), theCodesItsOperationAnswers)) {
         matching.add(rule);
       }
     }
     return List.copyOf(matching);
+  }
+
+  static boolean itsCodeIsOneTheOperationAnswers(
+      ScenarioAction action, Predicate<String> theCodesItsOperationAnswers) {
+    String code = action.theProviderCodeItComesToRestWith();
+    return code == null || theCodesItsOperationAnswers.test(code);
   }
 
   private static List<StoryKey> theKeysTheStepsAmongThemStandOn(

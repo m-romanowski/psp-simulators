@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 public record ProviderVocabulary(
@@ -22,9 +23,19 @@ public record ProviderVocabulary(
     List<ProviderOperation> operations,
     Map<MatchFact, String> factsItNeverCarries,
     FailureCodes failureCodes,
-    ProcessingStates processingStates) {
+    ProcessingStates processingStates,
+    Map<String, FailureCodes> theCodesAnOperationAnswers) {
 
   private static final String ANY_OPERATION = "a step naming no operation";
+
+  public ProviderVocabulary(
+      ProviderId provider,
+      List<ProviderOperation> operations,
+      Map<MatchFact, String> factsItNeverCarries,
+      FailureCodes failureCodes,
+      ProcessingStates processingStates) {
+    this(provider, operations, factsItNeverCarries, failureCodes, processingStates, Map.of());
+  }
 
   public ProviderVocabulary {
     if (operations.isEmpty()) {
@@ -58,8 +69,27 @@ public record ProviderVocabulary(
       }
     }
     refuseAProcessingStateOnAnOperationThisProviderDoesNotExpose(byName, processingStates);
+    for (String operation : theCodesAnOperationAnswers.keySet()) {
+      if (!byName.containsKey(operation)) {
+        throw new IllegalArgumentException(
+            "operation "
+                + operation
+                + " is declared to answer failure codes of its own, and the same vocabulary"
+                + " exposes no operation of that name");
+      }
+    }
     operations = List.copyOf(operations);
     factsItNeverCarries = Map.copyOf(factsItNeverCarries);
+    theCodesAnOperationAnswers = Map.copyOf(theCodesAnOperationAnswers);
+  }
+
+  public FailureCodes theCodesOf(@Nullable String operation) {
+    FailureCodes its = operation == null ? null : theCodesAnOperationAnswers.get(operation);
+    return its == null ? failureCodes : its;
+  }
+
+  public Predicate<String> theCodesAnswered(@Nullable String operation) {
+    return theCodesOf(operation)::admits;
   }
 
   private static void refuseAProcessingStateOnAnOperationThisProviderDoesNotExpose(
@@ -108,6 +138,7 @@ public record ProviderVocabulary(
   public List<ScenarioRefusal> refusals(NewScenarioRule rule) {
     List<ScenarioRefusal> refused = new ArrayList<>();
     refuseACodeThisProviderNeverAnswers(rule.action(), refused);
+    refuseACodeTheNamedOperationNeverAnswers(rule, refused);
     refuseAProcessingStateThisProviderCannotReport(rule, refused);
     refuseAFactThisProviderNeverCarries(rule.match(), refused);
     refuseAnOperationThisProviderDoesNotExpose(rule.match().operation(), refused);
@@ -171,6 +202,29 @@ public record ProviderVocabulary(
     String named = action.theProviderCodeItComesToRestWith();
     if (named != null && !failureCodes.admits(named)) {
       refused.add(new ScenarioRefusal("action.providerCode", failureCodes.describedAs()));
+    }
+  }
+
+  private void refuseACodeTheNamedOperationNeverAnswers(
+      NewScenarioRule rule, List<ScenarioRefusal> refused) {
+    String named = rule.action().theProviderCodeItComesToRestWith();
+    String operation = rule.match().operation();
+    if (named == null || operation == null || !failureCodes.admits(named)) {
+      return;
+    }
+    FailureCodes its = theCodesOf(operation);
+    if (!its.admits(named)) {
+      refused.add(
+          new ScenarioRefusal(
+              "action.providerCode",
+              "operation "
+                  + operation
+                  + " of provider "
+                  + provider.value()
+                  + " answers no failure code "
+                  + named
+                  + ": it answers "
+                  + its.describedAs()));
     }
   }
 
