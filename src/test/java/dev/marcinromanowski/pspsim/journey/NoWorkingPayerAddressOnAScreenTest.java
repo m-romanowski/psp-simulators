@@ -48,6 +48,30 @@ class NoWorkingPayerAddressOnAScreenTest {
   }
 
   @Test
+  void every_payer_route_the_build_declares_beyond_a_wizards_page_is_a_registered_submission() {
+    java.util.Map<String, List<String>> declaredBeyond = new java.util.TreeMap<>();
+    for (dev.marcinromanowski.pspsim.documentation.PayerPageAddresses.Declared declared :
+        dev.marcinromanowski.pspsim.documentation.PayerPageAddresses.inTheBuild(
+                java.nio.file.Path.of("build", "classes", "java", "main"))
+            .declared()) {
+      if (!NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES
+          .getOrDefault(declared.provider(), List.of())
+          .contains(declared.route())) {
+        declaredBeyond
+            .computeIfAbsent(declared.provider(), provider -> new java.util.ArrayList<>())
+            .add(declared.route());
+      }
+    }
+
+    assertThat(declaredBeyond)
+        .as(
+            "a route declared as a payer's page and promised by no wizard is one a payer submits"
+                + " to, and the sweep reads it only once it is registered")
+        .containsExactlyEntriesOf(
+            NoWorkingPayerAddressOnAScreen.THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO);
+  }
+
+  @Test
   void an_address_kept_on_a_row_and_printed_as_a_path_is_refused_the_same_way() {
     assertThatCode(
             () ->
