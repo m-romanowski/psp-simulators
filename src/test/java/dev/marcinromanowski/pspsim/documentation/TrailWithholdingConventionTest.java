@@ -200,7 +200,7 @@ class TrailWithholdingConventionTest {
   }
 
   @Test
-  void the_compiled_build_holds_five_modules_and_every_one_of_them_declares_what_it_withholds() {
+  void the_compiled_build_holds_every_module_and_every_one_of_them_declares_what_it_withholds() {
     TheBuild build = TrailWithholdingDeclarations.inTheBuild(COMPILED_MAIN);
 
     assertThat(build.providers())
