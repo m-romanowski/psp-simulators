@@ -227,7 +227,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineFields");
     assertThat(TrailWithholdingConvention.howManyFieldsAreWithheld(build.modules()))
         .as("the second denominator: the fields these declarations name between them")
-        .isEqualTo(22);
+        .isEqualTo(34);
     assertThat(TrailWithholdingConvention.verdictOn(COMPILED_MAIN).offences())
         .as("the build under test keeps the rule this gate enforces")
         .isEmpty();
@@ -257,6 +257,18 @@ class TrailWithholdingConventionTest {
             "TranzilaTK",
             "myid",
             "transaction_response.token",
+            "card_number",
+            "cvv",
+            "card_holder_id",
+            "credit_card_number",
+            "card_holder_id_number",
+            "identity_number",
+            "transaction_response.user_form_data.card_number",
+            "transaction_response.user_form_data.cvv",
+            "transaction_response.user_form_data.card_holder_id",
+            "transaction_response.user_form_data.myid",
+            "transaction_response.user_form_data.credit_card_number",
+            "transaction_response.user_form_data.card_holder_id_number",
             "transaction_response.user_form_data.identity_number",
             "transactions.credit_card_token",
             "transactions.credit_card_owner_id");
@@ -326,7 +338,7 @@ class TrailWithholdingConventionTest {
                 + " SENSITIVE_RESPONSE_FIELDS")
         .contains("leaves " + THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE + " name(s)")
         .contains("dev.marcinromanowski.pspsim.provider.autra.AutraPixEvent FINANCIAL_TRANSACTION");
-    assertThat(read.get(2)).contains("read 22 withheld response field(s)");
+    assertThat(read.get(2)).contains("read 34 withheld response field(s)");
     assertThat(read.get(3)).contains("examined 31 published name(s) that read as an address");
     assertThat(read.get(4)).contains("27 of those address(es) are registered").contains("over 6");
     assertThat(read.get(5))
@@ -372,7 +384,7 @@ class TrailWithholdingConventionTest {
         .contains(
             "5 of the 6 provider module(s) mint a delivery: [autra, azericard, grow, stripe,"
                 + " tranzila]")
-        .contains("withholding 8 delivered field(s)");
+        .contains("withholding 13 delivered field(s)");
     assertThat(read.get(10))
         .contains(
             "[dev.marcinromanowski.pspsim.provider.stripe.StripeWebhookRendering] mint one out of a body");
@@ -714,16 +726,16 @@ class TrailWithholdingConventionTest {
 
     assertThat(excused.asAnEntryOfItsOwnDeclaration())
         .as(
-            "the 22 response entries and the 8 delivered entries the declarations of this build"
+            "the 34 response entries and the 13 delivered entries the declarations of this build"
                 + " name, each excused in the initializer that stores it")
-        .isEqualTo(30);
+        .isEqualTo(47);
     assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(206);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(594);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(591);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(830);
+        .isEqualTo(844);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"
@@ -1809,7 +1821,7 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaFields");
     assertThat(TrailWithholdingConvention.howManyDeliveredFieldsAreWithheld(deliveries.modules()))
         .as("the second denominator: the fields these declarations name between them")
-        .isEqualTo(8);
+        .isEqualTo(13);
     assertThat(deliveries.theClassesThatKeepADeliveryRow())
         .containsExactly("dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher");
     assertThat(deliveries.theMethodsThatKeepADeliveryRow())
@@ -1858,7 +1870,15 @@ class TrailWithholdingConventionTest {
         .as("registered as a body that holds nothing this build withholds")
         .isEmpty();
     assertThat(theDeliveryOf("tranzila").theFieldsItWithholds())
-        .containsExactlyInAnyOrder("TranzilaTK", "myid", "identity_number");
+        .containsExactlyInAnyOrder(
+            "TranzilaTK",
+            "card_number",
+            "cvv",
+            "card_holder_id",
+            "myid",
+            "credit_card_number",
+            "card_holder_id_number",
+            "identity_number");
     assertThat(theDeliveryOf("worldline").theClassesThatMintADelivery())
         .as("worldline mints no delivery at all, so it owes this rule nothing")
         .isEmpty();

@@ -1,18 +1,15 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 
 record TranzilaUserSlot(int fieldId, String name, Instant firstRecordedAt) {
 
-  record FirstRecorded(String name, Instant at) {}
+  static final int THE_MOST_SLOTS = 25;
 
-  static List<TranzilaUserSlot> numbered(List<FirstRecorded> inTheOrderFirstRecorded) {
-    List<TranzilaUserSlot> slots = new ArrayList<>();
-    for (FirstRecorded first : inTheOrderFirstRecorded) {
-      slots.add(new TranzilaUserSlot(slots.size() + 1, first.name(), first.at()));
-    }
-    return List.copyOf(slots);
+  static final int LOCK_SPACE = "tranzila user-defined slots".hashCode();
+
+  static int lockOf(TestRunId testRunId, String accountId) {
+    return (testRunId.value() + '\u0000' + accountId).hashCode();
   }
 }

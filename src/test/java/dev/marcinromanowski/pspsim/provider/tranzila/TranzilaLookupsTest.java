@@ -344,23 +344,35 @@ class TranzilaLookupsTest {
     echoed.put("success_url_address", "https://shop.example/ok");
     echoed.put("orderid", "SHOP-77");
     echoed.put("DCdisable", "dc-page");
-    echoed.put("myid", "123456789");
+    echoed.put("MyID", "123456789");
+    echoed.put("myid", "987654321");
+    echoed.put("Card_Holder_Id", "111111111");
     echoed.put("contact", "Dana");
+    echoed.put("pdesc", "shoes");
+    echoed.put("lang", "il");
+    echoed.put("nologo", "1");
     echoed.put("cred_type", "1");
+    echoed.put("remarks", "gift");
     TranzilaPage page = TranzilaBrowserReturnTest.aPage(TranzilaTranmode.A, echoed, null);
 
     assertThat(
             TranzilaPageCharge.theUserDefinedFieldsOf(
-                "dc-page", echoed, TranzilaPageCharge.THE_PARAMETERS_THE_PAGE_READS))
+                "dc-page", echoed, TranzilaPageCharge.THE_PARAMETERS_NO_SLOT_KEEPS))
         .containsExactly(
             new TranzilaUserField("DCdisable", "dc-page"),
             new TranzilaUserField("orderid", "SHOP-77"),
-            new TranzilaUserField("contact", "Dana"));
+            new TranzilaUserField("contact", "Dana"),
+            new TranzilaUserField("remarks", "gift"));
     assertThat(TranzilaPageCharge.callOf(page, TranzilaPageCards.thePublishedCard()).rawBody())
         .endsWith(
             ",\"user_defined_fields\":[{\"name\":\"orderid\",\"value\":\"SHOP-77\"},"
-                + "{\"name\":\"contact\",\"value\":\"Dana\"}]}");
-    assertThat(TranzilaPageCharge.THE_PARAMETERS_THE_PAGE_READS)
+                + "{\"name\":\"contact\",\"value\":\"Dana\"},"
+                + "{\"name\":\"remarks\",\"value\":\"gift\"}]}");
+    assertThat(TranzilaPageCharge.THE_PARAMETERS_NO_SLOT_KEEPS)
+        .containsAll(TranzilaPageRequest.NEVER_ECHOED)
+        .containsAll(TranzilaPageCharge.THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS)
+        .doesNotContain("orderid", "contact", "email", "remarks");
+    assertThat(TranzilaPageCharge.THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS)
         .containsExactlyInAnyOrder(
             "sum",
             "currency",
@@ -371,17 +383,48 @@ class TranzilaLookupsTest {
             "notify_url_address",
             "DCdisable",
             "thtk",
-            "myid");
+            "myid",
+            "pdesc",
+            "lang",
+            "accessibility",
+            "opensum",
+            "trBgColor",
+            "trTextColor",
+            "trButtonColor",
+            "buttonLabel",
+            "hidesum",
+            "nologo",
+            "hide_cc",
+            "apple_pay",
+            "google_pay",
+            "bit_pay",
+            "ppnewwin",
+            "recur_payments",
+            "recur_start_date",
+            "recur_sum",
+            "recur_transaction",
+            "npay",
+            "fpay",
+            "spay",
+            "maxpay",
+            "Ilang",
+            "IMaam",
+            "Z_field",
+            "business_id",
+            "json_purchase_data");
   }
 
   @Test
-  void a_hosted_fields_charge_keeps_its_own_keys_as_user_defined_fields_but_no_address_or_id() {
+  void a_hosted_fields_charge_keeps_its_own_keys_as_user_defined_fields_but_no_setting_or_id() {
     LinkedHashMap<String, String> sent = new LinkedHashMap<>();
     sent.put("contact", "Noa");
     sent.put("notify_url", "https://shop.example/notify");
-    sent.put("identity_number", "123456789");
+    sent.put("IDENTITY_NUMBER", "123456789");
+    sent.put("myid", "123456789");
     sent.put("DCdisable", "dc-hf");
     sent.put("pdesc", "shoes");
+    sent.put("force_challenge", "1");
+    sent.put("orderid", "o-1");
 
     assertThat(
             TranzilaPageCharge.theUserDefinedFieldsOf(
@@ -389,13 +432,67 @@ class TranzilaLookupsTest {
         .containsExactly(
             new TranzilaUserField("DCdisable", "dc-hf"),
             new TranzilaUserField("contact", "Noa"),
-            new TranzilaUserField("pdesc", "shoes"));
+            new TranzilaUserField("orderid", "o-1"));
     assertThat(TranzilaHostedFieldsCharge.THE_KEYS_NO_SLOT_KEEPS)
-        .containsExactlyInAnyOrder("DCdisable", "notify_url", "identity_number");
+        .containsExactlyInAnyOrder(
+            "DCdisable",
+            "notify_url",
+            "pdesc",
+            "json_purchase_data",
+            "force_txn_on_3ds_fail",
+            "force_challenge");
     assertThat(
             TranzilaJsonWriter.toText(
                 TranzilaPageCharge.asSent(List.of(new TranzilaUserField("a", "1")))))
         .isEqualTo("[{\"name\":\"a\",\"value\":\"1\"}]");
+  }
+
+  @Test
+  void a_cancel_and_a_reversal_keep_no_items_even_when_sent_with_them() {
+    wired.answered(TranzilaWire.aDebit());
+    TranzilaTransaction charged = wired.theLastStored();
+    wired.answered(
+        TranzilaWire.aCancel(charged.transactionId(), String.valueOf(charged.authNumber()))
+            .replace("}", "," + TranzilaWire.items("1") + "}"));
+    TranzilaTransaction cancelled = wired.theLastStored();
+    wired.answered(TranzilaWire.aJ5("5"));
+    TranzilaTransaction held = wired.theLastStored();
+    wired.answered(
+        TranzilaWire.aReversal(held.transactionId(), String.valueOf(held.authNumber()))
+            .replace("}", "," + TranzilaWire.items("5") + "}"));
+    TranzilaTransaction reversed = wired.theLastStored();
+
+    assertThat(cancelled.type()).isEqualTo(TranzilaTxnType.CANCEL);
+    assertThat(reversed.type()).isEqualTo(TranzilaTxnType.REVERSAL);
+    assertThat(wired.transactions.recordedOf(cancelled).items()).isEmpty();
+    assertThat(wired.transactions.recordedOf(reversed).items()).isEmpty();
+    assertThat(wired.transactions.recordedOf(charged).items()).hasSize(1);
+  }
+
+  @Test
+  void an_api_create_keeps_no_identity_named_field_and_no_name_past_the_twenty_fifth() {
+    StringBuilder fields = new StringBuilder("{\"name\":\"CVV\",\"value\":\"123\"}");
+    for (int name = 1; name <= 26; name++) {
+      fields
+          .append(",{\"name\":\"n")
+          .append(name)
+          .append("\",\"value\":\"v")
+          .append(name)
+          .append("\"}");
+    }
+    wired.answered(
+        TranzilaWire.aDebit().replace("}]}", "}],\"user_defined_fields\":[" + fields + "]}"));
+
+    TranzilaRecorded recorded = wired.transactions.recordedOf(wired.theLastStored());
+
+    assertThat(recorded.userDefinedFields()).hasSize(25);
+    assertThat(recorded.userDefinedFields().get(0)).isEqualTo(new TranzilaUserField("n1", "v1"));
+    assertThat(recorded.userDefinedFields())
+        .doesNotContain(new TranzilaUserField("n26", "v26"), new TranzilaUserField("CVV", "123"));
+    assertThat(wired.records.slotsOf(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT))
+        .hasSize(25)
+        .last()
+        .isEqualTo(new TranzilaUserSlot(25, "n25", TranzilaWiring.NOW));
   }
 
   private TranzilaApiResponse lookup(String path, String criteria) {

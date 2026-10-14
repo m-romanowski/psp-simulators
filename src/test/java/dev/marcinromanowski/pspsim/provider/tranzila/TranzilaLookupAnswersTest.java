@@ -274,15 +274,33 @@ class TranzilaLookupAnswersTest {
   }
 
   @Test
-  void the_slots_are_numbered_from_one_in_the_order_their_names_were_first_recorded() {
-    assertThat(
-            TranzilaUserSlot.numbered(
-                List.of(
-                    new TranzilaUserSlot.FirstRecorded("orderid", MADE),
-                    new TranzilaUserSlot.FirstRecorded("DCdisable", MADE.plusSeconds(1)))))
+  void no_slot_keeps_a_name_the_trail_withholds_as_an_identity_whatever_its_case() {
+    List<TranzilaUserField> sent =
+        List.of(
+            new TranzilaUserField("MyID", "1"),
+            new TranzilaUserField("orderid", "2"),
+            new TranzilaUserField("IDENTITY_NUMBER", "3"),
+            new TranzilaUserField("Card_Number", "4"),
+            new TranzilaUserField("cvv", "5"),
+            new TranzilaUserField("card_holder_id", "6"),
+            new TranzilaUserField("Credit_Card_Number", "7"),
+            new TranzilaUserField("card_holder_id_number", "8"),
+            new TranzilaUserField("DCdisable", "9"));
+
+    assertThat(TranzilaUserField.theOnesASlotKeeps(sent))
         .containsExactly(
-            new TranzilaUserSlot(1, "orderid", MADE),
-            new TranzilaUserSlot(2, "DCdisable", MADE.plusSeconds(1)));
+            new TranzilaUserField("orderid", "2"), new TranzilaUserField("DCdisable", "9"));
+  }
+
+  @Test
+  void the_slots_of_a_terminal_are_claimed_under_one_lock_of_its_run_and_account() {
+    assertThat(TranzilaUserSlot.lockOf(TranzilaWiring.RUN, "a-1"))
+        .isEqualTo((TranzilaWiring.RUN.value() + "\u0000a-1").hashCode())
+        .isNotEqualTo(TranzilaUserSlot.lockOf(TranzilaWiring.RUN, "a-2"));
+    assertThat(TranzilaUserSlot.LOCK_SPACE)
+        .isEqualTo("tranzila user-defined slots".hashCode())
+        .isNotEqualTo(TranzilaDcDisableKey.LOCK_SPACE);
+    assertThat(TranzilaUserSlot.THE_MOST_SLOTS).isEqualTo(25);
   }
 
   private static String kindOf(TranzilaTxnType type, @Nullable Integer verifyMode) {

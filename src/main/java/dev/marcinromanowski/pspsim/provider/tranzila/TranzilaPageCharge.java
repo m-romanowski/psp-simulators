@@ -1,7 +1,9 @@
 package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 
 final class TranzilaPageCharge {
 
-  static final Set<String> THE_PARAMETERS_THE_PAGE_READS =
+  static final Set<String> THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS =
       Set.of(
           TranzilaFields.SUM,
           TranzilaFields.CURRENCY,
@@ -20,9 +22,45 @@ final class TranzilaPageCharge {
           TranzilaFields.NOTIFY_URL_ADDRESS,
           TranzilaFields.DC_DISABLE,
           TranzilaFields.THTK,
-          TranzilaFields.MYID);
+          TranzilaFields.MYID,
+          "pdesc",
+          "lang",
+          "accessibility",
+          "opensum",
+          "trBgColor",
+          "trTextColor",
+          "trButtonColor",
+          "buttonLabel",
+          "hidesum",
+          "nologo",
+          "hide_cc",
+          "apple_pay",
+          "google_pay",
+          "bit_pay",
+          "ppnewwin",
+          "recur_payments",
+          "recur_start_date",
+          "recur_sum",
+          "recur_transaction",
+          "npay",
+          "fpay",
+          "spay",
+          "maxpay",
+          "Ilang",
+          "IMaam",
+          "Z_field",
+          "business_id",
+          "json_purchase_data");
+
+  static final Set<String> THE_PARAMETERS_NO_SLOT_KEEPS = noSlotKeeps();
 
   private TranzilaPageCharge() {}
+
+  private static Set<String> noSlotKeeps() {
+    Set<String> none = new LinkedHashSet<>(THE_PARAMETERS_THE_PAGE_READS_OR_DISPLAYS);
+    none.addAll(TranzilaPageRequest.NEVER_ECHOED);
+    return Collections.unmodifiableSet(none);
+  }
 
   static List<TranzilaUserField> theUserDefinedFieldsOf(
       @Nullable String dcDisable, Map<String, String> sent, Set<String> read) {
@@ -36,7 +74,7 @@ final class TranzilaPageCharge {
             fields.add(new TranzilaUserField(name, value));
           }
         });
-    return List.copyOf(fields);
+    return TranzilaUserField.theOnesASlotKeeps(fields);
   }
 
   static TranzilaJson asSent(List<TranzilaUserField> fields) {
@@ -74,7 +112,7 @@ final class TranzilaPageCharge {
     body.put(TranzilaFields.TXN_CURRENCY_CODE, TranzilaJson.text(page.currency().alpha()));
     body.put(TranzilaFields.ITEMS, TranzilaObjectActions.itemsOf(page.sum()));
     List<TranzilaUserField> userDefined =
-        theUserDefinedFieldsOf(page.dcDisable(), page.echoed(), THE_PARAMETERS_THE_PAGE_READS);
+        theUserDefinedFieldsOf(page.dcDisable(), page.echoed(), THE_PARAMETERS_NO_SLOT_KEEPS);
     if (!userDefined.isEmpty()) {
       body.put(TranzilaFields.USER_DEFINED_FIELDS, asSent(userDefined));
     }

@@ -14,5 +14,5 @@ interface TranzilaRecords {
 
   long countedBetween(TestRunId testRunId, String accountId, LocalDate start, LocalDate end);
 
-  List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId, int slots);
+  List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId);
 }

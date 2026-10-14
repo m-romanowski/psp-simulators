@@ -72,6 +72,13 @@ class TranzilaLookupsMigrationIntegrationTest extends PostgresBackedTest {
                 "DCdisable",
                 "value",
                 "d".repeat(254)));
+    assertThat(
+            jdbc.queryForList(
+                "select test_run_id, account_id, slot, name from "
+                    + SCHEMA
+                    + ".tranzila_user_slot"))
+        .containsExactly(
+            Map.of("test_run_id", RUN, "account_id", "a-1", "slot", 1, "name", "DCdisable"));
     assertThat(count("tranzila_transaction")).isEqualTo(3);
     assertThat(count("tranzila_transaction_item")).isZero();
   }
@@ -109,6 +116,34 @@ class TranzilaLookupsMigrationIntegrationTest extends PostgresBackedTest {
         .isInstanceOf(DataIntegrityViolationException.class);
     assertThatThrownBy(() -> jdbc.update(anItem(10000002, 0, 1, "1")))
         .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  @Test
+  void a_terminal_holds_twenty_five_slots_each_naming_one_name_once() {
+    assertThatCode(() -> jdbc.update(aSlot("a-1", 25, "last"))).doesNotThrowAnyException();
+    assertThatCode(() -> jdbc.update(aSlot("a-2", 1, "DCdisable"))).doesNotThrowAnyException();
+    assertThatThrownBy(() -> jdbc.update(aSlot("a-1", 26, "beyond")))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() -> jdbc.update(aSlot("a-1", 0, "before")))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() -> jdbc.update(aSlot("a-1", 2, "DCdisable")))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() -> jdbc.update(aSlot("a-1", 1, "another")))
+        .isInstanceOf(DataIntegrityViolationException.class);
+  }
+
+  private String aSlot(String account, int slot, String name) {
+    return "insert into "
+        + SCHEMA
+        + ".tranzila_user_slot (test_run_id, account_id, slot, name, first_recorded_at) values ('"
+        + RUN
+        + "', '"
+        + account
+        + "', "
+        + slot
+        + ", '"
+        + name
+        + "', timestamptz '2026-10-13T12:00:00Z')";
   }
 
   private String aTransaction(long transactionId, String dcDisable) {

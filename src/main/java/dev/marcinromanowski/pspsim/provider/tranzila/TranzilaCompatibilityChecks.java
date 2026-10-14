@@ -193,6 +193,7 @@ public final class TranzilaCompatibilityChecks {
         expected,
         transport -> {
           Credentials credentials = prepare(transport);
+          String day = aDay();
           transport.send(signed(aDebitCarrying(A_USER_DEFINED_FIELD), credentials));
           CheckResponse found =
               transport.send(
@@ -203,9 +204,9 @@ public final class TranzilaCompatibilityChecks {
                           "{\"terminal_name\":\""
                               + TERMINAL
                               + "\",\"transaction_start_date\":\""
-                              + aDay()
+                              + day
                               + "\",\"transaction_end_date\":\""
-                              + aDay()
+                              + day
                               + "\""
                               + more
                               + "}"),

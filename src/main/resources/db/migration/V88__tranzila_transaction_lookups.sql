@@ -1,3 +1,21 @@
+create table tranzila_user_slot (
+    test_run_id        varchar(64)  not null,
+    account_id         varchar(128) not null,
+    slot               smallint     not null,
+    name               text         not null,
+    first_recorded_at  timestamptz  not null,
+    primary key (test_run_id, account_id, slot),
+    unique (test_run_id, account_id, name),
+    constraint tranzila_user_slot_is_one_of_the_twenty_five_published
+        check (slot between 1 and 25)
+);
+
+insert into tranzila_user_slot (test_run_id, account_id, slot, name, first_recorded_at)
+select test_run_id, account_id, 1, 'DCdisable', min(created_at)
+from tranzila_transaction
+where dc_disable is not null
+group by test_run_id, account_id;
+
 create table tranzila_transaction_user_field (
     test_run_id    varchar(64) not null,
     transaction_id bigint      not null,
@@ -10,9 +28,6 @@ create table tranzila_transaction_user_field (
     constraint tranzila_transaction_user_field_position_counts_from_zero
         check (position >= 0)
 );
-
-create index tranzila_transaction_user_field_by_name
-    on tranzila_transaction_user_field (test_run_id, name);
 
 insert into tranzila_transaction_user_field (test_run_id, transaction_id, position, name, value)
 select test_run_id, transaction_id, 0, 'DCdisable', dc_disable

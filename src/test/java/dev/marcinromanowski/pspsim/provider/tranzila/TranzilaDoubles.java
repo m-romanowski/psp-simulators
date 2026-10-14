@@ -183,18 +183,8 @@ final class TranzilaDoubles {
     }
 
     @Override
-    public List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId, int slots) {
-      Map<String, Instant> first = new LinkedHashMap<>();
-      for (TranzilaTransaction held : of(testRunId, accountId)) {
-        for (TranzilaUserField field : transactions.theFieldsOf(held)) {
-          first.putIfAbsent(field.name(), held.createdAt());
-        }
-      }
-      return TranzilaUserSlot.numbered(
-          first.entrySet().stream()
-              .limit(slots)
-              .map(named -> new TranzilaUserSlot.FirstRecorded(named.getKey(), named.getValue()))
-              .toList());
+    public List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId) {
+      return transactions.slotsOf(testRunId, accountId);
     }
   }
 
@@ -231,19 +221,40 @@ final class TranzilaDoubles {
       return List.copyOf(stored);
     }
 
-    @Override
-    public void describe(
+    private final Map<String, Map<String, TranzilaUserSlot>> slots = new HashMap<>();
+
+    private void describe(
         TranzilaTransaction transaction,
         List<TranzilaUserField> userDefinedFields,
         List<TranzilaItem> items) {
       String key = keyOf(transaction.testRunId(), transaction.transactionId());
-      described.put(key, List.copyOf(userDefinedFields));
+      Map<String, TranzilaUserSlot> held =
+          slots.computeIfAbsent(
+              transaction.testRunId().value() + '\u0000' + transaction.accountId(),
+              absent -> new LinkedHashMap<>());
+      List<TranzilaUserField> kept = new ArrayList<>();
+      for (TranzilaUserField field : TranzilaUserField.theOnesASlotKeeps(userDefinedFields)) {
+        if (!held.containsKey(field.name()) && held.size() < TranzilaUserSlot.THE_MOST_SLOTS) {
+          held.put(
+              field.name(),
+              new TranzilaUserSlot(held.size() + 1, field.name(), transaction.createdAt()));
+        }
+        if (held.containsKey(field.name())) {
+          kept.add(field);
+        }
+      }
+      described.put(key, List.copyOf(kept));
       List<TranzilaRecorded.Item> numbered = new ArrayList<>();
       for (TranzilaItem item : items) {
         itemIds++;
         numbered.add(new TranzilaRecorded.Item(itemIds, item));
       }
       itemized.put(key, List.copyOf(numbered));
+    }
+
+    List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId) {
+      return List.copyOf(
+          slots.getOrDefault(testRunId.value() + '\u0000' + accountId, Map.of()).values());
     }
 
     TranzilaRecorded recordedOf(TranzilaTransaction transaction) {
@@ -254,13 +265,11 @@ final class TranzilaDoubles {
           itemized.getOrDefault(key, List.of()));
     }
 
-    List<TranzilaUserField> theFieldsOf(TranzilaTransaction transaction) {
-      return described.getOrDefault(
-          keyOf(transaction.testRunId(), transaction.transactionId()), List.of());
-    }
-
     @Override
-    public TranzilaInsert insert(TranzilaTransaction transaction) {
+    public TranzilaInsert insert(
+        TranzilaTransaction transaction,
+        List<TranzilaUserField> userDefinedFields,
+        List<TranzilaItem> items) {
       if (takenIds > 0) {
         takenIds--;
         return TranzilaInsert.ID_TAKEN;
@@ -271,10 +280,11 @@ final class TranzilaDoubles {
       TranzilaTransaction winner = theWinner;
       if (winner != null) {
         theWinner = null;
-        insert(winner);
+        insert(winner, List.of(), List.of());
         return TranzilaInsert.CLOSED_BY_ANOTHER_REQUEST_FIRST;
       }
       stored.add(transaction);
+      describe(transaction, userDefinedFields, items);
       arrivedAt.put(
           keyOf(transaction.testRunId(), transaction.transactionId()), Long.valueOf(nextArrival()));
       return TranzilaInsert.STORED;

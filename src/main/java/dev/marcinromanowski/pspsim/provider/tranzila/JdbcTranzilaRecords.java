@@ -75,27 +75,16 @@ final class JdbcTranzilaRecords implements TranzilaRecords {
   }
 
   @Override
-  public List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId, int slots) {
-    return TranzilaUserSlot.numbered(
-        jdbc.sql(
-                """
-                select name, first_at from (
-                    select distinct on (field.name)
-                        field.name, recorded.created_at as first_at, recorded.arrival,
-                        field.position
-                    from tranzila_transaction_user_field field
-                    join tranzila_transaction recorded
-                        on recorded.test_run_id = field.test_run_id
-                        and recorded.transaction_id = field.transaction_id
-                    where recorded.test_run_id = ? and recorded.account_id = ?
-                    order by field.name, recorded.arrival, field.position
-                ) firsts
-                order by arrival, position
-                limit ?
-                """)
-            .params(testRunId.value(), accountId, Integer.valueOf(slots))
-            .query(JdbcTranzilaRecords::toFirstRecorded)
-            .list());
+  public List<TranzilaUserSlot> slotsOf(TestRunId testRunId, String accountId) {
+    return jdbc.sql(
+            """
+            select slot, name, first_recorded_at from tranzila_user_slot
+            where test_run_id = ? and account_id = ?
+            order by slot
+            """)
+        .params(testRunId.value(), accountId)
+        .query(JdbcTranzilaRecords::toSlot)
+        .list();
   }
 
   private List<TranzilaRecorded> described(
@@ -147,9 +136,10 @@ final class JdbcTranzilaRecords implements TranzilaRecords {
                 rs.getString("item_type"))));
   }
 
-  private static TranzilaUserSlot.FirstRecorded toFirstRecorded(ResultSet rs, int row)
-      throws SQLException {
-    return new TranzilaUserSlot.FirstRecorded(
-        rs.getString("name"), rs.getObject("first_at", OffsetDateTime.class).toInstant());
+  private static TranzilaUserSlot toSlot(ResultSet rs, int row) throws SQLException {
+    return new TranzilaUserSlot(
+        rs.getInt("slot"),
+        rs.getString("name"),
+        rs.getObject("first_recorded_at", OffsetDateTime.class).toInstant());
   }
 }

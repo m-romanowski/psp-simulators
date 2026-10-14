@@ -18,6 +18,11 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -504,6 +509,136 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
     assertThat(stripe.body()).contains("\"error\"").doesNotContain("error_code");
     assertThat(autra.statusCode()).isNotEqualTo(404);
     assertThat(autra.body()).doesNotContain("error_code");
+  }
+
+  @Test
+  void two_transactions_bringing_the_same_new_names_at_once_keep_one_numbering() throws Exception {
+    for (int round = 0; round < 5; round++) {
+      reset();
+      configureAt(DAY_ONE);
+      List<String> bodies = new ArrayList<>();
+      for (int at = 0; at < 8; at++) {
+        String alpha = "{\"name\":\"alpha\",\"value\":\"alpha-" + at + "\"}";
+        String beta = "{\"name\":\"beta\",\"value\":\"beta-" + at + "\"}";
+        bodies.add(
+            aDebitOf(
+                String.join(
+                    ",",
+                    "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":1}]",
+                    "\"user_defined_fields\":["
+                        + (at % 2 == 0 ? alpha + "," + beta : beta + "," + alpha)
+                        + "]")));
+      }
+
+      List<HttpResponse<String>> answers = atOnce(bodies);
+      JsonNode found = read(signed(TRANSACTIONS, aLookup(THE_FIRST_DAY)));
+
+      assertThat(answers).allSatisfy(answer -> assertThat(answer.statusCode()).isEqualTo(200));
+      Map<String, String> slotOf = new LinkedHashMap<>();
+      for (JsonNode slot : found.at("/user_defined")) {
+        slotOf.put(slot.at("/API_PARAMETER_NAME").asString(), slot.at("/FIELD_ID").asString());
+      }
+      assertThat(slotOf).as("round %s", round).containsOnlyKeys("alpha", "beta");
+      assertThat(slotOf.values()).containsExactlyInAnyOrder("1", "2");
+      assertThat(column(found, "user_defined_" + slotOf.get("alpha")))
+          .hasSize(8)
+          .allSatisfy(value -> assertThat(value).startsWith("alpha-"));
+      assertThat(column(found, "user_defined_" + slotOf.get("beta")))
+          .hasSize(8)
+          .allSatisfy(value -> assertThat(value).startsWith("beta-"));
+    }
+  }
+
+  @Test
+  void an_identity_sent_under_any_case_reaches_no_slot_no_lookup_and_no_trail_row() {
+    Map<String, String> parameters = new LinkedHashMap<>();
+    parameters.put("sum", "3");
+    parameters.put("currency", "1");
+    parameters.put("tranmode", "A");
+    parameters.put("success_url_address", "https://shop.example/paid");
+    parameters.put("orderid", "ORD-ID");
+    parameters.put("MyID", "111111118");
+    parameters.put("Card_Holder_Id", "222222226");
+    parameters.put("identity_number", "333333334");
+    parameters.put("CVV", "7x7x");
+    HttpResponse<String> page =
+        get("/tranzila/directng/" + TERMINAL + "/iframenew.php?" + encoded(parameters));
+    Matcher form = THE_PAYER_FORM.matcher(page.body());
+    assertThat(form.find()).as(page.body()).isTrue();
+    HttpResponse<String> returned =
+        postForm(form.group(1), Map.of("card", "published-9022", "outcome", "PAID"));
+    String thtk =
+        textIn(
+            signed("/v2/handshake/create", "{\"terminal_name\":\"" + TERMINAL + "\",\"sum\":4}")
+                .body(),
+            "thtk");
+    Map<String, String> charge = new LinkedHashMap<>();
+    charge.put("terminal_name", TERMINAL);
+    charge.put("thtk", thtk);
+    charge.put("amount", "4");
+    charge.put("credit_card_number", THE_PUBLISHED_CARD);
+    charge.put("expiry_month", "12");
+    charge.put("expiry_year", "2030");
+    charge.put("orderid", "ORD-HF");
+    charge.put("IDENTITY_NUMBER", "555555552");
+    charge.put("MyId", "666666660");
+    charge.put("card_holder_id", "777777779");
+    charge.put("Card_Number", "4580210000004245");
+    HttpResponse<String> charged =
+        postForm("/tranzila/hf/process/ajax_process_transaction", charge);
+
+    String api = signed(TRANSACTIONS, aLookup(THE_FIRST_DAY)).body();
+    String report = signed(REPORT, aLookup(THE_FIRST_DAY)).body();
+    String trail =
+        http.get()
+            .uri("/__simulator/tranzila/audit?testRunId=" + RUN.value())
+            .retrieve()
+            .body(String.class);
+
+    assertThat(returned.body()).contains("111111118");
+    assertThat(charged.body()).contains("555555552");
+    assertThat(api).contains("ORD-ID").contains("ORD-HF");
+    for (String identity :
+        List.of(
+            "111111118",
+            "222222226",
+            "333333334",
+            "7x7x",
+            "555555552",
+            "666666660",
+            "777777779",
+            "4580210000004245")) {
+      assertThat(api).as(identity).doesNotContain(identity);
+      assertThat(report).as(identity).doesNotContain(identity);
+      assertThat(trail).as(identity).doesNotContain(identity);
+    }
+    assertThat(api)
+        .doesNotContainIgnoringCase("\"API_PARAMETER_NAME\":\"myid\"")
+        .doesNotContainIgnoringCase("\"API_PARAMETER_NAME\":\"identity_number\"");
+  }
+
+  private List<HttpResponse<String>> atOnce(List<String> bodies) throws Exception {
+    ExecutorService senders = Executors.newFixedThreadPool(bodies.size());
+    CountDownLatch start = new CountDownLatch(1);
+    try {
+      List<Future<HttpResponse<String>>> sent = new ArrayList<>();
+      for (String body : bodies) {
+        sent.add(
+            senders.submit(
+                () -> {
+                  start.await();
+                  return signed(CREATE, body);
+                }));
+      }
+      start.countDown();
+      List<HttpResponse<String>> answers = new ArrayList<>();
+      for (Future<HttpResponse<String>> answer : sent) {
+        answers.add(answer.get(30, TimeUnit.SECONDS));
+      }
+      return answers;
+    } finally {
+      senders.shutdownNow();
+    }
   }
 
   @Test

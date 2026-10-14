@@ -15,7 +15,10 @@ final class TranzilaHostedFieldsCharge {
       Set.of(
           TranzilaFields.DC_DISABLE,
           TranzilaHostedFieldsRequest.NOTIFY_URL,
-          TranzilaFields.IDENTITY_NUMBER);
+          "pdesc",
+          "json_purchase_data",
+          "force_txn_on_3ds_fail",
+          "force_challenge");
 
   private TranzilaHostedFieldsCharge() {}
 

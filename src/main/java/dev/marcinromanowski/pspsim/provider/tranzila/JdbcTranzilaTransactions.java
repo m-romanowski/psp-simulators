@@ -28,43 +28,22 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
   }
 
   @Override
-  public TranzilaInsert insert(TranzilaTransaction transaction) {
-    return TranzilaInsert.ofTheRowsWritten(written(transaction), holding(transaction));
-  }
-
-  @Override
-  public void describe(
+  public TranzilaInsert insert(
       TranzilaTransaction transaction,
       List<TranzilaUserField> userDefinedFields,
       List<TranzilaItem> items) {
     jdbc.sql(
             """
-            insert into tranzila_transaction_user_field
-                (test_run_id, transaction_id, position, name, value)
-            select ?, ?, listed.position - 1, listed.name, listed.value
-            from unnest(?::text[], ?::text[]) with ordinality as listed (name, value, position)
+            select count(*) from (select pg_advisory_xact_lock(?, ?)) as taken
             """)
-        .param(transaction.testRunId().value())
-        .param(Long.valueOf(transaction.transactionId()))
-        .param(userDefinedFields.stream().map(TranzilaUserField::name).toArray(String[]::new))
-        .param(userDefinedFields.stream().map(TranzilaUserField::value).toArray(String[]::new))
-        .update();
-    jdbc.sql(
-            """
-            insert into tranzila_transaction_item
-                (test_run_id, transaction_id, position, name, units_number, unit_price, item_type)
-            select ?, ?, listed.position - 1, listed.name, listed.units_number, listed.unit_price,
-                   listed.item_type
-            from unnest(?::text[], ?::bigint[], ?::text[], ?::text[]) with ordinality
-                as listed (name, units_number, unit_price, item_type, position)
-            """)
-        .param(transaction.testRunId().value())
-        .param(Long.valueOf(transaction.transactionId()))
-        .param(items.stream().map(TranzilaItem::name).toArray(String[]::new))
-        .param(items.stream().map(item -> Long.valueOf(item.unitsNumber())).toArray(Long[]::new))
-        .param(items.stream().map(TranzilaItem::unitPrice).toArray(String[]::new))
-        .param(items.stream().map(TranzilaItem::itemType).toArray(String[]::new))
-        .update();
+        .params(
+            TranzilaUserSlot.LOCK_SPACE,
+            TranzilaUserSlot.lockOf(transaction.testRunId(), transaction.accountId()))
+        .query(Long.class)
+        .single();
+    List<TranzilaUserField> slotted = TranzilaUserField.theOnesASlotKeeps(userDefinedFields);
+    return TranzilaInsert.ofTheRowsWritten(
+        written(transaction, slotted, items), holding(transaction));
   }
 
   @Override
@@ -91,16 +70,71 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         "the unit of work answered nothing where its callback answers on every path");
   }
 
-  private int written(TranzilaTransaction transaction) {
+  private int written(
+      TranzilaTransaction transaction, List<TranzilaUserField> fields, List<TranzilaItem> items) {
     return jdbc.sql(
             """
-            insert into tranzila_transaction
-                (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
-                 verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
-                 auth_number, token, card_mask, card_type, expiry_month, expiry_year,
-                 response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict do nothing
+            with stored as (
+                insert into tranzila_transaction
+                    (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
+                     verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
+                     auth_number, token, card_mask, card_type, expiry_month, expiry_year,
+                     response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict do nothing
+                returning test_run_id, transaction_id, account_id, created_at
+            ),
+            listed as (
+                select sent.name, sent.value, sent.position
+                from unnest(?::text[], ?::text[]) with ordinality as sent (name, value, position)
+            ),
+            held as (
+                select slot.name, slot.slot
+                from tranzila_user_slot slot, stored
+                where slot.test_run_id = stored.test_run_id and slot.account_id = stored.account_id
+            ),
+            fresh as (
+                select news.name, row_number() over (order by news.first_position) as nth
+                from (
+                    select listed.name, min(listed.position) as first_position
+                    from listed
+                    where listed.name not in (select held.name from held)
+                    group by listed.name
+                ) news
+            ),
+            claimed as (
+                insert into tranzila_user_slot
+                    (test_run_id, account_id, slot, name, first_recorded_at)
+                select stored.test_run_id, stored.account_id,
+                       (select coalesce(max(held.slot), 0) from held) + fresh.nth, fresh.name,
+                       stored.created_at
+                from stored, fresh
+                where (select coalesce(max(held.slot), 0) from held) + fresh.nth <= ?
+                on conflict do nothing
+                returning name
+            ),
+            kept as (
+                insert into tranzila_transaction_user_field
+                    (test_run_id, transaction_id, position, name, value)
+                select stored.test_run_id, stored.transaction_id, listed.position - 1, listed.name,
+                       listed.value
+                from stored, listed
+                where listed.name in (select held.name from held)
+                   or listed.name in (select claimed.name from claimed)
+                returning 1
+            ),
+            itemized as (
+                insert into tranzila_transaction_item
+                    (test_run_id, transaction_id, position, name, units_number, unit_price,
+                     item_type)
+                select stored.test_run_id, stored.transaction_id, sent.position - 1, sent.name,
+                       sent.units_number, sent.unit_price, sent.item_type
+                from stored,
+                     unnest(?::text[], ?::bigint[], ?::text[], ?::text[]) with ordinality
+                         as sent (name, units_number, unit_price, item_type, position)
+                returning 1
+            )
+            select count(*) from stored
             """)
         .param(transaction.testRunId().value())
         .param(Long.valueOf(transaction.transactionId()))
@@ -125,7 +159,16 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         .param(TranzilaStoredForm.timestampOf(transaction.holdExpiresAt()))
         .param(transaction.origin().name())
         .param(transaction.createdAt().atOffset(ZoneOffset.UTC))
-        .update();
+        .param(fields.stream().map(TranzilaUserField::name).toArray(String[]::new))
+        .param(fields.stream().map(TranzilaUserField::value).toArray(String[]::new))
+        .param(Integer.valueOf(TranzilaUserSlot.THE_MOST_SLOTS))
+        .param(items.stream().map(TranzilaItem::name).toArray(String[]::new))
+        .param(items.stream().map(item -> Long.valueOf(item.unitsNumber())).toArray(Long[]::new))
+        .param(items.stream().map(TranzilaItem::unitPrice).toArray(String[]::new))
+        .param(items.stream().map(TranzilaItem::itemType).toArray(String[]::new))
+        .query(Integer.class)
+        .single()
+        .intValue();
   }
 
   private int holding(TranzilaTransaction transaction) {
@@ -254,6 +297,9 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
 
   @Override
   public int clear(TestRunId testRunId) {
+    jdbc.sql("delete from tranzila_user_slot where test_run_id = ?")
+        .param(testRunId.value())
+        .update();
     return jdbc.sql("delete from tranzila_transaction where test_run_id = ?")
         .param(testRunId.value())
         .update();
@@ -261,6 +307,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
 
   @Override
   public int clearAll() {
+    jdbc.sql("delete from tranzila_user_slot").update();
     return jdbc.sql("delete from tranzila_transaction").update();
   }
 

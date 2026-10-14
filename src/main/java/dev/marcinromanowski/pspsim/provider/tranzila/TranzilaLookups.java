@@ -51,9 +51,7 @@ final class TranzilaLookups {
     return TranzilaOperationResult.succeeded(
         null,
         TranzilaBody.of(
-            TranzilaAnswers.OK,
-            TranzilaLookupAnswers.ofTheApi(
-                found(terminal, lookup, TranzilaLookupAnswers.THE_API_SLOTS))));
+            TranzilaAnswers.OK, TranzilaLookupAnswers.ofTheApi(found(terminal, lookup))));
   }
 
   TranzilaOperationResult ofTheReport(TranzilaApiCall call, TranzilaTerminal terminal) {
@@ -73,12 +71,10 @@ final class TranzilaLookups {
     return TranzilaOperationResult.succeeded(
         null,
         TranzilaBody.of(
-            TranzilaAnswers.OK,
-            TranzilaLookupAnswers.ofTheReport(
-                found(terminal, lookup, TranzilaLookupAnswers.THE_REPORT_SLOTS))));
+            TranzilaAnswers.OK, TranzilaLookupAnswers.ofTheReport(found(terminal, lookup))));
   }
 
-  TranzilaLookupAnswers.Found found(TranzilaTerminal terminal, TranzilaLookup lookup, int slots) {
+  TranzilaLookupAnswers.Found found(TranzilaTerminal terminal, TranzilaLookup lookup) {
     TestRunId testRunId = terminal.testRunId();
     String accountId = terminal.accountId();
     Long index = lookup.index();
@@ -98,7 +94,7 @@ final class TranzilaLookups {
         terminal.terminalName(),
         rows,
         total,
-        records.slotsOf(testRunId, accountId, slots),
+        records.slotsOf(testRunId, accountId),
         lookup.detailed());
   }
 

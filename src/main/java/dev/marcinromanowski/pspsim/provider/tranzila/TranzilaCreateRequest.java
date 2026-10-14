@@ -130,7 +130,7 @@ record TranzilaCreateRequest(
         body.text(TranzilaFields.ACTIVATE_3DS).filter("Y"::equals).isPresent(),
         body.has(TranzilaFields.TXN_CURRENCY_CODE) ? currencyCode : null,
         userDefinedFields,
-        itemsIn(body));
+        type.carriesAnAmount() ? itemsIn(body) : List.of());
   }
 
   boolean isInTheCurrencyOf(TranzilaTransaction original) {
