@@ -44,9 +44,8 @@ final class TranzilaOperations {
           + " a merchant's customer identifier";
 
   static final String NO_EVENT_TYPE =
-      "provider tranzila publishes no event type on this route: the create answers"
-          + " synchronously, and the only notification it publishes is the payment page's notify,"
-          + " which is not served on this route";
+      "provider tranzila publishes no event type: the create answers synchronously, and the only"
+          + " notification it publishes is the payment page's notify, which names no event";
 
   static final String NO_PROCESSING_STATE =
       "provider tranzila answers every transaction of this route synchronously, approved or"
