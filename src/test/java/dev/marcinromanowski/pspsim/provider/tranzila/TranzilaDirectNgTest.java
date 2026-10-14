@@ -203,6 +203,35 @@ class TranzilaDirectNgTest {
   }
 
   @Test
+  void a_page_charge_under_a_dc_disable_is_logged_with_the_token_and_the_payers_id_withheld() {
+    open(parameters("30", "A", "DCdisable", "order-9", "myid", "123456789"));
+    open(parameters("30", "A", "DCdisable", "order-9", "myid", "123456789"));
+    pay(wired.pages.all().get(0).pageId(), THE_PUBLISHED_CARD);
+    pay(wired.pages.all().get(1).pageId(), THE_PUBLISHED_CARD);
+
+    assertThat(wired.exchanges.everythingItObserved())
+        .extracting(
+            exchange ->
+                exchange.keyName()
+                    + " "
+                    + exchange.keyValue()
+                    + " "
+                    + exchange.verdict()
+                    + " "
+                    + exchange.httpStatus())
+        .containsExactly(
+            "DCdisable debit order-9 FIRST_REQUEST 200",
+            "DCdisable debit order-9 DUPLICATE_KEY_REFUSAL 200");
+    assertThat(wired.exchanges.everythingItObserved())
+        .allSatisfy(
+            exchange ->
+                assertThat(String.valueOf(exchange.body()))
+                    .doesNotContain(THE_PUBLISHED_TOKEN)
+                    .doesNotContain("123456789")
+                    .contains("[redacted]"));
+  }
+
+  @Test
   void a_terminal_no_run_configures_is_answered_404_and_opens_nothing() {
     TranzilaApiResponse answered =
         wired.directNg.open(
