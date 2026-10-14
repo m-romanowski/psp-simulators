@@ -56,6 +56,7 @@ class EveryPayerJourneyKeepsToTheProviderApiTest {
             "APayerHoldsFundsInAzericardsWebviewTest",
             "APayerFinishesTranzilasPaymentPageTest",
             "APayerFinishesTranzilasHostedFieldsTest",
+            "APayerPassesTranzilasThreeDSecureChallengeTest",
             "AnAzericardWebviewJourney");
   }
 

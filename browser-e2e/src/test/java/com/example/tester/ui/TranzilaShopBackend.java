@@ -115,6 +115,47 @@ public final class TranzilaShopBackend {
     return answer.body();
   }
 
+  public String aThreeDSecureDebit(
+      String testRunId, String card, String sum, String redirectUrl, String order) {
+    HttpResponse<String> answer =
+        signed(
+            testRunId,
+            "/v1/transaction/credit_card/create",
+            "{\"terminal_name\":\""
+                + terminal
+                + "\",\"txn_type\":\"debit\",\"activate_3ds\":\"Y\",\"card_number\":\""
+                + card
+                + "\",\"expire_month\":12,\"expire_year\":2030,\"cvv\":\"737\","
+                + "\"items\":[{\"name\":\"two seats\",\"units_number\":1,\"unit_price\":"
+                + sum
+                + "}],\"3ds_settings\":{\"browser\":{\"language\":\"en-gb\","
+                + "\"screen_width\":390,\"screen_height\":844}},"
+                + "\"auth_3ds_redirect\":{\"url\":\""
+                + redirectUrl
+                + "\",\"params\":[{\"key\":\"order\",\"value\":\""
+                + order
+                + "\"}]}}");
+    if (answer.statusCode() != 200) {
+      throw new IllegalStateException(
+          "tranzila answered " + answer.statusCode() + " to a 3-D Secure debit: " + answer.body());
+    }
+    return answer.body();
+  }
+
+  public String completes(String testRunId, String trackId) {
+    HttpResponse<String> answer =
+        signed(
+            testRunId,
+            "/v1/transaction/credit_card/3ds/complete",
+            "{\"track_id\":\"" + trackId + "\",\"terminal_name\":\"" + terminal + "\"}");
+    if (answer.statusCode() != 200) {
+      throw new IllegalStateException(
+          "tranzila answered " + answer.statusCode() + " to a 3-D Secure completion: "
+              + answer.body());
+    }
+    return answer.body();
+  }
+
   private HttpResponse<String> signed(String testRunId, String path, String body) {
     String requestTime = Long.toString(Instant.now().getEpochSecond());
     byte[] drawn = new byte[NONCE_BYTES];

@@ -173,6 +173,12 @@ abstract class AJourneyInAMobileAppsWebview {
     return simulator.baseUrl() + path;
   }
 
+  List<String> everythingTheWebviewSaw() {
+    List<String> seen = new ArrayList<>();
+    webview.everythingItSaw().forEach(page -> seen.add(page.text()));
+    return seen;
+  }
+
   void theWebviewSawNothingGoWrong() {
     assertThat(webview.whatWentWrong())
         .as("the webview saw no console error, no uncaught exception and no 4xx or 5xx")
