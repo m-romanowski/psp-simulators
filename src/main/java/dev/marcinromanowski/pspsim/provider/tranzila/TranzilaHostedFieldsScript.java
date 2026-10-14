@@ -11,12 +11,16 @@ final class TranzilaHostedFieldsScript {
   private TranzilaHostedFieldsScript() {}
 
   static byte[] read() {
-    try (InputStream kept =
-        TranzilaHostedFieldsScript.class.getResourceAsStream(WHERE_IT_IS_KEPT)) {
+    return read(WHERE_IT_IS_KEPT);
+  }
+
+  static byte[] read(String where) {
+    try (InputStream kept = TranzilaHostedFieldsScript.class.getResourceAsStream(where)) {
       if (kept == null) {
         throw new IllegalStateException(
-            WHERE_IT_IS_KEPT
-                + " is not on the classpath, so this build has no TzlaHostedFields script to serve");
+            where
+                + " is not on the classpath, so this build has no TzlaHostedFields script to"
+                + " serve");
       }
       return kept.readAllBytes();
     } catch (IOException unreadable) {

@@ -2,6 +2,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import static dev.marcinromanowski.pspsim.TheSpellingsOfAHeaderName.aHeaderOfThisNameUnderAnySpelling;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
@@ -426,6 +427,15 @@ class TranzilaHostedFieldsTest {
         .contains("create: function (config)")
         .contains("base + \"/assets/js/hfields_depend/controlfields.html?instance_identifier=\"")
         .contains("base + \"/assets/js/hfields_depend/genfield.php?field_name=\"");
+  }
+
+  @Test
+  void a_script_missing_from_the_classpath_is_named_rather_than_served_empty() {
+    assertThatThrownBy(() -> TranzilaHostedFieldsScript.read("/tranzila/hf/nothing.js"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "/tranzila/hf/nothing.js is not on the classpath, so this build has no"
+                + " TzlaHostedFields script to serve");
   }
 
   @Test
