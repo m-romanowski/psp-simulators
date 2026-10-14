@@ -48,7 +48,7 @@ class TrailWithholdingConventionTest {
       A_CLASS_THAT_KEEPS_A_ROW + ".record(WebhookDelivery,WebhookPayload)void";
 
   private static final List<String> THE_MODULES_THIS_SIMULATOR_SERVES =
-      List.of("autra", "azericard", "grow", "stripe", "worldline");
+      List.of("autra", "azericard", "grow", "stripe", "tranzila", "worldline");
 
   private static final List<String> THE_CLASSES_THAT_ANSWER_A_CLIENT =
       List.of(
@@ -59,6 +59,7 @@ class TrailWithholdingConventionTest {
           "dev.marcinromanowski.pspsim.provider.grow.GrowHostedCheckout",
           "dev.marcinromanowski.pspsim.provider.grow.GrowLightApi",
           "dev.marcinromanowski.pspsim.provider.stripe.StripeApi",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaApi",
           "dev.marcinromanowski.pspsim.provider.worldline.WorldlineApi",
           "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationCheckout");
 
@@ -80,12 +81,13 @@ class TrailWithholdingConventionTest {
           "grow url",
           "stripe doc_url",
           "stripe url",
+          "tranzila TRANZILA_API_BASE_URL",
           "worldline Location",
           "worldline WORLDLINE_BASE_URL",
           "worldline hostedTokenizationUrl",
           "worldline partialRedirectUrl");
 
-  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 66;
+  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 71;
 
   private static final String A_PROVIDER_PACKAGE_OF_ITS_OWN =
       "dev.marcinromanowski.pspsim.provider.sixth";
@@ -209,10 +211,11 @@ class TrailWithholdingConventionTest {
             "dev.marcinromanowski.pspsim.provider.azericard.AzericardFields",
             "dev.marcinromanowski.pspsim.provider.grow.GrowFields",
             "dev.marcinromanowski.pspsim.provider.stripe.StripeFields",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaFields",
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineFields");
     assertThat(TrailWithholdingConvention.howManyFieldsAreWithheld(build.modules()))
-        .as("the second denominator: the fields these five declarations name between them")
-        .isEqualTo(13);
+        .as("the second denominator: the fields these declarations name between them")
+        .isEqualTo(16);
     assertThat(TrailWithholdingConvention.verdictOn(COMPILED_MAIN).offences())
         .as("the build under test keeps the rule this gate enforces")
         .isEmpty();
@@ -234,6 +237,11 @@ class TrailWithholdingConventionTest {
         .containsExactlyInAnyOrder("hostedTokenizationUrl", "partialRedirectUrl");
     assertThat(theModuleOf("stripe").theFieldsItWithholds())
         .containsExactlyInAnyOrder("client_secret", "secret");
+    assertThat(theModuleOf("tranzila").theFieldsItWithholds())
+        .containsExactlyInAnyOrder(
+            "transaction_result.token",
+            "original_request.card_number",
+            "original_request.card_holder_id");
     assertThat(theModuleOf("azericard").theFieldsItWithholds())
         .as("azericard answers no address for the page it serves and withholds nothing")
         .isEmpty();
@@ -246,7 +254,7 @@ class TrailWithholdingConventionTest {
     assertThat(TrailWithholdingConvention.theClassesThatAnswerAClient(build.modules()))
         .as("the third denominator: the classes that write a row naming an answer to a client")
         .containsExactlyElementsOf(THE_CLASSES_THAT_ANSWER_A_CLIENT);
-    assertThat(TrailWithholdingConvention.howManyAnswerAClient(build.modules())).isEqualTo(9);
+    assertThat(TrailWithholdingConvention.howManyAnswerAClient(build.modules())).isEqualTo(10);
     assertThat(build.modules())
         .allSatisfy(
             module ->
@@ -271,10 +279,10 @@ class TrailWithholdingConventionTest {
             "the fourth denominator: the names the floor was compared against, named one by one"
                 + " so a sweep that stopped matching could not pass as a clean tree")
         .containsExactlyElementsOf(THE_ADDRESSES_THIS_BUILD_PUBLISHES);
-    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(20);
+    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(21);
     assertThat(TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR)
         .as("the registry is the whole of what any module answers in the clear")
-        .hasSize(16)
+        .hasSize(17)
         .allSatisfy(admitted -> assertThat(admitted.why()).isNotBlank());
     assertThat(TrailWithholdingConvention.theModulesThatRegisterAnAddress())
         .containsExactlyElementsOf(THE_MODULES_THIS_SIMULATOR_SERVES);
@@ -289,7 +297,7 @@ class TrailWithholdingConventionTest {
     List<String> read = TrailWithholdingConvention.verdictOn(COMPILED_MAIN).read();
 
     assertThat(read).hasSize(12);
-    assertThat(read.get(0)).contains("examined the 5 provider module(s)");
+    assertThat(read.get(0)).contains("examined the 6 provider module(s)");
     assertThat(read.get(1))
         .as("the denominator of the exclusion: what was excused, where, and what it left read")
         .contains("at the position the compiler emitted them, never across a class")
@@ -298,9 +306,9 @@ class TrailWithholdingConventionTest {
                 + " SENSITIVE_RESPONSE_FIELDS")
         .contains("leaves " + THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE + " name(s)")
         .contains("dev.marcinromanowski.pspsim.provider.autra.AutraPixEvent FINANCIAL_TRANSACTION");
-    assertThat(read.get(2)).contains("read 13 withheld response field(s)");
-    assertThat(read.get(3)).contains("examined 20 published name(s) that read as an address");
-    assertThat(read.get(4)).contains("16 of those address(es) are registered").contains("over 5");
+    assertThat(read.get(2)).contains("read 16 withheld response field(s)");
+    assertThat(read.get(3)).contains("examined 21 published name(s) that read as an address");
+    assertThat(read.get(4)).contains("17 of those address(es) are registered").contains("over 6");
     assertThat(read.get(5))
         .as("the response declaration of stripe is the one this build hands to no whole-key reader")
         .contains("stripe matches not a whole key")
@@ -319,11 +327,11 @@ class TrailWithholdingConventionTest {
                 + WHOLE_KEY
                 + " does]");
     assertThat(read.get(6))
-        .contains("14 method(s) across those modules build a")
-        .contains("of which 9 build one carrying OUTBOUND_RESPONSE")
-        .contains("which is 9 class(es)")
-        .as("the line reports how many of them read it rather than claiming all nine do")
-        .contains("of which 9 read their own module's declaration")
+        .contains("16 method(s) across those modules build a")
+        .contains("of which 10 build one carrying OUTBOUND_RESPONSE")
+        .contains("which is 10 class(es)")
+        .as("the line reports how many of them read it rather than claiming all of them do")
+        .contains("of which 10 read their own module's declaration")
         .contains("0 class(es) build a row that carries no answer to a client");
     assertThat(read.get(7)).contains("[autra, azericard, grow, worldline]");
     assertThat(read.get(8))
@@ -339,7 +347,7 @@ class TrailWithholdingConventionTest {
             "names [INBOUND_REQUEST, OUTBOUND_RESPONSE, OUTBOUND_WEBHOOK_ATTEMPT,"
                 + " OUTBOUND_WEBHOOK_DROPPED, OUTBOUND_WEBHOOK_NOT_SENT]");
     assertThat(read.get(9))
-        .contains("4 of the 5 provider module(s) mint a delivery: [autra, azericard, grow, stripe]")
+        .contains("4 of the 6 provider module(s) mint a delivery: [autra, azericard, grow, stripe]")
         .contains("withholding 5 delivered field(s)");
     assertThat(read.get(10))
         .contains(
@@ -525,9 +533,9 @@ class TrailWithholdingConventionTest {
 
     assertThat(TrailWithholdingConvention.theRegistrationsNoModuleUses(List.of(module)))
         .as(
-            "a build holding grow alone, publishing no address, leaves all 16 addresses and the"
+            "a build holding grow alone, publishing no address, leaves all 17 addresses and the"
                 + " one page registered against nothing")
-        .hasSize(17)
+        .hasSize(18)
         .anySatisfy(
             offence ->
                 assertThat(offence)
@@ -684,16 +692,16 @@ class TrailWithholdingConventionTest {
 
     assertThat(excused.asAnEntryOfItsOwnDeclaration())
         .as(
-            "the 13 response entries and the 5 delivered entries the declarations of this build"
+            "the 16 response entries and the 5 delivered entries the declarations of this build"
                 + " name, each excused in the initializer that stores it")
-        .isEqualTo(18);
-    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(178);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(423);
+        .isEqualTo(21);
+    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(193);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(495);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(619);
+        .isEqualTo(709);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"
@@ -722,17 +730,17 @@ class TrailWithholdingConventionTest {
 
     assertThat(build.rows().theMethodsThatBuildARow())
         .as("the denominator of the answering set: the methods that build a row at all")
-        .isEqualTo(14);
+        .isEqualTo(16);
     assertThat(build.rows().theMethodsThatBuildAnAnswerRow())
         .as(
-            "the five recordOutbound methods that build a row of their own, and the four shared"
+            "the recordOutbound methods that build a row of their own, and the four shared"
                 + " builders a method naming the direction reaches: three of them from a"
                 + " recordOutbound, and autra's card page from its own outbound")
-        .isEqualTo(9);
+        .isEqualTo(10);
     assertThat(build.rows().theClassesThatBuildARowAndAnswerNoClient())
         .as("no class of this build builds a row that carries no answer to a client")
         .isEmpty();
-    assertThat(TrailWithholdingConvention.howManyAnswerAClient(build.modules())).isEqualTo(9);
+    assertThat(TrailWithholdingConvention.howManyAnswerAClient(build.modules())).isEqualTo(10);
   }
 
   @Test

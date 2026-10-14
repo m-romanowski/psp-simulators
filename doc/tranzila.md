@@ -100,11 +100,14 @@ Transactions"; DirectNG "DCdisable"):
 | Rule                                                                                       | Evidence           | Simulator                                                          |
 |--------------------------------------------------------------------------------------------|--------------------|--------------------------------------------------------------------|
 | API: `user_defined_fields: [{"name":"DCdisable","value":"…"}]`; page: parameter `DCdisable` | published rule     | both read                                                          |
-| "The duplicate check is performed up to 24 hours back", "at the parent terminal level"     | published rule     | 24 hours on the run clock, per account                             |
-| "If the original transaction failed, `DCdisable` will not prevent a retry"                  | published rule     | only an approved original of the same `txn_type` (for `verify`, the same `verify_mode`) blocks, also between concurrent requests |
+| "The duplicate check is performed up to 24 hours back", "at the parent terminal level"     | published rule     | 24 hours on the run clock, per terminal, `txn_type` and `verify_mode` |
+| "If the original transaction failed, `DCdisable` will not prevent a retry"                  | published rule     | only an approved original of the same `txn_type` (for `verify`, the same `verify_mode`) blocks; a request arriving while another under the same key runs waits for it, then is answered as its duplicate if it was approved or proceeds if it was declined |
 | maximum 254 characters; `22103` "Invalid DCdisable"                                        | published rule, schema | over 254 → `22103`                                             |
 | duplicate messages "This payment has already been made, please contact the business" / "This payment has already been paid. Please contact customer service." | published rule | API: `200`, `error_code` `0`, the first message, and the original's `transaction_result`; no second transaction |
 | DCdisable is not a universal idempotency key for JSON calls                               | vendor correspondence | applied on create, to every `txn_type`, and on the payment page; no other route |
+
+The idempotency inspector records the `DCdisable` value exactly as the client sent it, under a key name carrying its
+scope (`DCdisable debit`, `DCdisable verify 5`, `DCdisable reversal`, …), so a 254-character value is kept whole.
 
 The duplicate answer is a simulator decision: no shape is published, and Tranzila's only published duplicate answer
 (Dtran, legacy CGI) is "the original response" plus a flag, so a client that retried after a timeout gets the
@@ -176,7 +179,7 @@ Success (published schema, `200`; field names published, values illustrative):
 }
 ```
 
-- `transaction_id` integer, `expiry_year` YY, `currency_code` ISO alpha-3, `amount` "transaction amount in currency"
+- `transaction_id` integer, never `0`, `expiry_year` YY, `currency_code` ISO alpha-3, `amount` "transaction amount in currency"
   (published schema).
 - `Responsecvv` / `Responseid`: `0` not entered, `1` entered and valid, `2` invalid, `3` not checked (published schema).
   Simulator decision: `1` when sent, `0` when not, unless a scenario says otherwise.
@@ -218,7 +221,8 @@ There is no top-level amount; the request schema has no amount field (published 
 | `cancel`             | "Cancels a `debit` or `credit` transaction"; example carries no card, expiry or items                       | cancels a `debit`, `force` or `credit` in full; not after a `credit`; card fields not required                                  |
 
 A follow-on (`force`, `reversal`, `credit`, `cancel`) takes the original's currency; a different `txn_currency_code` on
-it is refused `400` `20004`.
+it is refused `400` `20004`, before the `DCdisable` length check (`22103`), the `DCdisable` duplicate answer and any rule
+below that answers `200`, because a schema-class refusal precedes the application errors.
 
 Reference rules (`20112`, `21100`, `21101`, `22100`, `22101`, `23001`, `23002` are published codes; which condition
 answers which is a simulator decision unless the code's own text says it):
@@ -233,7 +237,7 @@ answers which is a simulator decision unless the code's own text says it):
 | `credit` of a cancelled transaction                                         | `23001` "id 1 - Attempting to credit a transaction that has already been canceled" |
 | a second `credit` of the same original                                      | `23002` "Already Credited this transaction id"             |
 | `credit` above the original                                                 | `23002` "id 4 - sum is larger than the original debit transaction" |
-| `credit` with a different card than the original, by card identity (a non-reversible fingerprint), not by mask | `20112` ("uncreditable origin" text) |
+| `credit` with a different card than the original                            | `20112` ("uncreditable origin" text)                       |
 | `force` or `reversal` of a J5 already forced, reversed or past validity     | `20112` ("uncreditable origin" text)                       |
 | `cancel` of a transaction already credited                                  | `20112` ("uncreditable origin" text)                       |
 | `cancel` of a transaction already cancelled                                 | `20112` ("uncreditable origin" text)                       |
@@ -243,6 +247,10 @@ answers which is a simulator decision unless the code's own text says it):
 - `force`, `reversal` and a token `debit` need no CVV (vendor correspondence; the schema makes `cvv` optional anyway).
 - A J5 past `tranzila.j5-validity` answers `20112` because the hold no longer exists to act on; validity is
   "acquirer-defined" (vendor correspondence) and unpublished.
+- A `credit` and a `cancel` of one original exclude each other: whichever is approved first settles it.
+- Simulator decision: the same card is the same last four, expiry month and year and card type, and the same first
+  six digits when both masks show them (a seeded token's mask shows none); no value derived from the full card
+  number is stored.
 
 ### Response Codes
 

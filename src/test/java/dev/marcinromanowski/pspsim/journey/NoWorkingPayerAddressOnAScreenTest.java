@@ -189,10 +189,10 @@ class NoWorkingPayerAddressOnAScreenTest {
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES.keySet())
         .as(
             "a provider in neither register has its screens refused above rather than swept for"
-                + " no route, so the four that serve a page are named here")
+                + " no route, so the ones that serve a page are named here")
         .containsExactly("autra", "azericard", "grow", "worldline");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE)
-        .containsExactly("stripe");
+        .containsExactlyInAnyOrder("stripe", "tranzila");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES.values())
         .allSatisfy(routes -> assertThat(routes).isNotEmpty())
         .flatExtracting(List::copyOf)

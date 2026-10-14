@@ -1,0 +1,40 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PSP simulator provider tranzila",
+    "version": "1.0.0",
+    "description": "Provider tranzila answers this simulator's imitation of its vendor's own wire format, assembled by hand and described by no record of this build, so every body below is published untyped rather than published as a shape nothing could check. doc/tranzila.md describes the shapes it really answers."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/v1/transaction/credit_card/create": {
+      "post": {
+        "operationId": "create",
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider tranzila reads this body in its own wire format, specified in doc/tranzila.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
+      }
+    }
+  }
+}

@@ -15,7 +15,8 @@ public final class NoWorkingPayerAddressOnAScreen {
   public static final SequencedMap<String, List<String>> THE_PAGES_EACH_PROVIDER_SERVES =
       theDeclaredPages();
 
-  public static final Set<String> THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE = Set.of("stripe");
+  public static final Set<String> THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE =
+      Set.of("stripe", "tranzila");
 
   public static final String A_SCREEN_OF_THIS_SIMULATOR = "/ui";
 

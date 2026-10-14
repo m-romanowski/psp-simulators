@@ -60,7 +60,7 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
               address
                   + " is not a screen of this simulator, and there is no login on the screens: a"
                   + " payer who mistypes a hosted page address was handed eight kilobytes of the"
-                  + " operator's navigation, the provider switcher over all five providers and"
+                  + " operator's navigation, the provider switcher over every provider and"
                   + " links into /ui/objects and /ui/audit. A real provider's hosted page answers"
                   + " a near miss with nothing of the kind")
           .doesNotContain("Skip the navigation")

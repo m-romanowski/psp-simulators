@@ -1,0 +1,30 @@
+{
+  "create-success": {
+    "evidence": "published example",
+    "note": "the 200 response the schema publishes, field names published and values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Create a Credit Card Transaction",
+    "status": 200,
+    "body": "create-success.json"
+  },
+  "original-transaction-not-found": {
+    "evidence": "published rule",
+    "note": "application errors are answered with HTTP 200 and an integer error_code",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Application Error Codes",
+    "rules": {
+      "httpStatus": "200",
+      "error_code": "20112"
+    }
+  },
+  "authentication-failed": {
+    "evidence": "published rule",
+    "note": "the 401 answer of the Error schema, whose error_code is a string",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Error Shape",
+    "rules": {
+      "httpStatus": "401",
+      "error_code": "20000"
+    }
+  }
+}
