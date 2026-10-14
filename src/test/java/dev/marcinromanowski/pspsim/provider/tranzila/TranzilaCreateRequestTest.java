@@ -240,6 +240,18 @@ class TranzilaCreateRequestTest {
   }
 
   @Test
+  void the_shortest_card_number_and_the_year_zero_are_read() {
+    TranzilaCreateRequest read =
+        read(
+            "{"
+                + t("\"card_number\":\"45802100\",\"expire_month\":7,\"expire_year\":0," + ITEMS)
+                + "}");
+
+    assertThat(read.cardNumber()).isEqualTo("45802100");
+    assertThat(read.expireYear()).isZero();
+  }
+
+  @Test
   void a_cvv_sent_as_null_is_read_as_not_entered() {
     assertThat(read("{" + t("\"cvv\":null," + CARD + "," + ITEMS) + "}").cvv()).isNull();
   }

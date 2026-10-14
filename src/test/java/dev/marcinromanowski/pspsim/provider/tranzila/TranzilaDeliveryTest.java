@@ -9,13 +9,19 @@ import dev.marcinromanowski.pspsim.kernel.fault.RenderedResponse;
 import dev.marcinromanowski.pspsim.kernel.fault.ScheduledDeliveries;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import jakarta.servlet.AsyncEvent;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.async.DeferredResult;
+import org.springframework.web.context.request.async.StandardServletAsyncWebRequest;
+import org.springframework.web.context.request.async.WebAsyncManager;
+import org.springframework.web.context.request.async.WebAsyncUtils;
 
 class TranzilaDeliveryTest {
 
@@ -123,6 +129,59 @@ class TranzilaDeliveryTest {
     TranzilaDelivery.whenTheDeadlinePasses(holding, settledAlready);
     assertThat(settledAlready.hasResult()).isFalse();
     assertThat(delayed.delay()).isEqualTo(Duration.ofMillis(400));
+  }
+
+  @Test
+  void a_held_answer_the_container_times_out_is_answered_504_and_no_longer_delivered()
+      throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    StandardServletAsyncWebRequest async = asyncOf(request);
+    DeferredResult<ResponseEntity<byte[]>> held = heldWhile(request, async);
+
+    async.onTimeout(new AsyncEvent(request.getAsyncContext()));
+
+    ResponseEntity<?> answered = (ResponseEntity<?>) held.getResult();
+    assertThat(answered.getStatusCode().value()).isEqualTo(504);
+    assertThat(new String((byte[]) answered.getBody(), StandardCharsets.UTF_8))
+        .isEqualTo(TranzilaDelivery.UNDELIVERED);
+    assertThat(deliveries.cancel(TranzilaApi.TRANZILA, TranzilaWiring.RUN)).isZero();
+  }
+
+  @Test
+  void a_held_answer_whose_connection_fails_is_settled_and_no_longer_delivered() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    StandardServletAsyncWebRequest async = asyncOf(request);
+    heldWhile(request, async);
+
+    async.onError(new AsyncEvent(request.getAsyncContext(), new IllegalStateException("gone")));
+
+    assertThat(deliveries.cancel(TranzilaApi.TRANZILA, TranzilaWiring.RUN)).isZero();
+  }
+
+  @Test
+  void a_held_answer_nothing_settled_is_still_abandoned_by_a_reset() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    heldWhile(request, asyncOf(request));
+
+    assertThat(deliveries.cancel(TranzilaApi.TRANZILA, TranzilaWiring.RUN)).isEqualTo(1);
+  }
+
+  private static StandardServletAsyncWebRequest asyncOf(MockHttpServletRequest request) {
+    request.setAsyncSupported(true);
+    return new StandardServletAsyncWebRequest(request, new MockHttpServletResponse());
+  }
+
+  @SuppressWarnings("unchecked")
+  private DeferredResult<ResponseEntity<byte[]>> heldWhile(
+      MockHttpServletRequest request, StandardServletAsyncWebRequest async) throws Exception {
+    FaultedDelivery delayed =
+        new TransportFault.DelayedResponse(Duration.ofMillis(400)).applyTo(rendered());
+    DeferredResult<ResponseEntity<byte[]>> held =
+        (DeferredResult<ResponseEntity<byte[]>>) delivery.delivered(response(delayed));
+    WebAsyncManager manager = WebAsyncUtils.getAsyncManager(request);
+    manager.setAsyncWebRequest(async);
+    manager.startDeferredResultProcessing(held);
+    return held;
   }
 
   private static RenderedResponse rendered() {

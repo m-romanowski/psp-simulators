@@ -6,7 +6,9 @@ import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
+import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -178,6 +180,50 @@ class TranzilaFollowOnTest {
     wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofDays(7)).minusSeconds(1));
     assertThat(wired.answered(TranzilaWire.aForce(live.id(), live.token(), "1")))
         .contains("\"processor_response_code\":\"000\"");
+  }
+
+  @Test
+  void a_rule_naming_the_j5_by_its_transaction_id_decides_the_force_of_that_j5() {
+    Held held = aJ5Of("100");
+    wired.rules.add(
+        new NewScenarioRule(
+            TranzilaApi.TRANZILA,
+            TranzilaWiring.RUN,
+            1,
+            new ScenarioMatch(
+                null,
+                null,
+                Long.toString(held.id()),
+                null,
+                null,
+                null,
+                null,
+                TranzilaOperations.FORCE,
+                null,
+                Map.of()),
+            new ScenarioAction.TerminalFailure("004"),
+            null));
+
+    TranzilaOperationResult declined =
+        wired.create(TranzilaWire.aForce(held.id(), held.token(), "10"));
+
+    assertThat(declined.outcome()).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(declined.body().text()).contains("\"processor_response_code\":\"004\"");
+    assertThat(declined.scenarioId()).isNotNull();
+  }
+
+  @Test
+  void a_force_a_rule_lets_proceed_and_another_request_closed_first_is_refused_as_tranzilas() {
+    Held held = aJ5Of("100");
+    wired.writes(TranzilaOperations.FORCE, new ScenarioAction.FixedSuccess());
+    wired.transactions.closedByAnotherRequestFirst();
+
+    TranzilaOperationResult refused =
+        wired.create(TranzilaWire.aForce(held.id(), held.token(), "10"));
+
+    assertThat(refused.body().text()).isEqualTo(UNCREDITABLE);
+    assertThat(refused.outcome()).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(refused.scenarioId()).isNull();
   }
 
   @Test

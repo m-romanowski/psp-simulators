@@ -193,6 +193,20 @@ class CreateTransactionTest {
             TranzilaWiring.ACCOUNT,
             "owner",
             PaymentMethodKind.CARD,
+            "decoy",
+            new FixtureCard("visa", "0009", 2, 2032, "credit"),
+            Map.of("token", "decoytoken0009"),
+            null,
+            ObjectOrigin.CONTROL_API),
+        PaymentMethodFixturePlan.storingNothingOfItsOwn(),
+        Set.of());
+    wired.fixtures.seed(
+        new NewPaymentMethodFixture(
+            TranzilaApi.TRANZILA,
+            TranzilaWiring.RUN,
+            TranzilaWiring.ACCOUNT,
+            "owner",
+            PaymentMethodKind.CARD,
             "seeded",
             new FixtureCard("amex", "0005", 1, 2031, "credit"),
             Map.of("token", "seededtoken0005"),

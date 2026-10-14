@@ -19,10 +19,6 @@ public record TranzilaApiResponse(
     return delivery.httpStatus();
   }
 
-  public String contentType() {
-    return delivery.contentType();
-  }
-
   public Map<String, List<String>> headers() {
     return DeliveredHeaders.of(delivery);
   }

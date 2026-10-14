@@ -10,6 +10,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
+import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixturePlan;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
@@ -38,17 +39,21 @@ import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class TranzilaProviderTest {
 
   private final TranzilaWiring wired = new TranzilaWiring();
+
+  private static final TestRunId OTHER_RUN = TestRunId.of("tranzila-other");
 
   private final TranzilaProvider provider = wired.provider;
 
@@ -570,6 +575,7 @@ class TranzilaProviderTest {
 
   @Test
   void resetting_a_run_clears_what_it_holds_and_resetting_everything_clears_every_run() {
+    wired.nonces.claim(OTHER_RUN, "a", "n", TranzilaWiring.NOW, TranzilaWiring.NOW);
     wired.answered(TranzilaWire.aDebit());
 
     ResetOutcome ofTheRun = provider.reset(TranzilaWiring.RUN, ResetScope.TEST_RUN);
@@ -577,7 +583,7 @@ class TranzilaProviderTest {
     ResetOutcome ofEverything = provider.reset(TranzilaWiring.RUN, ResetScope.ALL);
 
     assertThat(ofTheRun.clearedObjects()).isEqualTo(1);
-    assertThat(ofEverything.clearedObjects()).isEqualTo(1);
+    assertThat(ofEverything.clearedObjects()).isEqualTo(2);
     assertThat(wired.stored()).isEmpty();
     assertThat(wired.held.theRunsItWasAskedToCancel()).containsExactly(TranzilaWiring.RUN);
     assertThat(wired.held.howOftenItWasAskedToCancelEverything()).isEqualTo(1);
@@ -586,6 +592,10 @@ class TranzilaProviderTest {
   @Test
   void resetting_counts_nonces_exchanges_fixtures_rules_and_trail_rows() {
     wired.configuring(Map.of());
+    wired.fixtures.seed(
+        fixture(PaymentMethodKind.CARD, card("visa"), "abcd12344245"),
+        PaymentMethodFixturePlan.storingNothingOfItsOwn(),
+        Set.of());
     wired.nonces.claim(TranzilaWiring.RUN, "a", "n", TranzilaWiring.NOW, TranzilaWiring.NOW);
     wired.answered(
         TranzilaWire.aDebit()
@@ -616,8 +626,43 @@ class TranzilaProviderTest {
 
     ResetOutcome outcome = provider.reset(TranzilaWiring.RUN, ResetScope.TEST_RUN);
 
-    assertThat(outcome.clearedObjects()).isEqualTo(4);
+    assertThat(outcome.clearedObjects()).isEqualTo(5);
     assertThat(outcome.clearedAuditRecords()).isEqualTo(1);
+  }
+
+  @Test
+  void
+      resetting_everything_counts_the_nonces_exchanges_fixtures_rules_and_trail_rows_of_every_run() {
+    wired.configuring(Map.of());
+    wired.fixtures.seed(
+        fixture(PaymentMethodKind.CARD, card("visa"), "abcd12344245"),
+        PaymentMethodFixturePlan.storingNothingOfItsOwn(),
+        Set.of());
+    wired.nonces.claim(OTHER_RUN, "a", "n", TranzilaWiring.NOW, TranzilaWiring.NOW);
+    wired.answered(
+        TranzilaWire.aDebit()
+            .replace(
+                "}]}", "}],\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"d\"}]}"));
+    wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.FixedSuccess());
+    wired.answered(TranzilaWire.aDebit());
+
+    ResetOutcome outcome = provider.reset(TranzilaWiring.RUN, ResetScope.ALL);
+
+    assertThat(outcome.clearedObjects()).isEqualTo(6);
+    assertThat(outcome.clearedAuditRecords()).isZero();
+    assertThat(wired.held.howOftenItWasAskedToCancelEverything()).isEqualTo(1);
+    assertThat(wired.held.theRunsItWasAskedToCancel()).isEmpty();
+  }
+
+  @Test
+  void an_account_is_disclosed_from_the_terminal_its_run_configures() {
+    assertThat(provider.disclosureOf(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT))
+        .hasValueSatisfying(
+            disclosed -> {
+              assertThat(disclosed.accountId()).isEqualTo("account-1");
+              assertThat(disclosed.disclosed().get("terminalName")).containsExactly("myterminal");
+            });
+    assertThat(provider.disclosureOf(OTHER_RUN, TranzilaWiring.ACCOUNT)).isEmpty();
   }
 
   @Test

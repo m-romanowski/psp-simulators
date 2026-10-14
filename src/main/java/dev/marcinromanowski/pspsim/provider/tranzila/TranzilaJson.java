@@ -61,12 +61,6 @@ sealed interface TranzilaJson {
           : Optional.empty();
     }
 
-    Optional<Boolean> flag(String name) {
-      return member(name) instanceof JsonFlag flag
-          ? Optional.of(Boolean.valueOf(flag.value()))
-          : Optional.empty();
-    }
-
     Optional<JsonArray> array(String name) {
       return member(name) instanceof JsonArray listed ? Optional.of(listed) : Optional.empty();
     }
@@ -95,20 +89,12 @@ sealed interface TranzilaJson {
     return TranzilaJsonReader.isANumber(value) ? number(value) : text(value);
   }
 
-  static JsonFlag flag(boolean value) {
-    return new JsonFlag(value);
-  }
-
   static JsonArray array(List<TranzilaJson> elements) {
     return new JsonArray(elements);
   }
 
   static JsonObject object(Map<String, TranzilaJson> members) {
     return new JsonObject(members);
-  }
-
-  static JsonObject empty() {
-    return new JsonObject(Map.of());
   }
 
   default Map<String, List<String>> flatten() {

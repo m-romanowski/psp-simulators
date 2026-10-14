@@ -8,6 +8,8 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunHeader;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Duration;
@@ -306,6 +308,45 @@ class TranzilaApiTest {
 
     assertThat(answered.httpStatus()).isEqualTo(503);
     assertThat(theRow(AuditDirection.OUTBOUND_RESPONSE).delivered().transportFault()).isNotNull();
+  }
+
+  @Test
+  void an_answer_the_operation_rendered_is_delivered_as_json() {
+    TranzilaApiResponse answered = call(signedHeaders(SECONDS, "n-18"));
+
+    assertThat(answered.headers().get("Content-Type")).containsExactly("application/json");
+  }
+
+  @Test
+  void an_app_key_two_runs_configure_is_answered_by_the_terminal_of_the_run_the_call_names() {
+    wired.terminals.remove(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT);
+    wired.terminals.with(
+        TranzilaDoubles.terminal(
+            TestRunId.of("tranzila-other"),
+            "account-2",
+            "otherterminal",
+            Map.of(
+                TranzilaTerminal.APP_KEY_PROPERTY,
+                APP_KEY,
+                TranzilaAuthentication.SETTING,
+                TranzilaAuthentication.THE_ACCESS_TOKEN_IS_NOT_VERIFIED.name())));
+    wired.configuring(
+        Map.of(
+            TranzilaAuthentication.SETTING,
+            TranzilaAuthentication.THE_ACCESS_TOKEN_IS_NOT_VERIFIED.name()));
+
+    TranzilaApiResponse answered =
+        call(
+            Map.of(
+                TranzilaFields.APP_KEY,
+                List.of(APP_KEY),
+                TestRunHeader.NAME,
+                List.of(TranzilaWiring.RUN.value())));
+
+    assertThat(answered.httpStatus()).isEqualTo(200);
+    assertThat(answered.testRunId()).isEqualTo(TranzilaWiring.RUN);
+    assertThat(theRow(AuditDirection.INBOUND_REQUEST).accountId()).isEqualTo("account-1");
+    assertThat(wired.theLastStored().accountId()).isEqualTo("account-1");
   }
 
   private AuditRecord theRow(AuditDirection direction) {
