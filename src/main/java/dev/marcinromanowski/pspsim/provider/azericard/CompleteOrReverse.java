@@ -118,7 +118,8 @@ final class CompleteOrReverse {
       String keyValue,
       String providerObjectId,
       AzericardOperationResult result) {
-    payments.observed(
+    AzericardObservation.recorded(
+        payments::observed,
         new AzericardObservedRequest(
             testRunId,
             terminal.accountId(),

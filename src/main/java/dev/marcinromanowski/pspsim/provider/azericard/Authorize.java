@@ -310,7 +310,8 @@ final class Authorize {
       @Nullable String providerObjectId,
       boolean stateChanged,
       AzericardOperationResult result) {
-    payments.observed(
+    AzericardObservation.recorded(
+        payments::observed,
         new AzericardObservedRequest(
             testRunId,
             terminal.accountId(),

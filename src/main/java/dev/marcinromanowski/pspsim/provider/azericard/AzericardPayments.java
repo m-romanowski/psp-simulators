@@ -45,7 +45,7 @@ interface AzericardPayments {
 
   boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue);
 
-  void observed(AzericardObservedRequest request);
+  int observed(AzericardObservedRequest request);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

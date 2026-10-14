@@ -400,8 +400,9 @@ final class AzericardDoubles {
     }
 
     @Override
-    public void observed(AzericardObservedRequest request) {
+    public int observed(AzericardObservedRequest request) {
       observed.add(new ObservedUnderOneKey(theNextArrival(), sequenceOf(request), request));
+      return 1;
     }
 
     private int sequenceOf(AzericardObservedRequest request) {
