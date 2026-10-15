@@ -407,6 +407,29 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_continuation_whose_notify_url_is_no_longer_a_target_records_the_notify_not_sent() {
+    wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
+    aHandshake("10");
+    charge(aCharge("notify_url", A_NOTIFY_URL));
+    answer("555");
+    wired.accounts.callingNoMore();
+
+    String continued = bodyOf(continueOn(TRACK, TranzilaWiring.TERMINAL));
+
+    assertThat(continued).contains("\"success\":true");
+    assertThat(wired.posted).isEmpty();
+    AuditRecord notSent = theRow(AuditDirection.OUTBOUND_WEBHOOK_NOT_SENT);
+    assertThat(notSent.providerObjectId()).isEqualTo("10000001");
+    assertThat(notSent.sanitizedBody()).containsEntry("transaction_id", List.of("10000001"));
+    assertThat(wired.deliveries.of(TranzilaApi.TRANZILA, TranzilaWiring.RUN))
+        .singleElement()
+        .satisfies(
+            delivery ->
+                assertThat(delivery.notSentBecause())
+                    .isEqualTo(TranzilaNotify.NOT_A_TARGET_OF_THE_ACCOUNT));
+  }
+
+  @Test
   void a_continue_repeated_is_refused_900_and_notifies_nothing_more() {
     wired.accounts.callingBack(TranzilaWiring.RUN, TranzilaWiring.ACCOUNT, A_NOTIFY_URL);
     aHandshake("10");

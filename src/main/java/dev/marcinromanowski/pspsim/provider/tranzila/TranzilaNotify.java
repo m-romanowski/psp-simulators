@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.UnknownProviderObjectException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookScheduleRequest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.webhook.UnaddressableDelivery;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDelivery;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDeliveryRequest;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
@@ -160,8 +161,20 @@ final class TranzilaNotify {
       String objectId,
       Map<String, String> fields,
       Target target) {
-    if (target instanceof Target.Addressed addressed) {
-      deliver(testRunId, accountId, objectId, fields, addressed.url(), null, null);
+    switch (target) {
+      case Target.Addressed addressed ->
+          deliver(testRunId, accountId, objectId, fields, addressed.url(), null, null);
+      case Target.Unaddressable unaddressable ->
+          dispatcher.recordUnaddressable(
+              new UnaddressableDelivery(
+                  TranzilaApi.TRANZILA,
+                  testRunId,
+                  accountId,
+                  null,
+                  objectId,
+                  payloadOf(fields),
+                  unaddressable.inItsOwnWords()));
+      case Target.NoneConfigured _ -> {}
     }
   }
 

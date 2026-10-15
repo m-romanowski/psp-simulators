@@ -954,6 +954,12 @@ final class TranzilaDoubles {
       return this;
     }
 
+    Accounts callingNoMore() {
+      targets.clear();
+      runs.clear();
+      return this;
+    }
+
     @Override
     public void merge(
         ProviderId provider,
