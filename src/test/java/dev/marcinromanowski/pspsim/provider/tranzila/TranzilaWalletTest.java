@@ -141,6 +141,41 @@ class TranzilaWalletTest {
   }
 
   @Test
+  void a_page_named_under_another_terminal_of_the_run_shows_neither_its_sheet_nor_its_page() {
+    wired.terminals.with(
+        TranzilaDoubles.terminal(TranzilaWiring.RUN, "account-2", "otherterminal"));
+    open(parameters("5", "A", "apple_pay", "1"));
+    String pageId = thePage().pageId();
+    int recorded = wired.audit.all().size();
+
+    TranzilaApiResponse sheet =
+        wired.directNg.sheet(
+            TranzilaPageCall.of(
+                "GET",
+                TranzilaDirectNgPage.payerPathOf("otherterminal", pageId) + "/wallet/apple_pay",
+                Map.of()),
+            "otherterminal",
+            pageId,
+            "apple_pay");
+    TranzilaApiResponse shown =
+        wired.directNg.shown(
+            TranzilaPageCall.of(
+                "GET", TranzilaDirectNgPage.payerPathOf("otherterminal", pageId), Map.of()),
+            "otherterminal",
+            pageId);
+
+    assertThat(sheet.httpStatus()).isEqualTo(404);
+    assertThat(bodyOf(sheet))
+        .contains(TranzilaDirectNgPage.escaped(TranzilaDirectNgPage.NO_SUCH_PAGE));
+    assertThat(shown.httpStatus()).isEqualTo(404);
+    assertThat(bodyOf(shown))
+        .contains(TranzilaDirectNgPage.escaped(TranzilaDirectNgPage.NO_SUCH_PAGE));
+    assertThat(wired.audit.all()).hasSize(recorded);
+    assertThat(sheet(pageId, "apple_pay").httpStatus()).isEqualTo(200);
+    assertThat(shown(pageId).httpStatus()).isEqualTo(200);
+  }
+
+  @Test
   void a_sheet_of_a_wallet_not_served_not_offered_or_of_a_page_that_ended_is_refused() {
     open(parameters("5", "N", "apple_pay", "1"));
     String unpaid = thePage().pageId();
