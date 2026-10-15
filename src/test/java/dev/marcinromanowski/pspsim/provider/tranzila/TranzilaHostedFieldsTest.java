@@ -15,6 +15,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixturePlan;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunResolutionRule;
@@ -285,6 +286,32 @@ class TranzilaHostedFieldsTest {
     assertThat(again.substring(0, again.indexOf("response_hash")))
         .isEqualTo(first.substring(0, first.indexOf("response_hash")));
     assertThat(wired.stored().get(0).dcDisable()).isEqualTo("order-77");
+  }
+
+  @Test
+  void a_charge_under_a_dcdisable_is_kept_as_the_answer_the_shop_received_its_token_withheld() {
+    aHandshake("10");
+    charge(aCharge("10", "DCdisable", "order-78", "tokenize", "true"));
+    charge(aCharge("10", "DCdisable", "order-78", "tokenize", "true"));
+
+    List<RecordedKeyedRequest> kept = wired.exchanges.everythingItObserved();
+
+    assertThat(kept)
+        .extracting(
+            exchange -> exchange.keyName() + " " + exchange.keyValue() + " " + exchange.verdict())
+        .containsExactly(
+            "DCdisable debit order-78 FIRST_REQUEST",
+            "DCdisable debit order-78 DUPLICATE_KEY_REFUSAL");
+    assertThat(kept)
+        .allSatisfy(
+            exchange ->
+                assertThat(exchange.body())
+                    .contains("\"transaction_response.transaction_id\":[\"10000001\"]")
+                    .contains("\"transaction_response.user_form_data.DCdisable\":[\"order-78\"]")
+                    .contains("\"transaction_response.token\":[\"[redacted]\"]")
+                    .contains("\"response_hash\":[\"")
+                    .doesNotContain("original_request")
+                    .doesNotContain("t000000000000019022"));
   }
 
   @Test

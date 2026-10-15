@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
@@ -40,6 +41,12 @@ final class CompleteThreeDSecure {
     this.createTransaction = createTransaction;
     this.exchanges = exchanges;
     this.ids = ids;
+  }
+
+  @FunctionalInterface
+  interface KeyedAnswering {
+
+    @Nullable KeyedAnswer of(Reached.ADuplicate duplicate);
   }
 
   sealed interface Reached {
@@ -91,9 +98,28 @@ final class CompleteThreeDSecure {
           TranzilaErrors.AUTHORIZATION_FAILED_TEXT,
           CreateTransaction.ANOTHER_TERMINAL);
     }
-    Reached reached = reach(call, call.headers(), testRunId, terminal, trackId.get(), false, now);
+    Reached reached =
+        reach(
+            call,
+            call.headers(),
+            testRunId,
+            terminal,
+            trackId.get(),
+            false,
+            now,
+            duplicate -> answerOf(duplicate).body().asAKeyedAnswer());
     TranzilaOperationResult result = answerOf(reached);
-    observe(call, testRunId, terminal, trackId.get(), reached, result, now);
+    observe(
+        call.method(),
+        body.flatten(),
+        testRunId,
+        terminal,
+        trackId.get(),
+        reached,
+        result.outcome(),
+        result.body().asAKeyedAnswer(),
+        result.providerObjectId(),
+        now);
     return result;
   }
 
@@ -104,7 +130,8 @@ final class CompleteThreeDSecure {
       TranzilaTerminal terminal,
       String trackId,
       boolean onTheHostedFields,
-      Instant now) {
+      Instant now,
+      KeyedAnswering answering) {
     return transactions.together(
         () -> {
           Optional<TranzilaChallenge> locked =
@@ -144,7 +171,10 @@ final class CompleteThreeDSecure {
                           original -> {
                             challenges.complete(
                                 challenge.completedAs(original.transactionId(), now));
-                            return new Reached.ADuplicate(challenge, original);
+                            Reached.ADuplicate duplicate =
+                                new Reached.ADuplicate(challenge, original);
+                            observeTheDuplicate(key, duplicate, now, answering);
+                            return duplicate;
                           })
                       .orElseGet(() -> completed(call, headers, terminal, challenge, now)));
         });
@@ -213,13 +243,46 @@ final class CompleteThreeDSecure {
     return TranzilaJsonReader.objectIn(challenge.originalRequest()).orElseThrow();
   }
 
-  private void observe(
-      TranzilaApiCall call,
+  private void observeTheDuplicate(
+      TranzilaDcDisableKey key,
+      Reached.ADuplicate duplicate,
+      Instant now,
+      KeyedAnswering answering) {
+    TranzilaChallenge challenge = duplicate.challenge();
+    exchanges.observed(
+        new KeyedObservation(
+            key.testRunId(),
+            key.accountId(),
+            key.exchangeKeyName(),
+            key.dcDisable(),
+            challenge.type().wire(),
+            KeyedOutcome.REFUSED_AS_A_DUPLICATE,
+            new FingerprintedRequest(
+                TranzilaObjectActions.WIRE_METHOD,
+                challenge.type().wire(),
+                CreateTransaction.theFieldsAFingerprintReads(
+                    TranzilaApiCall.of(
+                        TranzilaObjectActions.WIRE_METHOD,
+                        TranzilaApiController.CREATE,
+                        Map.of(),
+                        challenge.originalRequest()))),
+            answering.of(duplicate),
+            duplicate.original().transactionIdAsText(),
+            false,
+            null,
+            now));
+  }
+
+  void observe(
+      String method,
+      Map<String, List<String>> sent,
       TestRunId testRunId,
       TranzilaTerminal terminal,
       String trackId,
       Reached reached,
-      TranzilaOperationResult result,
+      ProviderOutcome answered,
+      @Nullable KeyedAnswer answer,
+      @Nullable String providerObjectId,
       Instant now) {
     @Nullable KeyedOutcome outcome =
         switch (reached) {
@@ -228,7 +291,7 @@ final class CompleteThreeDSecure {
               none.alreadyCompleted().isPresent() ? KeyedOutcome.REFUSED_AS_A_DUPLICATE : null;
           case Reached.NotAnswered _, Reached.AnsweredInstead _ -> null;
         };
-    if (outcome == null || result.outcome() == ProviderOutcome.UNKNOWN) {
+    if (outcome == null || answered == ProviderOutcome.UNKNOWN) {
       return;
     }
     exchanges.observed(
@@ -239,12 +302,9 @@ final class CompleteThreeDSecure {
             trackId,
             OPERATION,
             outcome,
-            new FingerprintedRequest(
-                call.method(),
-                OPERATION,
-                call.body().map(TranzilaJson::flatten).orElseGet(Map::of)),
-            result.body().asAKeyedAnswer(),
-            result.providerObjectId(),
+            new FingerprintedRequest(method, OPERATION, sent),
+            answer,
+            providerObjectId,
             reached instanceof Reached.Made || reached instanceof Reached.ADuplicate,
             null,
             now));

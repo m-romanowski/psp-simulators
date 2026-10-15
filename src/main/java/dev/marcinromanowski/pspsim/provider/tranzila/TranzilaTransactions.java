@@ -18,6 +18,16 @@ interface TranzilaTransactions {
 
   Optional<TranzilaPayment> paymentHolding(TestRunId testRunId, long transactionId);
 
+  default Optional<TranzilaTransaction> theOneAnswered(
+      TestRunId testRunId, TranzilaOperationResult result) {
+    return Optional.ofNullable(result.providerObjectId())
+        .flatMap(TranzilaIdentifiers::transactionIdIn)
+        .flatMap(
+            id ->
+                paymentHolding(testRunId, id.longValue())
+                    .flatMap(payment -> payment.transaction(id.longValue())));
+  }
+
   List<TranzilaPayment> paymentsHolding(TestRunId testRunId, List<Long> transactionIds);
 
   Optional<TranzilaTransaction> carryingTheToken(

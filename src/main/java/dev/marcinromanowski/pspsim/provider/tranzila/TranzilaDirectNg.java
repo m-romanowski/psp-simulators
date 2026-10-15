@@ -16,6 +16,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerSteps;
 import dev.marcinromanowski.pspsim.kernel.spi.ScheduledWebhook;
@@ -658,22 +659,15 @@ final class TranzilaDirectNg {
             now,
             askedBy,
             Map.of(card.token(), card.card()),
-            wallet);
+            wallet,
+            answered -> theKeyedAnswerTo(page, answered));
     if (result.insteadOfTheOperation() != null) {
       return new Step.AnsweredInstead(result);
     }
     if (TranzilaAnswers.isADuplicate(result)) {
       return new Step.ADuplicate();
     }
-    TranzilaTransaction transaction =
-        Optional.ofNullable(result.providerObjectId())
-            .flatMap(TranzilaIdentifiers::transactionIdIn)
-            .flatMap(
-                id ->
-                    transactions
-                        .paymentHolding(testRunId, id.longValue())
-                        .flatMap(payment -> payment.transaction(id.longValue())))
-            .orElseThrow();
+    TranzilaTransaction transaction = transactions.theOneAnswered(testRunId, result).orElseThrow();
     TranzilaPage reached =
         page.settledAs(
             transaction.approved() ? PayerOutcome.PAID : PayerOutcome.DECLINED,
@@ -683,6 +677,24 @@ final class TranzilaDirectNg {
             null,
             now);
     return settledAs(reached, transaction, result.fault(), result.scenarioId(), target, now);
+  }
+
+  @Nullable KeyedAnswer theKeyedAnswerTo(TranzilaPage page, TranzilaOperationResult result) {
+    if (TranzilaAnswers.isADuplicate(result)) {
+      return new KeyedAnswer(
+          SHOWN, Map.of(TranzilaFields.MESSAGE, List.of(TranzilaDirectNgPage.THE_DUPLICATE)));
+    }
+    return transactions
+        .theOneAnswered(page.testRunId(), result)
+        .map(transaction -> new KeyedAnswer(SHOWN, asReturned(page, transaction)))
+        .orElse(null);
+  }
+
+  static Map<String, List<String>> asReturned(TranzilaPage page, TranzilaTransaction transaction) {
+    Map<String, List<String>> returned = new LinkedHashMap<>();
+    TranzilaBrowserReturn.theFieldsOf(page, transaction)
+        .forEach((name, value) -> returned.put(name, List.of(value)));
+    return returned;
   }
 
   private Step settledAs(

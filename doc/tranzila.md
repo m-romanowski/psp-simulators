@@ -115,10 +115,14 @@ Transactions"; DirectNG "DCdisable"):
 | "If the original transaction failed, `DCdisable` will not prevent a retry"                  | published rule     | only an approved original of the same `txn_type` (for `verify`, the same `verify_mode`) blocks; a request arriving while another under the same key runs waits for it, then is answered as its duplicate if it was approved or proceeds if it was declined |
 | maximum 254 characters; `22103` "Invalid DCdisable"                                        | published rule, schema | over 254 → `22103`                                             |
 | duplicate messages "This payment has already been made, please contact the business" / "This payment has already been paid. Please contact customer service." | published rule | API: `200`, `error_code` `0`, the first message, and the original's `transaction_result`; no second transaction |
-| DCdisable is not a universal idempotency key for JSON calls                               | vendor correspondence | applied on create, to every `txn_type`, and on the payment page; no other route |
+| DCdisable is not a universal idempotency key for JSON calls                               | vendor correspondence | applied on create (to every `txn_type`), on the payment page, on the Hosted Fields and on 3-D Secure completion; no other route |
 
 The idempotency inspector records the `DCdisable` value exactly as the client sent it, under a key name carrying its
-scope (`DCdisable debit`, `DCdisable verify 5`, `DCdisable reversal`, …), so a 254-character value is kept whole.
+scope (`DCdisable debit`, `DCdisable verify 5`, `DCdisable reversal`, …), so a 254-character value is kept whole. Each
+request is kept with the answer its client received, withheld as the trail withholds it: the API's JSON; the page's
+return fields, or for a duplicate the text the page shows; the Hosted Fields' answer with its `transaction_response`.
+A 3-D Secure completion that meets an approved original under its `DCdisable` is kept under that key as a refused
+duplicate, as a create is.
 
 The duplicate answer is a simulator decision: no shape is published, and Tranzila's only published duplicate answer
 (Dtran, legacy CGI) is "the original response" plus a flag, so a client that retried after a timeout gets the
@@ -371,7 +375,8 @@ with string values (`transaction_id: "372803"`, `card_type: "2"`, `expiry_month:
 | a challenge whose `DCdisable` an approved transaction took meanwhile | the duplicate answer ("Duplicates and DCdisable"), naming that transaction |
 
 A J5 completed from a challenge is held `tranzila.j5-validity` from its completion. The idempotency inspector keeps
-`track_id` as a duplicate-detection key: the completion that ran, and each later one refused `900`. A complete
+`track_id` as a duplicate-detection key: the completion that ran, and each later one refused `900`, on the API and on
+the Hosted Fields alike, each with the answer its client received. A complete
 retried after its first answer was lost (a fault after the transaction was made) is answered `900` as completed, so
 that `900` does not mean nothing was charged: the lookups ("Transaction Lookups") read whether the transaction was
 made. The transaction a completion makes carries the `items` and `user_defined_fields` the create sent, read back

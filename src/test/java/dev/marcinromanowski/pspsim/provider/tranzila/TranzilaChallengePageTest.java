@@ -7,6 +7,8 @@ import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditDirection;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
+import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
@@ -254,6 +256,69 @@ class TranzilaChallengePageTest {
         .isEqualTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(21)));
     assertThat(theRow(AuditDirection.INBOUND_REQUEST).resolutionRule())
         .isEqualTo(TestRunResolutionRule.OBJECT_CORRELATION);
+  }
+
+  @Test
+  void a_continuation_is_kept_under_its_track_id_as_the_answer_the_shop_received() {
+    aHandshake("10");
+    charge(aCharge("tokenize", "true"));
+    answer("555");
+    continueOn(TRACK, TranzilaWiring.TERMINAL);
+
+    continueOn(TRACK, TranzilaWiring.TERMINAL);
+
+    List<RecordedKeyedRequest> kept = underTheTrack();
+    assertThat(kept)
+        .extracting(RecordedKeyedRequest::verdict)
+        .containsExactly(ExchangeVerdict.FIRST_REQUEST, ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
+    assertThat(kept).extracting(RecordedKeyedRequest::stateChanged).containsExactly(true, false);
+    assertThat(kept)
+        .extracting(RecordedKeyedRequest::providerObjectId)
+        .containsExactly("10000001", null);
+    assertThat(kept.get(0).body())
+        .contains("\"transaction_response.transaction_id\":[\"10000001\"]")
+        .contains("\"transaction_response.token\":[\"[redacted]\"]")
+        .doesNotContain("t000000000000015005")
+        .doesNotContain("original_request");
+    assertThat(kept.get(1).body())
+        .contains("\"errors.code\":[\"900\"]")
+        .contains("\"errors.param\":[\"track_id\"]");
+    assertThat(kept.get(1).fingerprint()).isEqualTo(kept.get(0).fingerprint());
+  }
+
+  @Test
+  void a_continuation_meeting_an_approved_dc_disable_answers_and_keeps_that_duplicate() {
+    aHandshake("10");
+    charge(aCharge("DCdisable", "o-11"));
+    String approved =
+        bodyOf(charge(aChargeOf("4111111111111111", "DCdisable", "o-11", "cvv", "737")));
+    answer("555");
+
+    String continued = bodyOf(continueOn(TRACK, TranzilaWiring.TERMINAL));
+
+    assertThat(approved).contains("\"transaction_id\":\"10000002\"");
+    assertThat(continued)
+        .contains("\"success\":true")
+        .contains("\"transaction_id\":\"10000002\"")
+        .contains("\"response_hash\":\"");
+    assertThat(wired.stored()).hasSize(1);
+    List<RecordedKeyedRequest> kept =
+        wired.exchanges.everythingItObserved().stream()
+            .filter(exchange -> exchange.keyName().equals("DCdisable debit"))
+            .toList();
+    assertThat(kept)
+        .extracting(RecordedKeyedRequest::verdict)
+        .containsExactly(
+            ExchangeVerdict.FIRST_REQUEST,
+            ExchangeVerdict.REPEAT_ADMITTED,
+            ExchangeVerdict.DUPLICATE_KEY_REFUSAL);
+    assertThat(kept.get(2).body())
+        .contains("\"transaction_response.transaction_id\":[\"10000002\"]")
+        .contains("\"transaction_response.user_form_data.DCdisable\":[\"o-11\"]")
+        .doesNotContain("original_request");
+    assertThat(underTheTrack())
+        .extracting(RecordedKeyedRequest::verdict)
+        .containsExactly(ExchangeVerdict.FIRST_REQUEST);
   }
 
   @Test
@@ -628,6 +693,13 @@ class TranzilaChallengePageTest {
 
   private static String bodyOf(TranzilaApiResponse answered) {
     return new String(answered.body(), StandardCharsets.UTF_8);
+  }
+
+  private List<RecordedKeyedRequest> underTheTrack() {
+    return wired.exchanges.everythingItObserved().stream()
+        .filter(kept -> kept.keyName().equals("track_id"))
+        .filter(kept -> kept.keyValue().equals(TRACK))
+        .toList();
   }
 
   private AuditRecord theRow(AuditDirection direction) {

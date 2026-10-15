@@ -93,7 +93,8 @@ final class CreateTransaction {
       Map<String, TranzilaCard> cardsThePageOffers,
       @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
       @Nullable TranzilaHostedFieldsEcho hostedFields,
-      @Nullable TranzilaWallet wallet) {
+      @Nullable TranzilaWallet wallet,
+      TranzilaKeyedAnswering answering) {
 
     String accountId() {
       return terminal.accountId();
@@ -134,7 +135,18 @@ final class CreateTransaction {
       Instant now,
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers) {
-    return handle(call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null);
+    return handle(
+        call,
+        headers,
+        testRunId,
+        terminal,
+        now,
+        askedBy,
+        cardsThePageOffers,
+        null,
+        null,
+        null,
+        TranzilaKeyedAnswering.AS_ANSWERED);
   }
 
   TranzilaOperationResult handle(
@@ -145,9 +157,20 @@ final class CreateTransaction {
       Instant now,
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers,
-      @Nullable TranzilaWallet wallet) {
+      @Nullable TranzilaWallet wallet,
+      TranzilaKeyedAnswering answering) {
     return handle(
-        call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null, null, wallet);
+        call,
+        headers,
+        testRunId,
+        terminal,
+        now,
+        askedBy,
+        cardsThePageOffers,
+        null,
+        null,
+        wallet,
+        answering);
   }
 
   TranzilaOperationResult handle(
@@ -159,7 +182,8 @@ final class CreateTransaction {
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers,
       @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
-      @Nullable TranzilaHostedFieldsEcho hostedFields) {
+      TranzilaHostedFieldsEcho hostedFields,
+      TranzilaKeyedAnswering answering) {
     return handle(
         call,
         headers,
@@ -170,7 +194,8 @@ final class CreateTransaction {
         cardsThePageOffers,
         theTypedCardsOutcome,
         hostedFields,
-        null);
+        null,
+        answering);
   }
 
   TranzilaOperationResult handle(
@@ -183,7 +208,8 @@ final class CreateTransaction {
       Map<String, TranzilaCard> cardsThePageOffers,
       @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
       @Nullable TranzilaHostedFieldsEcho hostedFields,
-      @Nullable TranzilaWallet wallet) {
+      @Nullable TranzilaWallet wallet,
+      TranzilaKeyedAnswering answering) {
     Optional<TranzilaJson.JsonObject> parsed = call.body();
     if (parsed.isEmpty()) {
       return TranzilaAnswers.refusedBody(
@@ -216,7 +242,8 @@ final class CreateTransaction {
             cardsThePageOffers,
             theTypedCardsOutcome,
             hostedFields,
-            wallet);
+            wallet,
+            answering);
     Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
     if (inAnotherCurrency.isPresent()) {
       return inAnotherCurrency.get().result();
@@ -283,7 +310,7 @@ final class CreateTransaction {
                 asked.call().method(),
                 asked.request().type().wire(),
                 theFieldsAFingerprintReads(asked.call())),
-            result.body().asAKeyedAnswer(),
+            asked.answering().of(result),
             result.providerObjectId(),
             answered.stored(),
             null,
@@ -565,7 +592,8 @@ final class CreateTransaction {
             Map.of(challenge.token(), challenge.card()),
             null,
             challenge.hostedFields(),
-            null);
+            null,
+            TranzilaKeyedAnswering.AS_ANSWERED);
     Presented presented = new Presented(challenge.card(), challenge.token(), null);
     Answered answered =
         challenge.passed() || challenge.forceTxnOnFail()

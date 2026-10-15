@@ -575,6 +575,33 @@ class TranzilaThreeDSecureTest {
   }
 
   @Test
+  void a_completion_meeting_an_approved_dc_disable_is_kept_under_it_as_a_refused_duplicate() {
+    String dcDisable = ",\"user_defined_fields\":[{\"name\":\"DCdisable\",\"value\":\"o-9\"}]";
+    wired.create(aSecureDebit(CHALLENGED, dcDisable));
+    long approved =
+        TranzilaWire.transactionIdIn(wired.answered(aDebitOf(TranzilaWire.A_VISA, dcDisable)));
+    answer(THE_FIRST_TRACK, TranzilaChallenge.Verdict.PASSED);
+
+    complete(THE_FIRST_TRACK);
+
+    List<RecordedKeyedRequest> kept =
+        wired.exchanges.everythingItObserved().stream()
+            .filter(exchange -> exchange.keyName().equals("DCdisable debit"))
+            .toList();
+    assertThat(kept)
+        .extracting(exchange -> exchange.keyValue() + " " + exchange.verdict())
+        .containsExactly("o-9 FIRST_REQUEST", "o-9 REPEAT_ADMITTED", "o-9 DUPLICATE_KEY_REFUSAL");
+    RecordedKeyedRequest refused = kept.get(2);
+    assertThat(refused.providerObjectId()).isEqualTo(String.valueOf(approved));
+    assertThat(refused.stateChanged()).isFalse();
+    assertThat(refused.fingerprint()).isEqualTo(kept.get(0).fingerprint());
+    assertThat(refused.body())
+        .contains(
+            "\"message\":[\"This payment has already been made, please contact the business\"]")
+        .contains("\"transaction_result.transaction_id\":[\"" + approved + "\"]");
+  }
+
+  @Test
   void a_challenge_with_a_dc_disable_nothing_approved_completes_into_its_own_transaction() {
     wired.create(
         aSecureDebit(

@@ -13,6 +13,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixturePlan;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodKind;
+import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
@@ -229,8 +230,33 @@ class TranzilaDirectNgTest {
             exchange ->
                 assertThat(String.valueOf(exchange.body()))
                     .doesNotContain(THE_PUBLISHED_TOKEN)
-                    .doesNotContain("123456789")
-                    .contains("[redacted]"));
+                    .doesNotContain("123456789"));
+    assertThat(wired.exchanges.everythingItObserved().get(0).body())
+        .contains("\"TranzilaTK\":[\"[redacted]\"]")
+        .contains("\"myid\":[\"[redacted]\"]");
+  }
+
+  @Test
+  void a_page_charge_under_a_dc_disable_is_kept_as_the_return_and_the_page_the_payer_got() {
+    open(parameters("30", "A", "DCdisable", "order-10", "orderid", "SHOP-1"));
+    open(parameters("30", "A", "DCdisable", "order-10", "orderid", "SHOP-1"));
+    pay(wired.pages.all().get(0).pageId(), THE_PUBLISHED_CARD);
+    pay(wired.pages.all().get(1).pageId(), THE_PUBLISHED_CARD);
+
+    List<RecordedKeyedRequest> kept = wired.exchanges.everythingItObserved();
+
+    assertThat(kept.get(0).body())
+        .startsWith("{\"supplier\":[\"myterminal\"],\"sum\":[\"30\"],\"currency\":[\"1\"],")
+        .contains("\"Response\":[\"000\"]")
+        .contains("\"orderid\":[\"SHOP-1\"]")
+        .contains("\"transaction_id\":[\"10000001\"]")
+        .contains("\"TranzilaTK\":[\"[redacted]\"]")
+        .doesNotContain("original_request")
+        .doesNotContain("error_code");
+    assertThat(kept.get(1).body())
+        .isEqualTo(
+            "{\"message\":[\"This payment has already been paid. Please contact customer"
+                + " service.\"]}");
   }
 
   @Test

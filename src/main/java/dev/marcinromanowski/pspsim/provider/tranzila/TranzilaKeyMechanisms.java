@@ -13,15 +13,20 @@ import java.util.Map;
 final class TranzilaKeyMechanisms {
 
   static final String SCOPED_BY_THE_TERMINAL_AND_A_DAY =
-      "the DCdisable value a create carries in user_defined_fields, kept as the client sent it"
-          + " under a key name that carries the txn_type and verify_mode it is compared within,"
-          + " which provider tranzila"
+      "the DCdisable value a create carries in user_defined_fields, or a payment page or a"
+          + " Hosted Fields charge carries as a parameter, kept as the client sent it under a key"
+          + " name that carries the txn_type and verify_mode it is compared within, with the"
+          + " answer that client received. A 3-D Secure completion is checked against it too, and"
+          + " one meeting an approved original is kept under it as a refused duplicate. Provider"
+          + " tranzila"
           + " compares \"up to 24 hours back\" and \"at the parent terminal level\", against"
           + " transactions of the same txn_type and verify_mode. A repeat within that window of an"
-          + " approved original runs nothing and is answered error_code"
-          + " 0 with \"This payment has already been made, please contact the business\" and the"
-          + " original's transaction_result, so a client that retried after a lost answer reads"
-          + " the transaction it already made; \"If the original transaction failed, DCdisable"
+          + " approved original runs nothing and is answered, on the API, error_code 0 with \"This"
+          + " payment has already been made, please contact the business\" and the original's"
+          + " transaction_result, on the Hosted Fields the original's transaction_response, so a"
+          + " client that retried after a lost answer reads the transaction it already made, and"
+          + " on the page \"This payment has already been paid. Please contact customer"
+          + " service.\"; \"If the original transaction failed, DCdisable"
           + " will not prevent a retry\", and such a repeat is let through. The value is at most"
           + " 254 characters, and a longer one is refused 22103";
 
