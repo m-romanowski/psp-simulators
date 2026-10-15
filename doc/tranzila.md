@@ -776,8 +776,8 @@ classes are set on the input in the frame as well as on the merchant's container
   challenge page tells the frames of its own origin beside it the `track_id` and nothing else; the hidden frame takes
   it only from a frame of its own origin under the same page, for a challenge it is waiting on, and posts `track_id` and
   `supplier`; its answer closes the challenge frame and reaches the `charge` callback, hashed. That continuation
-  completes the challenge as complete does (one transaction, once), renews the `thtk` when approved and sends the
-  notify. A continuation of no challenge waiting to be completed, or of one the payer has not answered, answers
+  completes the challenge as complete does (one transaction, once), renews the `thtk` when approved while it is
+  still live (an expired `thtk` stays expired) and sends the notify. A continuation of no challenge waiting to be completed, or of one the payer has not answered, answers
   `errors` `[{code: 900, param: "track_id", message: "Transaction failed during 3D Secure validation"}]`; a
   `supplier` naming no terminal of the run answers `10013` with `param` `supplier`.
 - No server-side verification of a Hosted Fields result is published; `response_hash` is the only proof.

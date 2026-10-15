@@ -360,7 +360,8 @@ final class TranzilaHostedFields {
         TranzilaHostedFieldsEcho echo = theEchoOf(made.challenge());
         TestRunId testRunId = terminal.testRunId();
         Optional<TranzilaHandshake> locking = handshakes.find(testRunId, echo.thtk());
-        if (transaction.approved()) {
+        if (transaction.approved()
+            && locking.filter(handshake -> handshake.isLiveAt(now)).isPresent()) {
           handshakes.retainUntil(
               testRunId, echo.thtk(), now.plus(TranzilaHandshake.IT_IS_RETAINED_FOR));
         }

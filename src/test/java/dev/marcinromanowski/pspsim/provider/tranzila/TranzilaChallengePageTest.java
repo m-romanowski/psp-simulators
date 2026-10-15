@@ -257,6 +257,23 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_continuation_after_the_handshake_expired_leaves_it_expired_and_locking_nothing() {
+    aHandshake("10");
+    charge(aCharge());
+    answer("555");
+    wired.clock.moveTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(25)));
+
+    String continued = bodyOf(continueOn(TRACK, TranzilaWiring.TERMINAL));
+    String another = bodyOf(charge(aChargeOf("4111111111111111")));
+
+    assertThat(continued).contains("\"success\":true");
+    assertThat(wired.handshakes.find(TranzilaWiring.RUN, A_THTK).orElseThrow().expiresAt())
+        .isEqualTo(TranzilaWiring.NOW.plus(Duration.ofMinutes(20)));
+    assertThat(another).contains("\"code\":912791").doesNotContain("transaction_id");
+    assertThat(wired.stored()).hasSize(1);
+  }
+
+  @Test
   void a_continuation_is_recorded_and_answered_on_the_terminal_of_the_run_holding_its_challenge() {
     aHandshake("10");
     charge(aCharge());
