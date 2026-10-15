@@ -293,18 +293,16 @@ public final class TimelineScreen {
 
   private static @Nullable Subject theKeyedRequestThatCarriesIt(
       String key, KeyedExchangePage exchanges) {
-    for (KeyedExchange exchange : exchanges.exchanges()) {
-      if (!exchange.isKeyedBy(key)) {
-        continue;
-      }
-      String object = exchange.firstRequest().providerObjectId();
-      if (object == null) {
-        return new Subject.CarriedButNamesNoObject(
-            "a request recorded under key " + exchange.keyName());
-      }
-      return new Subject.Resolved(object, Found.KEYED_REQUEST, exchange.keyName());
+    KeyedExchange exchange = KeyedExchange.theOneKeyedBy(key, exchanges.exchanges());
+    if (exchange == null) {
+      return null;
     }
-    return null;
+    String object = exchange.firstRequest().providerObjectId();
+    if (object == null) {
+      return new Subject.CarriedButNamesNoObject(
+          "a request recorded under key " + exchange.keyName());
+    }
+    return new Subject.Resolved(object, Found.KEYED_REQUEST, exchange.keyName());
   }
 
   public static View of(

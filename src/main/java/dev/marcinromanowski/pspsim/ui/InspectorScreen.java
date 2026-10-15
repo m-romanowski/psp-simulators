@@ -108,7 +108,8 @@ public final class InspectorScreen {
       @Nullable String providerObjectId,
       List<NamedObject> objectsItNames,
       List<NamedObject> objectsThatNameIt,
-      List<Request> requests) {
+      List<Request> requests,
+      Request firstRequest) {
 
     public Row {
       replayTimestamps = List.copyOf(replayTimestamps);
@@ -152,20 +153,6 @@ public final class InspectorScreen {
 
     public boolean wasRepeated() {
       return requests.size() > 1;
-    }
-
-    public Request firstRequest() {
-      for (Request request : requests) {
-        if (request.ranTheOperation()) {
-          return request;
-        }
-      }
-      for (Request request : requests) {
-        if (!request.neverReachedTheKeysOwnRecord()) {
-          return request;
-        }
-      }
-      return requests.get(0);
     }
 
     public boolean aRequestClaimedThisKey() {
@@ -270,7 +257,8 @@ public final class InspectorScreen {
         object,
         theObjectsItNames(object, objectsOfTheRun),
         theObjectsThatNameIt(object, objectsOfTheRun),
-        requests);
+        requests,
+        requests.get(exchange.firstRequest().sequence()));
   }
 
   private static @Nullable String theObjectItReached(KeyedExchange exchange) {

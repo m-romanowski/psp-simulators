@@ -253,6 +253,51 @@ class KeyedExchangeTest {
   }
 
   @Test
+  void an_exact_key_is_found_before_a_scoped_key_that_only_ends_with_it() {
+    KeyedExchange scoped = keyedAs("order 7");
+    KeyedExchange exact = keyedAs("7");
+
+    assertThat(KeyedExchange.theOneKeyedBy("7", List.of(scoped, exact))).isSameAs(exact);
+    assertThat(KeyedExchange.theOneKeyedBy("7", List.of(scoped))).isSameAs(scoped);
+    assertThat(KeyedExchange.theOneKeyedBy("order 7", List.of(exact, scoped))).isSameAs(scoped);
+    assertThat(KeyedExchange.theOneKeyedBy("8", List.of(exact, scoped))).isNull();
+    assertThat(exact.isKeyedExactlyBy("7")).isTrue();
+    assertThat(scoped.isKeyedExactlyBy("7")).isFalse();
+  }
+
+  private static KeyedExchange keyedAs(String keyValue) {
+    return new KeyedExchange(
+        PROVIDER,
+        RUN,
+        ACCOUNT,
+        "Idempotency-Key",
+        KeyRole.DUPLICATE_DETECTION_KEY,
+        keyValue,
+        1L,
+        List.of(claimant(0, FIRST_FINGERPRINT, 0)));
+  }
+
+  @Test
+  void a_key_no_request_ran_under_names_its_first_answer_that_reached_the_record_as_its_first() {
+    KeyedExchange exchange =
+        exchange(
+            KeyRole.DUPLICATE_DETECTION_KEY,
+            heldAt(0, OTHER_FINGERPRINT, 0),
+            repeat(1, ExchangeVerdict.DUPLICATE_KEY_REFUSAL, FIRST_FINGERPRINT, 1));
+
+    assertThat(exchange.firstRequest().sequence()).isEqualTo(1);
+    assertThat(exchange.fingerprint()).isEqualTo(FIRST_FINGERPRINT);
+  }
+
+  @Test
+  void a_conflict_recorded_first_is_not_compared_with_itself() {
+    KeyedRequest conflict = repeat(0, ExchangeVerdict.CONFLICTING_PAYLOAD, OTHER_FINGERPRINT, 0);
+
+    assertThat(exchange(KeyRole.TRUE_IDEMPOTENCY_KEY, conflict).conflictReasonOf(conflict))
+        .isEqualTo(KeyedExchange.THE_REQUEST_IT_CONFLICTS_WITH_WAS_NOT_RECORDED);
+  }
+
+  @Test
   void requests_recorded_out_of_the_order_they_were_answered_in_are_refused() {
     KeyedRequest claimant = first(ExchangeVerdict.FIRST_REQUEST, FIRST_FINGERPRINT, true);
     KeyedRequest repeatNumberedTwo =

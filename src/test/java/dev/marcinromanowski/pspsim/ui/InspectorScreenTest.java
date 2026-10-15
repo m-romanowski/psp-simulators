@@ -547,6 +547,49 @@ class InspectorScreenTest {
   }
 
   @Test
+  void the_first_request_shown_is_the_one_whose_time_the_row_names_when_none_ran() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                MECHANISMS,
+                aPageOf(
+                    underOneKey(
+                        UNIQUE,
+                        KeyRole.DUPLICATE_DETECTION_KEY,
+                        aRequest(0, ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD),
+                        aRequest(1, ExchangeVerdict.DUPLICATE_KEY_REFUSAL))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.firstRequestAt()).isEqualTo(NOON.plus(Duration.ofMinutes(1)));
+    assertThat(row.firstRequest().at()).isEqualTo(row.firstRequestAt());
+    assertThat(row.repeats()).extracting(InspectorScreen.Request::sequence).containsExactly(0);
+    assertThat(row.aRequestClaimedThisKey()).isTrue();
+  }
+
+  @Test
+  void a_conflict_recorded_before_the_request_that_ran_names_no_comparison_with_itself() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                REPLAYING,
+                aPageOf(
+                    underOneKey(
+                        REPLAYED_KEY,
+                        KeyRole.TRUE_IDEMPOTENCY_KEY,
+                        aRequest(0, ExchangeVerdict.CONFLICTING_PAYLOAD))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.requests().get(0).conflictReason())
+        .isEqualTo(KeyedExchange.THE_REQUEST_IT_CONFLICTS_WITH_WAS_NOT_RECORDED);
+  }
+
+  @Test
   void a_key_whose_request_that_ran_was_not_recorded_is_shown_as_missing_it() {
     InspectorScreen.Row row =
         InspectorScreen.of(
