@@ -57,6 +57,7 @@ class EveryPayerJourneyKeepsToTheProviderApiTest {
             "APayerFinishesTranzilasPaymentPageTest",
             "APayerFinishesTranzilasHostedFieldsTest",
             "APayerPassesTranzilasThreeDSecureChallengeTest",
+            "APayerPaysWithAWalletOnTranzilasPaymentPageTest",
             "AnAzericardWebviewJourney");
   }
 

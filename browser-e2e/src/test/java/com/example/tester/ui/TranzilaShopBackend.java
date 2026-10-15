@@ -115,6 +115,19 @@ public final class TranzilaShopBackend {
     return answer.body();
   }
 
+  public String looksUp(String testRunId, String transactionId) {
+    HttpResponse<String> answer =
+        signed(
+            testRunId,
+            "/v1/transactions",
+            "{\"terminal_name\":\"" + terminal + "\",\"transaction_index\":" + transactionId + "}");
+    if (answer.statusCode() != 200) {
+      throw new IllegalStateException(
+          "tranzila answered " + answer.statusCode() + " to a lookup: " + answer.body());
+    }
+    return answer.body();
+  }
+
   public String aThreeDSecureDebit(
       String testRunId, String card, String sum, String redirectUrl, String order) {
     HttpResponse<String> answer =
