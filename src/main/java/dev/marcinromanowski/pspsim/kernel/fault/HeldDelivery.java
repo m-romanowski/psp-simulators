@@ -53,15 +53,14 @@ public final class HeldDelivery {
     }
   }
 
-  boolean abandonNow(DeliveryAbandonment reason) {
+  void abandonNow(DeliveryAbandonment reason) {
     if (!settle()) {
-      return false;
+      return;
     }
     ScheduledDelivery ticket = scheduled;
     if (ticket != null) {
       ticket.cancel();
     }
     abandon.accept(reason);
-    return true;
   }
 }

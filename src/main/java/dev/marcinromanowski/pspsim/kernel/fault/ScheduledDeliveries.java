@@ -69,16 +69,12 @@ public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseab
     return held.size();
   }
 
-  private int abandon(Predicate<HeldDelivery> doomed, DeliveryAbandonment reason) {
-    int abandoned = 0;
+  private void abandon(Predicate<HeldDelivery> doomed, DeliveryAbandonment reason) {
     for (HeldDelivery delivery : List.copyOf(held)) {
       if (doomed.test(delivery)) {
         held.remove(delivery);
-        if (delivery.abandonNow(reason)) {
-          abandoned++;
-        }
+        delivery.abandonNow(reason);
       }
     }
-    return abandoned;
   }
 }
