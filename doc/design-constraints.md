@@ -489,7 +489,9 @@ that ran, or a body text, so no provider can number, judge or redact an exchange
   retry is replayed rather than refused as still running. A completion that fails too is kept as suppressed on the
   recording failure, which is the one thrown.
 - Fingerprint. `RequestFingerprint` is HMAC-SHA256 keyed with the run's `FingerprintKey`: 256 bits from `IdGenerator`,
-  minted on first use and kept in `simulator_fingerprint_key`, which registers no run; forgetting a run removes its key,
+  minted on first use and kept in `simulator_fingerprint_key` whether or not the run is registered, and registers no
+  run: a run forgotten while its accounts or route aliases stay configured still receives requests, and a retry of one
+  must fingerprint as the first did. Forgetting a run removes its key,
   and a provider reset keeps it, because the other providers of the run still compare against it. The key is never
   displayed, exported or logged, so a fingerprint compares two requests of one run and can be checked against no
   guessed input. The reason: an unkeyed digest of a card number, a CVV or an account secret is a dictionary oracle.

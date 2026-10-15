@@ -18,7 +18,7 @@ public class TestRunConfiguration {
   }
 
   @Bean
-  public FingerprintKeys fingerprintKeys(JdbcClient jdbc, IdGenerator ids, TestRuns testRuns) {
-    return new MintedFingerprintKeys(new JdbcFingerprintKeyStore(jdbc), ids, testRuns);
+  public FingerprintKeys fingerprintKeys(JdbcClient jdbc, IdGenerator ids) {
+    return new MintedFingerprintKeys(new JdbcFingerprintKeyStore(jdbc), ids);
   }
 }

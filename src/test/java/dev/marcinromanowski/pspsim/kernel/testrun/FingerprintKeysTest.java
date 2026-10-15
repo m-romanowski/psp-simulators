@@ -35,8 +35,7 @@ class FingerprintKeysTest {
   @Test
   void a_key_the_run_already_holds_is_answered_and_nothing_is_minted() {
     FingerprintKey held =
-        new MintedFingerprintKeys(
-                storeHolding(Optional.of(new FingerprintKey(KEPT)), KEPT), ids, REGISTERED)
+        new MintedFingerprintKeys(storeHolding(Optional.of(new FingerprintKey(KEPT)), KEPT), ids)
             .of(RUN);
 
     assertThat(held.secret()).isEqualTo(KEPT);
@@ -60,43 +59,15 @@ class FingerprintKeysTest {
           }
         };
 
-    assertThat(new MintedFingerprintKeys(store, ids, REGISTERED).of(RUN).secret())
-        .isEqualTo(MINTED);
+    assertThat(new MintedFingerprintKeys(store, ids).of(RUN).secret()).isEqualTo(MINTED);
     assertThat(asked).containsExactly(64);
-    assertThat(offered).extracting(FingerprintKey::secret).containsExactly(MINTED);
-  }
-
-  @Test
-  void a_run_nobody_registered_is_given_a_key_that_is_kept_nowhere() {
-    List<FingerprintKey> offered = new ArrayList<>();
-    FingerprintKeyStore store =
-        new FingerprintKeyStore() {
-          @Override
-          public Optional<FingerprintKey> held(TestRunId testRunId) {
-            return Optional.empty();
-          }
-
-          @Override
-          public FingerprintKey keptOr(TestRunId testRunId, FingerprintKey minted) {
-            offered.add(minted);
-            return new FingerprintKey(KEPT);
-          }
-        };
-
-    assertThat(new MintedFingerprintKeys(store, ids, runsHolding(false)).of(RUN).secret())
-        .isEqualTo(MINTED);
-    assertThat(offered).isEmpty();
-    assertThat(new MintedFingerprintKeys(store, ids, runsHolding(true)).of(RUN).secret())
-        .isEqualTo(KEPT);
     assertThat(offered).extracting(FingerprintKey::secret).containsExactly(MINTED);
   }
 
   @Test
   void a_key_another_request_kept_first_is_the_one_answered() {
     assertThat(
-            new MintedFingerprintKeys(storeHolding(Optional.empty(), KEPT), ids, REGISTERED)
-                .of(RUN)
-                .secret())
+            new MintedFingerprintKeys(storeHolding(Optional.empty(), KEPT), ids).of(RUN).secret())
         .isEqualTo(KEPT);
   }
 
@@ -104,7 +75,7 @@ class FingerprintKeysTest {
   void the_reserved_run_of_a_failed_resolution_is_given_no_key() {
     assertThatThrownBy(
             () ->
-                new MintedFingerprintKeys(storeHolding(Optional.empty(), KEPT), ids, REGISTERED)
+                new MintedFingerprintKeys(storeHolding(Optional.empty(), KEPT), ids)
                     .of(TestRunId.UNKNOWN))
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -120,32 +91,6 @@ class FingerprintKeysTest {
         .hasMessageContaining("64");
     assertThatThrownBy(() -> new FingerprintKey("z" + MINTED.substring(1)))
         .isInstanceOf(IllegalArgumentException.class);
-  }
-
-  private static final TestRuns REGISTERED = runsHolding(true);
-
-  private static TestRuns runsHolding(boolean registered) {
-    return new TestRuns() {
-      @Override
-      public void register(TestRunId testRunId) {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public boolean exists(TestRunId testRunId) {
-        return registered && RUN.equals(testRunId);
-      }
-
-      @Override
-      public List<TestRunId> all() {
-        throw new UnsupportedOperationException();
-      }
-
-      @Override
-      public int forget(TestRunId testRunId) {
-        throw new UnsupportedOperationException();
-      }
-    };
   }
 
   private static FingerprintKeyStore storeHolding(Optional<FingerprintKey> held, String kept) {
