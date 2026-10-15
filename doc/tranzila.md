@@ -391,7 +391,10 @@ the identity keys of `user_form_data` wherever an answer carries them.
 Which card takes which outcome: the published test cards (`PB/hosted-fields`, "Test Credit Card Numbers for 3DS"),
 by the number sent, or for a token by the published card it was minted for, which is recorded when the token is
 minted on the API, the payment page or the Hosted Fields (never by its mask, so a token of another card masked alike
-is not one); otherwise the run's scenario on the
+is not one). A row recorded before V91 is classified by its mask, as it was then: a transaction or challenge
+whose mask is a published card's first six and last four reads as that card, and a page or transaction carrying
+`published-9022`'s token as `4907639999909022`, so a card that only looks like a published one, recorded before V91,
+reads as it; otherwise the run's scenario on the
 operation `3ds`: a failure code of the 3DS table (`900`–`928`, `930`) fails the authentication with that code, a
 success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly. The vocabulary
 declares the 3DS codes for `3ds` alone and the processor declines for the transaction types alone: a rule naming an

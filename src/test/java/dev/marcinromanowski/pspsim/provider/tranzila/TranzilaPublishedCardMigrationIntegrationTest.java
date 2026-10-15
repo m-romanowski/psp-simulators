@@ -45,7 +45,7 @@ class TranzilaPublishedCardMigrationIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void a_row_masked_as_a_published_card_keeps_the_outcome_its_mask_decided_and_no_other_does() {
+  void a_row_recorded_before_v91_is_read_as_the_published_card_its_mask_or_page_token_looks_like() {
     assertThat(
             jdbc.queryForList(
                 "select published_as from "
