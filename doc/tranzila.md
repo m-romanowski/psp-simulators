@@ -152,7 +152,7 @@ Fields read:
 | `authorization_number`      | string; "REQUIRED when txn_type is `credit`, `reversal` or `cancel` … Ignored for other transaction types" | see "Per Transaction Type"                                       |
 | `payment_plan`              | `1`, `6`, `8`; default `1`                                                                    | anything but `1` refused `20004` (instalments out of scope)                 |
 | `pan_entry_mode`            | `50`, `51`, `52`                                                                              | accepted, echoed                                                            |
-| `user_defined_fields[]`     | `{name, value}`                                                                               | `DCdisable` read; all stored and answered by the lookups                    |
+| `user_defined_fields[]`     | `{name, value}`                                                                               | `DCdisable` read; stored and answered by the lookups but for a name the trail withholds as an identity and a name arriving after the terminal's 25th ("Transaction Lookups") |
 | `client`, `remarks`, `response_language`, `created_by_user`, `created_by_system` | published schema                        | accepted, echoed in `original_request`                                      |
 | `activate_3ds`, `3ds_settings` | 3DS schema, same route                                                                     | "3-D Secure"                                                                |
 
@@ -762,7 +762,8 @@ classes are set on the input in the frame as well as on the merchant's container
   a key the charge sent under one of the notify's own names is not echoed, as on the page. The address follows the
   page's rule: a `notify_url` must be a callback target configured for the terminal's account, else the charge is
   refused; without one, the account's one configured target stands in, and with none or several nothing is sent.
-  `TranzilaTK` and `identity_number` are withheld from the trail.
+  Every field the trail withholds from a notify (`TranzilaTK`, `card_number`, `cvv`, `card_holder_id`, `myid`,
+  `credit_card_number`, `card_holder_id_number`, `identity_number`) is withheld from its row.
 - `response_hash` = HMAC-SHA256, lowercase hex, over the response JSON without `response_hash`, serialised with no space
   after `,` or `:`, keyed by the account secret (published rule and example, "Response Hash"; the per-user secret for
   `requested_by_user` is not modelled). The simulator writes every character below a space or above `~` as `\uXXXX`
@@ -785,7 +786,9 @@ classes are set on the input in the frame as well as on the merchant's container
   it only from a frame of its own origin under the same page, for a challenge it is waiting on, and posts `track_id` and
   `supplier`; its answer closes the challenge frame and reaches the `charge` callback, hashed. That continuation
   completes the challenge as complete does (one transaction, once), renews the `thtk` when approved while it is
-  still live (an expired `thtk` stays expired) and sends the notify. A continuation of no challenge waiting to be completed, or of one the payer has not answered, answers
+  still live (an expired `thtk` stays expired) and sends the notify; a `notify_url` that stopped being a
+  callback target of the account since the charge is recorded on the trail and among the deliveries as a notify not
+  sent. A continuation of no challenge waiting to be completed, or of one the payer has not answered, answers
   `errors` `[{code: 900, param: "track_id", message: "Transaction failed during 3D Secure validation"}]`; a
   `supplier` naming no terminal of the run answers `10013` with `param` `supplier`.
 - No server-side verification of a Hosted Fields result is published; `response_hash` is the only proof.
@@ -834,7 +837,7 @@ Tranzila has no status field. Every transaction is an object of its own; its nat
 | cancelled `force` or `credit`                            | `CANCELLED`                                    |
 | payment page waiting for its payer (`awaiting the payer`) | `NOT_INITIALIZED`                             |
 | payment page left (`left without paying`)                | `CANCELLED`                                    |
-| payment page paid or declined                            | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED`; a page whose transaction is no longer held `paid` `SUCCEEDED` or `declined` `FAILED` |
+| payment page paid or declined                            | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED`; a page whose transaction is no longer held, which a reset clearing the run's transactions before its pages shows for that moment, `paid` `SUCCEEDED` or `declined` `FAILED` |
 
 A `force`, `credit`, `reversal` or `cancel` has its own `transaction_id` and an empty ledger, and relates to its
 original by `reference_txn_id`; the original's ledger operations name it in `createdObjectId`. A payment is no longer
