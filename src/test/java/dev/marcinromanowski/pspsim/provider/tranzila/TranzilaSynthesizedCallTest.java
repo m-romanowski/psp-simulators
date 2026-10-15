@@ -153,6 +153,16 @@ class TranzilaSynthesizedCallTest {
   }
 
   @Test
+  void a_published_card_is_stored_by_its_outcome_name_and_none_is_stored_as_none() {
+    assertThat(TranzilaStoredForm.publishedNameOf(TranzilaThreeDSecureOutcome.FAILED))
+        .isEqualTo("FAILED");
+    assertThat(TranzilaStoredForm.publishedNameOf(null)).isNull();
+    assertThat(TranzilaStoredForm.publishedAs("CHALLENGED"))
+        .isEqualTo(TranzilaThreeDSecureOutcome.CHALLENGED);
+    assertThat(TranzilaStoredForm.publishedAs(null)).isNull();
+  }
+
+  @Test
   void one_row_written_is_a_stored_transaction_and_none_is_an_id_another_holds() {
     assertThat(TranzilaInsert.ofTheRowsWritten(1, 1)).isEqualTo(TranzilaInsert.STORED);
     assertThat(TranzilaInsert.ofTheRowsWritten(0, 1)).isEqualTo(TranzilaInsert.ID_TAKEN);

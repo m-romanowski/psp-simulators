@@ -10,6 +10,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditDirection;
 import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
+import dev.marcinromanowski.pspsim.kernel.fault.RenderedResponse;
 import dev.marcinromanowski.pspsim.kernel.fault.TransportFault;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.NewPaymentMethodFixture;
@@ -74,6 +75,43 @@ class TranzilaHostedFieldsTest {
     assertThat(made.responseCvv()).isEqualTo("1");
     assertThat(made.responseId()).isEqualTo("0");
     assertThat(made.origin()).isEqualTo(ObjectOrigin.PROVIDER_API);
+  }
+
+  @Test
+  void each_answer_of_the_fields_is_kept_with_the_outcome_and_the_object_it_names() {
+    aHandshake("10");
+    charge(aCharge("10"));
+    TranzilaTransaction approved = wired.theLastStored();
+    wired.writes(TranzilaOperations.DEBIT, new ScenarioAction.TerminalFailure("004"));
+    charge(aCharge("10"));
+    TranzilaTransaction declined = wired.theLastStored();
+    TranzilaHostedFieldsEcho echo =
+        ((TranzilaHostedFieldsRequest.Read.Admitted)
+                TranzilaHostedFieldsRequest.read(aCharge("10")))
+            .request()
+            .echo();
+    TranzilaHostedFields.Charged refused = new TranzilaHostedFields.Charged.Refused(List.of());
+    TranzilaHostedFields.Charged instead =
+        new TranzilaHostedFields.Charged.AnsweredInstead(
+            TranzilaOperationResult.answeredInsteadOf(
+                "scn_1", new RenderedResponse(502, "text/plain", new byte[0]).asDelivered()));
+    TranzilaHostedFields.Charged challenged =
+        new TranzilaHostedFields.Charged.Challenged("https://c", "3ds_1", null, null);
+    TranzilaHostedFields.Charged made =
+        new TranzilaHostedFields.Charged.Made(approved, echo, null, null);
+    TranzilaHostedFields.Charged madeDeclined =
+        new TranzilaHostedFields.Charged.Made(declined, echo, null, null);
+
+    assertThat(TranzilaHostedFields.theOutcomeOf(refused)).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(TranzilaHostedFields.theOutcomeOf(instead)).isEqualTo(ProviderOutcome.UNKNOWN);
+    assertThat(TranzilaHostedFields.theOutcomeOf(challenged)).isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(TranzilaHostedFields.theOutcomeOf(made)).isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(TranzilaHostedFields.theOutcomeOf(madeDeclined)).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(TranzilaHostedFields.theObjectOf(refused)).isNull();
+    assertThat(TranzilaHostedFields.theObjectOf(instead)).isNull();
+    assertThat(TranzilaHostedFields.theObjectOf(challenged)).isEqualTo("3ds_1");
+    assertThat(TranzilaHostedFields.theObjectOf(made)).isEqualTo("10000001");
+    assertThat(TranzilaHostedFields.theObjectOf(madeDeclined)).isEqualTo("10000002");
   }
 
   @Test
