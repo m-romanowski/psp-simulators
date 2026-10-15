@@ -6,16 +6,23 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseable {
 
   private final DelayScheduler scheduler;
+  private final Consumer<Runnable> onceCommitted;
   private final Set<HeldDelivery> held = ConcurrentHashMap.newKeySet();
 
   public ScheduledDeliveries(DelayScheduler scheduler) {
+    this(scheduler, Runnable::run);
+  }
+
+  public ScheduledDeliveries(DelayScheduler scheduler, Consumer<Runnable> onceCommitted) {
     this.scheduler = scheduler;
+    this.onceCommitted = onceCommitted;
   }
 
   @Override
@@ -39,13 +46,18 @@ public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseab
 
   @Override
   public int cancel(ProviderId provider, TestRunId testRunId) {
-    return abandon(
-        delivery -> delivery.belongsTo(provider, testRunId), DeliveryAbandonment.TEST_RUN_RESET);
+    return abandonedOnceCommitted(delivery -> delivery.belongsTo(provider, testRunId));
   }
 
   @Override
   public int cancelAll(ProviderId provider) {
-    return abandon(delivery -> delivery.belongsTo(provider), DeliveryAbandonment.TEST_RUN_RESET);
+    return abandonedOnceCommitted(delivery -> delivery.belongsTo(provider));
+  }
+
+  private int abandonedOnceCommitted(Predicate<HeldDelivery> doomed) {
+    AtomicInteger abandoned = new AtomicInteger((int) held.stream().filter(doomed).count());
+    onceCommitted.accept(() -> abandoned.set(abandon(doomed, DeliveryAbandonment.TEST_RUN_RESET)));
+    return abandoned.get();
   }
 
   @Override

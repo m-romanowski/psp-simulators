@@ -12,6 +12,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
+import dev.marcinromanowski.pspsim.kernel.spi.RunResets;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -48,6 +49,9 @@ class DashboardController {
   private final SimulatorClock clock;
   private final ActionTrail actions;
   private final TestRunId defaultTestRun;
+  private final RunResets resets;
+
+  private record Forgotten(DashboardScreen.Emptied emptied, int registrations) {}
 
   DashboardController(
       ProviderRegistry providers,
@@ -58,7 +62,8 @@ class DashboardController {
       TestRuns testRuns,
       SimulatorClock clock,
       ActionTrail actions,
-      @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
+      @Value("${simulator.default-test-run-id}") String defaultTestRunId,
+      RunResets resets) {
     this.providers = providers;
     this.accounts = accounts;
     this.scenarios = scenarios;
@@ -68,6 +73,7 @@ class DashboardController {
     this.clock = clock;
     this.actions = actions;
     this.defaultTestRun = TestRunId.of(defaultTestRunId);
+    this.resets = resets;
   }
 
   @GetMapping(PATH)
@@ -110,7 +116,8 @@ class DashboardController {
       return render(provider, testRunId, runMatch, null, model);
     }
     DashboardScreen.Emptied emptied =
-        emptyEveryProvider(asked.testRunId(), asked.testRunId(), PATH + "/reset");
+        resets.together(
+            () -> emptyEveryProvider(asked.testRunId(), asked.testRunId(), PATH + "/reset"));
     carry("provider", provider, attributes);
     carry("runMatch", runMatch, attributes);
     attributes.addAttribute("testRunId", asked.testRunId().value());
@@ -139,9 +146,15 @@ class DashboardController {
         return render(provider, testRunId, runMatch, declined.message(), model);
       }
       case DashboardScreen.Forgetting.Granted granted -> {
-        DashboardScreen.Emptied emptied =
-            emptyEveryProvider(granted.testRunId(), reading.testRunId(), PATH + "/forget");
-        int registrations = testRuns.forget(granted.testRunId());
+        Forgotten forgotten =
+            resets.together(
+                () ->
+                    new Forgotten(
+                        emptyEveryProvider(
+                            granted.testRunId(), reading.testRunId(), PATH + "/forget"),
+                        testRuns.forget(granted.testRunId())));
+        DashboardScreen.Emptied emptied = forgotten.emptied();
+        int registrations = forgotten.registrations();
         carry("provider", provider, attributes);
         carry("runMatch", runMatch, attributes);
         attributes.addAttribute("testRunId", reading.testRunId().value());

@@ -85,6 +85,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ReproductionBundles;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
 import dev.marcinromanowski.pspsim.kernel.spi.RunBundles;
+import dev.marcinromanowski.pspsim.kernel.spi.RunResets;
 import dev.marcinromanowski.pspsim.kernel.spi.ScenarioAdmission;
 import dev.marcinromanowski.pspsim.kernel.spi.ScenarioComparison;
 import dev.marcinromanowski.pspsim.kernel.spi.ScenarioCopy;
@@ -165,6 +166,7 @@ class SimulatorControlController {
   private final ThePaymentsAProviderStarts theOriginations;
   private final TestRunId defaultTestRun;
   private final String publicBaseUrl;
+  private final RunResets resets;
 
   SimulatorControlController(
       ProviderRegistry providers,
@@ -186,7 +188,8 @@ class SimulatorControlController {
       TheReadsAProviderPublishes theReads,
       ThePaymentsAProviderStarts theOriginations,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId,
-      @Value("${simulator.public-base-url}") String publicBaseUrl) {
+      @Value("${simulator.public-base-url}") String publicBaseUrl,
+      RunResets resets) {
     this.providers = providers;
     this.configurations = configurations;
     this.clocks = clocks;
@@ -207,6 +210,7 @@ class SimulatorControlController {
     this.theOriginations = theOriginations;
     this.defaultTestRun = TestRunId.of(defaultTestRunId);
     this.publicBaseUrl = publicBaseUrl;
+    this.resets = resets;
   }
 
   @PostMapping("/reset")
@@ -237,7 +241,7 @@ class SimulatorControlController {
           new ControlError(String.valueOf(rejected.getMessage())));
     }
 
-    ResetOutcome outcome = module.get().reset(testRunId, scope);
+    ResetOutcome outcome = resets.ofOne(module.get(), testRunId, scope);
     actions.record(
         AuditedAction.applied(
             module.get().id(),

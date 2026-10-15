@@ -32,6 +32,11 @@ import tools.jackson.databind.ObjectMapper;
 public class ProviderRegistryConfiguration {
 
   @Bean
+  public RunResets runResets(UnitOfWork units) {
+    return new RunResets(units);
+  }
+
+  @Bean
   public ProviderRegistry providerRegistry(List<SimulatorProvider> providers) {
     return new ProviderRegistry(providers);
   }

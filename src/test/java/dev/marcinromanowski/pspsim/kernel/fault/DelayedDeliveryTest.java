@@ -58,6 +58,27 @@ class DelayedDeliveryTest {
   }
 
   @Test
+  void a_reset_in_a_unit_abandons_its_held_responses_only_once_the_unit_commits() {
+    List<Runnable> onceCommitted = new ArrayList<>();
+    ScheduledDeliveries committing = new ScheduledDeliveries(scheduler, onceCommitted::add);
+    scheduler.naming("settlement");
+    committing.hold(
+        GROW, RUN, Duration.ofSeconds(5), () -> delivered.add("settlement"), abandoned::add);
+    scheduler.naming("elsewhere");
+    committing.hold(
+        GROW, ANOTHER_RUN, Duration.ofSeconds(5), () -> delivered.add("elsewhere"), abandoned::add);
+
+    int counted = committing.cancel(GROW, RUN);
+
+    assertThat(counted).isEqualTo(1);
+    assertThat(abandoned).isEmpty();
+    assertThat(committing.stillHeld()).isEqualTo(2);
+    onceCommitted.forEach(Runnable::run);
+    assertThat(abandoned).containsExactly(DeliveryAbandonment.TEST_RUN_RESET);
+    assertThat(committing.stillHeld()).isEqualTo(1);
+  }
+
+  @Test
   void an_abandoned_response_is_never_also_delivered_when_its_timer_fires_afterwards() {
     hold(RUN, "settlement", Duration.ofSeconds(5));
 
