@@ -416,7 +416,9 @@ final class TranzilaProvider implements SimulatorProvider {
     return new HostedPageContract.ObjectsAPayerFinishes(
         List.of(
             new HostedPageContract.AnObjectItKeepsWaiting(
-                TranzilaObjectKinds.A_PAYMENT_PAGE.asThisProviderNamesIt(), true)));
+                TranzilaObjectKinds.A_PAYMENT_PAGE.asThisProviderNamesIt(), true),
+            new HostedPageContract.AnObjectItKeepsWaiting(
+                TranzilaObjectKinds.A_CHALLENGE.asThisProviderNamesIt(), false)));
   }
 
   @Override

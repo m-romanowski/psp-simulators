@@ -86,6 +86,20 @@ final class JourneyClient {
     return answer.getBody();
   }
 
+  ResponseEntity<String> posted(
+      String what, Kind kind, String path, String json, Map<String, String> headers) {
+    ResponseEntity<String> answer =
+        http.post()
+            .uri(path)
+            .contentType(MediaType.APPLICATION_JSON)
+            .headers(sent -> headers.forEach(sent::add))
+            .body(json)
+            .retrieve()
+            .toEntity(String.class);
+    steps.add(new Step(what, "POST", path, answer.getStatusCode().value(), kind));
+    return answer;
+  }
+
   List<Map<String, Object>> getList(String what, String path) {
     ResponseEntity<List<Map<String, Object>>> answer =
         http.get().uri(path).retrieve().toEntity(ARRAY);

@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
+import dev.marcinromanowski.pspsim.kernel.spi.HostedSessionFacts;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import java.time.Instant;
@@ -17,6 +18,14 @@ final class TranzilaChallengeObject {
   static final String PASSED = "challenge passed, not completed";
 
   static final String FAILED = "challenge failed, not completed";
+
+  static final String NO_PARTY =
+      "provider tranzila names no card holder on a 3-D Secure challenge: the challenge page asks"
+          + " the holder of the card the create named for a code and nothing else";
+
+  static final String NO_DEADLINE =
+      "provider tranzila publishes no lifetime for a 3-D Secure challenge; it waits until the"
+          + " merchant completes it by track_id or its test run is reset";
 
   private TranzilaChallengeObject() {}
 
@@ -37,7 +46,17 @@ final class TranzilaChallengeObject {
         false,
         relatedObjectsOf(challenge),
         challenge.origin(),
-        updatedAtOf(challenge));
+        updatedAtOf(challenge),
+        factsOf(challenge));
+  }
+
+  static HostedSessionFacts factsOf(TranzilaChallenge challenge) {
+    return new HostedSessionFacts.AnObjectAPayerFinishes(
+        challenge.accountId(),
+        new HostedSessionFacts.Party.NoPartyThisProviderPublishes(NO_PARTY),
+        TranzilaFields.TXN_TYPE + " " + challenge.type().wire(),
+        challenge.createdAt(),
+        new HostedSessionFacts.Deadline.NoDeadlineThisProviderPublishes(NO_DEADLINE));
   }
 
   static Instant updatedAtOf(TranzilaChallenge challenge) {

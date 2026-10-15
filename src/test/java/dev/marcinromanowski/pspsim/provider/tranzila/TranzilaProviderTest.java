@@ -22,6 +22,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedPageContract;
+import dev.marcinromanowski.pspsim.kernel.spi.HostedSessionFacts;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectAction;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ObjectActionRequest;
@@ -39,6 +40,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
+import dev.marcinromanowski.pspsim.kernel.spi.TheObjectsADeclarationPromises;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.nio.charset.StandardCharsets;
@@ -210,13 +212,46 @@ class TranzilaProviderTest {
   }
 
   @Test
-  void the_payment_page_is_the_one_object_kept_waiting_and_a_transaction_offers_no_payer_step() {
+  void publishes_the_facts_of_the_page_and_the_challenge_its_declaration_promises_and_no_more() {
+    long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
+    wired.create(TranzilaThreeDSecureTest.aSecureDebit(TranzilaThreeDSecureTest.CHALLENGED, ""));
+    wired.directNg.open(
+        TranzilaPageCall.of(
+            "GET",
+            "/tranzila/directng/myterminal/iframenew.php",
+            Map.of("sum", List.of("10"), "currency", List.of("1"), "tranmode", List.of("A"))),
+        TranzilaWiring.TERMINAL);
+    String challenge = wired.challenges.all().get(0).trackId();
+    String page = wired.pages.all().get(0).pageId();
+
+    assertThat(
+            TheObjectsADeclarationPromises.of(
+                provider, TranzilaWiring.RUN, List.of(page, challenge, Long.toString(debit))))
+        .isInstanceOf(
+            TheObjectsADeclarationPromises.Agreement.TheDeclarationAndTheObjectsAgree.class);
+    assertThat(provider.state(TranzilaWiring.RUN, challenge).orElseThrow().hostedSession())
+        .isEqualTo(
+            new HostedSessionFacts.AnObjectAPayerFinishes(
+                TranzilaWiring.ACCOUNT,
+                new HostedSessionFacts.Party.NoPartyThisProviderPublishes(
+                    TranzilaChallengeObject.NO_PARTY),
+                "txn_type debit",
+                TranzilaWiring.NOW,
+                new HostedSessionFacts.Deadline.NoDeadlineThisProviderPublishes(
+                    TranzilaChallengeObject.NO_DEADLINE)));
+  }
+
+  @Test
+  void the_page_and_the_challenge_are_kept_waiting_and_a_transaction_offers_no_payer_step() {
     long debit = TranzilaWire.transactionIdIn(wired.answered(TranzilaWire.aDebit()));
 
     assertThat(provider.hostedPages())
         .isEqualTo(
             new HostedPageContract.ObjectsAPayerFinishes(
-                List.of(new HostedPageContract.AnObjectItKeepsWaiting("a payment page", true))));
+                List.of(
+                    new HostedPageContract.AnObjectItKeepsWaiting("a payment page", true),
+                    new HostedPageContract.AnObjectItKeepsWaiting(
+                        "a 3-D Secure challenge", false))));
     assertThat(provider.hostedCompletion(TranzilaWiring.RUN, Long.toString(debit)))
         .isEqualTo(
             new HostedCompletionOffer.NotOffered(
