@@ -26,15 +26,25 @@ class FingerprintKeyStoreIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void minting_a_key_registers_no_test_run() {
+  void a_key_asked_for_a_run_nobody_registered_registers_no_run_and_keeps_no_row() {
     List<TestRunId> before = runs.all();
 
     FingerprintKey minted = keys.of(NEVER_REGISTERED);
 
     assertThat(runs.all()).isEqualTo(before);
     assertThat(runs.exists(NEVER_REGISTERED)).isFalse();
-    assertThat(keys.of(NEVER_REGISTERED)).isEqualTo(minted);
-    assertThat(keyRowsOf(NEVER_REGISTERED)).isEqualTo(1);
+    assertThat(keys.of(NEVER_REGISTERED)).isNotEqualTo(minted);
+    assertThat(keyRowsOf(NEVER_REGISTERED)).isZero();
+  }
+
+  @Test
+  void a_registered_run_keeps_the_key_it_was_given() {
+    runs.register(REGISTERED);
+
+    FingerprintKey minted = keys.of(REGISTERED);
+
+    assertThat(keys.of(REGISTERED)).isEqualTo(minted);
+    assertThat(keyRowsOf(REGISTERED)).isEqualTo(1);
   }
 
   @Test
