@@ -317,6 +317,15 @@ class PayerPagePolicyConventionTest {
             PayerPageDeclarations.theInlineScriptsIn(
                 "<SCRIPT>a();</SCRIPT><p></p><script>b();</script>"))
         .containsExactly("a();", "b();");
+    assertThat(
+            PayerPageDeclarations.theInlineScriptsIn(
+                "<script type=\"module\">m();</script><script defer src='/a.js'></script>"
+                    + "<scripted>x();</scripted><SCRIPT nonce=\"n\">n();</SCRIPT>"
+                    + "<script data-src=\"x\">d();</script><script\tsrc=\"/t.js\"></script>"))
+        .containsExactly("m();", "n();", "d();");
+    assertThat(PayerPageDeclarations.theInlineScriptsIn("<script type=\"module\">m();"))
+        .containsExactly(PayerPageDeclarations.UNREADABLE);
+    assertThat(PayerPageDeclarations.theInlineScriptsIn("<script")).isEmpty();
   }
 
   @Test

@@ -55,8 +55,6 @@ public final class PayerPageDeclarations {
 
   public static final String AN_ELEMENT_THAT_RUNS_INLINE = "script";
 
-  public static final String AN_INLINE_SCRIPT_OPENS = "<script>";
-
   public static final String AN_INLINE_SCRIPT_CLOSES = "</script>";
 
   public static final String UNREADABLE = "\u0000";
@@ -66,6 +64,8 @@ public final class PayerPageDeclarations {
   public static final List<String> HOW_AN_HTML_DOCUMENT_OPENS = List.of("<!doctype html", "<html");
 
   private static final Pattern A_RUN_OF_SPACE = Pattern.compile("\\s+");
+
+  private static final Pattern A_SOURCE_IT_LOADS = Pattern.compile("(^|\\s)src\\s*=");
 
   private static final Pattern A_POLICY_READS_LIKE_THIS =
       Pattern.compile("(?:^|;)\\s*[A-Za-z][A-Za-z0-9-]*\\s+'[^']*'");
@@ -197,12 +197,25 @@ public final class PayerPageDeclarations {
   public static List<String> theInlineScriptsIn(String constant) {
     List<String> scripts = new ArrayList<>();
     String written = constant.toLowerCase(Locale.ROOT);
-    int at = written.indexOf(AN_INLINE_SCRIPT_OPENS);
+    String opening = "<" + AN_ELEMENT_THAT_RUNS_INLINE;
+    int at = written.indexOf(opening);
     while (at >= 0) {
-      int from = at + AN_INLINE_SCRIPT_OPENS.length();
+      int after = at + opening.length();
+      int tagCloses = written.indexOf('>', after);
+      if (tagCloses < 0) {
+        break;
+      }
+      String attributes = written.substring(after, tagCloses);
+      if (!attributes.isEmpty()
+          && (Character.isLetterOrDigit(attributes.charAt(0))
+              || A_SOURCE_IT_LOADS.matcher(attributes).find())) {
+        at = written.indexOf(opening, after);
+        continue;
+      }
+      int from = tagCloses + 1;
       int to = written.indexOf(AN_INLINE_SCRIPT_CLOSES, from);
       scripts.add(to < 0 ? UNREADABLE : constant.substring(from, to));
-      at = to < 0 ? -1 : written.indexOf(AN_INLINE_SCRIPT_OPENS, to);
+      at = to < 0 ? -1 : written.indexOf(opening, to);
     }
     return List.copyOf(scripts);
   }
