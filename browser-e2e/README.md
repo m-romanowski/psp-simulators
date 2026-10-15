@@ -160,7 +160,7 @@ with the root wrapper every time.
 | `TheWebview.java`                         | a phone-sized browser context that records and aborts requests to a `/__simulator` or `/ui` address, and keeps every address, document and page it saw |
 | `NotThroughTheBrowser.java`               | what the shop's server asks of grow, worldline and autra over their own APIs                                                         |
 | `AzericardShopBackend.java`               | what the shop's server signs and asks of azericard over its own API                                                                  |
-| `TranzilaShopBackend.java`                | what the shop's server signs and asks of tranzila over its own API: the handshake and the force                                       |
+| `TranzilaShopBackend.java`                | what the shop's server signs and asks of tranzila over its own API: the handshake, the force, the lookup, the 3-D Secure debit and its completion, and the `response_hash` check of a Hosted Fields answer |
 | `AJourneyInARealBrowser.java`             | what every tester journey opens, closes and asserts in common                                                                        |
 | `AJourneyInAMobileAppsWebview.java`       | what every payer journey opens, closes and asserts in common, including that neither the app nor the shop's server asked for a `/__simulator` or `/ui` address and that no card number leaked |
 | `AnAzericardWebviewJourney.java`          | the azericard terminal, the app screen that posts a signed form, and the payer's steps on azericard's card page                      |

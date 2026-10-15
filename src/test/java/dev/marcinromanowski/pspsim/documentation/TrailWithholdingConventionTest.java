@@ -542,7 +542,7 @@ class TrailWithholdingConventionTest {
     assertThat(theModuleOf("stripe").theRedactorsThatConsumeIt())
         .containsExactly("dev.marcinromanowski.pspsim.provider.stripe.StripeFields.withholding");
     assertThat(theModuleOf("stripe").itsRedactorMatchesAWholeKey()).isFalse();
-    for (String provider : List.of("autra", "azericard", "grow", "worldline")) {
+    for (String provider : List.of("autra", "azericard", "grow", "tranzila", "worldline")) {
       assertThat(theModuleOf(provider).theRedactorsThatConsumeIt())
           .as("the redactors provider %s hands its declaration to", provider)
           .containsExactly(WHOLE_KEY);
@@ -553,6 +553,9 @@ class TrailWithholdingConventionTest {
         .as("grow redacts a flattened body, and data.url is the whole key url is published under")
         .isTrue();
     assertThat(theModuleOf("autra").withholds("hostedCardUrl")).isTrue();
+    assertThat(theModuleOf("tranzila").withholds("challengeUrl"))
+        .as("tranzila redacts a flattened body, and challengeUrl is the whole key it answers")
+        .isTrue();
     assertThat(TrailWithholdingDeclarations.endsInTheSegment("data.url", "url")).isTrue();
     assertThat(TrailWithholdingDeclarations.endsInTheSegment("data[url]", "url")).isFalse();
     assertThat(TrailWithholdingDeclarations.endsInTheSegment("url", "url")).isFalse();
