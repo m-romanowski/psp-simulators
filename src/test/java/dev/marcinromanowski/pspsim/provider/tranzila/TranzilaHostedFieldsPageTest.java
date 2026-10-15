@@ -6,6 +6,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireAnswer;
 import dev.marcinromanowski.pspsim.kernel.spi.ThePayerStep;
 import dev.marcinromanowski.pspsim.kernel.spi.WireFault;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TranzilaHostedFieldsPageTest {
@@ -111,6 +112,31 @@ class TranzilaHostedFieldsPageTest {
             new ProviderWireAnswer.NothingThisContractPublishes(
                 TranzilaWireFaults.WHAT_THE_HOSTED_FIELDS_PUBLISH_FOR_A_FAILURE_INSIDE_THEM));
     assertThat(TranzilaWireFaults.ROUTES.namespaces()).contains("/tranzila/hf");
+  }
+
+  @Test
+  void an_address_that_only_begins_like_a_namespace_is_answered_in_the_api_envelope() {
+    for (String address :
+        List.of(
+            "/tranzila/hfoo",
+            "/tranzila/directngx",
+            "/tranzila/reports",
+            "/tranzila/3dsx",
+            "/v2/handshake/createx")) {
+      ProviderWireAnswer.InThisProvidersOwnWords answered =
+          (ProviderWireAnswer.InThisProvidersOwnWords)
+              TranzilaWireFaults.theAnswerTo(
+                  WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, address);
+      assertThat(new String(answered.body(), StandardCharsets.UTF_8))
+          .as(address)
+          .isEqualTo(
+              "{\"error_code\":\"404\",\"message\":\"The specified resource was not found\"}");
+    }
+    ProviderWireAnswer.InThisProvidersOwnWords theFields =
+        (ProviderWireAnswer.InThisProvidersOwnWords)
+            TranzilaWireFaults.theAnswerTo(
+                WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/tranzila/hf");
+    assertThat(theFields.contentType()).isEqualTo("text/html; charset=utf-8");
   }
 
   @Test

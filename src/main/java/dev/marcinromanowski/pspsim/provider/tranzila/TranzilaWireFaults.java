@@ -64,19 +64,19 @@ final class TranzilaWireFaults {
   private TranzilaWireFaults() {}
 
   static ProviderWireAnswer theAnswerTo(WireFault fault, String address) {
-    if (address.startsWith(TranzilaApiController.CREATE_HANDSHAKE)) {
+    if (ProviderWireRoutes.isUnder(address, TranzilaApiController.CREATE_HANDSHAKE)) {
       return theHandshakesAnswerTo(fault);
     }
-    if (address.startsWith(TranzilaDirectNgPage.HOST)) {
+    if (ProviderWireRoutes.isUnder(address, TranzilaDirectNgPage.HOST)) {
       return thePagesAnswerTo(fault);
     }
-    if (address.startsWith(TranzilaReportController.HOST)) {
+    if (ProviderWireRoutes.isUnder(address, TranzilaReportController.HOST)) {
       return theReportHostsAnswerTo(fault);
     }
-    if (address.startsWith(TranzilaHostedFieldsPage.HOST)) {
+    if (ProviderWireRoutes.isUnder(address, TranzilaHostedFieldsPage.HOST)) {
       return theHostedFieldsAnswerTo(fault);
     }
-    if (address.startsWith(TranzilaChallengePage.HOST)) {
+    if (ProviderWireRoutes.isUnder(address, TranzilaChallengePage.HOST)) {
       return theChallengesAnswerTo(fault);
     }
     return switch (fault) {
