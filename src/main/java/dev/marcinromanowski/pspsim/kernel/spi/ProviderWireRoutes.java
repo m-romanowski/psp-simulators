@@ -68,6 +68,32 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
     return segments;
   }
 
+  public static void refuseTwoClaimingOneNamespace(List<SimulatorProvider> providers) {
+    for (int one = 0; one < providers.size(); one++) {
+      for (int other = 0; other < providers.size(); other++) {
+        if (one == other) {
+          continue;
+        }
+        ProviderWireRoutes first = providers.get(one).wireRoutes();
+        ProviderWireRoutes second = providers.get(other).wireRoutes();
+        for (String namespace : first.namespaces()) {
+          if (second.howDeeplyItCovers(namespace) == theSegmentsOf(namespace)) {
+            throw new IllegalStateException(
+                "providers "
+                    + first.provider().value()
+                    + " and "
+                    + second.provider().value()
+                    + " both claim the wire namespace "
+                    + namespace
+                    + ", and the address a client gets wrong under it is answered by the provider"
+                    + " whose namespace covers it most deeply, so two claims of one depth would"
+                    + " leave the answer to the order the modules happened to be listed in");
+          }
+        }
+      }
+    }
+  }
+
   public static Optional<SimulatorProvider> theDeepestClaimOn(
       List<SimulatorProvider> providers, String address) {
     SimulatorProvider claiming = null;
@@ -101,7 +127,7 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
     return List.copyOf(under);
   }
 
-  private static boolean isUnder(String inner, String outer) {
+  public static boolean isUnder(String inner, String outer) {
     return inner.equals(outer) || inner.startsWith(withinIt(outer));
   }
 

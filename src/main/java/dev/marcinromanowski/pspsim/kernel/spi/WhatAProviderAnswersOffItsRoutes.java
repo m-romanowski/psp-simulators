@@ -23,6 +23,7 @@ public final class WhatAProviderAnswersOffItsRoutes {
   private final ProviderRegistry providers;
 
   public WhatAProviderAnswersOffItsRoutes(ProviderRegistry providers) {
+    ProviderWireRoutes.refuseTwoClaimingOneNamespace(providers.modules());
     this.providers = providers;
   }
 

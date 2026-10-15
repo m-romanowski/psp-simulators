@@ -82,6 +82,44 @@ class ProviderWireRoutesTest {
   }
 
   @Test
+  void two_providers_claiming_one_namespace_at_one_depth_are_refused_and_a_deeper_one_is_not() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble twin =
+        new ProviderDouble("twin")
+            .answering(
+                List.of("/v2/"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble same =
+        new ProviderDouble("same")
+            .answering(
+                List.of("/v1", "/v2"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+
+    assertThatCode(() -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(outer, inner)))
+        .doesNotThrowAnyException();
+    assertThatThrownBy(() -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(outer, twin)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "providers twin and outer both claim the wire namespace /v2/, and the address a"
+                + " client gets wrong under it is answered by the provider whose namespace covers"
+                + " it most deeply, so two claims of one depth would leave the answer to the order"
+                + " the modules happened to be listed in");
+    assertThatThrownBy(
+            () -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(inner, same, outer)))
+        .hasMessageStartingWith("providers same and outer both claim the wire namespace /v2,");
+    assertThatThrownBy(
+            () -> new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(twin, outer))))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
   void a_namespace_that_already_ends_in_a_separator_covers_what_is_under_it_and_itself() {
     ProviderWireRoutes routes =
         new ProviderWireRoutes(GROW, List.of("/hostedtokenization/tokenization/form/"));
