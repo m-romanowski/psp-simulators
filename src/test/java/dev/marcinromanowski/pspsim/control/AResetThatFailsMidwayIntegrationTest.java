@@ -21,9 +21,11 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.web.client.RestClient;
 
 @Import(AResetThatFailsMidwayIntegrationTest.Wiring.class)
+@DirtiesContext
 class AResetThatFailsMidwayIntegrationTest extends PostgresBackedTest {
 
   static final TestRunId RUN = TestRunId.of("a-reset-that-fails-midway-it");
