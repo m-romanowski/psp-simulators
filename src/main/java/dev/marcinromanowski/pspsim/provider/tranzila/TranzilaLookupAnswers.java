@@ -154,7 +154,7 @@ final class TranzilaLookupAnswers {
     text(fields, TranzilaFields.TXN_TYPE, theTypeOf(transaction));
     text(fields, "txn_payment_method", A_CARD);
     text(fields, "processor", THE_PROCESSOR);
-    text(fields, "broker", NOT_HELD);
+    text(fields, "broker", theBrokerOf(transaction));
     text(fields, "broker_product", NOT_HELD);
     text(fields, TranzilaFields.PAN_ENTRY_MODE, NOT_HELD);
     theSlotValues(fields, row, slots, THE_API_SLOTS);
@@ -209,7 +209,7 @@ final class TranzilaLookupAnswers {
     text(fields, TranzilaFields.TXN_TYPE, theTypeOf(transaction).toUpperCase(Locale.ROOT));
     text(fields, TranzilaFields.PAN_ENTRY_MODE, NOT_HELD);
     text(fields, "processor", THE_PROCESSOR);
-    text(fields, "broker", NOT_HELD);
+    text(fields, "broker", theBrokerOf(transaction));
     text(fields, "broker_product", NOT_HELD);
     theSlotValues(fields, row, slots, THE_REPORT_SLOTS);
     if (detailed) {
@@ -220,6 +220,11 @@ final class TranzilaLookupAnswers {
       fields.put(TranzilaFields.ITEMS, TranzilaJson.array(items));
     }
     return TranzilaJson.object(fields);
+  }
+
+  static String theBrokerOf(TranzilaTransaction transaction) {
+    TranzilaWallet broker = transaction.broker();
+    return broker == null ? NOT_HELD : broker.broker();
   }
 
   static TranzilaJson.JsonObject anItem(TranzilaRecorded.Item recorded) {

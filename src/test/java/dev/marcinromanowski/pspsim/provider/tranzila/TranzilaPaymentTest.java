@@ -414,7 +414,8 @@ class TranzilaPaymentTest {
         null,
         null,
         ObjectOrigin.PROVIDER_API,
-        AT);
+        AT,
+        null);
   }
 
   static TranzilaTransaction verify(long id, int mode, @Nullable Instant expires) {
@@ -438,7 +439,8 @@ class TranzilaPaymentTest {
         null,
         expires,
         ObjectOrigin.PROVIDER_API,
-        AT);
+        AT,
+        null);
   }
 
   static TranzilaTransaction followOn(
@@ -469,6 +471,7 @@ class TranzilaPaymentTest {
         null,
         null,
         ObjectOrigin.PROVIDER_API,
-        at);
+        at,
+        null);
   }
 }

@@ -66,6 +66,21 @@ final class TranzilaStoredForm {
     return TranzilaHostedFieldsEcho.ofTheStored(decoded(kept), decoded(formData));
   }
 
+  static @Nullable String brokerNameOf(@Nullable TranzilaWallet wallet) {
+    return wallet == null ? null : wallet.broker();
+  }
+
+  static @Nullable TranzilaWallet brokerOf(@Nullable String stored) {
+    if (stored == null) {
+      return null;
+    }
+    return TranzilaWallet.ofTheBroker(stored)
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "the store holds " + stored + " as a broker, which no wallet names"));
+  }
+
   static TranzilaTranmode tranmodeOf(String stored) {
     return TranzilaTranmode.named(stored)
         .orElseThrow(

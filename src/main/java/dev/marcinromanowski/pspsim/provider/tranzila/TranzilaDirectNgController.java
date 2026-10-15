@@ -29,6 +29,25 @@ class TranzilaDirectNgController {
     return delivery.delivered(page.open(TranzilaWireRequest.pageCallOf(request), terminal));
   }
 
+  @GetMapping(TranzilaDirectNgPage.PAYER_ROUTE)
+  Object shown(
+      @PathVariable(TranzilaDirectNgPage.TERMINAL) String terminal,
+      @PathVariable(TranzilaDirectNgPage.PAGE) String pageId,
+      HttpServletRequest request) {
+    return delivery.delivered(
+        page.shown(TranzilaWireRequest.pageCallOf(request), terminal, pageId));
+  }
+
+  @GetMapping(TranzilaDirectNgPage.WALLET_ROUTE)
+  Object sheet(
+      @PathVariable(TranzilaDirectNgPage.TERMINAL) String terminal,
+      @PathVariable(TranzilaDirectNgPage.PAGE) String pageId,
+      @PathVariable(TranzilaDirectNgPage.WALLET) String wallet,
+      HttpServletRequest request) {
+    return delivery.delivered(
+        page.sheet(TranzilaWireRequest.pageCallOf(request), terminal, pageId, wallet));
+  }
+
   @PostMapping(TranzilaDirectNgPage.PAYER_ROUTE)
   Object submitted(
       @PathVariable(TranzilaDirectNgPage.TERMINAL) String terminal,

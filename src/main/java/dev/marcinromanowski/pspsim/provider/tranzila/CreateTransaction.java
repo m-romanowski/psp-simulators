@@ -92,7 +92,8 @@ final class CreateTransaction {
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers,
       @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
-      @Nullable TranzilaHostedFieldsEcho hostedFields) {
+      @Nullable TranzilaHostedFieldsEcho hostedFields,
+      @Nullable TranzilaWallet wallet) {
 
     String accountId() {
       return terminal.accountId();
@@ -128,7 +129,20 @@ final class CreateTransaction {
       Instant now,
       ObjectOrigin askedBy,
       Map<String, TranzilaCard> cardsThePageOffers) {
-    return handle(call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null, null);
+    return handle(call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null);
+  }
+
+  TranzilaOperationResult handle(
+      TranzilaApiCall call,
+      Map<String, List<String>> headers,
+      TestRunId testRunId,
+      TranzilaTerminal terminal,
+      Instant now,
+      ObjectOrigin askedBy,
+      Map<String, TranzilaCard> cardsThePageOffers,
+      @Nullable TranzilaWallet wallet) {
+    return handle(
+        call, headers, testRunId, terminal, now, askedBy, cardsThePageOffers, null, null, wallet);
   }
 
   TranzilaOperationResult handle(
@@ -141,6 +155,30 @@ final class CreateTransaction {
       Map<String, TranzilaCard> cardsThePageOffers,
       @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
       @Nullable TranzilaHostedFieldsEcho hostedFields) {
+    return handle(
+        call,
+        headers,
+        testRunId,
+        terminal,
+        now,
+        askedBy,
+        cardsThePageOffers,
+        theTypedCardsOutcome,
+        hostedFields,
+        null);
+  }
+
+  TranzilaOperationResult handle(
+      TranzilaApiCall call,
+      Map<String, List<String>> headers,
+      TestRunId testRunId,
+      TranzilaTerminal terminal,
+      Instant now,
+      ObjectOrigin askedBy,
+      Map<String, TranzilaCard> cardsThePageOffers,
+      @Nullable TranzilaThreeDSecureOutcome theTypedCardsOutcome,
+      @Nullable TranzilaHostedFieldsEcho hostedFields,
+      @Nullable TranzilaWallet wallet) {
     Optional<TranzilaJson.JsonObject> parsed = call.body();
     if (parsed.isEmpty()) {
       return TranzilaAnswers.refusedBody(
@@ -172,7 +210,8 @@ final class CreateTransaction {
             askedBy,
             cardsThePageOffers,
             theTypedCardsOutcome,
-            hostedFields);
+            hostedFields,
+            wallet);
     Optional<Answered> inAnotherCurrency = theCurrencyRefusalOf(asked);
     if (inAnotherCurrency.isPresent()) {
       return inAnotherCurrency.get().result();
@@ -269,7 +308,7 @@ final class CreateTransaction {
 
   private Answered anOriginal(Asked asked) {
     Optional<Presented> presented = thePresentedCard(asked);
-    if (presented.isEmpty()) {
+    if (presented.isEmpty() || !presented.get().chargesANewOriginal()) {
       return theTokenIsUnknown();
     }
     long drawn = TranzilaIdentifiers.aTransactionId(ids);
@@ -292,6 +331,7 @@ final class CreateTransaction {
         Integer.valueOf(TranzilaTxnType.J5).equals(request.verifyMode())
             ? asked.now().plus(asked.terminal().j5Validity())
             : null;
+    TranzilaWallet wallet = asked.wallet();
     return decided(
         asked,
         drawn,
@@ -313,9 +353,12 @@ final class CreateTransaction {
                         amount,
                         request.currencyCode(),
                         TranzilaIdentifiers.anAuthNumber(ids),
-                        presented.tokenFor(ids),
+                        wallet == null
+                            ? presented.tokenFor(ids)
+                            : TranzilaIdentifiers.aTokenFor(ids, card.last4()),
                         card,
-                        expires)),
+                        expires,
+                        wallet)),
         decline -> unauthenticated(asked, presented, drawn, decline));
   }
 
@@ -337,7 +380,8 @@ final class CreateTransaction {
                 null,
                 null,
                 presented.card(),
-                null));
+                null,
+                asked.wallet()));
   }
 
   private static String theAmountOf(TranzilaCreateRequest request) {
@@ -507,8 +551,9 @@ final class CreateTransaction {
             challenge.origin(),
             Map.of(challenge.token(), challenge.card()),
             null,
-            challenge.hostedFields());
-    Presented presented = new Presented(challenge.card(), challenge.token());
+            challenge.hostedFields(),
+            null);
+    Presented presented = new Presented(challenge.card(), challenge.token(), null);
     Answered answered =
         challenge.passed() || challenge.forceTxnOnFail()
             ? charged(asked, presented, challenge.transactionId())
@@ -536,7 +581,10 @@ final class CreateTransaction {
     }
     TranzilaPayment payment = found.get();
     TranzilaTransaction hold = payment.root();
-    if (hold.transactionId() != reference.longValue() || !hold.isAJ5() || !hold.approved()) {
+    if (hold.transactionId() != reference.longValue()
+        || !hold.isAJ5()
+        || !hold.approved()
+        || !presented.get().mayActOn(payment)) {
       return uncreditable(reference.longValue());
     }
     String authorization = request.authorizationNumber();
@@ -567,7 +615,8 @@ final class CreateTransaction {
                   null,
                   null,
                   card,
-                  null));
+                  null,
+                  hold.broker()));
     }
     return decided(
         asked,
@@ -592,7 +641,8 @@ final class CreateTransaction {
                         TranzilaIdentifiers.anAuthNumber(ids),
                         presented.get().tokenFor(ids),
                         card,
-                        null)),
+                        null,
+                        hold.broker())),
         decline ->
             stored(
                 asked,
@@ -609,7 +659,8 @@ final class CreateTransaction {
                         null,
                         null,
                         card,
-                        null)));
+                        null,
+                        hold.broker())));
   }
 
   private Answered aReversal(Asked asked) {
@@ -649,7 +700,7 @@ final class CreateTransaction {
     if (payment.isCancelled(original)) {
       return refusedOn(TranzilaErrors.ALREADY_CANCELED, original.transactionId());
     }
-    if (!presented.card().isTheSameCardAs(original.card())) {
+    if (!presented.card().isTheSameCardAs(original.card()) || !presented.mayActOn(payment)) {
       return uncreditable(original.transactionId());
     }
     if (payment.theCreditOf(original).isPresent()) {
@@ -689,6 +740,7 @@ final class CreateTransaction {
       @Nullable String token) {
     long drawn = TranzilaIdentifiers.aTransactionId(ids);
     long root = payment.root().transactionId();
+    TranzilaWallet broker = payment.root().broker();
     Long reference = Long.valueOf(target.transactionId());
     String currency = target.currencyCode();
     return decided(
@@ -714,7 +766,8 @@ final class CreateTransaction {
                         TranzilaIdentifiers.anAuthNumber(ids),
                         token,
                         card,
-                        null)),
+                        null,
+                        broker)),
         decline ->
             stored(
                 asked,
@@ -722,7 +775,7 @@ final class CreateTransaction {
                 id ->
                     aTransaction(
                         asked, id, root, reference, decline, amount, currency, null, null, card,
-                        null)));
+                        null, broker)));
   }
 
   private Reference theReferencedOriginal(Asked asked) {
@@ -766,11 +819,20 @@ final class CreateTransaction {
         .filter(payment -> payment.root().accountId().equals(asked.accountId()));
   }
 
-  record Presented(TranzilaCard card, @Nullable String token) {
+  record Presented(TranzilaCard card, @Nullable String token, @Nullable TranzilaWallet wallet) {
 
     String tokenFor(IdGenerator ids) {
       String named = token;
       return named == null ? TranzilaIdentifiers.aTokenFor(ids, card.last4()) : named;
+    }
+
+    boolean chargesANewOriginal() {
+      TranzilaWallet minted = wallet;
+      return minted == null || minted.itsTokenChargesAgain();
+    }
+
+    boolean mayActOn(TranzilaPayment payment) {
+      return chargesANewOriginal() || Objects.equals(token, payment.root().token());
     }
   }
 
@@ -780,11 +842,13 @@ final class CreateTransaction {
     int month = Objects.requireNonNull(request.expireMonth()).intValue();
     int year = Objects.requireNonNull(request.expireYear()).intValue();
     if (!request.namesAToken()) {
-      return Optional.of(new Presented(TranzilaCard.ofThePan(cardNumber, month, year), null));
+      return Optional.of(new Presented(TranzilaCard.ofThePan(cardNumber, month, year), null, null));
     }
+    Optional<TranzilaTransaction> carrying =
+        transactions.carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber);
+    TranzilaWallet minted = carrying.map(TranzilaTransaction::broker).orElse(null);
     Optional<TranzilaCard> known =
-        transactions
-            .carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
+        carrying
             .map(TranzilaTransaction::card)
             .or(() -> Optional.ofNullable(asked.cardsThePageOffers().get(cardNumber)))
             .or(
@@ -793,7 +857,7 @@ final class CreateTransaction {
                         .savingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
                         .flatMap(page -> TranzilaBrowserReturn.theCardOf(page, null)))
             .or(() -> cards.holdingTheToken(asked.testRunId(), cardNumber));
-    return known.map(card -> new Presented(card.expiringIn(month, year), cardNumber));
+    return known.map(card -> new Presented(card.expiringIn(month, year), cardNumber, minted));
   }
 
   private Answered decided(
@@ -914,7 +978,8 @@ final class CreateTransaction {
       @Nullable String authNumber,
       @Nullable String token,
       TranzilaCard card,
-      @Nullable Instant holdExpiresAt) {
+      @Nullable Instant holdExpiresAt,
+      @Nullable TranzilaWallet broker) {
     TranzilaCreateRequest request = asked.request();
     return new TranzilaTransaction(
         asked.testRunId(),
@@ -936,7 +1001,8 @@ final class CreateTransaction {
         request.dcDisable(),
         holdExpiresAt,
         asked.askedBy(),
-        asked.now());
+        asked.now(),
+        broker);
   }
 
   private Answered theLoserOfARace(Asked asked) {

@@ -20,10 +20,17 @@ final class TranzilaDirectNgPage {
 
   static final String ROUTE = HOST + "/{" + TERMINAL + "}/iframenew.php";
 
+  static final String WALLET = "wallet";
+
   static final String PAYER_ROUTE = HOST + "/{" + TERMINAL + "}/payer/{" + PAGE + "}";
+
+  static final String WALLET_ROUTE = PAYER_ROUTE + "/wallet/{" + WALLET + "}";
 
   static final ThePayerStep THE_PAYERS_OWN_SUBMISSION =
       new ThePayerStep.APageThisSimulatorServes(PAYER_ROUTE);
+
+  static final ThePayerStep THE_WALLET_SHEET =
+      new ThePayerStep.APageThisSimulatorServes(WALLET_ROUTE);
 
   static final String OUTCOME = "outcome";
 
@@ -58,7 +65,24 @@ final class TranzilaDirectNgPage {
 
   static final String NO_SUCH_METHOD =
       "This address of provider tranzila does not answer this HTTP method. The payment page takes"
-          + " GET or POST, and the payer's submission on it takes POST only.";
+          + " GET or POST, the payer's page takes GET and the payer's submission on it POST, and a"
+          + " wallet sheet takes GET only.";
+
+  static final String NO_SUCH_WALLET =
+      "No wallet of this name is served on tranzila's payment page. The wallets are apple_pay"
+          + " and google_pay.";
+
+  static final String THE_WALLETS_STAND_IN =
+      "The wallet buttons stand in for Apple Pay and Google Pay, whose own sheets only Apple and"
+          + " Google can show.";
+
+  static final String THE_SHEET_STANDS_IN =
+      "This sheet stands in for the wallet's own. Pick the card the wallet holds and confirm:"
+          + " the payment is made with that card, as tranzila makes a wallet payment.";
+
+  static final String CARD_IN_THE_WALLET = "Card in the wallet";
+
+  static final String CANCEL = "Cancel";
 
   static final String ILLEGAL_OPERATION = "Illegal Operation 912791";
 
@@ -94,7 +118,8 @@ final class TranzilaDirectNgPage {
           + "label,select,button{display:block;box-sizing:border-box;width:100%}"
           + "select,button{min-height:44px;margin:.5rem 0;font:inherit}"
           + "button{border:0;border-radius:.375rem;background:#1f4e8c;color:#fff}"
-          + "button.secondary{background:#e6e6e6;color:#1b1b1b}";
+          + "button.secondary{background:#e6e6e6;color:#1b1b1b}"
+          + "button.wallet{background:#000;color:#fff}";
 
   private TranzilaDirectNgPage() {}
 
@@ -107,15 +132,7 @@ final class TranzilaDirectNgPage {
   }
 
   static String offering(TranzilaPage page, List<PayerCard> cards) {
-    StringBuilder options = new StringBuilder();
-    for (PayerCard card : cards) {
-      options
-          .append("<option value=\"")
-          .append(escaped(card.alias()))
-          .append("\">")
-          .append(escaped(card.label()))
-          .append("</option>");
-    }
+    String options = optionsOf(cards);
     return page(
         "<h1>"
             + TITLE
@@ -135,7 +152,81 @@ final class TranzilaDirectNgPage {
             + options
             + "</select>"
             + buttons()
-            + "</form>");
+            + "</form>"
+            + walletButtons(page));
+  }
+
+  static String walletPathOf(String terminalName, String pageId, TranzilaWallet wallet) {
+    return payerPathOf(terminalName, pageId) + "/wallet/" + wallet.parameter();
+  }
+
+  private static String walletButtons(TranzilaPage page) {
+    List<TranzilaWallet> offered = TranzilaWallet.offeredOn(page);
+    if (offered.isEmpty()) {
+      return "";
+    }
+    StringBuilder buttons = new StringBuilder("<p>" + escaped(THE_WALLETS_STAND_IN) + "</p>");
+    for (TranzilaWallet wallet : offered) {
+      buttons
+          .append("<form method=\"get\" action=\"")
+          .append(escaped(walletPathOf(page.terminalName(), page.pageId(), wallet)))
+          .append("\"><button type=\"submit\" class=\"wallet\">")
+          .append(escaped(wallet.label()))
+          .append("</button></form>");
+    }
+    return buttons.toString();
+  }
+
+  static String aWalletSheet(TranzilaPage page, TranzilaWallet wallet, List<PayerCard> cards) {
+    String payer = escaped(payerPathOf(page.terminalName(), page.pageId()));
+    return page(
+        wallet.label(),
+        "<h1>"
+            + escaped(wallet.label())
+            + "</h1>"
+            + theAmount(page)
+            + "<p>"
+            + escaped(THE_SHEET_STANDS_IN)
+            + "</p><form method=\"post\" action=\""
+            + payer
+            + "\"><input type=\"hidden\" name=\""
+            + WALLET
+            + "\" value=\""
+            + escaped(wallet.parameter())
+            + "\"><label for=\""
+            + CARD
+            + "\">"
+            + CARD_IN_THE_WALLET
+            + "</label><select id=\""
+            + CARD
+            + "\" name=\""
+            + CARD
+            + "\">"
+            + optionsOf(cards)
+            + "</select><button type=\"submit\" name=\""
+            + OUTCOME
+            + "\" value=\""
+            + PayerOutcome.PAID.name()
+            + "\">"
+            + escaped("Pay with " + wallet.label())
+            + "</button></form><form method=\"get\" action=\""
+            + payer
+            + "\"><button type=\"submit\" class=\"secondary\">"
+            + CANCEL
+            + "</button></form>");
+  }
+
+  private static String optionsOf(List<PayerCard> cards) {
+    StringBuilder options = new StringBuilder();
+    for (PayerCard card : cards) {
+      options
+          .append("<option value=\"")
+          .append(escaped(card.alias()))
+          .append("\">")
+          .append(escaped(card.label()))
+          .append("</option>");
+    }
+    return options.toString();
   }
 
   private static String theAmount(TranzilaPage page) {
@@ -200,10 +291,14 @@ final class TranzilaDirectNgPage {
   }
 
   private static String page(String main) {
+    return page(TITLE, main);
+  }
+
+  private static String page(String title, String main) {
     return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
         + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
         + "<title>"
-        + TITLE
+        + escaped(title)
         + "</title><style>"
         + STYLE
         + "</style></head><body><main>"

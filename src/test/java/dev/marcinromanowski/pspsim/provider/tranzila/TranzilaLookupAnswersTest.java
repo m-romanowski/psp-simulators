@@ -252,7 +252,8 @@ class TranzilaLookupAnswersTest {
             null,
             null,
             ObjectOrigin.PROVIDER_API,
-            MADE);
+            MADE,
+            null);
     TranzilaItem shirt = new TranzilaItem("shirt", 1, "1", "I");
 
     List<TranzilaRecorded> assembled =
@@ -364,7 +365,8 @@ class TranzilaLookupAnswersTest {
             null,
             null,
             ObjectOrigin.PROVIDER_API,
-            MADE));
+            MADE,
+            null));
   }
 
   private static String between(String json, String opening) {
@@ -406,6 +408,7 @@ class TranzilaLookupAnswersTest {
         null,
         null,
         ObjectOrigin.PROVIDER_API,
-        MADE);
+        MADE,
+        null);
   }
 }

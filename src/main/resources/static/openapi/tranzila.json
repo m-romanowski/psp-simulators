@@ -130,6 +130,38 @@
       }
     },
     "/tranzila/directng/{terminal}/payer/{pageId}": {
+      "get": {
+        "operationId": "shown",
+        "parameters": [
+          {
+            "name": "terminal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "submitted",
         "parameters": [
@@ -169,6 +201,48 @@
             }
           },
           "required": true
+        }
+      }
+    },
+    "/tranzila/directng/{terminal}/payer/{pageId}/wallet/{wallet}": {
+      "get": {
+        "operationId": "sheet",
+        "parameters": [
+          {
+            "name": "terminal",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "provider tranzila answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/tranzila.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider tranzila answers, specified in doc/tranzila.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
         }
       }
     },

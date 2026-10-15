@@ -27,7 +27,8 @@ record TranzilaTransaction(
     @Nullable String dcDisable,
     @Nullable Instant holdExpiresAt,
     ObjectOrigin origin,
-    Instant createdAt) {
+    Instant createdAt,
+    @Nullable TranzilaWallet broker) {
 
   boolean isTheOriginal() {
     return transactionId == rootTxnId;

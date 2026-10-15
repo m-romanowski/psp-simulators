@@ -95,6 +95,11 @@ final class TranzilaDirectNg {
       "Illegal Operation 912791: the thtk names no live handshake of this terminal locking this"
           + " sum, so no transaction was executed";
 
+  static final String NOT_OFFERED_HERE =
+      " is not offered on this payment page: the page offers a wallet when it is opened with"
+          + " that wallet's parameter set to 1 and a tranmode of A, V, AK or VK, the ones the"
+          + " wallets pay.";
+
   private static final int AUDIT_ID_LENGTH = 24;
 
   private final TranzilaTerminals terminals;
@@ -293,9 +298,99 @@ final class TranzilaDirectNg {
       return unanswered(NO_SUCH_PAGE, TranzilaDirectNgPage.NO_SUCH_PAGE);
     }
     TranzilaPage page = found.get();
+    Instant now = clock.now(page.testRunId());
+    TestRunResolution resolution = received(call, page, now);
+    if (page.isSettled()) {
+      return showing(resolution, call, page, now, new Step.AlreadyReached(page));
+    }
+    PayerOutcome asked =
+        PayerOutcome.ABANDONED.name().equals(call.parameter(TranzilaDirectNgPage.OUTCOME))
+            ? PayerOutcome.ABANDONED
+            : PayerOutcome.PAID;
+    String named = call.parameter(TranzilaDirectNgPage.WALLET);
+    Optional<TranzilaWallet> wallet = Optional.ofNullable(named).flatMap(TranzilaWallet::named);
+    Step step =
+        named != null && wallet.isEmpty()
+            ? new Step.Refused(TranzilaDirectNgPage.NO_SUCH_WALLET + STILL_COMPLETABLE)
+            : settle(
+                page,
+                asked,
+                call.parameter(TranzilaDirectNgPage.CARD),
+                ObjectOrigin.PROVIDER_API,
+                now,
+                wallet.orElse(null));
+    return showing(resolution, call, page, now, step);
+  }
+
+  TranzilaApiResponse shown(TranzilaPageCall call, String terminalName, String pageId) {
+    Optional<TranzilaPage> found =
+        pages.find(pageId).filter(page -> page.terminalName().equals(terminalName));
+    if (found.isEmpty()) {
+      return unanswered(NO_SUCH_PAGE, TranzilaDirectNgPage.NO_SUCH_PAGE);
+    }
+    TranzilaPage page = found.get();
+    Instant now = clock.now(page.testRunId());
+    TestRunResolution resolution = received(call, page, now);
+    if (page.isSettled()) {
+      return showing(resolution, call, page, now, new Step.AlreadyReached(page));
+    }
+    return answered(
+        resolution,
+        page.accountId(),
+        call,
+        now,
+        ProviderOutcome.SUCCESS,
+        page.pageId(),
+        null,
+        SHOWN,
+        TranzilaDirectNgPage.offering(page, cards.asPayerCards(page.testRunId())),
+        TranzilaDirectNgPage.DEFENCE_HEADERS,
+        Map.of(),
+        null,
+        null);
+  }
+
+  TranzilaApiResponse sheet(
+      TranzilaPageCall call, String terminalName, String pageId, String walletNamed) {
+    Optional<TranzilaPage> found =
+        pages.find(pageId).filter(page -> page.terminalName().equals(terminalName));
+    if (found.isEmpty()) {
+      return unanswered(NO_SUCH_PAGE, TranzilaDirectNgPage.NO_SUCH_PAGE);
+    }
+    TranzilaPage page = found.get();
+    Instant now = clock.now(page.testRunId());
+    TestRunResolution resolution = received(call, page, now);
+    if (page.isSettled()) {
+      return showing(resolution, call, page, now, new Step.AlreadyReached(page));
+    }
+    Optional<TranzilaWallet> wallet = TranzilaWallet.named(walletNamed);
+    if (wallet.isEmpty()) {
+      return refusal(
+          resolution, call, page, now, NO_SUCH_PAGE, TranzilaDirectNgPage.NO_SUCH_WALLET);
+    }
+    if (!wallet.get().isOfferedOn(page)) {
+      return refusal(
+          resolution, call, page, now, NOT_COMPLETED, wallet.get().label() + NOT_OFFERED_HERE);
+    }
+    return answered(
+        resolution,
+        page.accountId(),
+        call,
+        now,
+        ProviderOutcome.SUCCESS,
+        page.pageId(),
+        null,
+        SHOWN,
+        TranzilaDirectNgPage.aWalletSheet(page, wallet.get(), cards.asPayerCards(page.testRunId())),
+        TranzilaDirectNgPage.DEFENCE_HEADERS,
+        Map.of(),
+        null,
+        null);
+  }
+
+  private TestRunResolution received(TranzilaPageCall call, TranzilaPage page, Instant now) {
     TestRunResolution resolution =
         new TestRunResolution(page.testRunId(), TestRunResolutionRule.OBJECT_CORRELATION);
-    Instant now = clock.now(page.testRunId());
     record(
         resolution,
         page.accountId(),
@@ -310,17 +405,7 @@ final class TranzilaDirectNg {
         Redaction.redact(call.parameters(), TranzilaFields.SENSITIVE_REQUEST_FIELDS),
         null,
         now);
-    if (page.isSettled()) {
-      return showing(resolution, call, page, now, new Step.AlreadyReached(page));
-    }
-    PayerOutcome asked =
-        PayerOutcome.ABANDONED.name().equals(call.parameter(TranzilaDirectNgPage.OUTCOME))
-            ? PayerOutcome.ABANDONED
-            : PayerOutcome.PAID;
-    Step step =
-        settle(
-            page, asked, call.parameter(TranzilaDirectNgPage.CARD), ObjectOrigin.PROVIDER_API, now);
-    return showing(resolution, call, page, now, step);
+    return resolution;
   }
 
   private TranzilaApiResponse showing(
@@ -470,7 +555,7 @@ final class TranzilaDirectNg {
       return new HostedCompletionOutcome.RefusedByTheProvider(TranzilaDirectNgPage.ALREADY_REACHED);
     }
     Instant now = clock.now(page.testRunId());
-    return switch (settle(page, request.outcome(), request.card(), request.askedBy(), now)) {
+    return switch (settle(page, request.outcome(), request.card(), request.askedBy(), now, null)) {
       case Step.Refused refused ->
           new HostedCompletionOutcome.RefusedByTheProvider(refused.inItsOwnWords());
       case Step.AnsweredInstead _ ->
@@ -499,7 +584,8 @@ final class TranzilaDirectNg {
       PayerOutcome asked,
       @Nullable String cardAlias,
       ObjectOrigin askedBy,
-      Instant now) {
+      Instant now,
+      @Nullable TranzilaWallet wallet) {
     TestRunId testRunId = page.testRunId();
     Optional<TranzilaTerminal> terminal = terminals.find(testRunId, page.accountId());
     if (terminal.isEmpty()) {
@@ -507,6 +593,9 @@ final class TranzilaDirectNg {
     }
     if (asked == PayerOutcome.ABANDONED) {
       return unitOfWork.keepingOnly(Step.class::isInstance, () -> left(page, now));
+    }
+    if (wallet != null && !wallet.isOfferedOn(page)) {
+      return new Step.Refused(wallet.label() + NOT_OFFERED_HERE + STILL_COMPLETABLE);
     }
     Optional<TranzilaPageCards.Offered> card =
         Optional.ofNullable(cardAlias).flatMap(alias -> cards.resolve(testRunId, alias));
@@ -525,7 +614,7 @@ final class TranzilaDirectNg {
     }
     return unitOfWork.keepingOnly(
         Step.class::isInstance,
-        () -> charged(page, terminal.get(), card.get(), target, askedBy, now));
+        () -> charged(page, terminal.get(), card.get(), target, askedBy, now, wallet));
   }
 
   private Step left(TranzilaPage page, Instant now) {
@@ -543,7 +632,8 @@ final class TranzilaDirectNg {
       TranzilaPageCards.Offered card,
       TranzilaNotify.Target target,
       ObjectOrigin askedBy,
-      Instant now) {
+      Instant now,
+      @Nullable TranzilaWallet wallet) {
     TestRunId testRunId = page.testRunId();
     if (pages.lockedWhileOpen(testRunId, page.pageId()).isEmpty()) {
       return whereItStands(page);
@@ -567,7 +657,8 @@ final class TranzilaDirectNg {
             terminal,
             now,
             askedBy,
-            Map.of(card.token(), card.card()));
+            Map.of(card.token(), card.card()),
+            wallet);
     if (result.insteadOfTheOperation() != null) {
       return new Step.AnsweredInstead(result);
     }

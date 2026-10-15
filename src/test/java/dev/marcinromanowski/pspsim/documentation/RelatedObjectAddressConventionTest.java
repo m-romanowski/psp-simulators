@@ -531,6 +531,7 @@ class RelatedObjectAddressConventionTest {
                     "/tranzila/3ds/challenge/{trackId}",
                     "/tranzila/directng/{terminal}/iframenew.php",
                     "/tranzila/directng/{terminal}/payer/{pageId}",
+                    "/tranzila/directng/{terminal}/payer/{pageId}/wallet/{wallet}",
                     "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
                     "/tranzila/hf/assets/js/hfields_depend/genfield.php",
                     "/tranzila/hf/process/ajax_process_transaction"),

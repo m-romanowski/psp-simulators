@@ -91,7 +91,8 @@ class TranzilaUnitOfWorkIntegrationTest extends PostgresBackedTest {
         "order-1",
         null,
         ObjectOrigin.PROVIDER_API,
-        AT);
+        AT,
+        null);
   }
 
   private static KeyedObservation anExchange() {

@@ -16,7 +16,7 @@ inference, simulator decision. No live probe: no sandbox host, test terminal or 
 | `POST /v1/transaction/credit_card/3ds/complete`                | finishes a challenged 3-D Secure transaction by `track_id`                                                     | challenge answer shape is a simulator decision                                                           |
 | `POST /v2/handshake/create`                                    | mints a `thtk` bound to terminal and `sum`, 20 minutes                                                         |                                                                                                          |
 | `POST /v1/transactions`                                        | lookup by `transaction_index` or date range                                                                   | amounts in minor units, as strings (inference)                                                           |
-| `GET`/`POST /tranzila/directng/{terminal}/iframenew.php`       | the payer page: tranmodes `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; browser return and notify                      | the page is the simulator's own; notify unsigned; wallet buttons not served                              |
+| `GET`/`POST /tranzila/directng/{terminal}/iframenew.php`       | the payer page: tranmodes `A`, `V`, `N`, `K`, `AK`, `VK`, `NK`; browser return and notify                      | the page is the simulator's own; notify unsigned; Apple Pay and Google Pay are stand-in buttons and a simulator sheet |
 | `/tranzila/3ds/challenge/{track_id}`                            | the challenge page a 3-D Secure create answers in `challengeUrl`: a code, `555` passes                       | the page is the simulator's own; its address is unpublished                                              |
 | `/tranzila/hf/...`                                             | the simulator's own implementation of the `TzlaHostedFields` API, its frames and its process route           | `card_mask` keeps only the last four; which refusal answers which code is a simulator decision; the notify uses the payment page's format |
 | `POST /tranzila/report/v1/transaction`                         | lookup by `transaction_index` or date range, amounts in minor units                                           | `ufields`, `dfields` refused                                                                             |
@@ -48,8 +48,9 @@ Section names are Tranzila's.
 | Transaction Response Codes        | `PB/transaction-response-codes`                                         | tabs "SHVA Errors (English)", "שגיאות שב"א (Hebrew)", "3DS Errors (English)"                               |
 | Tranzila Api 3DS                  | `PB/tranzila-api-3ds/create`, `PB/tranzila-api-3ds/complete`            | "3DS Process", schema, complete example                                                                   |
 | Handshake V2                      | `PB/handshake-v2/createhandshakev2`                                     | schema, examples                                                                                          |
-| Iframe Integration new DirectNG   | `PB/iframe-integration-directng`                                        | "Base URL", "Data Transfer Methods", "Receiving the Response", "Key Response Fields", "Data Retrieval", "iframe parameters table", "Notify Url", "Preventing Duplicate Transactions" (DCdisable, Handshake) |
-| Iframe Integration (legacy)       | `PB/iframe-integration`                                                 | iframe parameters table (tranmode combinations), Dtran                                                    |
+| Iframe Integration new DirectNG   | `PB/iframe-integration-directng`                                        | "Base URL", "Data Transfer Methods", "Receiving the Response", "Key Response Fields", "Data Retrieval", "iframe parameters table", "Add Digital wallets Payment Options", "Apple Pay", "Google Pay", "Notify Url", "Preventing Duplicate Transactions" (DCdisable, Handshake) |
+| Iframe Integration (legacy)       | `PB/iframe-integration`                                                 | iframe parameters table (tranmode combinations), Dtran, "Apple Pay", "Google Pay"                          |
+| Apple Pay Integration via Iframe  | `PB/apple-pay-iframe`                                                   | "Iframe Parameters", "How It Works", "Transaction Processing", "API Charging After J5 Verification"        |
 | Hosted Fields                     | `PB/hosted-fields`                                                      | "Getting started", "Using TzlaHostedFields.create method", "Using Submit Handler", "3DS TRANSACTIONS", "Test Credit Card Numbers for 3DS", "Request Keys", "Response Keys", "Response Examples", "Error Messages", "Response Hash" |
 | Hosted Fields scripts             | `https://hf.tranzila.com/assets/js/thostedf.js`, `.../hfields_depend/ops_controlfield.js` | read for the public API and wire shapes; not served                                        |
 | Reports authentication            | `RP/authentication`                                                     | "Required Headers", "Generating a Valid Access Token"                                                     |
@@ -74,7 +75,9 @@ because Tranzila publishes only that its address arrives in `challengeUrl`. The 
 and route aliases (`README.md`, "Route aliases") map the vendor's absolute URLs. Pairing publishes
 `TRANZILA_API_BASE_URL` (`/v1`), `TRANZILA_API_V2_BASE_URL` (`/v2`), `TRANZILA_DIRECTNG_BASE_URL`
 (`/tranzila/directng`), `TRANZILA_HF_BASE_URL` (`/tranzila/hf`) and `TRANZILA_REPORT_BASE_URL` (`/tranzila/report`). The payer's own submission goes to `/tranzila/directng/{terminal}/payer/{pageId}`, a route of
-the simulator's page and not a vendor address.
+the simulator's page and not a vendor address; a `GET` there shows the waiting page again, and
+`/tranzila/directng/{terminal}/payer/{pageId}/wallet/{wallet}` is the stand-in wallet sheet ("Apple Pay and Google
+Pay").
 
 At the root, Tranzila claims the namespaces `/v1/transaction`, `/v1/transactions` (lookups) and the one route
 `/v2/handshake/create`; stripe and autra also answer under `/v1`, and worldline keeps the rest of `/v2`, including a
@@ -135,7 +138,7 @@ Fields read:
 | `terminal_name`             | string                                                                                        | must name the account the app key names, else `401` `20002`                 |
 | `txn_type`                  | `debit`, `credit`, `verify`, `force`, `cancel`, `reversal`, `sto`; default `debit`            | `sto` refused `20004`                                                       |
 | `verify_mode`               | integer `2`, `5`, `6`                                                                         | `6` refused `20004`; required with `verify`                                 |
-| `card_number`               | string, 8–19; a token goes here: "A Tranzila token replaces **only the full card number**"    | digits only: a card number, and a new token is minted; with a letter: a token, which must be one this run minted (a payment page's `TranzilaTK` included) or a seeded fixture's, else `20111` |
+| `card_number`               | string, 8–19; a token goes here: "A Tranzila token replaces **only the full card number**"    | digits only: a card number, and a new token is minted; with a letter: a token, which must be one this run minted (a payment page's `TranzilaTK` included) or a seeded fixture's, else `20111`; an Apple Pay token is refused `20111` on a `debit` or `verify` ("Apple Pay and Google Pay") |
 | `expire_month`, `expire_year` | integer 1–12; integer, example `2025`                                                       | required, as the schema says, also with a token; not on `cancel`            |
 | `cvv`                       | string 3–4, "can be null"                                                                     | optional; answered in `Responsecvv`                                         |
 | `card_holder_id`            | string, length 9                                                                              | optional; answered in `Responseid`                                          |
@@ -249,6 +252,8 @@ answers which is a simulator decision unless the code's own text says it):
 | `force` or `reversal` of a J5 already forced, reversed or past validity     | `20112` ("uncreditable origin" text)                       |
 | `cancel` of a transaction already credited                                  | `20112` ("uncreditable origin" text)                       |
 | `cancel` of a transaction already cancelled                                 | `20112` ("uncreditable origin" text)                       |
+| `debit` or `verify` with an Apple Pay token                                 | `20111` "Provided token check failure"                     |
+| `force` or `credit` with an Apple Pay token of another payment              | `20112` ("uncreditable origin" text)                       |
 
 - Partial `force` (lower than the J5 amount) is allowed and closes the J5: "partial force is supported" (vendor
   correspondence); nothing published contradicts it, and multiple captures per J5 are unpublished.
@@ -476,7 +481,8 @@ Fields (`/v1/transactions` as strings; the report host typed as its schema, `nul
 | `transtatus`                                             | `1` approved (`000`, `777`), `0` declined                                                          |
 | `telauthability`, `txn_payment_method`, `processor`      | `1`, `CC`, `SHVA`                                                                                 |
 | `child_terminal`                                         | the terminal name                                                                                 |
-| `credit_card_owner_id`, `club_number`, `host_ip`, `refnr`, `tempref`, `xid`, `cavv`, `eci`, `uid`, `broker`, `broker_product`, `pan_entry_mode` | empty: the simulator keeps none of them |
+| `broker`                                                 | `apple_pay` or `GOOGLE_PAY`, the reports' own values and case, for a transaction a wallet paid on the page and the `force`, `credit`, `reversal` and `cancel` acting on it; empty otherwise |
+| `credit_card_owner_id`, `club_number`, `host_ip`, `refnr`, `tempref`, `xid`, `cavv`, `eci`, `uid`, `broker_product`, `pan_entry_mode` | empty: the simulator keeps none of them |
 | `bank`, `bank_branch`, `bank_account`                    | empty on `/v1/transactions`, `null` on the report host ("`null` for card transactions")           |
 | `txnfdid`, `cancelfdid`, `txnfdnumber`, `cancelfdnumber` | `null` (no invoice is served)                                                                      |
 
@@ -538,7 +544,8 @@ rule, "Data Transfer Methods").
 | `thtk`                                            | the Handshake token                                                                   | "Handshake V2"                                              |
 | `myid`, `company`, `contact`, `email`, `phone`, `address`, `city`, `pdesc`, `remarks`, `json_purchase_data` | predetermined fields          | echoed in the return like every other parameter             |
 | any other parameter, a shop's own `orderid` among them | "the parameters entered on the payment page" come back ("Data Retrieval") | echoed in the return and the notify, in the order received |
-| `apple_pay`, `google_pay`, `bit_pay`, `ppnewwin`, `recur_*`, display parameters | published                                            | ignored                                                     |
+| `apple_pay`, `google_pay`                         | `1` "Add the option to pay with Apple Pay" / "with Google" ("Add Digital wallets Payment Options") | `1` offers the wallet's stand-in button ("Apple Pay and Google Pay"); echoed like every other parameter |
+| `bit_pay`, `ppnewwin`, `recur_*`, display parameters | published                                                                          | ignored                                                     |
 
 The page itself is a simulator decision: Tranzila publishes its parameters and its return, not its form. Every refusal
 of a parameter is a page of the simulator's own words ("Error Shape") and opens nothing.
@@ -561,6 +568,40 @@ with the page, with every other parameter to echo, so that a notify can be sent 
 run is reset.
 
 The published test card answers by the scenario like any other card here: the page performs no 3-D Secure.
+
+### Apple Pay and Google Pay
+
+"the response to an APPLE transaction is the regular response to a credit card transaction" (published rule,
+DirectNG): a wallet payment is a card payment of the page's tranmode. A real wallet sheet needs Apple's or Google's
+own script and device, so the page shows a stand-in button per wallet and a sheet of this simulator's own (simulator
+decision).
+
+| What the payer does                         | Simulator                                                                                                  |
+|---------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| opens a page with `apple_pay=1` / `google_pay=1` under `A`, `V`, `AK` or `VK` | a button per wallet beside the card form, `GET` to `/tranzila/directng/{terminal}/payer/{pageId}/wallet/apple_pay` or `.../google_pay` |
+| opens a page with a wallet under `N`, `NK` or `K` | no button: the page offers the card form only (simulator decision: no refusal is published, and a hidden option still lets the payer pay by card, as a page without the wallet does) |
+| taps a wallet button                        | the sheet: the amount, the run's cards (`published-9022` and the fixtures) as the card in the wallet, a confirm button that posts `wallet`, `card` and `outcome=PAID` to the payer's submission, and a cancel back to the waiting page; no script, the page's own policy |
+| confirms                                    | the transaction an API `debit` or `verify` `5` makes for that card, under the run's scenario rules, the page's `DCdisable` and its `thtk`, with the transaction's `broker` the wallet's; browser return and notify exactly as for a card |
+| names a wallet the page does not offer, or one not served | `422`, the page stays open                                                                |
+
+- The return and the notify carry the published fields only; no wallet field is published for them, so a wallet
+  payment is told apart by the lookups' `broker`.
+- `ccno` and the lookups show the picked card's last four. Published: "The last 4 digits shown are the Device
+  Account Number, not the actual card number" (Apple Pay page); simulator decision: the stand-in has no device
+  account, so the picked card stands for it.
+- `TranzilaTK` is a token minted for the payment, never the picked fixture's own (simulator decision: the wallet
+  hands Tranzila a card the shop never held, so a token the shop already holds would be a different card).
+- A scenario rule matches a wallet payment as the card payment it is, by operation (`debit`, `verify`), amount and
+  the picked card's token; no `wallet` fact is added, since the processor sees a card payment (published rule above).
+
+Tokens (decisions on contradictory text, "Vendor Contradictions"):
+
+| Token          | Simulator on the card API                                                                                   |
+|----------------|-------------------------------------------------------------------------------------------------------------|
+| Google Pay     | a token like any other: `force`, `credit`, `cancel`, `reversal`, and a new `debit` or `verify`, which records no `broker` ("Google Pay transactions create a Tranzila token for future use", DirectNG) |
+| Apple Pay      | `force` (J5 then J4 by API, Apple Pay page), `credit` and `cancel` of its own payment; a new `debit` or `verify` is refused `20111`, and a `force` or `credit` of another payment `20112` ("cannot be used for new recurring payments", Apple Pay page; simulator decision: the API has no field telling a recurring charge from another charge on a token, so every new charge is refused, with the published token-check code) |
+
+The Hosted Fields wallet charges remain out of scope ("Out of Scope").
 
 ### Browser Return and Notify
 
@@ -812,8 +853,8 @@ Published and not served: STO / My Billing (`txn_type` `sto`, `verify_mode` `6`,
 `tranmode` `J`, `recur_*`), instalments (`payment_plan` / `cred_type` other than `1`), Bit, PayPal, MASAV, invoices,
 EMV PinPad, payment requests (`/v1/pr/create`), the legacy CGI host `secure5.tranzila.com` and Dtran,
 `direct.tranzila.com`, Handshake V1, `/v1/terminals/settings/fields/list`, Hosted Fields wallet and bank-transfer
-charges (`chargeBit`, `chargeGpay`, `chargeBt`, `hfChargeApple`), Apple Pay and Google Pay (the page's `apple_pay`
-and `google_pay` are ignored).
+charges (`chargeBit`, `chargeGpay`, `chargeBt`, `hfChargeApple`), Apple Pay and Google Pay outside the payment page
+(native apps, the Apple Pay merchant validation and `apple_pay_token` schemas).
 
 ## Vendor Contradictions
 
@@ -837,6 +878,9 @@ and `google_pay` are ignored).
 | Hosted Fields challenge frame  | "an iframe (400x600)" (prose)                                                          | 400×650 in a 410×650 holder (vendor script)                                                        | the vendor script's                        |
 | `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only; a top-level `force_txn_on_3ds_fail` is admitted, and `3ds_settings.force_txn_on_3ds_fail` wins when both are sent |
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
+| wallet tranmodes               | Apple Pay "only supports transaction modes A … and V" (Apple Pay page); Google Pay "tranmode A and V only" (DirectNG) | "A/AK and V/VK" for both (legacy page)                                                  | `A`, `V`, `AK`, `VK`: the `K` suffix asks only for the token every approved page payment answers |
+| Apple Pay token                | "returns it in the charging service as a Tranzila token for reuse" (DirectNG, legacy page); J5 "returns … Token" for a later force (Apple Pay page) | "creates a Tranzila token for future use (unlike Apple Pay)" (DirectNG); "cannot be used for new recurring payments" (Apple Pay page) | a token answered; good for its own payment's `force`, `credit`, `cancel`; refused for a new charge |
+| Apple Pay browsers             | "users on the CHROME browser cannot pay with APPLE PAY" (DirectNG, legacy page)        | Chrome 78+ supported (Apple Pay page)                                                              | the stand-in is shown in every browser     |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |
 | Hosted Fields errors           | `errors[{code, param, message}]`, codes `10000`–`10016` (table)                        | `err.messages[]` (prose, vendor script)                                                            | client-side `err`, server `errors`         |
 | Hosted Fields Enter key        | `submit` "request upon Enter key in hosted fields" (prose)                             | `inputSubmitRequest` (vendor script)                                                               | both sent                                  |
@@ -865,6 +909,7 @@ and `google_pay` are ignored).
 | full notify field list, signature, retry schedule, on decline | the return's fields plus `ConfirmationCode`, unsigned, simulator retry plan, sent |
 | page `K` answer (no transaction recorded)                    | `Response` per `tranzila.verification-approval-code` (inference from the `777` text), `TranzilaTK`, no `index` |
 | the page's form and its cards                                | the published test card and the run's fixtures, picked by alias |
+| a wallet's sheet; a wallet with a tranmode it does not pay; a wallet field in the return | the simulator's sheet; no button; none     |
 | API `card_type` ("shva card type") values                    | the page's `cardtype` table (`1` Mastercard … `6` Maestro)     |
 | token format                                                 | `t`, 14 hex digits, the card's last four                       |
 | `/v1/transactions` amount units                              | minor units, as a string (inference from `amount: '500'`)      |

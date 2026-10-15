@@ -79,8 +79,9 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
                     (test_run_id, transaction_id, root_txn_id, account_id, terminal_name, txn_type,
                      verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
                      auth_number, token, card_mask, card_type, expiry_month, expiry_year,
-                     response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at,
+                     broker)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 on conflict do nothing
                 returning test_run_id, transaction_id, account_id, created_at
             ),
@@ -159,6 +160,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         .param(TranzilaStoredForm.timestampOf(transaction.holdExpiresAt()))
         .param(transaction.origin().name())
         .param(transaction.createdAt().atOffset(ZoneOffset.UTC))
+        .param(TranzilaStoredForm.brokerNameOf(transaction.broker()))
         .param(fields.stream().map(TranzilaUserField::name).toArray(String[]::new))
         .param(fields.stream().map(TranzilaUserField::value).toArray(String[]::new))
         .param(Integer.valueOf(TranzilaUserSlot.THE_MOST_SLOTS))
@@ -340,6 +342,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         rs.getString("dc_disable"),
         TranzilaStoredForm.instantOf(rs.getObject("hold_expires_at", OffsetDateTime.class)),
         ObjectOrigin.valueOf(rs.getString("origin")),
-        rs.getObject("created_at", OffsetDateTime.class).toInstant());
+        rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+        TranzilaStoredForm.brokerOf(rs.getString("broker")));
   }
 }

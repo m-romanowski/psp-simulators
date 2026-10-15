@@ -299,6 +299,7 @@ class TranzilaBrowserReturnTest {
         null,
         null,
         ObjectOrigin.PROVIDER_API,
-        TranzilaWiring.NOW);
+        TranzilaWiring.NOW,
+        null);
   }
 }

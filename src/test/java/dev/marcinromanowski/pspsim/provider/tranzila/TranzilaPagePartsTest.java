@@ -344,7 +344,9 @@ class TranzilaPagePartsTest {
     assertThat(new String(pageMethod.body(), StandardCharsets.UTF_8))
         .contains(TranzilaDirectNgPage.escaped(TranzilaDirectNgPage.NO_SUCH_METHOD));
     assertThat(TranzilaDirectNgPage.NO_SUCH_METHOD)
-        .endsWith("takes GET or POST, and the payer's submission on it takes POST only.");
+        .endsWith(
+            "takes GET or POST, the payer's page takes GET and the payer's submission on it POST,"
+                + " and a wallet sheet takes GET only.");
     assertThat(pageMethod.headers()).containsEntry("Cache-Control", "no-store");
     assertThat(
             ((ProviderWireAnswer.InThisProvidersOwnWords)
