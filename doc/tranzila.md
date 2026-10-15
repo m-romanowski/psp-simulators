@@ -594,12 +594,17 @@ decision).
 - A scenario rule matches a wallet payment as the card payment it is, by operation (`debit`, `verify`), amount and
   the picked card's token; no `wallet` fact is added, since the processor sees a card payment (published rule above).
 
-Tokens (decisions on contradictory text, "Vendor Contradictions"):
+Tokens (decisions on contradictory text, "Vendor Contradictions"). A token's wallet is the wallet that paid the
+original transaction the token was minted for; a follow-on carrying the token, or carrying another token, never
+changes it. A card's own token (the published card's or a fixture's) may `credit`, `force` or `cancel` a wallet payment
+of the same card (simulator decision: the stand-in's card is the card the payer picked, and the only published refusal
+is of a different card), and stays a card token afterwards.
 
 | Token          | Simulator on the card API                                                                                   |
 |----------------|-------------------------------------------------------------------------------------------------------------|
 | Google Pay     | a token like any other: `force`, `credit`, `cancel`, `reversal`, and a new `debit` or `verify`, which records no `broker` ("Google Pay transactions create a Tranzila token for future use", DirectNG) |
-| Apple Pay      | `force` (J5 then J4 by API, Apple Pay page), `credit` and `cancel` of its own payment; a new `debit` or `verify` is refused `20111`, and a `force` or `credit` of another payment `20112` ("cannot be used for new recurring payments", Apple Pay page; simulator decision: the API has no field telling a recurring charge from another charge on a token, so every new charge is refused, with the published token-check code) |
+| Apple Pay      | `force` (J5 then J4 by API, Apple Pay page), `credit` and `cancel` of its own payment; a new `debit` or `verify` is refused `20111` ("cannot be used for new recurring payments", Apple Pay page; simulator decision: the API has no field telling a recurring charge from another charge on a token, so every new charge is refused, with the published token-check code) |
+| Apple Pay, another payment | a `force` or `credit` of a payment other than the one it paid is refused `20112` (simulator decision: the token stands for a device account only its own payment charged, and `20112`'s text names a credit to "a different card than the one originally charged") |
 
 The Hosted Fields wallet charges remain out of scope ("Out of Scope").
 
@@ -878,7 +883,7 @@ charges (`chargeBit`, `chargeGpay`, `chargeBt`, `hfChargeApple`), Apple Pay and 
 | Hosted Fields challenge frame  | "an iframe (400x600)" (prose)                                                          | 400×650 in a 410×650 holder (vendor script)                                                        | the vendor script's                        |
 | `auth_3ds_redirect`            | array of `{key, value}` in `3ds_settings`, no URL (schema)                             | top-level `{url, params}`, with `force_txn_on_3ds_fail` also top-level (complete example); `uth_3ds_redirect` (prose) | top-level `{url, params}` admitted, supplies URL and params; the `3ds_settings` array supplies params only; a top-level `force_txn_on_3ds_fail` is admitted, and `3ds_settings.force_txn_on_3ds_fail` wins when both are sent |
 | page tranmodes                 | `A`, `V`, `K`, `N`, `J` (DirectNG)                                                     | adds `AK`, `NK`, `VK` (legacy page)                                                                | combinations served                        |
-| wallet tranmodes               | Apple Pay "only supports transaction modes A … and V" (Apple Pay page); Google Pay "tranmode A and V only" (DirectNG) | "A/AK and V/VK" for both (legacy page)                                                  | `A`, `V`, `AK`, `VK`: the `K` suffix asks only for the token every approved page payment answers |
+| wallet tranmodes               | "Apple Pay only supports transaction modes A (Standard Transaction) and V (Verification/J5). Other transaction types such as pre-authorization or token creation are not supported" (Apple Pay page); Google Pay "tranmode A and V only (does not support token creation, pre-authorization, etc.)" (DirectNG) | "exclusively supports transactions type (tranmode) A/AK and V/VK … and does not extend support to alternative transaction types like pre-authorization transactions, token creation only, etc." for both (legacy page) | `A`, `V`, `AK`, `VK`: "token creation" weighed as the token-only `K`, which all three exclude; `AK` and `VK` charge or hold as `A` and `V` and ask only for the token every approved page payment answers |
 | Apple Pay token                | "returns it in the charging service as a Tranzila token for reuse" (DirectNG, legacy page); J5 "returns … Token" for a later force (Apple Pay page) | "creates a Tranzila token for future use (unlike Apple Pay)" (DirectNG); "cannot be used for new recurring payments" (Apple Pay page) | a token answered; good for its own payment's `force`, `credit`, `cancel`; refused for a new charge |
 | Apple Pay browsers             | "users on the CHROME browser cannot pay with APPLE PAY" (DirectNG, legacy page)        | Chrome 78+ supported (Apple Pay page)                                                              | the stand-in is shown in every browser     |
 | notify success value           | `Response` `000` (page)                                                                | "'000' or '0' = success" (notify guide)                                                            | `000` sent                                 |

@@ -232,6 +232,22 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
   }
 
   @Override
+  public Optional<TranzilaWallet> theWalletThatMinted(
+      TestRunId testRunId, String accountId, String token) {
+    return jdbc.sql(
+            """
+            select broker from tranzila_transaction
+            where test_run_id = ? and account_id = ? and token = ?
+              and transaction_id = root_txn_id and broker is not null
+            order by arrival limit 1
+            """)
+        .params(testRunId.value(), accountId, token)
+        .query(String.class)
+        .optional()
+        .flatMap(TranzilaWallet::ofTheBroker);
+  }
+
+  @Override
   public Optional<TranzilaTransaction> approvedUnderDcDisable(
       TranzilaDcDisableKey key, Instant since) {
     return jdbc.sql(

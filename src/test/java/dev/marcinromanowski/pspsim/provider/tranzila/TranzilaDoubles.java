@@ -340,6 +340,19 @@ final class TranzilaDoubles {
     }
 
     @Override
+    public Optional<TranzilaWallet> theWalletThatMinted(
+        TestRunId testRunId, String accountId, String token) {
+      return stored.stream()
+          .filter(held -> held.testRunId().equals(testRunId))
+          .filter(held -> held.accountId().equals(accountId))
+          .filter(held -> token.equals(held.token()))
+          .filter(TranzilaTransaction::isTheOriginal)
+          .map(TranzilaTransaction::broker)
+          .filter(java.util.Objects::nonNull)
+          .findFirst();
+    }
+
+    @Override
     public Optional<TranzilaTransaction> approvedUnderDcDisable(
         TranzilaDcDisableKey key, Instant since) {
       return stored.stream()

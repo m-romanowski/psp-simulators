@@ -23,6 +23,8 @@ interface TranzilaTransactions {
   Optional<TranzilaTransaction> carryingTheToken(
       TestRunId testRunId, String accountId, String token);
 
+  Optional<TranzilaWallet> theWalletThatMinted(TestRunId testRunId, String accountId, String token);
+
   Optional<TranzilaTransaction> approvedUnderDcDisable(TranzilaDcDisableKey key, Instant since);
 
   <T> T oneAtATimeUnder(TranzilaDcDisableKey key, Supplier<T> decision);

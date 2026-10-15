@@ -208,6 +208,52 @@ class TranzilaWalletIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_credit_of_an_apple_pay_payment_with_the_cards_own_token_leaves_that_token_chargeable()
+      throws InterruptedException {
+    Map<String, String> card =
+        theHiddenFieldsOf(
+            post(
+                    theOnly(THE_PAYER_FORM, get(THE_PAGE, pageParameters("9", "A")).body()),
+                    Map.of("card", THE_PUBLISHED_CARD, "outcome", "PAID"))
+                .body());
+    theNotifyNaming(card.get("transaction_id"));
+    String sheet =
+        theOnly(A_WALLET_BUTTON, get(THE_PAGE, pageParameters("20", "A", "apple_pay", "1")).body());
+    Map<String, String> wallet =
+        theHiddenFieldsOf(
+            post(
+                    theOnly(THE_PAYER_FORM, get(sheet, Map.of()).body()),
+                    Map.of("wallet", "apple_pay", "card", THE_PUBLISHED_CARD, "outcome", "PAID"))
+                .body());
+    String applePaid = wallet.get("transaction_id");
+    String authorization = theNotifyNaming(applePaid).fields().get("ConfirmationCode");
+
+    HttpResponse<String> credited =
+        signed(
+            "/v1/transaction/credit_card/create",
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"credit\",\"reference_txn_id\":"
+                + applePaid
+                + ",\"authorization_number\":\""
+                + authorization
+                + "\",\"card_number\":\""
+                + card.get("TranzilaTK")
+                + "\",\"expire_month\":12,\"expire_year\":2030,"
+                + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":5}]}");
+    HttpResponse<String> debit =
+        signed(
+            "/v1/transaction/credit_card/create",
+            "{\"terminal_name\":\"myterminal\",\"txn_type\":\"debit\",\"card_number\":\""
+                + card.get("TranzilaTK")
+                + "\",\"expire_month\":12,\"expire_year\":2030,"
+                + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":2}]}");
+
+    assertThat(card).containsEntry("TranzilaTK", "t5d55d2922ca4029022");
+    assertThat(textIn(credited.body(), "processor_response_code")).isEqualTo("000");
+    assertThat(textIn(debit.body(), "processor_response_code")).isEqualTo("000");
+    assertThat(debit.body()).contains("\"error_code\":0");
+  }
+
+  @Test
   void a_tranmode_no_wallet_pays_shows_no_wallet_and_refuses_one_named_on_the_page() {
     HttpResponse<String> page = get(THE_PAGE, pageParameters("3", "N", "apple_pay", "1"));
     String payerForm = theOnly(THE_PAYER_FORM, page.body());

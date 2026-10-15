@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,11 @@ class TranzilaWalletTest {
   private static final String THE_PUBLISHED_TOKEN = "t5d55d2922ca4029022";
 
   private static final String THE_FIRST_WALLET_TOKEN = "t000000000000019022";
+
+  private static final String THE_TOKEN_CHECK_FAILURE =
+      "{\"error_code\":20111,\"message\":\"Provided token check failure\"}";
+
+  private static final String A_THTK = "w" + "a".repeat(41);
 
   private final TranzilaWiring wired = new TranzilaWiring();
 
@@ -369,16 +375,207 @@ class TranzilaWalletTest {
   }
 
   @Test
-  void a_payer_who_leaves_from_a_wallet_page_leaves_whatever_wallet_the_form_names() {
+  void a_payer_leaves_a_page_naming_a_wallet_it_does_not_offer_but_not_one_never_served() {
     open(parameters("10", "N", "apple_pay", "1"));
+    String pageId = thePage().pageId();
 
+    TranzilaApiResponse unserved =
+        submit(pageId, Map.of("outcome", List.of("ABANDONED"), "wallet", List.of("bit_pay")));
+    boolean openAfterTheUnserved = !thePage().isSettled();
     TranzilaApiResponse left =
-        submit(
-            thePage().pageId(),
-            Map.of("outcome", List.of("ABANDONED"), "wallet", List.of("apple_pay")));
+        submit(pageId, Map.of("outcome", List.of("ABANDONED"), "wallet", List.of("apple_pay")));
 
+    assertThat(unserved.httpStatus()).isEqualTo(422);
+    assertThat(openAfterTheUnserved).isTrue();
     assertThat(left.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(left)).contains(TranzilaDirectNgPage.LEFT);
     assertThat(thePage().outcome()).isEqualTo(PayerOutcome.ABANDONED);
+  }
+
+  @Test
+  void a_credit_of_an_apple_pay_payment_with_the_cards_own_token_leaves_that_token_a_card_token() {
+    open(parameters("9", "A"));
+    pay(thePage().pageId(), THE_PUBLISHED_CARD);
+    open(parameters("20", "A", "apple_pay", "1"));
+    payWith(thePage().pageId(), "apple_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction applePaid = wired.theLastStored();
+
+    String credited =
+        wired.answered(
+            aCredit(applePaid.transactionId(), applePaid.authNumber(), THE_PUBLISHED_TOKEN, "5"));
+    TranzilaTransaction credit = wired.theLastStored();
+    String debit =
+        wired.answered(TranzilaWire.withCard("\"txn_type\":\"debit\"", THE_PUBLISHED_TOKEN, "2"));
+    String verify =
+        wired.answered(
+            TranzilaWire.withCard(
+                "\"txn_type\":\"verify\",\"verify_mode\":5", THE_PUBLISHED_TOKEN, "2"));
+    open(parameters("3", "A"));
+    TranzilaApiResponse paid = pay(thePage().pageId(), THE_PUBLISHED_CARD);
+
+    assertThat(credited).contains("\"processor_response_code\":\"000\"");
+    assertThat(credit.type()).isEqualTo(TranzilaTxnType.CREDIT);
+    assertThat(credit.token()).isEqualTo(THE_PUBLISHED_TOKEN);
+    assertThat(credit.broker()).isEqualTo(TranzilaWallet.APPLE_PAY);
+    assertThat(debit).contains("\"error_code\":0").contains("\"processor_response_code\":\"000\"");
+    assertThat(verify).contains("\"error_code\":0").contains("\"processor_response_code\":\"777\"");
+    assertThat(paid.outcome()).isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(thePage().outcome()).isEqualTo(PayerOutcome.PAID);
+    assertThat(wired.theLastStored().broker()).isNull();
+  }
+
+  @Test
+  void an_apple_pay_token_stays_refused_for_a_new_charge_after_every_follow_on_it_made() {
+    open(parameters("30", "VK", "apple_pay", "1"));
+    payWith(thePage().pageId(), "apple_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction hold = wired.theLastStored();
+    String token = hold.token();
+    wired.answered(aForceNaming(hold, token, "30"));
+    TranzilaTransaction force = wired.theLastStored();
+    String credited =
+        wired.answered(aCredit(force.transactionId(), force.authNumber(), token, "10"));
+    open(parameters("12", "V", "apple_pay", "1"));
+    payWith(thePage().pageId(), "apple_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction secondHold = wired.theLastStored();
+    String secondToken = secondHold.token();
+    wired.answered(TranzilaWire.aReversal(secondHold.transactionId(), secondHold.authNumber()));
+
+    String debit = wired.answered(TranzilaWire.withCard("\"txn_type\":\"debit\"", token, "1"));
+    String afterTheReversal =
+        wired.answered(TranzilaWire.withCard("\"txn_type\":\"debit\"", secondToken, "1"));
+
+    assertThat(credited).contains("\"processor_response_code\":\"000\"");
+    assertThat(wired.stored())
+        .extracting(TranzilaTransaction::type)
+        .containsExactly(
+            TranzilaTxnType.VERIFY,
+            TranzilaTxnType.FORCE,
+            TranzilaTxnType.CREDIT,
+            TranzilaTxnType.VERIFY,
+            TranzilaTxnType.REVERSAL);
+    assertThat(wired.stored())
+        .allSatisfy(made -> assertThat(made.processorResponseCode()).isIn("000", "777"));
+    assertThat(debit).isEqualTo(THE_TOKEN_CHECK_FAILURE);
+    assertThat(afterTheReversal).isEqualTo(THE_TOKEN_CHECK_FAILURE);
+  }
+
+  @Test
+  void a_force_over_the_hold_and_a_declined_force_keep_the_wallet_payments_broker() {
+    open(parameters("40", "V", "google_pay", "1"));
+    payWith(thePage().pageId(), "google_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction hold = wired.theLastStored();
+
+    wired.answered(aForceNaming(hold, hold.token(), "50"));
+    TranzilaTransaction overTheHold = wired.theLastStored();
+    wired.writes(TranzilaOperations.FORCE, new ScenarioAction.TerminalFailure("004"));
+    wired.answered(aForceNaming(hold, hold.token(), "40"));
+    TranzilaTransaction declined = wired.theLastStored();
+
+    assertThat(overTheHold.type()).isEqualTo(TranzilaTxnType.FORCE);
+    assertThat(overTheHold.processorResponseCode()).isEqualTo("507");
+    assertThat(overTheHold.broker()).isEqualTo(TranzilaWallet.GOOGLE_PAY);
+    assertThat(declined.type()).isEqualTo(TranzilaTxnType.FORCE);
+    assertThat(declined.processorResponseCode()).isEqualTo("004");
+    assertThat(declined.broker()).isEqualTo(TranzilaWallet.GOOGLE_PAY);
+  }
+
+  @Test
+  void a_declined_credit_and_a_declined_cancel_keep_the_wallet_payments_broker() {
+    open(parameters("25", "A", "apple_pay", "1"));
+    payWith(thePage().pageId(), "apple_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction paid = wired.theLastStored();
+    wired.writes(TranzilaOperations.CREDIT, new ScenarioAction.TerminalFailure("004"));
+    wired.writes(TranzilaOperations.CANCEL, new ScenarioAction.TerminalFailure("004"));
+
+    wired.answered(aCredit(paid.transactionId(), paid.authNumber(), paid.token(), "5"));
+    TranzilaTransaction credit = wired.theLastStored();
+    wired.answered(TranzilaWire.aCancel(paid.transactionId(), paid.authNumber()));
+    TranzilaTransaction cancel = wired.theLastStored();
+
+    assertThat(credit.type()).isEqualTo(TranzilaTxnType.CREDIT);
+    assertThat(credit.processorResponseCode()).isEqualTo("004");
+    assertThat(credit.broker()).isEqualTo(TranzilaWallet.APPLE_PAY);
+    assertThat(cancel.type()).isEqualTo(TranzilaTxnType.CANCEL);
+    assertThat(cancel.processorResponseCode()).isEqualTo("004");
+    assertThat(cancel.broker()).isEqualTo(TranzilaWallet.APPLE_PAY);
+  }
+
+  @Test
+  void an_approved_and_a_declined_reversal_keep_the_wallet_payments_broker() {
+    open(parameters("15", "V", "google_pay", "1"));
+    payWith(thePage().pageId(), "google_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction first = wired.theLastStored();
+    wired.answered(TranzilaWire.aReversal(first.transactionId(), first.authNumber()));
+    TranzilaTransaction approved = wired.theLastStored();
+    open(parameters("16", "V", "google_pay", "1"));
+    payWith(thePage().pageId(), "google_pay", THE_PUBLISHED_CARD);
+    TranzilaTransaction second = wired.theLastStored();
+    wired.writes(TranzilaOperations.REVERSAL, new ScenarioAction.TerminalFailure("004"));
+
+    wired.answered(TranzilaWire.aReversal(second.transactionId(), second.authNumber()));
+    TranzilaTransaction declined = wired.theLastStored();
+
+    assertThat(approved.type()).isEqualTo(TranzilaTxnType.REVERSAL);
+    assertThat(approved.processorResponseCode()).isEqualTo("000");
+    assertThat(approved.broker()).isEqualTo(TranzilaWallet.GOOGLE_PAY);
+    assertThat(declined.type()).isEqualTo(TranzilaTxnType.REVERSAL);
+    assertThat(declined.processorResponseCode()).isEqualTo("004");
+    assertThat(declined.broker()).isEqualTo(TranzilaWallet.GOOGLE_PAY);
+  }
+
+  @Test
+  void a_wallet_payment_under_a_dc_disable_already_approved_answers_the_published_duplicate() {
+    open(parameters("30", "A", "apple_pay", "1", "DCdisable", "order-88"));
+    open(parameters("30", "A", "apple_pay", "1", "DCdisable", "order-88"));
+    payWith(wired.pages.all().get(0).pageId(), "apple_pay", THE_PUBLISHED_CARD);
+
+    TranzilaApiResponse again =
+        payWith(wired.pages.all().get(1).pageId(), "apple_pay", THE_PUBLISHED_CARD);
+
+    assertThat(again.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(again)).contains(TranzilaDirectNgPage.THE_DUPLICATE);
+    assertThat(wired.stored())
+        .singleElement()
+        .satisfies(
+            made -> {
+              assertThat(made.dcDisable()).isEqualTo("order-88");
+              assertThat(made.broker()).isEqualTo(TranzilaWallet.APPLE_PAY);
+            });
+    assertThat(wired.pages.all().get(1).isSettled()).isFalse();
+  }
+
+  @Test
+  void a_wallet_payment_renews_its_handshake_and_one_under_a_lapsed_handshake_is_refused() {
+    wired.handshakes.insert(
+        new TranzilaHandshake(
+            A_THTK,
+            TranzilaWiring.RUN,
+            TranzilaWiring.ACCOUNT,
+            TranzilaWiring.TERMINAL,
+            "10",
+            null,
+            TranzilaWiring.NOW.minusSeconds(1),
+            TranzilaWiring.NOW.plusSeconds(60)));
+    open(parameters("10", "A", "google_pay", "1", "thtk", A_THTK));
+    open(parameters("10", "A", "google_pay", "1", "thtk", A_THTK));
+    TranzilaApiResponse mismatched = open(parameters("11", "A", "google_pay", "1", "thtk", A_THTK));
+    payWith(wired.pages.all().get(0).pageId(), "google_pay", THE_PUBLISHED_CARD);
+    TranzilaHandshake renewed = wired.handshakes.all().get(0);
+    wired.clock.moveTo(Instant.parse("2026-10-13T12:21:00Z"));
+
+    TranzilaApiResponse lapsed =
+        payWith(wired.pages.all().get(1).pageId(), "google_pay", THE_PUBLISHED_CARD);
+
+    assertThat(mismatched.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(mismatched)).contains("Illegal Operation 912791");
+    assertThat(wired.pages.all()).hasSize(2);
+    assertThat(renewed.expiresAt()).isEqualTo(Instant.parse("2026-10-13T12:20:00Z"));
+    assertThat(lapsed.httpStatus()).isEqualTo(422);
+    assertThat(bodyOf(lapsed)).contains("Illegal Operation 912791").contains("still completable");
+    assertThat(wired.stored())
+        .singleElement()
+        .extracting(TranzilaTransaction::broker)
+        .isEqualTo(TranzilaWallet.GOOGLE_PAY);
   }
 
   @Test
@@ -446,6 +643,18 @@ class TranzilaWalletTest {
         made.origin(),
         made.createdAt(),
         broker);
+  }
+
+  private static String aForceNaming(TranzilaTransaction hold, String token, String amount) {
+    return TranzilaWire.withCard(
+            "\"txn_type\":\"force\",\"reference_txn_id\":"
+                + hold.transactionId()
+                + ",\"authorization_number\":\""
+                + hold.authNumber()
+                + "\"",
+            token,
+            amount)
+        .replace("\"expire_month\":7", "\"expire_month\":12");
   }
 
   private static String aCredit(long reference, String authorization, String token, String amount) {

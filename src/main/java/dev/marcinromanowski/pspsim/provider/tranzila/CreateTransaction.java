@@ -844,11 +844,13 @@ final class CreateTransaction {
     if (!request.namesAToken()) {
       return Optional.of(new Presented(TranzilaCard.ofThePan(cardNumber, month, year), null, null));
     }
-    Optional<TranzilaTransaction> carrying =
-        transactions.carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber);
-    TranzilaWallet minted = carrying.map(TranzilaTransaction::broker).orElse(null);
+    TranzilaWallet minted =
+        transactions
+            .theWalletThatMinted(asked.testRunId(), asked.accountId(), cardNumber)
+            .orElse(null);
     Optional<TranzilaCard> known =
-        carrying
+        transactions
+            .carryingTheToken(asked.testRunId(), asked.accountId(), cardNumber)
             .map(TranzilaTransaction::card)
             .or(() -> Optional.ofNullable(asked.cardsThePageOffers().get(cardNumber)))
             .or(
