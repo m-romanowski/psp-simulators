@@ -96,13 +96,30 @@ class TranzilaHostedFieldsTest {
   }
 
   @Test
-  void the_token_is_answered_only_when_tokenize_asks_for_it_and_kept_either_way() {
+  void the_token_is_answered_and_kept_only_when_tokenize_asks_for_it() {
     aHandshake("10");
 
     String answered = bodyOf(charge(aCharge("10", "tokenize", "false")));
+    String tokenized = bodyOf(charge(aCharge("10", "tokenize", "true")));
 
     assertThat(answered).doesNotContain("\"token\"");
-    assertThat(wired.theLastStored().token()).isEqualTo("t000000000000019022");
+    assertThat(tokenized).contains("\"token\":\"t000000000000029022\"");
+    assertThat(wired.stored())
+        .extracting(TranzilaTransaction::token)
+        .containsExactly(null, "t000000000000029022");
+  }
+
+  @Test
+  void a_token_minted_for_a_charge_without_tokenize_is_refused_by_the_card_api() {
+    aHandshake("10");
+    charge(aCharge("10", "tokenize", "false"));
+
+    String debit =
+        wired.answered(TranzilaWire.withCard("\"txn_type\":\"debit\"", "t000000000000019022", "2"));
+
+    assertThat(debit)
+        .isEqualTo("{\"error_code\":20111,\"message\":\"Provided token check failure\"}");
+    assertThat(wired.stored()).hasSize(1);
   }
 
   @Test

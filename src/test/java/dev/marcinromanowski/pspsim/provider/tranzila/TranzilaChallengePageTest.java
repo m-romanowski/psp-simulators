@@ -257,6 +257,18 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_continuation_of_a_charge_without_tokenize_keeps_no_token() {
+    aHandshake("10");
+    charge(aCharge());
+    answer("555");
+
+    String continued = bodyOf(continueOn(TRACK, TranzilaWiring.TERMINAL));
+
+    assertThat(continued).contains("\"success\":true").doesNotContain("\"token\"");
+    assertThat(wired.theLastStored().token()).isNull();
+  }
+
+  @Test
   void a_continuation_after_the_handshake_expired_leaves_it_expired_and_locking_nothing() {
     aHandshake("10");
     charge(aCharge());

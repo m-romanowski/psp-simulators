@@ -98,6 +98,11 @@ final class CreateTransaction {
     String accountId() {
       return terminal.accountId();
     }
+
+    boolean keepsAToken() {
+      TranzilaHostedFieldsEcho echo = hostedFields;
+      return echo == null || echo.tokenize();
+    }
   }
 
   record Answered(TranzilaOperationResult result, boolean stored) {
@@ -353,13 +358,21 @@ final class CreateTransaction {
                         amount,
                         request.currencyCode(),
                         TranzilaIdentifiers.anAuthNumber(ids),
-                        wallet == null
-                            ? presented.tokenFor(ids)
-                            : TranzilaIdentifiers.aTokenFor(ids, card.last4()),
+                        theTokenKept(asked, presented, wallet),
                         card,
                         expires,
                         wallet)),
         decline -> unauthenticated(asked, presented, drawn, decline));
+  }
+
+  private @Nullable String theTokenKept(
+      Asked asked, Presented presented, @Nullable TranzilaWallet wallet) {
+    if (!asked.keepsAToken()) {
+      return null;
+    }
+    return wallet == null
+        ? presented.tokenFor(ids)
+        : TranzilaIdentifiers.aTokenFor(ids, presented.card().last4());
   }
 
   private Answered unauthenticated(Asked asked, Presented presented, long drawn, String code) {

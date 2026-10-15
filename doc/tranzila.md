@@ -740,7 +740,8 @@ classes are set on the input in the frame as well as on the merchant's container
   type, is charged as that fixture's token; any other number passing Luhn is charged as a new card under a new token.
   Only the last four and the card type are kept, so `card_mask` is `*` for every digit but the last four, unlike the
   published example. A number only the Isracard check accepts is typed Isracard (`5`) whatever its prefix; the number, the CVV and the ID are never stored, answered or written to the trail.
-- `token` is answered only when `tokenize` is `true`; `cvv_status` and `id_status` are `1` when the field was filled
+- `token` is answered and kept only when `tokenize` is `true`: a charge without it keeps no token, so the lookups
+  answer none for it and no token of it charges on the card API (`20111`); `cvv_status` and `id_status` are `1` when the field was filled
   and `0` when not; `card_issuer` is `1`; `error` is `null` on approval and the processor code's text on a decline,
   with `success` `false` (simulator decisions).
 - `user_form_data`: every key the charge sent other than the ones it reads, in the order received, as strings

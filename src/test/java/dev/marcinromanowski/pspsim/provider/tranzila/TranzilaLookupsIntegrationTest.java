@@ -31,8 +31,10 @@ import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -79,6 +81,8 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
           "action=\"(/tranzila/directng/" + TERMINAL + "/payer/directng_[0-9a-f]{24})\"");
 
   @LocalServerPort private int port;
+
+  @Autowired private JdbcClient database;
 
   private RestClient http;
   private Instant runClock = DAY_ONE;
@@ -678,6 +682,29 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_hosted_fields_charge_without_tokenize_keeps_no_token_for_the_lookups_to_answer() {
+    HttpResponse<String> untokenized = aHostedFieldsCharge("tokenize", "false");
+    HttpResponse<String> tokenized = aHostedFieldsCharge("tokenize", "true");
+
+    JsonNode found = read(signed(TRANSACTIONS, aLookup(THE_FIRST_DAY)));
+
+    assertThat(untokenized.body()).doesNotContain("\"token\"");
+    assertThat(column(found, "index"))
+        .containsExactly(
+            textIn(untokenized.body(), "transaction_id"),
+            textIn(tokenized.body(), "transaction_id"));
+    assertThat(column(found, "credit_card_token"))
+        .containsExactly("", textIn(tokenized.body(), "token"));
+    assertThat(
+            database
+                .sql("select token from tranzila_transaction where test_run_id = ?")
+                .param(RUN.value())
+                .query(String.class)
+                .list())
+        .containsExactlyInAnyOrder(null, textIn(tokenized.body(), "token"));
+  }
+
+  @Test
   void the_trail_records_both_lookups_and_withholds_every_token_they_answer() {
     HttpResponse<String> debit =
         signed(
@@ -730,7 +757,7 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
     return String.valueOf(fields.get("transaction_id"));
   }
 
-  private HttpResponse<String> aHostedFieldsCharge() {
+  private HttpResponse<String> aHostedFieldsCharge(String... more) {
     String thtk =
         textIn(
             signed("/v2/handshake/create", "{\"terminal_name\":\"" + TERMINAL + "\",\"sum\":42}")
@@ -744,6 +771,9 @@ class TranzilaLookupsIntegrationTest extends PostgresBackedTest {
     charge.put("expiry_month", "12");
     charge.put("expiry_year", "2030");
     charge.put("contact", "Noa Cohen");
+    for (int at = 0; at < more.length; at += 2) {
+      charge.put(more[at], more[at + 1]);
+    }
     return postForm("/tranzila/hf/process/ajax_process_transaction", charge);
   }
 
