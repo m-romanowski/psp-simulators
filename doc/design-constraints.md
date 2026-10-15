@@ -517,6 +517,16 @@ Acknowledgement belongs to the provider and may need a separate inbound call. Gr
 - A credential already held by an account the call leaves in place is refused by the provider, which names the property.
   The per-run unique index is the defence, and the check is the diagnostic.
 
+### A reset of a run is one transaction
+
+- The control API's reset of one provider, and the dashboard's reset and forget of every provider of a run, run in one
+  unit of work (`kernel/spi/RunResets.java`), so a provider whose reset fails midway leaves the run as it was and no
+  reader sees a half-emptied run. Every provider's reset writes only through the shared `DataSource`.
+- A held response of the run is abandoned only once that unit commits (`ScheduledDeliveries`), so a reset that rolls
+  back answers no waiting client as reset.
+- A reader that reads one object and then another in two statements can still see one before a reset and the other
+  after it; the reset is atomic, the read is not.
+
 ### The core's account identity is a label the caller chooses, not a merchant id
 
 The core keys an account by an opaque label, unique per provider and test run. It uses the label only to key rows, echo

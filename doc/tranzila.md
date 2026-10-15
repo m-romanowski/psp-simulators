@@ -837,7 +837,7 @@ Tranzila has no status field. Every transaction is an object of its own; its nat
 | cancelled `force` or `credit`                            | `CANCELLED`                                    |
 | payment page waiting for its payer (`awaiting the payer`) | `NOT_INITIALIZED`                             |
 | payment page left (`left without paying`)                | `CANCELLED`                                    |
-| payment page paid or declined                            | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED`; a page whose transaction is no longer held, which a reset clearing the run's transactions before its pages shows for that moment, `paid` `SUCCEEDED` or `declined` `FAILED` |
+| payment page paid or declined                            | the native and normalized status of the transaction it made; `K` pages `K <Response>`, `SUCCEEDED`; a page whose transaction is no longer held, which a screen reading the page and then its transaction while a reset of the run commits between the two reads sees, `paid` `SUCCEEDED` or `declined` `FAILED` |
 
 A `force`, `credit`, `reversal` or `cancel` has its own `transaction_id` and an empty ledger, and relates to its
 original by `reference_txn_id`; the original's ledger operations name it in `createdObjectId`. A payment is no longer
