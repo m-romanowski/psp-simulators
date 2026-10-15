@@ -42,7 +42,9 @@ class TranzilaBrokerMigrationIntegrationTest extends PostgresBackedTest {
   void a_transaction_made_before_the_wallets_names_no_broker_and_reads_as_a_card_payment() {
     List<TranzilaTransaction> read =
         jdbc.query(
-            "select * from " + SCHEMA + ".tranzila_transaction order by transaction_id",
+            "select *, null as published_as from "
+                + SCHEMA
+                + ".tranzila_transaction order by transaction_id",
             JdbcTranzilaTransactions::toTransaction);
 
     assertThat(read).hasSize(2).allSatisfy(made -> assertThat(made.broker()).isNull());
