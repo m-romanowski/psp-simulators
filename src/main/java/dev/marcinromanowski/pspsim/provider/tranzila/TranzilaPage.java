@@ -32,6 +32,7 @@ record TranzilaPage(
     @Nullable String token,
     @Nullable String cardMask,
     @Nullable Integer cardType,
+    @Nullable TranzilaThreeDSecureOutcome publishedAs,
     @Nullable Instant settledAt) {
 
   static final String ID_LEAD = "directng_";
@@ -66,6 +67,7 @@ record TranzilaPage(
         request.echoed(),
         origin,
         now,
+        null,
         null,
         null,
         null,
@@ -109,6 +111,7 @@ record TranzilaPage(
         saved,
         card == null ? null : card.cardMask(),
         card == null ? null : Integer.valueOf(card.cardType()),
+        card == null ? null : card.publishedAs(),
         at);
   }
 

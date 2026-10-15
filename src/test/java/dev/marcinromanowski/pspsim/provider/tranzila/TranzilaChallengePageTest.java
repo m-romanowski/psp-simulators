@@ -322,6 +322,21 @@ class TranzilaChallengePageTest {
   }
 
   @Test
+  void a_token_of_the_failing_card_typed_into_the_fields_fails_a_3ds_debit_900_as_on_the_api() {
+    aHandshake("10");
+    String charged = bodyOf(charge(aChargeOf(TranzilaThreeDSecureTest.FAILS, "tokenize", "true")));
+
+    String answered =
+        wired.answered(TranzilaThreeDSecureTest.aSecureDebit("t000000000000010022", ""));
+
+    assertThat(charged).contains("\"token\":\"t000000000000010022\"");
+    assertThat(answered)
+        .startsWith("{\"error_code\":900,")
+        .contains("\"processor_response_code\":\"900\"")
+        .contains("\"transaction_id\":10000002");
+  }
+
+  @Test
   void a_continuation_of_a_charge_without_tokenize_keeps_no_token() {
     aHandshake("10");
     charge(aCharge());

@@ -231,6 +231,31 @@ class TranzilaHostedFieldsIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_token_of_the_failing_3ds_card_typed_into_the_fields_fails_a_3ds_debit_on_the_api() {
+    String thtk = aHandshakeLocking("10");
+    HttpResponse<String> charged =
+        post(
+            PROCESS,
+            aCharge(thtk, "10", "A", "credit_card_number", "4907639999990022", "tokenize", "true"));
+    String token = textIn(charged.body(), "token");
+
+    HttpResponse<String> debit =
+        signed(
+            "/v1/transaction/credit_card/create",
+            "{\"terminal_name\":\""
+                + TERMINAL
+                + "\",\"txn_type\":\"debit\",\"activate_3ds\":\"Y\",\"card_number\":\""
+                + token
+                + "\",\"expire_month\":12,\"expire_year\":2030,"
+                + "\"items\":[{\"name\":\"a\",\"units_number\":1,\"unit_price\":10}]}");
+
+    assertThat(charged.body()).contains("\"success\":true");
+    assertThat(debit.body())
+        .startsWith("{\"error_code\":900,")
+        .contains("\"processor_response_code\":\"900\"");
+  }
+
+  @Test
   void a_charge_without_a_thtk_is_refused_and_charges_nothing() {
     Map<String, String> charge = aCharge("unused", "10", "A");
     charge.remove("thtk");

@@ -126,7 +126,9 @@ class TranzilaThreeDSecureTest {
     assertThat(waiting.amount()).isEqualTo("10.53");
     assertThat(waiting.currencyCode()).isEqualTo("ILS");
     assertThat(waiting.token()).isEqualTo("t000000000000015005");
-    assertThat(waiting.card()).isEqualTo(new TranzilaCard("491891xxxxxx5005", 2, 7, 30));
+    assertThat(waiting.card())
+        .isEqualTo(
+            new TranzilaCard("491891xxxxxx5005", 2, 7, 30, TranzilaThreeDSecureOutcome.CHALLENGED));
     assertThat(waiting.responseCvv()).isEqualTo("1");
     assertThat(waiting.responseId()).isEqualTo("1");
     assertThat(waiting.dcDisable()).isEqualTo("o-1");
@@ -288,6 +290,26 @@ class TranzilaThreeDSecureTest {
 
     assertThat(answered.body().text()).contains("\"challengeUrl\"");
     assertThat(wired.challenges.all().get(0).token()).isEqualTo(token);
+  }
+
+  @Test
+  void a_token_of_the_failing_card_minted_on_the_api_fails_a_3ds_debit_900() {
+    long debit = TranzilaWire.transactionIdIn(wired.answered(aDebitOf(FAILS, "")));
+    String token = String.valueOf(wired.thePaymentOf(debit).root().token());
+
+    String answered = wired.answered(aSecureDebit(token, ""));
+
+    assertThat(answered).startsWith("{\"error_code\":900,");
+  }
+
+  @Test
+  void a_token_of_a_card_only_masked_like_a_published_one_is_left_to_force_challenge() {
+    long debit = TranzilaWire.transactionIdIn(wired.answered(aDebitOf("4907630000000022", "")));
+    String token = String.valueOf(wired.thePaymentOf(debit).root().token());
+
+    String answered = wired.answered(aSecureDebit(token, ""));
+
+    assertThat(answered).contains("\"processor_response_code\":\"000\"").contains("t3ds_data");
   }
 
   @Test
@@ -887,7 +909,7 @@ class TranzilaThreeDSecureTest {
   }
 
   @Test
-  void the_published_cards_are_known_by_their_number_and_by_the_mask_a_token_keeps() {
+  void a_card_stands_for_a_published_card_only_when_minted_from_its_number_never_by_its_mask() {
     assertThat(TranzilaThreeDSecureCards.ofThePan(FRICTIONLESS))
         .contains(TranzilaThreeDSecureOutcome.AUTHENTICATED);
     assertThat(TranzilaThreeDSecureCards.ofThePan(FAILS))
@@ -895,12 +917,19 @@ class TranzilaThreeDSecureTest {
     assertThat(TranzilaThreeDSecureCards.ofThePan(CHALLENGED))
         .contains(TranzilaThreeDSecureOutcome.CHALLENGED);
     assertThat(TranzilaThreeDSecureCards.ofThePan(TranzilaWire.A_VISA)).isEmpty();
-    assertThat(TranzilaThreeDSecureCards.ofTheCard(new TranzilaCard("491891xxxxxx5005", 2, 1, 30)))
+    assertThat(TranzilaCard.ofThePan(CHALLENGED, 1, 2030).theThreeDSecureOutcome())
         .contains(TranzilaThreeDSecureOutcome.CHALLENGED);
-    assertThat(TranzilaThreeDSecureCards.ofTheCard(new TranzilaCard("490763xxxxxx0022", 2, 1, 30)))
+    assertThat(TranzilaCard.ofThePan(FAILS, 1, 2030).expiringIn(2, 2031).theThreeDSecureOutcome())
         .contains(TranzilaThreeDSecureOutcome.FAILED);
-    assertThat(TranzilaThreeDSecureCards.ofTheCard(new TranzilaCard("xxxxxxxxxxxx5005", 2, 1, 30)))
-        .isEmpty();
+    assertThat(TranzilaCard.ofThePan(TranzilaWire.A_VISA, 1, 2030).publishedAs()).isNull();
+    TranzilaCard lookingAlike = TranzilaCard.ofThePan("4907630000000022", 1, 2030);
+    assertThat(lookingAlike.cardMask()).isEqualTo("490763xxxxxx0022");
+    assertThat(lookingAlike.theThreeDSecureOutcome()).isEmpty();
+    assertThat(new TranzilaCard("490763xxxxxx0022", 2, 1, 30).theThreeDSecureOutcome()).isEmpty();
+    assertThat(new TranzilaHostedCard(FAILS, false, false).withoutItsNumber(1, 2030).publishedAs())
+        .isEqualTo(TranzilaThreeDSecureOutcome.FAILED);
+    assertThat(TranzilaPageCards.thePublishedCardAsCharged().publishedAs())
+        .isEqualTo(TranzilaThreeDSecureOutcome.AUTHENTICATED);
     assertThat(TranzilaThreeDSecureCards.passes("555")).isTrue();
     assertThat(TranzilaThreeDSecureCards.passes(" 555 ")).isTrue();
     assertThat(TranzilaThreeDSecureCards.passes("554")).isFalse();

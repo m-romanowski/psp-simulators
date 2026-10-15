@@ -42,6 +42,14 @@ final class TranzilaStoredForm {
     return stored == null ? null : PayerOutcome.valueOf(stored);
   }
 
+  static @Nullable String publishedNameOf(@Nullable TranzilaThreeDSecureOutcome published) {
+    return published == null ? null : published.name();
+  }
+
+  static @Nullable TranzilaThreeDSecureOutcome publishedAs(@Nullable String stored) {
+    return stored == null ? null : TranzilaThreeDSecureOutcome.valueOf(stored);
+  }
+
   static @Nullable String verdictNameOf(TranzilaChallenge.@Nullable Verdict verdict) {
     return verdict == null ? null : verdict.name();
   }

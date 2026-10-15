@@ -389,7 +389,9 @@ trail and the idempotency inspector withhold `card_holder_id`, the values of ide
 the identity keys of `user_form_data` wherever an answer carries them.
 
 Which card takes which outcome: the published test cards (`PB/hosted-fields`, "Test Credit Card Numbers for 3DS"),
-by the number sent, or for a token by its card's first six and last four; otherwise the run's scenario on the
+by the number sent, or for a token by the published card it was minted for, which is recorded when the token is
+minted on the API, the payment page or the Hosted Fields (never by its mask, so a token of another card masked alike
+is not one); otherwise the run's scenario on the
 operation `3ds`: a failure code of the 3DS table (`900`–`928`, `930`) fails the authentication with that code, a
 success or no rule leaves it to `force_challenge`, `1` challenging and `0` passing frictionlessly. The vocabulary
 declares the 3DS codes for `3ds` alone and the processor declines for the transaction types alone: a rule naming an
@@ -557,7 +559,7 @@ of a parameter is a page of the simulator's own words ("Error Shape") and opens 
 
 | What the payer does                     | Simulator                                                                                                  |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------|
-| picks a card                            | the cards offered are `published-9022`, a Visa ending `9022` standing for the published test card `4907639999909022`, and every payment-method fixture of the run that carries a token; the page asks for no card number, CVV or ID |
+| picks a card                            | the cards offered are `published-9022`, a Visa ending `9022` standing for the published test card `4907639999909022` (its token takes that card's frictionless success in an API 3-D Secure debit), and every payment-method fixture of the run that carries a token; the page asks for no card number, CVV or ID |
 | pays under `A`, `V`, `N`, `AK`, `VK`, `NK` | the same transaction an API `debit`, `verify` `5` or `verify` `2` makes, with the card's token as `card_number`, the page's `DCdisable` and the run's scenario rules; a card charged on the page is kept as its last four digits only |
 | pays under `K`                          | no transaction; `Response` per `tranzila.verification-approval-code` and the card's token as `TranzilaTK`; no scenario rule applies |
 | pays under a `DCdisable` already approved | no transaction, no return and no notify; the page shows "This payment has already been paid. Please contact customer service." and stays open |
@@ -743,7 +745,7 @@ classes are set on the input in the frame as well as on the merchant's container
   transaction). An approved charge renews the `thtk` for 20 minutes.
 - The typed card (simulator decision): a number naming a payment-method fixture of the run, by last four and card
   type, is charged as that fixture's token; any other number passing Luhn is charged as a new card under a new token.
-  Only the last four and the card type are kept, so `card_mask` is `*` for every digit but the last four, unlike the
+  Only the last four, the card type and, for a published 3-D Secure test card, which of them it is are kept, so `card_mask` is `*` for every digit but the last four, unlike the
   published example. A number only the Isracard check accepts is typed Isracard (`5`) whatever its prefix; the number, the CVV and the ID are never stored, answered or written to the trail.
 - `token` is answered and kept only when `tokenize` is `true`: a charge without it keeps no token, so the lookups
   answer none for it and no token of it charges on the card API (`20111`); `cvv_status` and `id_status` are `1` when the field was filled

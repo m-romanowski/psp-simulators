@@ -501,10 +501,7 @@ final class CreateTransaction {
     if (typed != null) {
       return Optional.of(typed);
     }
-    if (!asked.request().namesAToken()) {
-      return TranzilaThreeDSecureCards.ofThePan(String.valueOf(asked.request().cardNumber()));
-    }
-    return TranzilaThreeDSecureCards.ofTheCard(presented.card());
+    return presented.card().theThreeDSecureOutcome();
   }
 
   private Answered afterTheAuthentication(

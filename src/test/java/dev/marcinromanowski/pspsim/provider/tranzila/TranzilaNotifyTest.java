@@ -167,6 +167,7 @@ class TranzilaNotifyTest {
             "tok12345678",
             "xxxxxxxxxxxx9022",
             null,
+            null,
             TranzilaWiring.NOW);
     wired.pages.open(asked);
     assertThatThrownBy(() -> schedule(asked.pageId(), null, null, null))

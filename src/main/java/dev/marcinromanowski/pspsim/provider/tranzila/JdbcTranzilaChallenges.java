@@ -30,8 +30,8 @@ final class JdbcTranzilaChallenges implements TranzilaChallenges {
                  verify_mode, amount, currency_code, token, card_mask, card_type, expiry_month,
                  expiry_year, response_cvv, response_id, dc_disable, force_txn_on_3ds_fail,
                  original_request, redirect_url, redirect_params, hosted_fields,
-                 hosted_form_data, origin, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 hosted_form_data, origin, created_at, published_as)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             on conflict do nothing
             """)
         .param(challenge.trackId())
@@ -59,6 +59,7 @@ final class JdbcTranzilaChallenges implements TranzilaChallenges {
         .param(TranzilaStoredForm.theFormDataOf(challenge.hostedFields()))
         .param(challenge.origin().name())
         .param(challenge.createdAt().atOffset(ZoneOffset.UTC))
+        .param(TranzilaStoredForm.publishedNameOf(challenge.card().publishedAs()))
         .update();
   }
 
@@ -183,7 +184,8 @@ final class JdbcTranzilaChallenges implements TranzilaChallenges {
             rs.getString("card_mask"),
             rs.getInt("card_type"),
             rs.getInt("expiry_month"),
-            rs.getInt("expiry_year")),
+            rs.getInt("expiry_year"),
+            TranzilaStoredForm.publishedAs(rs.getString("published_as"))),
         rs.getString("response_cvv"),
         rs.getString("response_id"),
         rs.getString("dc_disable"),

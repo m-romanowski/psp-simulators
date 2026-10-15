@@ -274,6 +274,7 @@ class TranzilaBrowserReturnTest {
         null,
         null,
         null,
+        null,
         null);
   }
 

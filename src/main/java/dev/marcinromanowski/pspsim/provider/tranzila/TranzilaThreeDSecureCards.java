@@ -25,15 +25,6 @@ final class TranzilaThreeDSecureCards {
     return Optional.ofNullable(PUBLISHED.get(pan));
   }
 
-  static Optional<TranzilaThreeDSecureOutcome> ofTheCard(TranzilaCard card) {
-    for (Map.Entry<String, TranzilaThreeDSecureOutcome> published : PUBLISHED.entrySet()) {
-      if (TranzilaCard.maskOf(published.getKey()).equals(card.cardMask())) {
-        return Optional.of(published.getValue());
-      }
-    }
-    return Optional.empty();
-  }
-
   static boolean passes(String code) {
     return THE_CODE_THAT_PASSES.equals(code.strip());
   }

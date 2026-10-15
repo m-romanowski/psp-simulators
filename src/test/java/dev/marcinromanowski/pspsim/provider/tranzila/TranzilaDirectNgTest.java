@@ -237,6 +237,23 @@ class TranzilaDirectNgTest {
   }
 
   @Test
+  void the_published_cards_token_stands_for_the_frictionless_card_in_a_3ds_debit() {
+    open(parameters("10", "A"));
+    pay(thePage().pageId(), THE_PUBLISHED_CARD);
+
+    String answered =
+        wired.answered(
+            TranzilaThreeDSecureTest.aSecureDebit(
+                THE_PUBLISHED_TOKEN, ",\"3ds_settings\":{\"force_challenge\":1}"));
+
+    assertThat(answered)
+        .contains("\"processor_response_code\":\"000\"")
+        .contains("\"statusCode\":\"YA\"")
+        .doesNotContain("challengeUrl");
+    assertThat(wired.challenges.all()).isEmpty();
+  }
+
+  @Test
   void a_page_charge_under_a_dc_disable_is_kept_as_the_return_and_the_page_the_payer_got() {
     open(parameters("30", "A", "DCdisable", "order-10", "orderid", "SHOP-1"));
     open(parameters("30", "A", "DCdisable", "order-10", "orderid", "SHOP-1"));

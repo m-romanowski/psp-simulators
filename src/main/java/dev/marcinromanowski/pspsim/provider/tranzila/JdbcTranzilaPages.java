@@ -120,7 +120,7 @@ final class JdbcTranzilaPages implements TranzilaPages {
             """
             update tranzila_page
             set outcome = ?, transaction_id = ?, response = ?, token = ?, card_mask = ?,
-                card_type = ?, settled_at = ?
+                card_type = ?, published_as = ?, settled_at = ?
             where test_run_id = ? and page_id = ?
             """)
         .param(TranzilaStoredForm.nameOf(settled.outcome()))
@@ -129,6 +129,7 @@ final class JdbcTranzilaPages implements TranzilaPages {
         .param(settled.token())
         .param(settled.cardMask())
         .param(settled.cardType())
+        .param(TranzilaStoredForm.publishedNameOf(settled.publishedAs()))
         .param(TranzilaStoredForm.timestampOf(settled.settledAt()))
         .param(settled.testRunId().value())
         .param(settled.pageId())
@@ -195,6 +196,7 @@ final class JdbcTranzilaPages implements TranzilaPages {
         rs.getString("token"),
         rs.getString("card_mask"),
         rs.getObject("card_type", Integer.class),
+        TranzilaStoredForm.publishedAs(rs.getString("published_as")),
         TranzilaStoredForm.instantOf(rs.getObject("settled_at", OffsetDateTime.class)));
   }
 }

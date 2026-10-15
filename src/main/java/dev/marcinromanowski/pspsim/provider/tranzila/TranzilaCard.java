@@ -2,8 +2,14 @@ package dev.marcinromanowski.pspsim.provider.tranzila;
 
 import java.util.Locale;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
-record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYear) {
+record TranzilaCard(
+    String cardMask,
+    int cardType,
+    int expiryMonth,
+    int expiryYear,
+    @Nullable TranzilaThreeDSecureOutcome publishedAs) {
 
   static final int MASTERCARD = 1;
 
@@ -25,12 +31,25 @@ record TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYe
 
   static final String UNSEEN = "x";
 
+  TranzilaCard(String cardMask, int cardType, int expiryMonth, int expiryYear) {
+    this(cardMask, cardType, expiryMonth, expiryYear, null);
+  }
+
   static TranzilaCard ofThePan(String pan, int expiryMonth, int expiryYear) {
-    return new TranzilaCard(maskOf(pan), cardTypeOf(pan), expiryMonth, expiryYear % 100);
+    return new TranzilaCard(
+        maskOf(pan),
+        cardTypeOf(pan),
+        expiryMonth,
+        expiryYear % 100,
+        TranzilaThreeDSecureCards.ofThePan(pan).orElse(null));
   }
 
   TranzilaCard expiringIn(int month, int year) {
-    return new TranzilaCard(cardMask, cardType, month, year % 100);
+    return new TranzilaCard(cardMask, cardType, month, year % 100, publishedAs);
+  }
+
+  Optional<TranzilaThreeDSecureOutcome> theThreeDSecureOutcome() {
+    return Optional.ofNullable(publishedAs);
   }
 
   static String maskOf(String cardNumber) {

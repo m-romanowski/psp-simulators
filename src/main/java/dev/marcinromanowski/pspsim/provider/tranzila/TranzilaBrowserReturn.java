@@ -118,7 +118,7 @@ final class TranzilaBrowserReturn {
     if (mask == null || type == null) {
       return Optional.empty();
     }
-    return Optional.of(new TranzilaCard(mask, type.intValue(), 0, 0));
+    return Optional.of(new TranzilaCard(mask, type.intValue(), 0, 0, page.publishedAs()));
   }
 
   static Optional<String> theTokenOf(TranzilaPage page, @Nullable TranzilaTransaction transaction) {

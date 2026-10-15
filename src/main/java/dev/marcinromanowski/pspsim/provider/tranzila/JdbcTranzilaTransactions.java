@@ -80,8 +80,8 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
                      verify_mode, reference_txn_id, processor_response_code, amount, currency_code,
                      auth_number, token, card_mask, card_type, expiry_month, expiry_year,
                      response_cvv, response_id, dc_disable, hold_expires_at, origin, created_at,
-                     broker)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     broker, published_as)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 on conflict do nothing
                 returning test_run_id, transaction_id, account_id, created_at
             ),
@@ -161,6 +161,7 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
         .param(transaction.origin().name())
         .param(transaction.createdAt().atOffset(ZoneOffset.UTC))
         .param(TranzilaStoredForm.brokerNameOf(transaction.broker()))
+        .param(TranzilaStoredForm.publishedNameOf(transaction.card().publishedAs()))
         .param(fields.stream().map(TranzilaUserField::name).toArray(String[]::new))
         .param(fields.stream().map(TranzilaUserField::value).toArray(String[]::new))
         .param(Integer.valueOf(TranzilaUserSlot.THE_MOST_SLOTS))
@@ -352,7 +353,8 @@ final class JdbcTranzilaTransactions implements TranzilaTransactions {
             rs.getString("card_mask"),
             rs.getInt("card_type"),
             rs.getInt("expiry_month"),
-            rs.getInt("expiry_year")),
+            rs.getInt("expiry_year"),
+            TranzilaStoredForm.publishedAs(rs.getString("published_as"))),
         rs.getString("response_cvv"),
         rs.getString("response_id"),
         rs.getString("dc_disable"),

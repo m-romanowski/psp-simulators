@@ -30,7 +30,8 @@ final class TranzilaHostedCard {
         TranzilaCard.UNSEEN.repeat(number.length() - TranzilaCard.SHOWN_LAST) + lastFour(),
         cardType(),
         expiryMonth,
-        expiryYear % 100);
+        expiryYear % 100,
+        theThreeDSecureOutcome().orElse(null));
   }
 
   Optional<TranzilaThreeDSecureOutcome> theThreeDSecureOutcome() {

@@ -197,6 +197,7 @@ class TranzilaPageStoreIntegrationTest extends PostgresBackedTest {
         null,
         null,
         null,
+        null,
         null);
   }
 
@@ -224,6 +225,7 @@ class TranzilaPageStoreIntegrationTest extends PostgresBackedTest {
         page.token(),
         page.cardMask(),
         page.cardType(),
+        null,
         page.settledAt());
   }
 }

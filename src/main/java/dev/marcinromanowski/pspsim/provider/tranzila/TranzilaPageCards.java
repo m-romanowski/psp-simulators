@@ -62,7 +62,8 @@ final class TranzilaPageCards {
             + THE_PUBLISHED_CARDS_LAST_FOUR,
         TranzilaCard.VISA,
         THE_PUBLISHED_CARDS_EXPIRY_MONTH,
-        THE_PUBLISHED_CARDS_EXPIRY_YEAR % 100);
+        THE_PUBLISHED_CARDS_EXPIRY_YEAR % 100,
+        TranzilaThreeDSecureCards.PUBLISHED.get(TranzilaThreeDSecureCards.FRICTIONLESS_SUCCESS));
   }
 
   List<Offered> offeredBy(TestRunId testRunId) {

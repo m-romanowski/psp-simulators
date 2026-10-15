@@ -183,6 +183,7 @@ class TranzilaPagePartsTest {
             null,
             null,
             null,
+            null,
             null);
 
     TranzilaApiCall call = TranzilaPageCharge.callOf(page, TranzilaPageCards.thePublishedCard());
@@ -240,7 +241,13 @@ class TranzilaPagePartsTest {
     assertThat(cards.resolve(TranzilaWiring.RUN, "no-token")).isEmpty();
     assertThat(cards.aliasesOffered(TranzilaWiring.RUN)).isEqualTo("published-9022, seeded");
     assertThat(TranzilaPageCards.thePublishedCardAsCharged())
-        .isEqualTo(new TranzilaCard("xxxxxxxxxxxx9022", TranzilaCard.VISA, 12, 30));
+        .isEqualTo(
+            new TranzilaCard(
+                "xxxxxxxxxxxx9022",
+                TranzilaCard.VISA,
+                12,
+                30,
+                TranzilaThreeDSecureOutcome.AUTHENTICATED));
     assertThat(
             new TranzilaPayerCards(wired.fixtures)
                 .holdingTheToken(TranzilaWiring.RUN, "t5d55d2922ca4029022"))
