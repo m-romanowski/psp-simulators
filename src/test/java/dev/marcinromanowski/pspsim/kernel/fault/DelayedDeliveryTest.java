@@ -79,6 +79,21 @@ class DelayedDeliveryTest {
   }
 
   @Test
+  void a_cancel_answers_how_many_responses_of_the_run_were_held_whether_or_not_it_waits() {
+    hold(RUN, "settlement", Duration.ofSeconds(5));
+    hold(RUN, "refund", Duration.ofSeconds(5));
+    List<Runnable> onceCommitted = new ArrayList<>();
+    ScheduledDeliveries committing = new ScheduledDeliveries(scheduler, onceCommitted::add);
+    committing.hold(GROW, RUN, Duration.ofSeconds(5), () -> {}, abandoned::add);
+    committing.hold(GROW, RUN, Duration.ofSeconds(5), () -> {}, abandoned::add);
+
+    assertThat(deliveries.cancel(GROW, RUN)).isEqualTo(2);
+    assertThat(committing.cancel(GROW, RUN)).isEqualTo(2);
+    assertThat(committing.cancelAll(GROW)).isEqualTo(2);
+    assertThat(onceCommitted).hasSize(2);
+  }
+
+  @Test
   void an_abandoned_response_is_never_also_delivered_when_its_timer_fires_afterwards() {
     hold(RUN, "settlement", Duration.ofSeconds(5));
 

@@ -6,7 +6,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -55,9 +54,9 @@ public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseab
   }
 
   private int abandonedOnceCommitted(Predicate<HeldDelivery> doomed) {
-    AtomicInteger abandoned = new AtomicInteger((int) held.stream().filter(doomed).count());
-    onceCommitted.accept(() -> abandoned.set(abandon(doomed, DeliveryAbandonment.TEST_RUN_RESET)));
-    return abandoned.get();
+    int heldNow = (int) held.stream().filter(doomed).filter(HeldDelivery::isStillUnsettled).count();
+    onceCommitted.accept(() -> abandon(doomed, DeliveryAbandonment.TEST_RUN_RESET));
+    return heldNow;
   }
 
   @Override

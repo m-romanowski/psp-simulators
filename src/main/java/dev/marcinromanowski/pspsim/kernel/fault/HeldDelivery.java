@@ -31,6 +31,10 @@ public final class HeldDelivery {
     return settled.compareAndSet(false, true);
   }
 
+  boolean isStillUnsettled() {
+    return !settled.get();
+  }
+
   boolean belongsTo(ProviderId provider) {
     return this.provider.equals(provider);
   }
