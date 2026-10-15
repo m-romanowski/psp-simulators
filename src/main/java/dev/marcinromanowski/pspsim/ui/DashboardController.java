@@ -116,7 +116,9 @@ class DashboardController {
       return render(provider, testRunId, runMatch, null, model);
     }
     DashboardScreen.Emptied emptied =
-        resets.together(
+        resets.ofEvery(
+            providers.modules(),
+            asked.testRunId(),
             () -> emptyEveryProvider(asked.testRunId(), asked.testRunId(), PATH + "/reset"));
     carry("provider", provider, attributes);
     carry("runMatch", runMatch, attributes);
@@ -147,7 +149,9 @@ class DashboardController {
       }
       case DashboardScreen.Forgetting.Granted granted -> {
         Forgotten forgotten =
-            resets.together(
+            resets.ofEvery(
+                providers.modules(),
+                granted.testRunId(),
                 () ->
                     new Forgotten(
                         emptyEveryProvider(

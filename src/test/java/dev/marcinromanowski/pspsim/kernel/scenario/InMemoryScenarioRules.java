@@ -150,6 +150,19 @@ public final class InMemoryScenarioRules implements ScenarioRules {
   }
 
   @Override
+  public int holdForAReset(ProviderId provider, TestRunId testRunId) {
+    return (int)
+        states.keySet().stream()
+            .filter(key -> key.provider().equals(provider) && key.testRunId().equals(testRunId))
+            .count();
+  }
+
+  @Override
+  public int holdEveryRunForAReset(ProviderId provider) {
+    return (int) states.keySet().stream().filter(key -> key.provider().equals(provider)).count();
+  }
+
+  @Override
   public int clearAll(ProviderId provider) {
     states.keySet().removeIf(key -> key.provider().equals(provider));
     List<ScenarioRule> doomed =

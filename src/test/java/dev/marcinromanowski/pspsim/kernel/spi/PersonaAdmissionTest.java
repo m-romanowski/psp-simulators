@@ -1125,5 +1125,15 @@ class PersonaAdmissionTest {
     public int clearAll(ProviderId provider) {
       return delegate.clearAll(provider);
     }
+
+    @Override
+    public int holdForAReset(ProviderId provider, TestRunId testRunId) {
+      return delegate.holdForAReset(provider, testRunId);
+    }
+
+    @Override
+    public int holdEveryRunForAReset(ProviderId provider) {
+      return delegate.holdEveryRunForAReset(provider);
+    }
   }
 }

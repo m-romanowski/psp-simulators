@@ -522,6 +522,9 @@ Acknowledgement belongs to the provider and may need a separate inbound call. Gr
 - The control API's reset of one provider, and the dashboard's reset and forget of every provider of a run, run in one
   unit of work (`kernel/spi/RunResets.java`), so a provider whose reset fails midway leaves the run as it was and no
   reader sees a half-emptied run. Every provider's reset writes only through the shared `DataSource`.
+- The unit takes its locks in the order a request takes them: it first holds the run's scenario story rows of every
+  provider it resets (`ScenarioRules.holdForAReset`), then lets each provider delete its objects, because a request
+  moves a story before it writes the objects that story decides; the other order could deadlock the two.
 - A held response of the run is abandoned only once that unit commits (`ScheduledDeliveries`), so a reset that rolls
   back answers no waiting client as reset.
 - A reader that reads one object and then another in two statements can still see one before a reset and the other

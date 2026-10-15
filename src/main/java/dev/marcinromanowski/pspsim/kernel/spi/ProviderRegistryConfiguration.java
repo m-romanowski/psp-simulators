@@ -32,8 +32,8 @@ import tools.jackson.databind.ObjectMapper;
 public class ProviderRegistryConfiguration {
 
   @Bean
-  public RunResets runResets(UnitOfWork units) {
-    return new RunResets(units);
+  public RunResets runResets(UnitOfWork units, ScenarioRules scenarios) {
+    return new RunResets(units, scenarios);
   }
 
   @Bean

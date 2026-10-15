@@ -68,6 +68,43 @@ class AResetThatFailsMidwayIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_dashboard_reset_failing_midway_leaves_the_whole_run_as_it_was() {
+    testRuns.register(RUN);
+
+    ResponseEntity<String> answered =
+        onTheDashboard("/ui/dashboard/reset", "testRunId=" + RUN.value());
+
+    assertThat(answered.getStatusCode().is5xxServerError()).isTrue();
+    assertThat(testRuns.exists(RUN)).isTrue();
+  }
+
+  @Test
+  void a_dashboard_forget_failing_midway_keeps_the_run_and_its_registration() {
+    testRuns.register(RUN);
+
+    ResponseEntity<String> answered =
+        onTheDashboard(
+            "/ui/dashboard/forget",
+            "testRunId=a-run-being-read&forgetTestRunId=" + RUN.value() + "&confirm=yes");
+
+    assertThat(answered.getStatusCode().is5xxServerError()).isTrue();
+    assertThat(testRuns.exists(RUN)).isTrue();
+  }
+
+  private ResponseEntity<String> onTheDashboard(String path, String form) {
+    return RestClient.builder()
+        .baseUrl("http://localhost:" + port)
+        .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> {})
+        .build()
+        .post()
+        .uri(path)
+        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+        .body(form)
+        .retrieve()
+        .toEntity(String.class);
+  }
+
+  @Test
   void a_reset_failing_after_it_cleared_part_of_the_run_leaves_the_whole_run_as_it_was() {
     testRuns.register(RUN);
 
