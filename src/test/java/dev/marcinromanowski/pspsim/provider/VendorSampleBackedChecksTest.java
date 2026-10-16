@@ -13,6 +13,7 @@ import dev.marcinromanowski.pspsim.provider.autra.AutraCompatibilityChecks;
 import dev.marcinromanowski.pspsim.provider.azericard.AzericardCompatibilityChecks;
 import dev.marcinromanowski.pspsim.provider.grow.GrowCompatibilityChecks;
 import dev.marcinromanowski.pspsim.provider.stripe.StripeCompatibilityChecks;
+import dev.marcinromanowski.pspsim.provider.tranzila.TranzilaCompatibilityChecks;
 import dev.marcinromanowski.pspsim.provider.worldline.WorldlineCompatibilityChecks;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ class VendorSampleBackedChecksTest {
     checks.addAll(new AzericardCompatibilityChecks(JSON, IDS, CLOCK).all());
     checks.addAll(new WorldlineCompatibilityChecks(JSON, IDS, CLOCK).all());
     checks.addAll(new AutraCompatibilityChecks(JSON, IDS).all());
+    checks.addAll(new TranzilaCompatibilityChecks(JSON, IDS, CLOCK).all());
     return checks;
   }
 

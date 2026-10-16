@@ -22,9 +22,19 @@ public record ProviderVocabulary(
     List<ProviderOperation> operations,
     Map<MatchFact, String> factsItNeverCarries,
     FailureCodes failureCodes,
-    ProcessingStates processingStates) {
+    ProcessingStates processingStates,
+    Map<String, FailureCodes> theCodesAnOperationAnswers) {
 
   private static final String ANY_OPERATION = "a step naming no operation";
+
+  public ProviderVocabulary(
+      ProviderId provider,
+      List<ProviderOperation> operations,
+      Map<MatchFact, String> factsItNeverCarries,
+      FailureCodes failureCodes,
+      ProcessingStates processingStates) {
+    this(provider, operations, factsItNeverCarries, failureCodes, processingStates, Map.of());
+  }
 
   public ProviderVocabulary {
     if (operations.isEmpty()) {
@@ -58,8 +68,37 @@ public record ProviderVocabulary(
       }
     }
     refuseAProcessingStateOnAnOperationThisProviderDoesNotExpose(byName, processingStates);
+    for (String operation : theCodesAnOperationAnswers.keySet()) {
+      if (!byName.containsKey(operation)) {
+        throw new IllegalArgumentException(
+            "operation "
+                + operation
+                + " is declared to answer failure codes of its own, and the same vocabulary"
+                + " exposes no operation of that name");
+      }
+    }
+    if (!theCodesAnOperationAnswers.isEmpty()
+        && !theCodesAnOperationAnswers.keySet().containsAll(byName.keySet())) {
+      List<String> unnamed = new ArrayList<>(byName.keySet());
+      unnamed.removeAll(theCodesAnOperationAnswers.keySet());
+      throw new IllegalArgumentException(
+          "a vocabulary that declares the failure codes of some operations declares them for every"
+              + " operation it exposes, so that one it adds later cannot answer the provider-wide"
+              + " codes unnoticed; it names none for "
+              + String.join(", ", unnamed));
+    }
     operations = List.copyOf(operations);
     factsItNeverCarries = Map.copyOf(factsItNeverCarries);
+    theCodesAnOperationAnswers = Map.copyOf(theCodesAnOperationAnswers);
+  }
+
+  public boolean declaresTheCodesOf(String operation) {
+    return theCodesAnOperationAnswers.containsKey(operation);
+  }
+
+  public FailureCodes theCodesOf(@Nullable String operation) {
+    FailureCodes its = operation == null ? null : theCodesAnOperationAnswers.get(operation);
+    return its == null ? failureCodes : its;
   }
 
   private static void refuseAProcessingStateOnAnOperationThisProviderDoesNotExpose(
@@ -108,6 +147,7 @@ public record ProviderVocabulary(
   public List<ScenarioRefusal> refusals(NewScenarioRule rule) {
     List<ScenarioRefusal> refused = new ArrayList<>();
     refuseACodeThisProviderNeverAnswers(rule.action(), refused);
+    refuseACodeTheNamedOperationNeverAnswers(rule, refused);
     refuseAProcessingStateThisProviderCannotReport(rule, refused);
     refuseAFactThisProviderNeverCarries(rule.match(), refused);
     refuseAnOperationThisProviderDoesNotExpose(rule.match().operation(), refused);
@@ -171,6 +211,29 @@ public record ProviderVocabulary(
     String named = action.theProviderCodeItComesToRestWith();
     if (named != null && !failureCodes.admits(named)) {
       refused.add(new ScenarioRefusal("action.providerCode", failureCodes.describedAs()));
+    }
+  }
+
+  private void refuseACodeTheNamedOperationNeverAnswers(
+      NewScenarioRule rule, List<ScenarioRefusal> refused) {
+    String named = rule.action().theProviderCodeItComesToRestWith();
+    String operation = rule.match().operation();
+    if (named == null || operation == null || !failureCodes.admits(named)) {
+      return;
+    }
+    FailureCodes its = theCodesOf(operation);
+    if (!its.admits(named)) {
+      refused.add(
+          new ScenarioRefusal(
+              "action.providerCode",
+              "operation "
+                  + operation
+                  + " of provider "
+                  + provider.value()
+                  + " answers no failure code "
+                  + named
+                  + ": it answers "
+                  + its.describedAs()));
     }
   }
 

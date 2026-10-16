@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.settings.ProviderSettings;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLogs;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -43,8 +44,15 @@ public class GrowModule {
 
   @Bean
   GrowTransactions growTransactions(
-      JdbcClient jdbc, PlatformTransactionManager transactionManager, ObjectMapper json) {
-    return new JdbcGrowTransactions(jdbc, new TransactionTemplate(transactionManager), json);
+      JdbcClient jdbc,
+      PlatformTransactionManager transactionManager,
+      ObjectMapper json,
+      KeyedExchangeLogs exchanges) {
+    return new JdbcGrowTransactions(
+        jdbc,
+        new TransactionTemplate(transactionManager),
+        json,
+        exchanges.of(GrowKeyMechanisms.MECHANISMS, JdbcGrowTransactions.EXCHANGES));
   }
 
   @Bean

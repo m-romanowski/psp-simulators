@@ -27,7 +27,7 @@ class StripeWireFaultsTest {
   void no_address_of_another_provider_or_of_the_screens_is_claimed_for_stripe() {
     assertThat(StripeWireFaults.ROUTES.covers("/v1/acquiring/pix/checkout"))
         .as(
-            "two providers of this build answer under /v1, so stripe claims the seven second"
+            "more than one provider of this build answers under /v1, so stripe claims the seven second"
                 + " segments its own contract publishes and never /v1 itself")
         .isFalse();
     assertThat(StripeWireFaults.ROUTES.covers("/v1/oauth/token")).isFalse();

@@ -155,7 +155,8 @@ final class ControlViews {
               exposed.theFactsItCarries(),
               exposed.storiesKeyedOn(),
               exposed.itsFlowKeyMayBeReplaced(),
-              vocabulary.processingStates().reachedBy(exposed.name())));
+              vocabulary.processingStates().reachedBy(exposed.name()),
+              vocabulary.theCodesOf(exposed.name()).describedAs()));
     }
     return new OperationsResponse(testRunId.value(), provider, List.copyOf(views));
   }
@@ -590,6 +591,7 @@ final class ControlViews {
               request.stateChanged(),
               request.whenTheFaultLanded(),
               exchange.conflictReasonOf(request),
+              request.whyNoAnswerIsShown(),
               request.at()));
     }
     return new KeyedExchangeView(
@@ -604,6 +606,7 @@ final class ControlViews {
         exchange.firstRequestAt(),
         exchange.replayTimestamps(),
         exchange.stateChanged(),
+        exchange.whatThisLogDidNotRecord(),
         requests);
   }
 

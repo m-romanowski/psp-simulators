@@ -3,8 +3,8 @@ package dev.marcinromanowski.pspsim.provider.grow;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
@@ -12,8 +12,9 @@ import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -214,7 +215,7 @@ final class CreateTransactionWithToken {
         now,
         GrowKeyMechanisms.UNIQUE_IDENTIFIER,
         submission.uniqueIdentifier(),
-        ExchangeVerdict.FIRST_REQUEST,
+        KeyedOutcome.RAN_THE_OPERATION,
         providerObjectId,
         true,
         result);
@@ -227,13 +228,7 @@ final class CreateTransactionWithToken {
           now,
           GrowKeyMechanisms.GROUP_IDENTIFIER,
           group,
-          transactions.hasSeen(
-                  submission.testRunId(),
-                  account.accountId(),
-                  GrowKeyMechanisms.GROUP_IDENTIFIER,
-                  group)
-              ? ExchangeVerdict.REPEAT_ADMITTED
-              : ExchangeVerdict.FIRST_REQUEST,
+          KeyedOutcome.RAN_THE_OPERATION,
           providerObjectId,
           true,
           result);
@@ -262,7 +257,7 @@ final class CreateTransactionWithToken {
         now,
         keyName,
         keyValue,
-        ExchangeVerdict.DUPLICATE_KEY_REFUSAL,
+        KeyedOutcome.REFUSED_AS_A_DUPLICATE,
         null,
         false,
         result);
@@ -276,28 +271,26 @@ final class CreateTransactionWithToken {
       Instant now,
       String keyName,
       String keyValue,
-      ExchangeVerdict verdict,
+      KeyedOutcome outcome,
       @Nullable String providerObjectId,
       boolean stateChanged,
       GrowOperationResult result) {
     transactions.observed(
-        new GrowObservedRequest(
+        new KeyedObservation(
             submission.testRunId(),
             account.accountId(),
             keyName,
             keyValue,
             GrowOperations.CREATE_TRANSACTION_WITH_TOKEN,
-            RequestFingerprint.of(
+            outcome,
+            new FingerprintedRequest(
                 GrowLightApi.WIRE_METHOD,
                 GrowOperations.CREATE_TRANSACTION_WITH_TOKEN,
                 form.values()),
-            verdict,
-            GrowLightApi.GROW_HTTP_STATUS,
-            account.wireForm().contentType(),
-            new String(
-                GrowJsonWriter.toBytes(result.body(), account.wireForm()), StandardCharsets.UTF_8),
+            new KeyedAnswer(GrowLightApi.GROW_HTTP_STATUS, result.body().flatten()),
             providerObjectId,
             stateChanged,
+            null,
             now));
   }
 

@@ -33,6 +33,52 @@ class NoWorkingPayerAddressOnAScreenTest {
   }
 
   @Test
+  void the_address_a_payer_submits_tranzilas_page_to_is_refused_on_a_tranzila_screen() {
+    assertThatThrownBy(
+            () ->
+                NoWorkingPayerAddressOnAScreen.refuseAnAddressOfAPayerPageOn(
+                    "/ui/objects?provider=tranzila&testRunId=r",
+                    "<td>/tranzila/directng/myterminal/payer/directng_0a</td>"))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("/tranzila/directng/{terminal}/payer/{pageId}");
+    assertThat(NoWorkingPayerAddressOnAScreen.THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO)
+        .containsExactly(
+            java.util.Map.entry(
+                "tranzila",
+                List.of(
+                    "/tranzila/3ds/challenge/{trackId}",
+                    "/tranzila/directng/{terminal}/payer/{pageId}",
+                    "/tranzila/directng/{terminal}/payer/{pageId}/wallet/{wallet}",
+                    "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
+                    "/tranzila/hf/assets/js/hfields_depend/genfield.php",
+                    "/tranzila/hf/process/ajax_process_transaction")));
+  }
+
+  @Test
+  void every_payer_route_the_build_declares_beyond_a_wizards_page_is_a_registered_submission() {
+    java.util.Map<String, List<String>> declaredBeyond = new java.util.TreeMap<>();
+    for (dev.marcinromanowski.pspsim.documentation.PayerPageAddresses.Declared declared :
+        dev.marcinromanowski.pspsim.documentation.PayerPageAddresses.inTheBuild(
+                java.nio.file.Path.of("build", "classes", "java", "main"))
+            .declared()) {
+      if (!NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES
+          .getOrDefault(declared.provider(), List.of())
+          .contains(declared.route())) {
+        declaredBeyond
+            .computeIfAbsent(declared.provider(), provider -> new java.util.ArrayList<>())
+            .add(declared.route());
+      }
+    }
+
+    assertThat(declaredBeyond)
+        .as(
+            "a route declared as a payer's page and promised by no wizard is one a payer submits"
+                + " to, and the sweep reads it only once it is registered")
+        .containsExactlyEntriesOf(
+            NoWorkingPayerAddressOnAScreen.THE_ROUTES_A_PAYER_SUBMITS_A_PAGE_TO);
+  }
+
+  @Test
   void an_address_kept_on_a_row_and_printed_as_a_path_is_refused_the_same_way() {
     assertThatCode(
             () ->
@@ -189,14 +235,14 @@ class NoWorkingPayerAddressOnAScreenTest {
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES.keySet())
         .as(
             "a provider in neither register has its screens refused above rather than swept for"
-                + " no route, so the four that serve a page are named here")
-        .containsExactly("autra", "azericard", "grow", "worldline");
+                + " no route, so the ones that serve a page are named here")
+        .containsExactly("autra", "azericard", "grow", "tranzila", "worldline");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PROVIDERS_THAT_SERVE_NO_PAYER_PAGE)
-        .containsExactly("stripe");
+        .containsExactlyInAnyOrder("stripe");
     assertThat(NoWorkingPayerAddressOnAScreen.THE_PAGES_EACH_PROVIDER_SERVES.values())
         .allSatisfy(routes -> assertThat(routes).isNotEmpty())
         .flatExtracting(List::copyOf)
-        .hasSize(4);
+        .hasSize(5);
   }
 
   @Test

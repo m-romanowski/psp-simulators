@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
@@ -51,9 +52,7 @@ interface AutraPayments {
   List<ArrivalOf<AutraPayment>> newestFirst(
       TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit);
 
-  boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue);
-
-  void observed(AutraObservedRequest request);
+  void observed(KeyedObservation observation);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

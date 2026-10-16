@@ -3,12 +3,14 @@ package dev.marcinromanowski.pspsim.provider.azericard;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -119,21 +121,20 @@ final class CompleteOrReverse {
       String providerObjectId,
       AzericardOperationResult result) {
     payments.observed(
-        new AzericardObservedRequest(
+        new KeyedObservation(
             testRunId,
             terminal.accountId(),
             keyName,
             keyValue,
             message.operationName(),
-            message.fingerprint(),
-            payments.hasSeen(testRunId, terminal.accountId(), keyName, keyValue)
-                ? ExchangeVerdict.CORRELATED_RETRY
-                : ExchangeVerdict.FIRST_REQUEST,
-            answeredNothing(result) ? null : AzericardGateway.GATEWAY_HTTP_STATUS,
-            answeredNothing(result) ? null : result.body().contentType(),
-            answeredNothing(result) ? null : result.body().text(),
+            KeyedOutcome.RAN_THE_OPERATION,
+            message.fingerprinted(),
+            answeredNothing(result)
+                ? null
+                : new KeyedAnswer(AzericardGateway.GATEWAY_HTTP_STATUS, result.body().fields()),
             providerObjectId,
             result.outcome() == ProviderOutcome.SUCCESS,
+            null,
             now));
   }
 

@@ -26,8 +26,8 @@ public class ScenarioConfiguration {
   }
 
   @Bean
-  public ScenarioEngine scenarioEngine(ScenarioRules rules) {
-    return new ScenarioEngine(rules);
+  public ScenarioEngine scenarioEngine(ScenarioRules rules, OperationCodes codes) {
+    return new ScenarioEngine(rules, codes);
   }
 
   @Bean

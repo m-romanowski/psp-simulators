@@ -10,9 +10,9 @@ import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
 import dev.marcinromanowski.pspsim.kernel.credentials.ProviderConfigurationPlan;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fault.ScheduledDeliveries;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RecordedKeyedRequest;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -21,7 +21,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
-import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -254,7 +254,7 @@ final class AzericardDoubles {
     private final Set<String> claimedIntRefs = new LinkedHashSet<>();
     private final Set<String> intRefsClaimedElsewhere = new LinkedHashSet<>();
     private final Map<String, String> claimedTraces = new LinkedHashMap<>();
-    private final List<ObservedUnderOneKey> observed = new ArrayList<>();
+    private final InMemoryKeyedExchanges exchanged = new InMemoryKeyedExchanges();
     private int insertsToReject;
     private int appendsToRace;
     private int appendsToLose;
@@ -394,36 +394,13 @@ final class AzericardDoubles {
     }
 
     @Override
-    public boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-      return observed.stream()
-          .anyMatch(row -> row.isUnder(testRunId, accountId, keyName, keyValue));
-    }
-
-    @Override
-    public void observed(AzericardObservedRequest request) {
-      observed.add(new ObservedUnderOneKey(theNextArrival(), sequenceOf(request), request));
-    }
-
-    private int sequenceOf(AzericardObservedRequest request) {
-      int under = 0;
-      for (ObservedUnderOneKey row : observed) {
-        if (row.isUnder(
-            request.testRunId(), request.accountId(), request.keyName(), request.keyValue())) {
-          under++;
-        }
-      }
-      return under;
+    public void observed(KeyedObservation observation) {
+      exchanged.logOf(AzericardKeyMechanisms.MECHANISMS).record(observation);
     }
 
     @Override
     public KeyedExchangePage exchanges(KeyedExchangeQuery query) {
-      List<RecordedKeyedRequest> rows = new ArrayList<>();
-      for (ObservedUnderOneKey row : observed) {
-        if (row.request().testRunId().equals(query.testRunId())) {
-          rows.add(row.asRecorded());
-        }
-      }
-      return KeyedExchanges.pageOf(AzericardKeyMechanisms.MECHANISMS, query.testRunId(), rows);
+      return exchanged.exchanges(AzericardKeyMechanisms.MECHANISMS, query);
     }
 
     @Override
@@ -522,7 +499,7 @@ final class AzericardDoubles {
 
     @Override
     public int clear(TestRunId testRunId) {
-      observed.removeIf(row -> row.request().testRunId().equals(testRunId));
+      exchanged.clear(testRunId);
       claimedIntRefs.removeIf(claim -> claim.startsWith(testRunId.value() + '\u0000'));
       claimedTraces.keySet().removeIf(claim -> claim.startsWith(testRunId.value() + '\u0000'));
       List<AzericardPayment> doomed =
@@ -533,7 +510,7 @@ final class AzericardDoubles {
 
     @Override
     public int clearAll() {
-      observed.clear();
+      exchanged.clearAll();
       claimedIntRefs.clear();
       claimedTraces.clear();
       int size = stored.size();
@@ -566,35 +543,6 @@ final class AzericardDoubles {
 
     List<AzericardPayment> all() {
       return List.copyOf(stored);
-    }
-  }
-
-  record ObservedUnderOneKey(long arrival, int sequence, AzericardObservedRequest request) {
-
-    boolean isUnder(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-      return request.testRunId().equals(testRunId)
-          && request.accountId().equals(accountId)
-          && request.keyName().equals(keyName)
-          && request.keyValue().equals(keyValue);
-    }
-
-    RecordedKeyedRequest asRecorded() {
-      return new RecordedKeyedRequest(
-          request.accountId(),
-          request.keyName(),
-          request.keyValue(),
-          arrival,
-          sequence,
-          request.verdict(),
-          request.fingerprint(),
-          request.operation(),
-          request.httpStatus(),
-          request.contentType(),
-          request.body(),
-          request.providerObjectId(),
-          request.stateChanged(),
-          null,
-          request.at());
     }
   }
 

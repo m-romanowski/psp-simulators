@@ -1,6 +1,5 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -95,10 +94,6 @@ final class WorldlineIdempotence {
 
   static boolean isNotAscii(String key) {
     return key.codePoints().anyMatch(one -> one > HIGHEST_ASCII);
-  }
-
-  static String fingerprintOf(String method, String operation, Map<String, List<String>> fields) {
-    return RequestFingerprint.of(method, operation, fields);
   }
 
   static String theTimestampHeaderValueOf(Instant firstRequest) {

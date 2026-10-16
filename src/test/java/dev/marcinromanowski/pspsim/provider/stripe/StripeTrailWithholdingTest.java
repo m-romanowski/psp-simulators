@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class StripeTrailWithholdingTest {
@@ -25,13 +26,13 @@ class StripeTrailWithholdingTest {
                         StripeFields.SECRET,
                         StripeJson.text(A_SECRET)))));
 
-    String withheld =
-        StripeJsonWriter.toText(answer.withholding(StripeFields.SENSITIVE_RESPONSE_FIELDS));
+    Map<String, List<String>> withheld =
+        StripeKeyMechanisms.MECHANISMS.withholding().withheld(answer.flatten());
 
     assertThat(withheld)
-        .doesNotContain(A_SECRET)
-        .contains("\"secret\":\"" + Redaction.REDACTED + "\"")
-        .contains("\"type\":\"customer\"");
+        .containsEntry("associated_objects.secret", List.of(Redaction.REDACTED))
+        .containsEntry("associated_objects.type", List.of("customer"));
+    assertThat(withheld.toString()).doesNotContain(A_SECRET);
   }
 
   @Test
@@ -49,14 +50,12 @@ class StripeTrailWithholdingTest {
             StripeFields.SECRET,
             StripeJson.text(A_SECRET));
 
-    String withheld =
-        StripeJsonWriter.toText(answer.withholding(StripeFields.SENSITIVE_RESPONSE_FIELDS));
-
-    assertThat(withheld)
-        .isEqualTo(
-            "{\"id\":\"ephkey_sim_0000000000000002\",\"created\":1788000000,\"livemode\":false,"
-                + "\"customer\":null,\"secret\":\""
-                + Redaction.REDACTED
-                + "\"}");
+    assertThat(StripeKeyMechanisms.MECHANISMS.withholding().withheld(answer.flatten()))
+        .containsExactly(
+            Map.entry("id", List.of("ephkey_sim_0000000000000002")),
+            Map.entry("created", List.of("1788000000")),
+            Map.entry("livemode", List.of("false")),
+            Map.entry("customer", List.of()),
+            Map.entry("secret", List.of(Redaction.REDACTED)));
   }
 }

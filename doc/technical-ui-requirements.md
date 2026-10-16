@@ -128,7 +128,7 @@ only from a request that really is invalid, never from a rule.
   azericard's `order` are pattern-validated nowhere, and a run-time refusal over any of them would answer a 500 on
   the control read, the object screen, the timeline, the correlation screen and the inspector for an object the
   provider accepted. The build is where this belongs because the address worldline computes at run time walked past
-  `verifyNoPayerUrlOnAScreen`, which sweeps sources and templates only, and because a sixth provider is held by
+  `verifyNoPayerUrlOnAScreen`, which sweeps sources and templates only, and because a provider added later is held by
   compiling rather than by an edit to a list. Five shapes are missed on purpose, each named in the gate's own refusal,
   which counts them from the length of the list it joins them out of: an address a module computes into a static field
   at class initialisation, one it stores on a persisted row and hands over from there, one assembled from literals too
@@ -146,7 +146,7 @@ only from a request that really is invalid, never from a rule.
   bodiless declaration to keep that reading honest. No module keeps such a row any more: grow carried `hostedPageUrl`
   and autra `hostedCardUrl` as record components persisted beside the token each is built from, and V81 dropped both
   columns, so each address is built where it is answered and kept nowhere.
-  The shape stays listed because a sixth provider could keep one, and it is
+  The shape stays listed because a provider added later could keep one, and it is
   left open in the build rather than closed over the words of the name a value is handed over under, because
   `successUrl`, `cancelUrl` and `notifyUrl` are names grow carries for the merchant's own addresses, which
   `TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR` registers as readable; simulator

@@ -155,7 +155,8 @@ class ControlViewsTest {
             KeyRole.TRUE_IDEMPOTENCY_KEY,
             NO_REPLAY,
             KeyRole.CORRELATION_KEY,
-            "provider grow correlates nothing"));
+            "provider grow correlates nothing"),
+        answered -> answered);
   }
 
   private static KeyedExchange aRefusedRepeat() {

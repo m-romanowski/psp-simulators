@@ -158,6 +158,28 @@ class TimelineScreenTest {
   }
 
   @Test
+  void a_value_sent_exactly_as_one_key_is_traced_there_before_a_key_it_only_ends() {
+    KeyedExchangePage page =
+        new KeyedExchangePage(
+            List.of(
+                anExchangeUnder("Idempotency-Key", "order 7", "pi_order", 8L),
+                anExchangeUnder("Idempotency-Key", "7", "pi_seven", 7L)));
+
+    TimelineScreen.Subject seven = TimelineScreen.subjectOf("7", null, List.of(), List.of(), page);
+    TimelineScreen.Subject order =
+        TimelineScreen.subjectOf("order 7", null, List.of(), List.of(), page);
+
+    assertThat(seven)
+        .isEqualTo(
+            new TimelineScreen.Subject.Resolved(
+                "pi_seven", TimelineScreen.Found.KEYED_REQUEST, "Idempotency-Key"));
+    assertThat(order)
+        .isEqualTo(
+            new TimelineScreen.Subject.Resolved(
+                "pi_order", TimelineScreen.Found.KEYED_REQUEST, "Idempotency-Key"));
+  }
+
+  @Test
   void a_value_sent_under_a_key_this_provider_compares_repeats_against_traces_the_object_it_made() {
     TimelineScreen.Subject subject =
         TimelineScreen.subjectOf(
@@ -938,29 +960,32 @@ class TimelineScreenTest {
 
   private static KeyedExchangePage anExchangePageUnder(
       String keyName, String keyValue, @Nullable String providerObjectId) {
-    return new KeyedExchangePage(
+    return new KeyedExchangePage(List.of(anExchangeUnder(keyName, keyValue, providerObjectId, 7L)));
+  }
+
+  private static KeyedExchange anExchangeUnder(
+      String keyName, String keyValue, @Nullable String providerObjectId, long arrival) {
+    return new KeyedExchange(
+        PROVIDER,
+        RUN,
+        "m1",
+        keyName,
+        KeyRole.DUPLICATE_DETECTION_KEY,
+        keyValue,
+        arrival,
         List.of(
-            new KeyedExchange(
-                PROVIDER,
-                RUN,
-                "m1",
-                keyName,
-                KeyRole.DUPLICATE_DETECTION_KEY,
-                keyValue,
-                7L,
-                List.of(
-                    new KeyedRequest(
-                        0,
-                        ExchangeVerdict.FIRST_REQUEST,
-                        "fp",
-                        "createPaymentProcess",
-                        200,
-                        "application/json",
-                        "{}",
-                        providerObjectId,
-                        true,
-                        null,
-                        PINNED)))));
+            new KeyedRequest(
+                0,
+                ExchangeVerdict.FIRST_REQUEST,
+                "fp",
+                "createPaymentProcess",
+                200,
+                "application/json",
+                "{}",
+                providerObjectId,
+                true,
+                null,
+                PINNED)));
   }
 
   private static ProviderVocabulary aVocabularyWithoutAnOrderId() {
@@ -1003,7 +1028,8 @@ class TimelineScreenTest {
                 TestKeyClaims.NEVER_HELD)),
         Map.of(
             KeyRole.TRUE_IDEMPOTENCY_KEY,
-            "provider grow publishes no idempotency header anywhere in this contract"));
+            "provider grow publishes no idempotency header anywhere in this contract"),
+        answered -> answered);
   }
 
   private static AuditRecord inbound(String auditId, String method, String path) {

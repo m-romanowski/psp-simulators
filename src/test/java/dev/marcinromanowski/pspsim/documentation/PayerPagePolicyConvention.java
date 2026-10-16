@@ -74,6 +74,51 @@ public final class PayerPagePolicyConvention {
               "base-uri 'none'",
               "the page resolves no relative address, so nothing may set one for it"),
           new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengeAnsweredPage",
+              "script-src 'sha256-E3IReQae+CUjgO0MER6cFqfFAwEvPuxJ6hVgfkQhLjo='",
+              "the one inline script of the page a hosted fields challenge answers with: it tells"
+                  + " the frames of this origin beside it the track_id the payer answered, so the"
+                  + " hidden frame posts the continuation; the hash admits that script and nothing"
+                  + " else, and the page names no frame-ancestors because a merchant's page frames"
+                  + " the challenge"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengePage",
+              "form-action 'self'",
+              "its form posts the payer's code to this origin and is answered with a document;"
+                  + " the merchant's hosted fields frame this page, which is why it names no"
+                  + " frame-ancestors"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+              "form-action 'self'",
+              "its form posts to this origin and is answered with a document; the shop frames"
+                  + " this page, which is why it names no frame-ancestors"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+              "script-src 'sha256-LYRWxyDGTMxSrunbITKeP9IfOfj7AJ0NV+ijgde4SBc='",
+              "the one inline script of the hidden frame tranzila's hosted fields charge from: it"
+                  + " keeps what the card fields share with it and posts the charge to this origin;"
+                  + " the hash admits that script and nothing else, and the frame names no"
+                  + " frame-ancestors because every merchant's own page frames it"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+              "connect-src 'self'",
+              "the hidden frame posts the charge to the process route of this same origin, as"
+                  + " tranzila's own frame posts it to its own host, and reads the answer back"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
+              "script-src 'sha256-gAFRQ+4dLZN5jnsgAhf+aPVF1XZZmSqC3xcGr5zMRv4='",
+              "the one inline script of a card field frame: it builds the field the payer types"
+                  + " into and shares its value with the hidden frame of this origin only; the"
+                  + " hash admits that script and nothing else, and the frame names no"
+                  + " frame-ancestors because every merchant's own page frames it"),
+          new AFurtherDirective(
+              "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
+              "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
+              "the one inline script that submits the return form to the shop's own address, as"
+                  + " tranzila returns a payer with a POST; the hash admits that script and"
+                  + " nothing else, and the form names no form-action because it posts off this"
+                  + " origin"),
+          new AFurtherDirective(
               "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage",
               "form-action 'self'",
               "its form posts to this origin and is answered with a document; the shop frames"
@@ -109,7 +154,7 @@ public final class PayerPagePolicyConvention {
             + verdict.offences().size()
             + " place(s) break it, each named above. A page is found by the HTML document it"
             + " renders, read out of the compiled string constants of the class that builds it, so"
-            + " a sixth provider widens this gate by serving a page rather than by an edit here."
+            + " a provider added later widens this gate by serving a page rather than by an edit here."
             + " Two shapes are missed on purpose: a document assembled so that no single constant"
             + " opens it, and a page rendered from a Thymeleaf template rather than built in Java,"
             + " which is how this UI's own screens are written and which no payer page is. The"
@@ -128,7 +173,7 @@ public final class PayerPagePolicyConvention {
               + classes
               + " renders an HTML document, so this gate would examine nothing and report that"
               + " every page it examined declares a policy. This simulator serves the payer's page"
-              + " for four of its providers, so a run that reads no page has a broken classpath,"
+              + " for some of its providers, so a run that reads no page has a broken classpath,"
               + " not a clean tree. "
               + classesRead
               + " class file(s) were read.");
@@ -249,6 +294,9 @@ public final class PayerPagePolicyConvention {
               + WHAT_A_WIDER_POLICY_WOULD_COST);
     }
     List<String> policies = page.policies();
+    for (String script : page.theInlineScripts()) {
+      offences.addAll(theOffenceOfTheInlineScript(page, policies, script));
+    }
     if (policies.isEmpty()) {
       offences.add(
           page.renderedBy()
@@ -261,6 +309,36 @@ public final class PayerPagePolicyConvention {
       offences.addAll(theOffenceOfThePolicy(page, policy));
     }
     return List.copyOf(offences);
+  }
+
+  static List<String> theOffenceOfTheInlineScript(
+      APage page, List<String> policies, String script) {
+    if (PayerPageDeclarations.UNREADABLE.equals(script)) {
+      return List.of(
+          page.renderedBy()
+              + " renders an inline script whose text does not close inside the constant that"
+              + " opens it, so this gate cannot hash it and cannot tell whether its policy admits"
+              + " exactly that script");
+    }
+    String hash = PayerPageDeclarations.theHashOf(script);
+    for (String policy : policies) {
+      for (Directive directive : PayerPageDeclarations.theDirectivesOf(policy)) {
+        if (directive.name().equals(PayerPageDeclarations.THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY)
+            && List.of(directive.value().split(" ")).contains(hash)) {
+          return List.of();
+        }
+      }
+    }
+    return List.of(
+        page.renderedBy()
+            + " renders the inline script "
+            + script
+            + " and no policy of it names "
+            + PayerPageDeclarations.THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY
+            + " "
+            + hash
+            + ", the hash of exactly that text, so a browser would block it or a policy admits a"
+            + " script this page does not carry");
   }
 
   static List<String> theOffenceOfThePolicy(APage page, String policy) {

@@ -107,8 +107,8 @@ class GrowAccountChoicesTest {
 
     assertThat(empty)
         .as(
-            "the field says \"Leaving it empty behaves as grow's own default does\", and the other"
-                + " four providers read an empty value as one nobody configured; grow read it as"
+            "the field says \"Leaving it empty behaves as grow's own default does\", and other"
+                + " providers read an empty value as one nobody configured; grow read it as"
                 + " a value and refused it, so the sentence was false of every call that sent one")
         .isEqualTo(
             GrowAccount.of(

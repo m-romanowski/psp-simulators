@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.idempotency.InMemoryKeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.JdbcKeyedExchangeRows;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.SequencedRows;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -91,7 +95,14 @@ class AzericardOrderTraceMigrationIntegrationTest extends PostgresBackedTest {
     JdbcClient client = JdbcClient.create(migrated);
     payments =
         new JdbcAzericardPayments(
-            client, new TransactionTemplate(new DataSourceTransactionManager(migrated)));
+            client,
+            new TransactionTemplate(new DataSourceTransactionManager(migrated)),
+            new KeyedExchangeLog(
+                AzericardKeyMechanisms.MECHANISMS,
+                testRunId -> InMemoryKeyedExchanges.THE_KEY_OF_EVERY_TEST_RUN,
+                new JdbcKeyedExchangeRows(client, JdbcAzericardPayments.EXCHANGES),
+                new SequencedRows(),
+                json));
     sessions = new JdbcAzericardPayerSessions(client, json);
     assertThat(client.sql("select current_schema()").query(String.class).single())
         .isEqualTo(SCHEMA);

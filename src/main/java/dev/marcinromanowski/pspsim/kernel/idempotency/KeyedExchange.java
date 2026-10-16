@@ -17,6 +17,16 @@ public record KeyedExchange(
     long arrival,
     List<KeyedRequest> requests) {
 
+  public static final String SCOPE_THEN_VALUE = " ";
+
+  public static final String THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED =
+      "the request that ran the operation under this key, and stored the answer these requests"
+          + " were given, was not recorded, so its answer is shown only as they replayed it";
+
+  public static final String THE_REQUEST_IT_CONFLICTS_WITH_WAS_NOT_RECORDED =
+      "this repeat did not send what the request that ran the operation under this key sent, and"
+          + " that request was not recorded, so there is no first request to compare it against";
+
   public KeyedExchange {
     if (requests.isEmpty()) {
       throw new IllegalArgumentException(
@@ -53,7 +63,7 @@ public record KeyedExchange(
       throw new IllegalArgumentException(
           "the earliest request recorded under key "
               + keyName
-              + " that this simulator answered from what the key already held is a "
+              + " that ran the operation is a "
               + claimant.verdict().name()
               + ", and a repeat with nothing to repeat is a record of an answer this simulator"
               + " never gave");
@@ -63,8 +73,42 @@ public record KeyedExchange(
 
   private static @Nullable KeyedRequest theRequestThatClaimedTheKey(List<KeyedRequest> requests) {
     for (KeyedRequest request : requests) {
-      if (request.verdict().isOrderedAgainstTheRequestThatClaimedTheKey()) {
+      if (request.verdict().couldHaveChangedState()) {
         return request;
+      }
+    }
+    return null;
+  }
+
+  public @Nullable String whatThisLogDidNotRecord() {
+    for (KeyedRequest request : requests) {
+      if (request.verdict().couldHaveChangedState()) {
+        return null;
+      }
+      if (request.verdict().answersFromWhatTheRequestThatRanStored()) {
+        return THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED;
+      }
+    }
+    return null;
+  }
+
+  public boolean isKeyedBy(String sent) {
+    return isKeyedExactlyBy(sent) || keyValue.endsWith(SCOPE_THEN_VALUE + sent);
+  }
+
+  public boolean isKeyedExactlyBy(String sent) {
+    return keyValue.equals(sent);
+  }
+
+  public static @Nullable KeyedExchange theOneKeyedBy(String sent, List<KeyedExchange> exchanges) {
+    for (KeyedExchange exchange : exchanges) {
+      if (exchange.isKeyedExactlyBy(sent)) {
+        return exchange;
+      }
+    }
+    for (KeyedExchange exchange : exchanges) {
+      if (exchange.isKeyedBy(sent)) {
+        return exchange;
       }
     }
     return null;
@@ -72,7 +116,15 @@ public record KeyedExchange(
 
   public KeyedRequest firstRequest() {
     KeyedRequest claimant = theRequestThatClaimedTheKey(requests);
-    return claimant == null ? requests.get(0) : claimant;
+    if (claimant != null) {
+      return claimant;
+    }
+    for (KeyedRequest request : requests) {
+      if (request.verdict().isOrderedAgainstTheRequestThatClaimedTheKey()) {
+        return request;
+      }
+    }
+    return requests.get(0);
   }
 
   public Instant firstRequestAt() {
@@ -122,6 +174,9 @@ public record KeyedExchange(
       return null;
     }
     KeyedRequest first = firstRequest();
+    if (first.sequence() == request.sequence()) {
+      return THE_REQUEST_IT_CONFLICTS_WITH_WAS_NOT_RECORDED;
+    }
     if (!request.operation().equals(first.operation())) {
       return "this repeat asked for "
           + request.operation()

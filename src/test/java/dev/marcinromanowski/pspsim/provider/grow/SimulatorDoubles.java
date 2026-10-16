@@ -23,6 +23,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ConfiguredAccount;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -553,28 +554,8 @@ final class SimulatorDoubles {
     }
 
     @Override
-    public boolean hasSeen(
-        TestRunId testRunId, String merchantId, String keyName, String keyValue) {
-      return exchanged.hasSeen(testRunId, merchantId, keyName, keyValue);
-    }
-
-    @Override
-    public void observed(GrowObservedRequest request) {
-      exchanged.observed(
-          request.testRunId(),
-          request.merchantId(),
-          request.keyName(),
-          request.keyValue(),
-          request.verdict(),
-          request.fingerprint(),
-          request.operation(),
-          request.httpStatus(),
-          request.contentType(),
-          request.body(),
-          request.providerObjectId(),
-          request.stateChanged(),
-          null,
-          request.at());
+    public void observed(KeyedObservation observation) {
+      exchanged.logOf(GrowKeyMechanisms.MECHANISMS).record(observation);
     }
 
     @Override

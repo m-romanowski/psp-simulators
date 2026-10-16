@@ -26,6 +26,20 @@ public sealed interface PairingValue {
 
   record TheProviderBaseUrl() implements PairingValue {}
 
+  record AnAddressOfThisSimulator(String path) implements PairingValue {
+
+    public AnAddressOfThisSimulator {
+      if (!path.startsWith("/") || path.endsWith("/")) {
+        throw new IllegalArgumentException(
+            "a pairing setting naming an address of this simulator names the path it serves a"
+                + " provider's host or version under, absolute and with no trailing slash, and "
+                + path
+                + " is not one, so the address a tester copies would not be one this simulator"
+                + " answers on");
+      }
+    }
+  }
+
   record TheTestRunId() implements PairingValue {}
 
   record TheTestRunHeader() implements PairingValue {}

@@ -3092,6 +3092,9 @@
           },
           "reportsAProcessingState": {
             "type": "boolean"
+          },
+          "failsWith": {
+            "type": "string"
           }
         },
         "required": [
@@ -3099,7 +3102,8 @@
           "carries",
           "storiesKeyedOn",
           "itsFlowKeyMayBeReplaced",
-          "reportsAProcessingState"
+          "reportsAProcessingState",
+          "failsWith"
         ],
         "additionalProperties": false
       },
@@ -4404,6 +4408,12 @@
           "stateChanged": {
             "type": "boolean"
           },
+          "notRecorded": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "requests": {
             "type": "array",
             "items": {
@@ -4479,6 +4489,12 @@
             ]
           },
           "conflictReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "noAnswerBecause": {
             "type": [
               "string",
               "null"

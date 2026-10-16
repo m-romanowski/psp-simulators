@@ -429,9 +429,9 @@ class AccountFormTest {
         .as(
             "neither the identity, nor the callback target, nor a field of this provider is a"
                 + " secret, so a legend about the secret badge would name a badge nothing wears."
-                + " Every one of the five providers this build serves declares at least one"
+                + " Every provider this build serves declares at least one"
                 + " secret, so nothing in it reaches this answer and no test of any kind had ever"
-                + " asked for it: it is the floor the sixth provider lands on")
+                + " asked for it: it is the floor a provider with no secret lands on")
         .isFalse();
   }
 

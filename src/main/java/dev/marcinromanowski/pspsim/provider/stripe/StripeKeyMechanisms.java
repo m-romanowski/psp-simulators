@@ -61,7 +61,8 @@ final class StripeKeyMechanisms {
                   KeyCarriage.PATH_SEGMENT,
                   SCOPED_BY_THE_INTENT,
                   THE_INTENT_IS_NEVER_CLAIMED)),
-          Map.of(KeyRole.DUPLICATE_DETECTION_KEY, NO_DUPLICATE_CHECK));
+          Map.of(KeyRole.DUPLICATE_DETECTION_KEY, NO_DUPLICATE_CHECK),
+          answered -> StripeFields.withholding(answered, StripeFields.SENSITIVE_RESPONSE_FIELDS));
 
   private StripeKeyMechanisms() {}
 }

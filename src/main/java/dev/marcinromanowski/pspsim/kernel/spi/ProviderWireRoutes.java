@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.ThisSimulatorsOwnAddresses;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
@@ -45,6 +46,68 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
     namespaces = List.copyOf(namespaces);
   }
 
+  public static final int COVERS_NOTHING = -1;
+
+  public int howDeeplyItCovers(String address) {
+    int deepest = COVERS_NOTHING;
+    for (String namespace : namespaces) {
+      if (isUnder(address, namespace)) {
+        deepest = Math.max(deepest, theSegmentsOf(namespace));
+      }
+    }
+    return deepest;
+  }
+
+  static int theSegmentsOf(String namespace) {
+    int segments = 0;
+    for (String segment : namespace.split("/", -1)) {
+      if (!segment.isEmpty()) {
+        segments++;
+      }
+    }
+    return segments;
+  }
+
+  public static void refuseTwoClaimingOneNamespace(List<SimulatorProvider> providers) {
+    for (int one = 0; one < providers.size(); one++) {
+      for (int other = 0; other < providers.size(); other++) {
+        if (one == other) {
+          continue;
+        }
+        ProviderWireRoutes first = providers.get(one).wireRoutes();
+        ProviderWireRoutes second = providers.get(other).wireRoutes();
+        for (String namespace : first.namespaces()) {
+          if (second.howDeeplyItCovers(namespace) == theSegmentsOf(namespace)) {
+            throw new IllegalStateException(
+                "providers "
+                    + first.provider().value()
+                    + " and "
+                    + second.provider().value()
+                    + " both claim the wire namespace "
+                    + namespace
+                    + ", and the address a client gets wrong under it is answered by the provider"
+                    + " whose namespace covers it most deeply, so two claims of one depth would"
+                    + " leave the answer to the order the modules happened to be listed in");
+          }
+        }
+      }
+    }
+  }
+
+  public static Optional<SimulatorProvider> theDeepestClaimOn(
+      List<SimulatorProvider> providers, String address) {
+    SimulatorProvider claiming = null;
+    int deepest = COVERS_NOTHING;
+    for (SimulatorProvider provider : providers) {
+      int depth = provider.wireRoutes().howDeeplyItCovers(address);
+      if (depth > deepest) {
+        deepest = depth;
+        claiming = provider;
+      }
+    }
+    return Optional.ofNullable(claiming);
+  }
+
   public boolean covers(String address) {
     for (String namespace : namespaces) {
       if (isUnder(address, namespace)) {
@@ -64,7 +127,7 @@ public record ProviderWireRoutes(ProviderId provider, List<String> namespaces) {
     return List.copyOf(under);
   }
 
-  private static boolean isUnder(String inner, String outer) {
+  public static boolean isUnder(String inner, String outer) {
     return inner.equals(outer) || inner.startsWith(withinIt(outer));
   }
 

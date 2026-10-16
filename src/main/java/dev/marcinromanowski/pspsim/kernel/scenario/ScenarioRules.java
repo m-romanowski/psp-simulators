@@ -30,5 +30,9 @@ public interface ScenarioRules {
 
   int clear(ProviderId provider, TestRunId testRunId);
 
+  int holdForAReset(ProviderId provider, TestRunId testRunId);
+
+  int holdEveryRunForAReset(ProviderId provider);
+
   int clearAll(ProviderId provider);
 }

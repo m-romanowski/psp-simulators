@@ -1,0 +1,123 @@
+{
+  "create-success": {
+    "evidence": "published example",
+    "note": "the 200 response the schema publishes, field names published and values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Create a Credit Card Transaction",
+    "status": 200,
+    "body": "create-success.json"
+  },
+  "original-transaction-not-found": {
+    "evidence": "published rule",
+    "note": "application errors are answered with HTTP 200 and an integer error_code",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Application Error Codes",
+    "rules": {
+      "httpStatus": "200",
+      "error_code": "20112"
+    }
+  },
+  "authentication-failed": {
+    "evidence": "published rule",
+    "note": "the 401 answer of the Error schema, whose error_code is a string",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-transactions-api-1/create-a-credit-card-transaction",
+    "reference": "tranzila.md, Error Shape",
+    "rules": {
+      "httpStatus": "401",
+      "error_code": "20000"
+    }
+  },
+  "handshake-created": {
+    "evidence": "published example",
+    "note": "the 200 response of Create Handshake Token, field names and values as published",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/handshake-v2/createhandshakev2",
+    "reference": "tranzila.md, Handshake V2",
+    "status": 200,
+    "body": "handshake-created.json"
+  },
+  "handshake-unauthorized": {
+    "evidence": "published example",
+    "note": "the 401 response of Create Handshake Token, whose error_code is the HTTP status",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/handshake-v2/createhandshakev2",
+    "reference": "tranzila.md, Handshake V2",
+    "status": 401,
+    "body": "handshake-unauthorized.json"
+  },
+  "directng-return": {
+    "evidence": "published rule",
+    "note": "the Key Response Fields of the payment page's return: Response 000 is success, txn_type and tranmode as the charge was made",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/iframe-integration-directng",
+    "reference": "tranzila.md, Browser Return and Notify",
+    "rules": {
+      "Response": "000",
+      "txn_type": "debit",
+      "tranmode": "A"
+    }
+  },
+  "hosted-fields-charged": {
+    "evidence": "published example",
+    "note": "the Regular Transaction response of Hosted Fields: field names, types and key order as published, values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/hosted-fields",
+    "reference": "tranzila.md, Hosted Fields",
+    "body": "hosted-fields-charged.json"
+  },
+  "hosted-fields-missing-key": {
+    "evidence": "published rule",
+    "note": "thtk is mandatory in the Request Keys table, and the Error Messages table publishes 10000 as MANDATORY KEY IS MISSING, answered in errors as code, param and message",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/hosted-fields",
+    "reference": "tranzila.md, Hosted Fields",
+    "rules": {
+      "code": "10000",
+      "message": "MANDATORY KEY IS MISSING"
+    }
+  },
+  "3ds-complete": {
+    "evidence": "published example",
+    "note": "the Example of Complete: transaction_result values as strings but amount, t3ds_data, and original_request with the card masked and cvv as ***; values illustrative",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-api-3ds/complete",
+    "reference": "tranzila.md, 3-D Secure",
+    "status": 200,
+    "body": "3ds-complete.json"
+  },
+  "3ds-failed": {
+    "evidence": "published rule",
+    "note": "create and complete publish 900 Transaction failed during 3D Secure validation as their application error code, answered with HTTP 200",
+    "source": "https://docs.tranzila.com/docs/payments-and-billing/tranzila-api-3ds/create",
+    "reference": "tranzila.md, 3-D Secure",
+    "rules": {
+      "httpStatus": "200",
+      "error_code": "900"
+    }
+  },
+  "transactions-found": {
+    "evidence": "published example",
+    "note": "the Success Example of get transaction information: every transaction field a string, user_defined metadata beside the rows, total a string and rows an integer; values illustrative",
+    "source": "https://docs.tranzila.com/docs/reports/track-transaction-data/get-transaction-information",
+    "reference": "tranzila.md, Transaction Lookups",
+    "body": "transactions-found.json"
+  },
+  "report-found": {
+    "evidence": "published example",
+    "note": "the success_with_items response of getTransactions: typed fields, txn_type upper case and the items of a detailed answer; values illustrative",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Transaction Lookups",
+    "status": 200,
+    "body": "report-found.json"
+  },
+  "report-unauthorized": {
+    "evidence": "published example",
+    "note": "the 401 response of getTransactions, in the report host's error shape",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Error Shape",
+    "status": 401,
+    "body": "report-unauthorized.json"
+  },
+  "report-bad-request": {
+    "evidence": "published example",
+    "note": "the 400 response of getTransactions for a body without terminal_name",
+    "source": "https://docs.tranzila.com/docs/reports/tranzila-transaction-reports-api/gettransactions",
+    "reference": "tranzila.md, Error Shape",
+    "status": 400,
+    "body": "report-bad-request.json"
+  }
+}

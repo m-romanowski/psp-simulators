@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.autra;
 
+import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyRole;
 import dev.marcinromanowski.pspsim.kernel.spi.DeclaredKey;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyCarriage;
@@ -94,7 +95,8 @@ final class AutraKeyMechanisms {
                   KeyCarriage.PATH_SEGMENT,
                   SCOPED_BY_THE_PAYMENT,
                   THE_PAYMENT_IS_NEVER_CLAIMED)),
-          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY));
+          Map.of(KeyRole.TRUE_IDEMPOTENCY_KEY, NO_IDEMPOTENCY_KEY),
+          answered -> Redaction.redact(answered, AutraFields.SENSITIVE_RESPONSE_FIELDS));
 
   private AutraKeyMechanisms() {}
 }

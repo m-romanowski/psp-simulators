@@ -122,6 +122,7 @@ public final class AWireFaultIsAnsweredByWhoeverWasAskedFilter implements Filter
     byte[] body = answer.body();
     outbound.resetBuffer();
     outbound.setStatus(answer.httpStatus());
+    answer.headers().forEach(outbound::setHeader);
     if (!answer.contentType().isBlank()) {
       outbound.setContentType(answer.contentType());
     }

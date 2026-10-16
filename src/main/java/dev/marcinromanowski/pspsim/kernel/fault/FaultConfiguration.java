@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.kernel.fault;
 
+import dev.marcinromanowski.pspsim.kernel.transaction.AfterCommit;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -21,12 +22,14 @@ public class FaultConfiguration {
   }
 
   @Bean
-  public DelayedDeliveries delayedDeliveries(ScheduledExecutorService delayedDeliveryScheduler) {
+  public DelayedDeliveries delayedDeliveries(
+      ScheduledExecutorService delayedDeliveryScheduler, AfterCommit afterCommit) {
     return new ScheduledDeliveries(
         (delay, delivery) -> {
           ScheduledFuture<?> scheduled =
               delayedDeliveryScheduler.schedule(delivery, delay.toMillis(), TimeUnit.MILLISECONDS);
           return () -> scheduled.cancel(false);
-        });
+        },
+        afterCommit::run);
   }
 }

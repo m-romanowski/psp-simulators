@@ -1,12 +1,10 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
-import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.jspecify.annotations.Nullable;
 
 sealed interface StripeJson {
@@ -74,37 +72,6 @@ sealed interface StripeJson {
       members.put(key, value);
     }
     return new JsonObject(members);
-  }
-
-  default StripeJson withholding(Set<String> sensitiveMembers) {
-    return switch (this) {
-      case JsonObject object -> withheldMembersOf(object, sensitiveMembers);
-      case JsonArray array -> withheldElementsOf(array, sensitiveMembers);
-      case JsonText _ -> this;
-      case JsonRawNumber _ -> this;
-      case JsonBoolean _ -> this;
-      case JsonNull _ -> this;
-    };
-  }
-
-  private static StripeJson withheldMembersOf(JsonObject object, Set<String> sensitiveMembers) {
-    Map<String, StripeJson> withheld = new LinkedHashMap<>();
-    for (Map.Entry<String, StripeJson> member : object.members().entrySet()) {
-      withheld.put(
-          member.getKey(),
-          sensitiveMembers.contains(member.getKey())
-              ? new JsonText(Redaction.REDACTED)
-              : member.getValue().withholding(sensitiveMembers));
-    }
-    return new JsonObject(withheld);
-  }
-
-  private static StripeJson withheldElementsOf(JsonArray array, Set<String> sensitiveMembers) {
-    List<StripeJson> withheld = new ArrayList<>();
-    for (StripeJson element : array.elements()) {
-      withheld.add(element.withholding(sensitiveMembers));
-    }
-    return new JsonArray(withheld);
   }
 
   default Map<String, List<String>> flatten() {

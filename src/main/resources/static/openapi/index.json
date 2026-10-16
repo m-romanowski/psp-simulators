@@ -20,6 +20,10 @@
     "url": "stripe.json"
   },
   {
+    "name": "Provider tranzila",
+    "url": "tranzila.json"
+  },
+  {
     "name": "Provider worldline",
     "url": "worldline.json"
   }

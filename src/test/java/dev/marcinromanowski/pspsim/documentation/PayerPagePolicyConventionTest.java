@@ -21,6 +21,13 @@ class PayerPagePolicyConventionTest {
           "dev.marcinromanowski.pspsim.provider.azericard.AzericardErrorPage",
           "dev.marcinromanowski.pspsim.provider.azericard.AzericardPayerPage",
           "dev.marcinromanowski.pspsim.provider.grow.GrowHostedPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengeAnsweredPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengePage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsRefusalPage",
+          "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
           "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage");
 
   private static final String THE_FLOOR = "default-src 'none'; style-src 'unsafe-inline'";
@@ -30,7 +37,7 @@ class PayerPagePolicyConventionTest {
   private static final String A_STYLED_DOCUMENT = "<!DOCTYPE html><html lang=\"en\"><style>";
 
   @Test
-  void the_compiled_build_renders_five_pages_and_every_one_of_them_declares_a_policy() {
+  void the_compiled_build_renders_twelve_pages_and_every_one_of_them_declares_a_policy() {
     List<APage> pages = PayerPageDeclarations.inTheBuild(COMPILED_MAIN);
 
     assertThat(PayerPagePolicyConvention.theNamesOf(pages))
@@ -38,15 +45,17 @@ class PayerPagePolicyConventionTest {
             "the denominator of this gate: a sweep that matched nothing would pass forever, so"
                 + " the pages it examined are named one by one")
         .containsExactlyElementsOf(THE_PAGES_THIS_SIMULATOR_RENDERS);
-    assertThat(pages).hasSize(5);
+    assertThat(pages).hasSize(12);
     assertThat(PayerPagePolicyConvention.howManyPolicies(pages))
         .as("one policy read out of each page, and no page declaring two of them")
-        .isEqualTo(5);
+        .isEqualTo(12);
     assertThat(PayerPagePolicyConvention.howManyCarryTheirOwnStyle(pages))
-        .as("four of the five carry their own style; azericard's error page carries none")
-        .isEqualTo(4);
+        .as(
+            "every page but azericard's error page and the hidden frame tranzila's hosted fields"
+                + " charge from carries its own style")
+        .isEqualTo(10);
     assertThat(PayerPagePolicyConvention.theProvidersOf(pages))
-        .containsExactly("autra", "azericard", "grow", "worldline");
+        .containsExactly("autra", "azericard", "grow", "tranzila", "worldline");
     assertThat(pages)
         .allSatisfy(
             page ->
@@ -62,10 +71,10 @@ class PayerPagePolicyConventionTest {
     List<String> read = PayerPagePolicyConvention.verdictOn(COMPILED_MAIN).read();
 
     assertThat(read).hasSize(5);
-    assertThat(read.get(0)).contains("examined the 5 that render an HTML document");
-    assertThat(read.get(1)).contains("read 5 policies").contains("4 of which carry their own");
-    assertThat(read.get(2)).contains("8 directive(s) beyond that floor are registered, over 4");
-    assertThat(read.get(3)).contains("[autra, azericard, grow, worldline]");
+    assertThat(read.get(0)).contains("examined the 12 that render an HTML document");
+    assertThat(read.get(1)).contains("read 12 policies").contains("10 of which carry their own");
+    assertThat(read.get(2)).contains("15 directive(s) beyond that floor are registered, over 10");
+    assertThat(read.get(3)).contains("[autra, azericard, grow, tranzila, worldline]");
     assertThat(read.get(4)).contains(PayerPageDeclarations.THE_CLASS_THAT_OWNS_THE_DECLARATION);
   }
 
@@ -73,15 +82,29 @@ class PayerPagePolicyConventionTest {
   void every_directive_beyond_the_floor_is_registered_against_one_page_with_its_reason() {
     assertThat(PayerPagePolicyConvention.THE_FURTHER_DIRECTIVES_A_PAGE_MAY_NAME)
         .as("the registry is the whole of what any payer page may name beyond the floor")
-        .hasSize(8)
+        .hasSize(15)
         .allSatisfy(admitted -> assertThat(admitted.why()).isNotBlank())
         .extracting(AFurtherDirective::directive)
-        .containsOnly("form-action 'self'", "frame-ancestors 'none'", "base-uri 'none'");
+        .containsOnly(
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+            "base-uri 'none'",
+            "connect-src 'self'",
+            "script-src 'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='",
+            "script-src 'sha256-E3IReQae+CUjgO0MER6cFqfFAwEvPuxJ6hVgfkQhLjo='",
+            "script-src 'sha256-gAFRQ+4dLZN5jnsgAhf+aPVF1XZZmSqC3xcGr5zMRv4='",
+            "script-src 'sha256-LYRWxyDGTMxSrunbITKeP9IfOfj7AJ0NV+ijgde4SBc='");
     assertThat(PayerPagePolicyConvention.thePagesThatRegisterADirective())
         .containsExactly(
             "dev.marcinromanowski.pspsim.provider.autra.AutraCardPage",
             "dev.marcinromanowski.pspsim.provider.azericard.AzericardErrorPage",
             "dev.marcinromanowski.pspsim.provider.azericard.AzericardPayerPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengeAnsweredPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaChallengePage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaDirectNgPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedControlPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaHostedFieldsPage",
+            "dev.marcinromanowski.pspsim.provider.tranzila.TranzilaReturnPage",
             "dev.marcinromanowski.pspsim.provider.worldline.WorldlineHostedTokenizationPage");
     assertThat(PayerPagePolicyConvention.THE_FURTHER_DIRECTIVES_A_PAGE_MAY_NAME)
         .as("grow's page registers nothing, because its policy is the floor and nothing more")
@@ -251,6 +274,74 @@ class PayerPagePolicyConventionTest {
         .asString()
         .contains("renders a document naming [script]")
         .contains("say what the page loads");
+  }
+
+  @Test
+  void an_inline_script_is_admitted_only_by_a_policy_naming_the_hash_of_exactly_its_text() {
+    String script = "HTMLFormElement.prototype.submit.call(document.forms[0]);";
+    String itsHash = "'sha256-Zd9Ppkm6KJvfEle1ogzptKkD+DOonO1DYBPhi02doj8='";
+    String carrying = "<p>x</p><script>" + script + "</script></body></html>";
+    APage unhashed = new APage("a.Page", List.of(A_STYLED_DOCUMENT, carrying, THE_FLOOR));
+    APage hashed =
+        new APage(
+            "a.Page", List.of(A_STYLED_DOCUMENT, carrying, THE_FLOOR + "; script-src " + itsHash));
+    APage anotherHash =
+        new APage(
+            "a.Page",
+            List.of(
+                A_STYLED_DOCUMENT,
+                carrying,
+                THE_FLOOR + "; script-src 'sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='"));
+    APage unclosed =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script>document.", THE_FLOOR));
+
+    assertThat(PayerPageDeclarations.theHashOf(script)).isEqualTo(itsHash);
+    assertThat(unhashed.theInlineScripts()).containsExactly(script);
+    assertThat(unhashed.theElementsItLoadsASubresourceFor()).isEmpty();
+    assertThat(PayerPagePolicyConvention.theOffenceOf(unhashed))
+        .singleElement()
+        .asString()
+        .contains("renders the inline script " + script)
+        .contains("names script-src " + itsHash);
+    assertThat(PayerPagePolicyConvention.theOffenceOf(anotherHash))
+        .anySatisfy(offence -> assertThat(offence).contains("renders the inline script"));
+    assertThat(
+            PayerPagePolicyConvention.theOffenceOfTheInlineScript(
+                hashed, hashed.policies(), script))
+        .isEmpty();
+    assertThat(PayerPagePolicyConvention.theOffenceOf(unclosed))
+        .singleElement()
+        .asString()
+        .contains("does not close inside the constant that opens it");
+    assertThat(
+            PayerPageDeclarations.theInlineScriptsIn(
+                "<SCRIPT>a();</SCRIPT><p></p><script>b();</script>"))
+        .containsExactly("a();", "b();");
+    assertThat(
+            PayerPageDeclarations.theInlineScriptsIn(
+                "<script type=\"module\">m();</script><script defer src='/a.js'></script>"
+                    + "<scripted>x();</scripted><SCRIPT nonce=\"n\">n();</SCRIPT>"
+                    + "<script data-src=\"x\">d();</script><script\tsrc=\"/t.js\"></script>"))
+        .containsExactly("m();", "n();", "d();");
+    assertThat(PayerPageDeclarations.theInlineScriptsIn("<script type=\"module\">m();"))
+        .containsExactly(PayerPageDeclarations.UNREADABLE);
+    assertThat(PayerPageDeclarations.theInlineScriptsIn("<script")).isEmpty();
+  }
+
+  @Test
+  void a_script_tag_carrying_anything_is_read_as_loading_a_subresource() {
+    APage loading =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<SCRIPT defer src='/a.js'>", THE_FLOOR));
+    APage typed =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script type=\"module\">", THE_FLOOR));
+    APage unclosed = new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<script", THE_FLOOR));
+    APage scripted =
+        new APage("a.Page", List.of(A_STYLED_DOCUMENT, "<scripted></scripted>", THE_FLOOR));
+
+    assertThat(loading.theElementsItLoadsASubresourceFor()).containsExactly("script");
+    assertThat(typed.theElementsItLoadsASubresourceFor()).containsExactly("script");
+    assertThat(unclosed.theElementsItLoadsASubresourceFor()).containsExactly("script");
+    assertThat(scripted.theElementsItLoadsASubresourceFor()).isEmpty();
   }
 
   @Test

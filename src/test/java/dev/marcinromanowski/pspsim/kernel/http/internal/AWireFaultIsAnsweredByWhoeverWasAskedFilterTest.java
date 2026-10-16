@@ -89,6 +89,33 @@ class AWireFaultIsAnsweredByWhoeverWasAskedFilterTest {
   }
 
   @Test
+  void the_headers_a_provider_answers_beside_its_page_reach_the_client()
+      throws IOException, ServletException {
+    ProviderDouble paging =
+        new ProviderDouble("paging")
+            .answering(
+                List.of("/pages"),
+                new ProviderWireAnswer.InThisProvidersOwnWords(
+                    404,
+                    "text/html",
+                    THE_PROVIDERS_OWN_BYTES,
+                    java.util.Map.of("Cache-Control", "no-store")));
+    AWireFaultIsAnsweredByWhoeverWasAskedFilter answering =
+        new AWireFaultIsAnsweredByWhoeverWasAskedFilter(
+            new WhoeverWasAsked(
+                new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(paging))),
+                new ProviderRegistry(List.of(paging)),
+                List.of(),
+                trail.asTrail()));
+    MockHttpServletResponse answered = new MockHttpServletResponse();
+
+    answering.doFilter(stopped("GET", "/pages/x", 404), answered, new MockFilterChain());
+
+    assertThat(answered.getHeader("Cache-Control")).isEqualTo("no-store");
+    assertThat(answered.getContentType()).isEqualTo("text/html");
+  }
+
+  @Test
   void whatever_the_container_had_already_put_in_the_buffer_is_dropped_rather_than_prefixed()
       throws IOException, ServletException {
     MockHttpServletResponse answered = new MockHttpServletResponse();
