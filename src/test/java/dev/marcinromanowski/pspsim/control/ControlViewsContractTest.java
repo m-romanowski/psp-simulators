@@ -255,9 +255,10 @@ class ControlViewsContractTest {
                 List.of("match.merchantId", "match.orderId", "match.amount"),
                 "orderId",
                 false,
-                false),
+                false,
+                "three digits"),
             new ContractOperationView(
-                READ, List.of("match.providerObjectId"), "processId", true, true));
+                READ, List.of("match.providerObjectId"), "processId", true, true, "three digits"));
   }
 
   private static List<String> everyWordOf(AddressResponse answered) {

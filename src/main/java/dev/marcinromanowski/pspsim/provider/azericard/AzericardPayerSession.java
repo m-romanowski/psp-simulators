@@ -63,7 +63,7 @@ record AzericardPayerSession(
   }
 
   boolean wasOpenedBy(AzericardMessage sent) {
-    return message().fingerprint().equals(sent.fingerprint());
+    return message().fingerprinted().isTheSameRequestAs(sent.fingerprinted());
   }
 
   boolean isSettled() {

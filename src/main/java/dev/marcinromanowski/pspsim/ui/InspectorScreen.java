@@ -64,6 +64,7 @@ public final class InspectorScreen {
       boolean stateChanged,
       @Nullable String timeout,
       @Nullable String conflictReason,
+      @Nullable String noAnswerBecause,
       Instant at) {
 
     public boolean carriesAResponse() {
@@ -85,6 +86,10 @@ public final class InspectorScreen {
     public boolean neverReachedTheKeysOwnRecord() {
       return ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD.name().equals(verdict);
     }
+
+    public boolean ranTheOperation() {
+      return ExchangeVerdict.valueOf(verdict).couldHaveChangedState();
+    }
   }
 
   public record Row(
@@ -99,10 +104,12 @@ public final class InspectorScreen {
       Instant firstRequestAt,
       List<Instant> replayTimestamps,
       boolean stateChanged,
+      @Nullable String notRecorded,
       @Nullable String providerObjectId,
       List<NamedObject> objectsItNames,
       List<NamedObject> objectsThatNameIt,
-      List<Request> requests) {
+      List<Request> requests,
+      Request firstRequest) {
 
     public Row {
       replayTimestamps = List.copyOf(replayTimestamps);
@@ -148,17 +155,12 @@ public final class InspectorScreen {
       return requests.size() > 1;
     }
 
-    public Request firstRequest() {
-      for (Request request : requests) {
-        if (!request.neverReachedTheKeysOwnRecord()) {
-          return request;
-        }
-      }
-      return requests.get(0);
-    }
-
     public boolean aRequestClaimedThisKey() {
       return !firstRequest().neverReachedTheKeysOwnRecord();
+    }
+
+    public boolean theRequestThatRanIsMissing() {
+      return notRecorded != null;
     }
   }
 
@@ -235,6 +237,7 @@ public final class InspectorScreen {
               request.stateChanged(),
               request.whenTheFaultLanded(),
               exchange.conflictReasonOf(request),
+              request.whyNoAnswerIsShown(),
               request.at()));
     }
     String object = theObjectItReached(exchange);
@@ -250,10 +253,12 @@ public final class InspectorScreen {
         exchange.firstRequestAt(),
         exchange.replayTimestamps(),
         exchange.stateChanged(),
+        exchange.whatThisLogDidNotRecord(),
         object,
         theObjectsItNames(object, objectsOfTheRun),
         theObjectsThatNameIt(object, objectsOfTheRun),
-        requests);
+        requests,
+        requests.get(exchange.firstRequest().sequence()));
   }
 
   private static @Nullable String theObjectItReached(KeyedExchange exchange) {

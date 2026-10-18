@@ -7,18 +7,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 public final class ScenarioEngine {
 
   private final ScenarioRules rules;
+  private final OperationCodes codes;
 
   public ScenarioEngine(ScenarioRules rules) {
+    this(rules, OperationCodes.EVERY_CODE);
+  }
+
+  public ScenarioEngine(ScenarioRules rules, OperationCodes codes) {
     this.rules = rules;
+    this.codes = codes;
   }
 
   public ScenarioDecision decide(ScenarioRequest request) {
-    List<ScenarioRule> matching = theRulesThisRequestMatches(request);
+    List<ScenarioRule> matching =
+        theRulesThisRequestMatches(
+            request, code -> codes.answers(request.provider(), request.operation(), code));
     List<StoryKey> keys = theKeysTheStepsAmongThemStandOn(request, matching);
     return rules.decidingOneRequestAtATimeAbout(
         request.provider(),
@@ -27,14 +36,23 @@ public final class ScenarioEngine {
         () -> theStepThisRequestIsOwed(request, matching, keys));
   }
 
-  private List<ScenarioRule> theRulesThisRequestMatches(ScenarioRequest request) {
+  private List<ScenarioRule> theRulesThisRequestMatches(
+      ScenarioRequest request, Predicate<String> theCodesItsOperationAnswers) {
     List<ScenarioRule> matching = new ArrayList<>();
     for (ScenarioRule rule : rules.of(request.provider(), request.testRunId())) {
-      if (rule.action() instanceof ScenarioAction.OnTheRequest && rule.match().matches(request)) {
+      if (rule.action() instanceof ScenarioAction.OnTheRequest
+          && rule.match().matches(request)
+          && itsCodeIsOneTheOperationAnswers(rule.action(), theCodesItsOperationAnswers)) {
         matching.add(rule);
       }
     }
     return List.copyOf(matching);
+  }
+
+  static boolean itsCodeIsOneTheOperationAnswers(
+      ScenarioAction action, Predicate<String> theCodesItsOperationAnswers) {
+    String code = action.theProviderCodeItComesToRestWith();
+    return code == null || theCodesItsOperationAnswers.test(code);
   }
 
   private static List<StoryKey> theKeysTheStepsAmongThemStandOn(

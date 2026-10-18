@@ -124,7 +124,7 @@ class ExclusionBudgetTest {
             listOf(
                 "dev.marcinromanowski.pspsim.**.*Configuration|3|2|",
                 "dev.marcinromanowski.pspsim.**.*Controller|248|13|dev.marcinromanowski.pspsim.ui.AController",
-                "dev.marcinromanowski.pspsim.**.Jdbc*|238|9|",
+                "dev.marcinromanowski.pspsim.**.Jdbc*|231|9|",
                 "dev.marcinromanowski.pspsim.provider.*.*Module|0|0|",
             ),
             arguments.drop(1),

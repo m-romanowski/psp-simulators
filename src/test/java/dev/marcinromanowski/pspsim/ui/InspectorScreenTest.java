@@ -58,7 +58,8 @@ class InspectorScreenTest {
               KeyRole.TRUE_IDEMPOTENCY_KEY,
               NO_REPLAY,
               KeyRole.CORRELATION_KEY,
-              "provider grow correlates nothing on this contract"));
+              "provider grow correlates nothing on this contract"),
+          answered -> answered);
 
   private static final ProviderKeyMechanisms REPLAYING =
       new ProviderKeyMechanisms(
@@ -74,7 +75,8 @@ class InspectorScreenTest {
               KeyRole.DUPLICATE_DETECTION_KEY,
               "this contract refuses no repeat of a merchant's own reference",
               KeyRole.CORRELATION_KEY,
-              "this contract correlates nothing"));
+              "this contract correlates nothing"),
+          answered -> answered);
 
   @Test
   void the_screen_prints_what_a_repeat_does_beside_every_key_the_provider_declares() {
@@ -498,6 +500,132 @@ class InspectorScreenTest {
                 new AppliedFault(
                     TransportFaultKind.DROPPED_CONNECTION, FaultPlacement.INSTEAD_OF_THE_OPERATION),
                 NOON)));
+  }
+
+  @Test
+  void the_first_request_shown_is_the_one_that_ran_even_after_a_refusal_answered_before_it() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                MECHANISMS,
+                aPageOf(
+                    underOneKey(
+                        UNIQUE,
+                        KeyRole.DUPLICATE_DETECTION_KEY,
+                        aRequest(0, ExchangeVerdict.DUPLICATE_KEY_REFUSAL),
+                        aRequest(1, ExchangeVerdict.FIRST_REQUEST))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.firstRequest().sequence()).isEqualTo(1);
+    assertThat(row.firstRequest().ranTheOperation()).isTrue();
+    assertThat(row.theRequestThatRanIsMissing()).isFalse();
+    assertThat(row.notRecorded()).isNull();
+  }
+
+  @Test
+  void a_key_no_request_ran_under_shows_its_first_answer_that_reached_the_record() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                MECHANISMS,
+                aPageOf(
+                    underOneKey(
+                        UNIQUE,
+                        KeyRole.DUPLICATE_DETECTION_KEY,
+                        aRequest(0, ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD),
+                        aRequest(1, ExchangeVerdict.DUPLICATE_KEY_REFUSAL))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.firstRequest().sequence()).isEqualTo(1);
+    assertThat(row.firstRequest().ranTheOperation()).isFalse();
+  }
+
+  @Test
+  void the_first_request_shown_is_the_one_whose_time_the_row_names_when_none_ran() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                MECHANISMS,
+                aPageOf(
+                    underOneKey(
+                        UNIQUE,
+                        KeyRole.DUPLICATE_DETECTION_KEY,
+                        aRequest(0, ExchangeVerdict.REFUSED_WHILE_THE_KEY_WAS_HELD),
+                        aRequest(1, ExchangeVerdict.DUPLICATE_KEY_REFUSAL))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.firstRequestAt()).isEqualTo(NOON.plus(Duration.ofMinutes(1)));
+    assertThat(row.firstRequest().at()).isEqualTo(row.firstRequestAt());
+    assertThat(row.repeats()).extracting(InspectorScreen.Request::sequence).containsExactly(0);
+    assertThat(row.aRequestClaimedThisKey()).isTrue();
+  }
+
+  @Test
+  void a_conflict_recorded_before_the_request_that_ran_names_no_comparison_with_itself() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                REPLAYING,
+                aPageOf(
+                    underOneKey(
+                        REPLAYED_KEY,
+                        KeyRole.TRUE_IDEMPOTENCY_KEY,
+                        aRequest(0, ExchangeVerdict.CONFLICTING_PAYLOAD))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.requests().get(0).conflictReason())
+        .isEqualTo(KeyedExchange.THE_REQUEST_IT_CONFLICTS_WITH_WAS_NOT_RECORDED);
+  }
+
+  @Test
+  void a_key_whose_request_that_ran_was_not_recorded_is_shown_as_missing_it() {
+    InspectorScreen.Row row =
+        InspectorScreen.of(
+                RUN.value(),
+                REPLAYING,
+                aPageOf(
+                    underOneKey(
+                        REPLAYED_KEY,
+                        KeyRole.TRUE_IDEMPOTENCY_KEY,
+                        aRequest(0, ExchangeVerdict.TRUE_IDEMPOTENT_REPLAY))),
+                50,
+                List.of())
+            .rows()
+            .get(0);
+
+    assertThat(row.theRequestThatRanIsMissing()).isTrue();
+    assertThat(row.notRecorded()).isEqualTo(KeyedExchange.THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED);
+  }
+
+  private static KeyedExchange underOneKey(String keyName, KeyRole role, KeyedRequest... requests) {
+    return new KeyedExchange(GROW, RUN, MERCHANT, keyName, role, "9009", 12L, List.of(requests));
+  }
+
+  private static KeyedRequest aRequest(int sequence, ExchangeVerdict verdict) {
+    return new KeyedRequest(
+        sequence,
+        verdict,
+        "fingerprint-nine",
+        CHARGE,
+        200,
+        "application/json",
+        "{\"status\":1}",
+        null,
+        false,
+        null,
+        NOON.plus(Duration.ofMinutes(sequence)));
   }
 
   private static KeyedExchangePage aPageOf(KeyedExchange exchange) {

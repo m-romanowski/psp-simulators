@@ -12,7 +12,7 @@ public final class TheOrderOneAnswerIsIn {
           + " this answer expresses, since both walk the identifiers they asked for and resolve"
           + " each one by scanning this list, and it is the order that reading one identifier at a"
           + " time produces, so a provider that never learns to answer in bulk obeys it without"
-          + " doing anything while the five that read their own stores no longer each answer in"
+          + " doing anything while the providers that read their own stores no longer each answer in"
           + " whatever order those stores return. The order is observable in one way: which object"
           + " a caller resolves an identifier to when two of them answer to it. Two such objects"
           + " sit at that identifier's place in the order the provider read them, which is the"

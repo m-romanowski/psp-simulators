@@ -485,7 +485,7 @@ class RelatedObjectAddressConventionTest {
 
     assertThat(build.providerModules())
         .as("every provider module compiled here is read")
-        .containsExactly("autra", "azericard", "grow", "stripe", "worldline");
+        .containsExactly("autra", "azericard", "grow", "stripe", "tranzila", "worldline");
     assertThat(build.theModulesThatBuildAState())
         .as("and every one of them builds a state this gate can walk out of")
         .isEqualTo(build.providerModules());
@@ -526,10 +526,19 @@ class RelatedObjectAddressConventionTest {
                 List.of("/azericard/payer"),
                 "grow",
                 List.of(A_PAGE),
+                "tranzila",
+                List.of(
+                    "/tranzila/3ds/challenge/{trackId}",
+                    "/tranzila/directng/{terminal}/iframenew.php",
+                    "/tranzila/directng/{terminal}/payer/{pageId}",
+                    "/tranzila/directng/{terminal}/payer/{pageId}/wallet/{wallet}",
+                    "/tranzila/hf/assets/js/hfields_depend/controlfields.html",
+                    "/tranzila/hf/assets/js/hfields_depend/genfield.php",
+                    "/tranzila/hf/process/ajax_process_transaction"),
                 "worldline",
                 List.of(A_PAGE_WITH_A_VARIABLE)));
     assertThat(RelatedObjectAddressConvention.theModulesThatDeclareNoPageOfTheirOwn(build, pages))
-        .as("stripe builds a state and serves no payer page, so its values are swept for nothing")
+        .as("stripe builds states and serves no payer page, so its values are swept for nothing")
         .containsExactly("stripe");
   }
 

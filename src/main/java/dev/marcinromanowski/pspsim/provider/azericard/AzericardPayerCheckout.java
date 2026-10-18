@@ -467,7 +467,9 @@ final class AzericardPayerCheckout {
             now,
             askedBy,
             presented,
-            () -> payments.takeOverOrderTrace(testRunId, sessionId));
+            new AzericardTraceClaim(
+                AzericardOrderTrace.dayOf(session.createdAt()),
+                () -> payments.takeOverOrderTrace(testRunId, sessionId)));
     if (result.insteadOfTheOperation() != null) {
       return new Step.AnsweredInstead(result);
     }

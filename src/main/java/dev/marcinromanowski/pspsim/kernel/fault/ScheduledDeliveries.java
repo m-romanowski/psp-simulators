@@ -12,10 +12,16 @@ import java.util.function.Predicate;
 public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseable {
 
   private final DelayScheduler scheduler;
+  private final Consumer<Runnable> onceCommitted;
   private final Set<HeldDelivery> held = ConcurrentHashMap.newKeySet();
 
   public ScheduledDeliveries(DelayScheduler scheduler) {
+    this(scheduler, Runnable::run);
+  }
+
+  public ScheduledDeliveries(DelayScheduler scheduler, Consumer<Runnable> onceCommitted) {
     this.scheduler = scheduler;
+    this.onceCommitted = onceCommitted;
   }
 
   @Override
@@ -39,13 +45,18 @@ public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseab
 
   @Override
   public int cancel(ProviderId provider, TestRunId testRunId) {
-    return abandon(
-        delivery -> delivery.belongsTo(provider, testRunId), DeliveryAbandonment.TEST_RUN_RESET);
+    return abandonedOnceCommitted(delivery -> delivery.belongsTo(provider, testRunId));
   }
 
   @Override
   public int cancelAll(ProviderId provider) {
-    return abandon(delivery -> delivery.belongsTo(provider), DeliveryAbandonment.TEST_RUN_RESET);
+    return abandonedOnceCommitted(delivery -> delivery.belongsTo(provider));
+  }
+
+  private int abandonedOnceCommitted(Predicate<HeldDelivery> doomed) {
+    int heldNow = (int) held.stream().filter(doomed).filter(HeldDelivery::isStillUnsettled).count();
+    onceCommitted.accept(() -> abandon(doomed, DeliveryAbandonment.TEST_RUN_RESET));
+    return heldNow;
   }
 
   @Override
@@ -58,16 +69,12 @@ public final class ScheduledDeliveries implements DelayedDeliveries, AutoCloseab
     return held.size();
   }
 
-  private int abandon(Predicate<HeldDelivery> doomed, DeliveryAbandonment reason) {
-    int abandoned = 0;
+  private void abandon(Predicate<HeldDelivery> doomed, DeliveryAbandonment reason) {
     for (HeldDelivery delivery : List.copyOf(held)) {
       if (doomed.test(delivery)) {
         held.remove(delivery);
-        if (delivery.abandonNow(reason)) {
-          abandoned++;
-        }
+        delivery.abandonNow(reason);
       }
     }
-    return abandoned;
   }
 }

@@ -4,19 +4,25 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderRegistry;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderWireRoutes;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.spi.WhatAProviderAnswersOffItsRoutes;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
+import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends PostgresBackedTest {
 
@@ -60,7 +66,7 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
               address
                   + " is not a screen of this simulator, and there is no login on the screens: a"
                   + " payer who mistypes a hosted page address was handed eight kilobytes of the"
-                  + " operator's navigation, the provider switcher over all five providers and"
+                  + " operator's navigation, the provider switcher over every provider and"
                   + " links into /ui/objects and /ui/audit. A real provider's hosted page answers"
                   + " a near miss with nothing of the kind")
           .doesNotContain("Skip the navigation")
@@ -112,23 +118,40 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
 
   @Autowired private ProviderRegistry providers;
 
+  @Autowired
+  @Qualifier("requestMappingHandlerMapping")
+  private RequestMappingHandlerMapping mappings;
+
   @Test
-  void no_two_provider_modules_claim_one_address_so_the_answer_never_depends_on_bean_order() {
+  void no_two_provider_modules_claim_one_address_but_where_one_claims_a_whole_route_of_its_own() {
+    Set<String> routes = new LinkedHashSet<>();
+    for (RequestMappingInfo mapping : mappings.getHandlerMethods().keySet()) {
+      routes.addAll(mapping.getPatternValues());
+    }
     List<String> collisions = new ArrayList<>();
+    List<String> nested = new ArrayList<>();
     for (SimulatorProvider claiming : providers.modules()) {
       for (SimulatorProvider other : providers.modules()) {
         if (claiming.id().equals(other.id())) {
           continue;
         }
         for (String namespace : other.wireRoutes().namespaces()) {
-          if (claiming.wireRoutes().covers(namespace)) {
-            collisions.add(
-                namespace
-                    + " belongs to "
-                    + other.id().value()
-                    + " and is also claimed by "
-                    + claiming.id().value());
+          if (!claiming.wireRoutes().covers(namespace)) {
+            continue;
           }
+          String overlap =
+              namespace
+                  + " belongs to "
+                  + other.id().value()
+                  + " and is also claimed by "
+                  + claiming.id().value();
+          boolean aWholeRouteAnsweredByItsOwner =
+              routes.contains(namespace)
+                  && ProviderWireRoutes.theDeepestClaimOn(providers.modules(), namespace)
+                      .map(SimulatorProvider::id)
+                      .filter(other.id()::equals)
+                      .isPresent();
+          (aWholeRouteAnsweredByItsOwner ? nested : collisions).add(overlap);
         }
       }
     }
@@ -137,8 +160,13 @@ class AProviderRouteAnswersNothingOfThisSimulatorIntegrationTest extends Postgre
         .as(
             "the core finds the provider an address belongs to by walking the modules in the"
                 + " order the container built them, so two modules claiming one address would"
-                + " make the envelope a client receives depend on that order")
+                + " make the envelope a client receives depend on that order; the one exception"
+                + " is a namespace that is exactly a route its own module serves, which the"
+                + " deepest claim gives to that module whatever the order")
         .isEmpty();
+    assertThat(nested)
+        .containsExactly(
+            "/v2/handshake/create belongs to tranzila and is also claimed by worldline");
   }
 
   @Test

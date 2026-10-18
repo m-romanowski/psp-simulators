@@ -31,6 +31,10 @@ public final class HeldDelivery {
     return settled.compareAndSet(false, true);
   }
 
+  boolean isStillUnsettled() {
+    return !settled.get();
+  }
+
   boolean belongsTo(ProviderId provider) {
     return this.provider.equals(provider);
   }
@@ -49,15 +53,14 @@ public final class HeldDelivery {
     }
   }
 
-  boolean abandonNow(DeliveryAbandonment reason) {
+  void abandonNow(DeliveryAbandonment reason) {
     if (!settle()) {
-      return false;
+      return;
     }
     ScheduledDelivery ticket = scheduled;
     if (ticket != null) {
       ticket.cancel();
     }
     abandon.accept(reason);
-    return true;
   }
 }

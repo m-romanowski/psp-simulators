@@ -1,0 +1,98 @@
+{
+  "error_code": 0,
+  "message": "Success",
+  "transaction_result": {
+    "processor_response_code": "000",
+    "transaction_id": "372803",
+    "auth_number": "1",
+    "card_type": "2",
+    "card_type_name": "Visa",
+    "amount": 10,
+    "currency_code": "ILS",
+    "expiry_month": "09",
+    "expiry_year": "25",
+    "payment_plan": "1",
+    "token": "Q823424234234dfsgdf029",
+    "last_4": "1029",
+    "card_mask": "458097******1029",
+    "card_locality": "domestic"
+  },
+  "t3ds_data": {
+    "version": "1.0",
+    "statusCode": "YA",
+    "statusMessage": "Authenticated successfully.",
+    "xid": "ZjI3YTM0OTJlODBmNGQ3OTkyNjU=",
+    "cavv": "AAABB5AHkVcWB4FkdAeREcBzVec=",
+    "eci": "05"
+  },
+  "original_request": {
+    "terminal_name": " yourTerminalName ",
+    "txn_currency_code": "ILS",
+    "txn_type": "debit",
+    "card_number": "458097******1029",
+    "expire_month": 9,
+    "expire_year": 2025,
+    "cvv": "***",
+    "card_holder_id": "032242711",
+    "payment_plan": 1,
+    "client": {
+      "email": "test@interspace.net",
+      "address_line_1": "habrushim 33",
+      "address_line_2": "pob 2252"
+    },
+    "items": [
+      {
+        "code": "5555",
+        "name": "חולצה",
+        "unit_price": 10,
+        "type": "I",
+        "units_number": 1,
+        "unit_type": 1,
+        "price_type": "G",
+        "currency_code": "ILS",
+        "to_txn_currency_exchange_rate": 1,
+        "attributes": [
+          {
+            "language": "hebrew",
+            "name": "attribute name",
+            "value": "attribute value"
+          }
+        ]
+      }
+    ],
+    "response_language": "english",
+    "user_defined_fields": [
+      {
+        "name": "company",
+        "value": "test 222"
+      }
+    ],
+    "3ds_settings": {
+      "browser": {
+        "java_enabled": 0,
+        "language": "en-gb",
+        "color_depth": 24,
+        "screen_height": 934,
+        "screen_width": 1255,
+        "time_zone": 5,
+        "window_size": "04"
+      }
+    },
+    "force_txn_on_3ds_fail": "N",
+    "auth_3ds_redirect": {
+      "url": "https://test.com",
+      "params": [
+        {
+          "key": "test",
+          "value": "test"
+        },
+        {
+          "key": "ttr",
+          "value": "322"
+        }
+      ]
+    },
+    "sto": "N",
+    "pan_entry_mode": "50"
+  }
+}

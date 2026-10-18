@@ -1,7 +1,9 @@
 package dev.marcinromanowski.pspsim.provider.worldline;
 
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 
@@ -20,7 +22,9 @@ interface WorldlineIdempotenceKeys {
 
   void released(TestRunId testRunId, String accountId, String key);
 
-  void observed(WorldlineObservedRequest request);
+  String fingerprintOf(TestRunId testRunId, FingerprintedRequest request);
+
+  void observed(KeyedObservation observation);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

@@ -25,7 +25,7 @@ object MutationScope {
 
     val mutationExclusionBudgets =
         mapOf(
-            JDBC_ADAPTER_GLOB to (238 to 9),
+            JDBC_ADAPTER_GLOB to (231 to 9),
             CONTROLLER_GLOB to (248 to 13),
             CONFIGURATION_GLOB to (3 to 2),
             PROVIDER_MODULE_GLOB to (0 to 0),

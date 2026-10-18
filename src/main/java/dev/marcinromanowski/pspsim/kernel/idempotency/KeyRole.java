@@ -30,4 +30,12 @@ public enum KeyRole {
   public String whatARepeatDoes() {
     return whatARepeatDoes;
   }
+
+  public ExchangeVerdict aRepeatThatRanTheOperation() {
+    return switch (this) {
+      case TRUE_IDEMPOTENCY_KEY -> ExchangeVerdict.FIRST_REQUEST;
+      case DUPLICATE_DETECTION_KEY -> ExchangeVerdict.REPEAT_ADMITTED;
+      case CORRELATION_KEY -> ExchangeVerdict.CORRELATED_RETRY;
+    };
+  }
 }

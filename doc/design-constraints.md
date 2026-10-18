@@ -46,7 +46,7 @@ Each provider renders its own bytes. Shared code does not choose the content typ
 
 ### No shared error rendering and no shared exception handling over provider routes
 
-Provider routes have no common exception handler and no common error body. Five providers use seven error shapes:
+Provider routes have no common exception handler and no common error body. Each provider has its own error shapes, some more than one:
 
 | Provider | Shape | Citation |
 |---|---|---|
@@ -57,6 +57,11 @@ Provider routes have no common exception handler and no common error body. Five 
 | Worldline | `errorId` + `errors[]` of `category`, `code`, `message`, `propertyName` | `worldline.md`, "Error Shape" |
 | Azericard (signed) | an ordinary signed response: `ACTION=2` with an issuer `RC`, or `ACTION=3` with a negative `RC` | `azericard.md`, "ACTION and RC" |
 | Azericard (missing field) | an HTML page with no `ACTION`, `RC` or signature | `azericard.md`, "Error and Fault Scenarios" |
+| Tranzila (card API) | `error_code` + `message`: an integer at HTTP 200 for an application error, a string under the `Error` schema for `400`, `401`, `404` and `405` | `tranzila.md`, "Error Shape" |
+| Tranzila (Handshake V2) | `error_code` equal to the HTTP status + `message` | `tranzila.md`, "Error Shape" |
+| Tranzila (reports) | `error` + `message` | `tranzila.md`, "Error Shape" |
+| Tranzila (Hosted Fields) | `errors[]` of `code`, `param`, `message` beside `transaction_response` `null` and `response_hash`, at HTTP 200 | `tranzila.md`, "Hosted Fields" |
+| Tranzila (payment page, frames, challenge) | an HTML page in this simulator's own words | `tranzila.md`, "Error Shape" |
 
 Provider routes never return simulator-native payloads (`technical-ui-requirements.md`, "Route Separation").
 
@@ -66,28 +71,29 @@ The core may do two things and no more: recognise which provider's namespace an 
 provider. The provider decides the status, the media type, the field names and the bytes. An address no provider claims
 may belong to a surface of this simulator, which is asked the same way and decides the same things for itself. The
 split is the one in `kernel/spi/ProviderWireRoutes.java` (the namespaces a module claims, matched on segment
-boundaries because two providers answer under `/v1` and two more share a first path segment) and
-`kernel/spi/ProviderWireAnswer.java`.
+boundaries because stripe, autra and tranzila answer under `/v1`, and autra's `/tokenize` begins with azericard's
+`/token`) and `kernel/spi/ProviderWireAnswer.java`.
 
 `ProviderWireRoutes` refuses a namespace that lies inside an address this simulator serves itself, which is one list in
 one place: `kernel/ThisSimulatorsOwnAddresses.java` names `/__simulator`, `/ui` and `/actuator`, and both the route
-alias grammar and the control surface read it from there. A sixth module naming `/__simulator` as a wire namespace
-would be asked what that address answers — modules are asked before surfaces — and would hand a tester on the
-control API a vendor envelope. A documented reservation is not that invariant; the constructor is.
+alias grammar and the control surface read it from there. A provider module naming `/__simulator` as a wire namespace
+would be asked what that address answers — modules are asked before surfaces — and would hand a tester on the control
+API a vendor envelope. A documented reservation is not that invariant; the constructor is.
 
 A provider whose contract publishes no answer for an address it does not serve, or for a method one of its addresses
 does not answer, says so, and the core writes this simulator's own `text/plain` diagnostic at the status nothing else
 chose, naming the provider and what its contract publishes instead. That is not a shared error body: `text/plain` is a
-media type no provider of this build answers a client with, so it cannot be read as any of the seven shapes. An
+media type no provider of this build answers a client with, so it cannot be read as any of the shapes in the table above. An
 envelope in the vendor's field names, invented because the vendor publishes none, is indistinguishable from the
 vendor's to every client that logs one, which is why it is not written.
 
 ### A failure of the platform a provider publishes nothing for is answered with no body (simulator decision)
 
-- The status nothing else chose, no body, and no `Content-Type`. Four of the five providers publish nothing for a
-  failure of their own platform and are answered this way; autra on `/v1/acquiring` is answered in its own envelope.
+- The status nothing else chose, no body, and no `Content-Type`. Every provider publishes nothing for a failure of its
+  own platform except autra on `/v1/acquiring`, which is answered in its own envelope; every other namespace, autra's
+  other namespaces among them, is answered this way.
 - A bodyless `5xx` emits nothing the vendor never sends and can be read as no vendor envelope. `text/plain` is a content
-  type none of those four platforms ever sends, so a generated client dispatching on content type, or one with a strict
+  type none of those platforms ever sends, so a generated client dispatching on content type, or one with a strict
   `Accept`, would behave differently here than against the real thing.
 - Vendors publish that shape (published rule): 5 of the 23 `5xx` declarations under autra's `/v1/acquiring` carry no
   body at all, `capture` and `void` among them at `502` (`autra.md`, "Error Catalogue").
@@ -242,21 +248,28 @@ What each provider answers, and on what evidence:
   above are decided on what a request says it is — its address, its method, the type of its body — before any reader of
   this API is chosen, and this one is decided inside a reader of this API that was handed the bytes and stopped.
 
+Two namespaces of different providers may cover one address, one inside the other: the deeper one answers it, in
+`ProviderWireRoutes.theDeepestClaimOn`. Tranzila's `/v2/handshake/create` lies inside worldline's `/v2` and takes the
+addresses under it; every other address under `/v2` is worldline's. Two providers claiming one namespace at one depth
+are refused when the application starts, in `ProviderWireRoutes.refuseTwoClaimingOneNamespace`, so no answer is left to
+the order the modules are listed in.
+
 An address no module's namespace covers is read through the paths above it, deepest first, by
 `WhatAProviderAnswersOffItsRoutes.fromTheDeepestSegmentUp`. The root is never one of them, because every namespace of
 every provider lies under `/` and reading an address through it would take the screens.
 
 - Exactly one provider publishes under that path: that provider is asked, as if the address were inside its namespace.
   This guesses nothing — every address of that provider is reached through that path and no other provider publishes
-  anything under it, so a client that mistyped the segment below it could have meant no one else. This build has five
-  such paths, above three of its wire namespaces: `/api` is grow's alone, `/tokenize` is autra's, and
-  `/hostedtokenization`, `/hostedtokenization/tokenization` and `/hostedtokenization/tokenization/form` are
-  worldline's, the last because the published form path ends in a separator and the address without one is covered by
-  nothing.
+  anything under it, so a client that mistyped the segment below it could have meant no one else. This build has six
+  such paths: `/api` is grow's alone, `/tokenize` is autra's, `/tranzila` is tranzila's (above its `/tranzila/report`,
+  `/tranzila/directng`, `/tranzila/hf` and `/tranzila/3ds`), and `/hostedtokenization`,
+  `/hostedtokenization/tokenization` and `/hostedtokenization/tokenization/form` are worldline's, the last because the
+  published form path ends in a separator and the address without one is covered by nothing.
 - More than one provider publishes under it: the core answers in this simulator's own voice, in
   `WhatAProviderAnswersOffItsRoutes.thePathMoreThanOneProviderPublishesUnder`, at the status nothing else chose, naming
   the contested path, every provider publishing under it and the namespaces each one answers under it. `/v1` is the
-  only such path in this build — autra publishes two namespaces under it and stripe seven — so the address is inside
+  only such path in this build — autra publishes two namespaces under it, stripe seven and tranzila two
+  (`/v1/transaction`, `/v1/transactions`) — so the address is inside
   nobody's namespace and nothing in it says which vendor it was aimed at. No provider is picked, for the reason an
   invented envelope is not written: a stripe envelope for an address autra could as easily have been meant by is
   indistinguishable from stripe's to every client that logs it.
@@ -322,9 +335,14 @@ build, and the rows marked `live probe` are the ones measured rather than decide
 what this application answers off its routes reads exactly these. "Status nothing else chose" is the status the container
 had already set when the mechanism was asked.
 
+A provider's own envelope may carry headers beside its body, such as a payer page's policy and `Cache-Control:
+no-store`. Their names are tokens and their values one line; `Content-Type` and `Content-Length` are never among them,
+because the body and its media type decide them, nor `Set-Cookie` and `Transfer-Encoding`, which no answer off a route
+decides.
+
 | Where it was asked | Fault | What it answers | Evidence |
 |---|---|---|---|
-| a provider's namespace | one its contract publishes an answer for | that provider's own envelope: the seven shapes above | published rule |
+| a provider's namespace | one its contract publishes an answer for | that provider's own envelope: one of the shapes in the error table | published rule |
 | a provider's namespace | an address it does not serve, or a method one of its addresses does not answer, where its contract publishes nothing for that fault | this simulator's `text/plain` diagnostic naming the provider and what its contract publishes instead | simulator decision |
 | a provider's namespace | a failure nothing else answered, **where its contract publishes nothing for a failure of its own platform** | no body, no `Content-Type`, at the status nothing else chose | simulator decision |
 | `/v1/acquiring` | a failure nothing else answered | autra's own `500 application/json` `{"errors":[{"code":"INTERNAL_ERROR",…}]}`, because autra publishes one there — the row above is conditional and this is the condition failing. Measured with the database stopped: an unserved address of this namespace answers that envelope, while one of grow's and one of azericard's answer nothing | published rule |
@@ -432,8 +450,54 @@ Duplicate handling differs by provider in its key, its storage and its outcome, 
 | Autra | body `orderId`, with three policies: a sale `409`, a pre-authorization `409` that is released when the attempt fails, and no idempotency on PIX. A released key is neither new nor a duplicate | `autra.md`, "Idempotency" |
 | Grow | `transactionUniqueIdentifier` gives a duplicate error. `transactionGroupIdentifier` is a duplicate only against a successful payment. Neither is a replay | `grow.md`, "Create Stored-Card Transaction" |
 | Azericard | derived from state: the last six digits of `ORDER`, per terminal, per day | `azericard.md`, "Identifier Spaces" |
+| Tranzila | `DCdisable` in the body or a page parameter, per terminal, `txn_type` and `verify_mode`, 24 hours back: only an approved original blocks, and its repeat is answered as a duplicate rather than replayed. `track_id` completes a 3-D Secure challenge once | `tranzila.md`, "Duplicates and DCdisable" |
 
 The per-provider key table is in `testing-support-features.md`, "Retry, Idempotency and Correlation Inspector".
+
+### A keyed exchange is recorded by the kernel, never by a provider's own insert
+
+A provider hands `KeyedExchangeLog` a `KeyedObservation`: the request it fingerprints, a `KeyedOutcome` (it ran the
+operation, or it refused or replayed) and the fields of its answer. It never hands a fingerprint, a verdict of a request
+that ran, or a body text, so no provider can number, judge or redact an exchange on its own.
+
+- Numbering. A row takes the next free `seq` under its key and is inserted with `on conflict (<primary key>) do
+  nothing`. `SequencedTable` writes that statement, so the conflict target is always the whole primary key and any other
+  violated constraint still fails the request. A row that lost its number is inserted again, up to
+  `SequencedRows.ATTEMPTS` times, and then the request fails. Autra's payment timeline is numbered by the same helper.
+- Verdict. The verdict of a request that ran the operation is decided by the insert from the rows it follows: a first
+  request only where no request that ran precedes it, otherwise the repeat its key's role names (`REPEAT_ADMITTED` for a
+  duplicate check, `CORRELATED_RETRY` for a correlation key, a first request for a true idempotency key, where it means
+  the provider forgot the key). The reason: a read separate from the insert lets concurrent requests all read "first".
+  A key value is scoped to what the provider's duplicate rule scopes, so azericard's `ORDER` value is the UTC day of the
+  trace a request holds, a space, and the trace: a trace reused on another day is a first request, and a payer page
+  paid on a later day is recorded under the day its trace was held. A screen asked for the value a client sent finds
+  the scoped value that ends in it (`KeyedExchange.isKeyedBy`).
+- Order. Rows are numbered in the order they are recorded. A refusal keeps its verdict wherever it lands, so a
+  duplicate refusal may precede the request that ran: azericard's payer page claims a trace and records nothing under
+  it, and a claim is visible to a duplicate before its claimant records. A replay and a conflict answer from a stored
+  answer, and stripe and worldline record the request that ran before storing its answer. When that record fails, the
+  key is still completed, so a later replay or conflict has no recorded request before it; `KeyedExchange` then names
+  that state (`THE_REQUEST_THAT_RAN_WAS_NOT_RECORDED`) and every surface shows the key with it. `KeyedExchange` refuses
+  only an exchange whose earliest request that ran is not a first request, which the insert cannot produce.
+- Body. The stored body is the answer's fields after the provider's `ProviderKeyMechanisms.withholding`, the redaction
+  its `OUTBOUND_RESPONSE` rows apply, written as JSON of each field to its values, and its `content_type` is
+  `application/json`, which describes that JSON and not the wire. `EveryKeyedExchangeIsWithheldTest` reads every
+  module's `SENSITIVE_RESPONSE_FIELDS` and fails when that module's withholding keeps any of them. A row with
+  `answer_kept` false carries no status, content type or body, and the screens say its answer was given and not kept
+  rather than that nothing was answered; every row recorded before V86 is such a row.
+- Completion. Stripe and worldline complete a claimed key with its answer even when recording its exchange fails, so a
+  retry is replayed rather than refused as still running. A completion that fails too is kept as suppressed on the
+  recording failure, which is the one thrown.
+- Fingerprint. `RequestFingerprint` is HMAC-SHA256 keyed with the run's `FingerprintKey`: 256 bits from `IdGenerator`,
+  minted on first use and kept in `simulator_fingerprint_key` whether or not the run is registered, and registers no
+  run: a run forgotten while its accounts or route aliases stay configured still receives requests, and a retry of one
+  must fingerprint as the first did. Forgetting a run removes its key,
+  and a provider reset keeps it, because the other providers of the run still compare against it. The key is never
+  displayed, exported or logged, so a fingerprint compares two requests of one run and can be checked against no
+  guessed input. The reason: an unkeyed digest of a card number, a CVV or an account secret is a dictionary oracle.
+  A fingerprint stored before V86 is rehashed with a salt V86 discards: equal ones stay equal, none can be recomputed,
+  and none matches a fingerprint minted under a run's key, so a repeat of a key claimed before V86 compares as different
+  parameters.
 
 ### Webhook delivery is not "2xx means delivered"
 
@@ -452,6 +516,19 @@ Acknowledgement belongs to the provider and may need a separate inbound call. Gr
 - If one request names the same account id twice, the whole request is refused. The simulator never picks a winner.
 - A credential already held by an account the call leaves in place is refused by the provider, which names the property.
   The per-run unique index is the defence, and the check is the diagnostic.
+
+### A reset of a run is one transaction
+
+- The control API's reset of one provider, and the dashboard's reset and forget of every provider of a run, run in one
+  unit of work (`kernel/spi/RunResets.java`), so a provider whose reset fails midway leaves the run as it was and no
+  reader sees a half-emptied run. Every provider's reset writes only through the shared `DataSource`.
+- The unit takes its locks in the order a request takes them: it first holds the run's scenario story rows of every
+  provider it resets (`ScenarioRules.holdForAReset`), then lets each provider delete its objects, because a request
+  moves a story before it writes the objects that story decides; the other order could deadlock the two.
+- A held response of the run is abandoned only once that unit commits (`ScheduledDeliveries`), so a reset that rolls
+  back answers no waiting client as reset.
+- A reader that reads one object and then another in two statements can still see one before a reset and the other
+  after it; the reset is atomic, the read is not.
 
 ### The core's account identity is a label the caller chooses, not a merchant id
 
@@ -619,13 +696,13 @@ TTL (`azericard.md`, "Card Storage and Stored-Card Payment"). Stripe completes a
 
 ### The address of a payer page is built where it is answered, and kept nowhere
 
-The three providers that answer a hosted URL build it from the token on the row and
-`simulator.public-base-url`: grow from `hosted_link`, autra from `page_token`, worldline from the
-`hostedTokenizationId` that is the row's own `providerObjectId`. No row keeps the built address: V81 drops grow's
-`hosted_page_url` and autra's `hosted_card_url`, because V49 and V72 had already taken out of those columns the
-token each address is built from, which left a value only the row's own mapper and its insert touched. A derived
-address on a row is also the one shape `verifyNoPayerUrlAmongRelatedObjects` cannot see, since it reaches a screen as
-no constant of this build, so it is a shape this build does not have rather than one the gate registers.
+A provider that answers a hosted URL builds it from the token on the row and `simulator.public-base-url`: grow from
+`hosted_link`, autra from `page_token`, worldline from the `hostedTokenizationId` that is the row's own
+`providerObjectId`. No row keeps the built address: V81 drops grow's `hosted_page_url` and autra's `hosted_card_url`,
+because V49 and V72 had already taken out of those columns the token each address is built from, which left a value only
+the row's own mapper and its insert touched. A derived address on a row is also the one shape
+`verifyNoPayerUrlAmongRelatedObjects` cannot see, since it reaches a screen as no constant of this build, so it is a
+shape this build does not have rather than one the gate registers.
 
 Grow's create answers `url` and autra's answers `hostedCardUrl`, each computed where it is answered from the values
 the row keeps, which is what makes the two columns derived.
@@ -687,28 +764,29 @@ class storing into its own declaration twice is refused rather than read at one 
 What the gate reads is the read, not the reach. Whether the body a class hands the trail is one the declaration's keys
 could match is a fact about that one site: grow's payer page answers a row keyed `normalizedStatus` while all five of
 grow's declared keys are under `data.`, azericard declares no key at all so both of its answering classes can match
-nothing, and autra's card page and worldline's tokenization checkout each hand the trail an empty body, so at five of
-the nine sites the declaration is applied and can match nothing. The unit test of each row states what it carries; the gate states only
+nothing, and autra's card page and worldline's tokenization checkout each hand the trail an empty body, so at those five sites
+the declaration is applied and can match nothing, while each of tranzila's answering classes hands it a body its keys
+can meet. The unit test of each row states what it carries; the gate states only
 that the module's own declaration is what every answering class reads.
 
-The comparison follows each module's own redactor rather than one rule for all five, and the redactor is read of each
+The comparison follows each module's own redactor rather than one rule for all, and the redactor is read of each
 declaration separately, because one module hands its two declarations to different ones. `Redaction.redact` matches a
-whole key, so for autra, azericard, grow and worldline a published name is met by a declared key equal to it or by a
+whole key, so for autra, azericard, grow, tranzila and worldline a published name is met by a declared key equal to it or by a
 declared path ending in it — which is how grow's `data.url` covers the `url` its flattened body is keyed under, and
 why a bracketed key would not. Stripe's own `withholding` reads the last segment of every key, so stripe's responses
 are compared that way. The key a name is finally published under is composed at run time and is invisible here, so a declaration
 that can no longer match the body beside it is caught by the unit test that reads the row, never by this gate.
 
 The floor the declaration stands on is the address of the payer page the provider declares as
-`ThePayerStep.APageThisSimulatorServes`: for two of the four providers that serve such a page it carries the
-one-time token a payer completes a payment with, and its name says in its own words that it is an address. A
-published name whose own words include `url`, `uri`, `link`, `href` or `location` is either withheld or registered in
+`ThePayerStep.APageThisSimulatorServes`: for grow and autra it carries the one-time token a payer completes a payment
+with (azericard's and worldline's do not), and its name says in its own words that it is an address. A published name
+whose own words include `url`, `uri`, `link`, `href` or `location` is either withheld or registered in
 `TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR` against the one provider that publishes it,
 with the reason that address is no secret of that provider; the registration is the decision, and the gate reports only
 that nobody made it.
 
 The floor is that narrow on purpose. A name reading as a token or a secret names an account setting, an environment
-variable, a persona or a database column across these five modules far more often than it names a field an answer
+variable, a persona or a database column across the provider modules far more often than it names a field an answer
 carries, so a floor over those words would be a guess with a registry larger than the rule.
 
 Azericard withholds nothing and is registered in
@@ -747,14 +825,15 @@ declaration — `StripeWebhookRendering`, which re-signs the event stripe's sche
 one such class. Composing, not minting, is also what obliges a module to withhold a field or register that it has
 none, because a module that composes nothing would be registering a decision about fields it writes none of.
 
-Four of the five modules mint a delivery: autra, azericard, grow and stripe. Worldline mints none and declares none.
-Between them they withhold five fields: grow's `data[processToken]`, `data[transactionToken]`, `data[cardToken]` and
-`data[customFields][cField1]`, and stripe's `data.object.client_secret`.
+Autra, azericard, grow, stripe and tranzila mint a delivery. Worldline mints none and declares none.
+Between them they withhold grow's `data[processToken]`, `data[transactionToken]`, `data[cardToken]` and
+`data[customFields][cField1]`, stripe's `data.object.client_secret`, and tranzila's `TranzilaTK`, `card_number`, `cvv`,
+`card_holder_id`, `myid`, `credit_card_number`, `card_holder_id_number` and `identity_number`.
 
-What a delivery declaration withholds is matched the way the redactor that module hands `SENSITIVE_DELIVERY_FIELDS`
-to matches a key, read of that field and not of the response declaration beside it. All four modules hand it to
-`Redaction.redact`, so a recorded name is met by a declared key equal to it or by a declared path ending in that
-segment, and a bracketed key is a key of its own here as it is in the response direction. Stripe is the module this
+What a delivery declaration withholds is matched the way the redactor that module hands `SENSITIVE_DELIVERY_FIELDS` to
+matches a key, read of that field and not of the response declaration beside it. Autra, azericard, grow, stripe and
+tranzila all hand it to `Redaction.redact`, so a recorded name is met by a declared key equal to it or by a declared path ending in
+that segment, and a bracketed key is a key of its own here as it is in the response direction. Stripe is the module this
 separates: its responses go to its own `withholding` methods and its deliveries to `Redaction.redact`, so the two
 directions of one module are compared differently. A delivery declaration handed to redactors that do not match a key
 the same way fails the build rather than being read against one of them.

@@ -98,6 +98,19 @@ abstract class AJourneyInAMobileAppsWebview {
       merchant
           .callbacksReceived()
           .forEach(callback -> leaks.addAll(ACardNumber.leakedIn("a callback", callback, held)));
+      merchant
+          .returnsReceived()
+          .forEach(
+              posted -> leaks.addAll(ACardNumber.leakedIn("a return to the shop", posted, held)));
+      merchant
+          .hostedFieldsAnswersReceived()
+          .forEach(
+              answered ->
+                  leaks.addAll(
+                      ACardNumber.leakedIn(
+                          "an answer of the hosted fields the shop's page posted",
+                          answered,
+                          held)));
     }
     if (webview != null) {
       webview
@@ -158,6 +171,12 @@ abstract class AJourneyInAMobileAppsWebview {
 
   String at(String path) {
     return simulator.baseUrl() + path;
+  }
+
+  List<String> everythingTheWebviewSaw() {
+    List<String> seen = new ArrayList<>();
+    webview.everythingItSaw().forEach(page -> seen.add(page.text()));
+    return seen;
   }
 
   void theWebviewSawNothingGoWrong() {

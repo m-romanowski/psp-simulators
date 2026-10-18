@@ -57,7 +57,7 @@ public final class PayerPageAddressConvention {
             + " to an API client is the product working and is not read here; a screen source or a"
             + " template of this UI writing that address down is what this gate refuses. The"
             + " addresses it sweeps for are the ones each provider declares as the payer page it"
-            + " hosts, so core holds no list of any provider's vocabulary and a sixth provider"
+            + " hosts, so core holds no list of any provider's vocabulary and a provider added later"
             + " widens this gate by declaring its own page. Two shapes are missed on purpose: an"
             + " address split across string literals and one percent-encoded, both of which are"
             + " evasion rather than the mistake a contributor makes.");

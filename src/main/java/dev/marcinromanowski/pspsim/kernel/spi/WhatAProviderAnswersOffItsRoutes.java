@@ -23,14 +23,15 @@ public final class WhatAProviderAnswersOffItsRoutes {
   private final ProviderRegistry providers;
 
   public WhatAProviderAnswersOffItsRoutes(ProviderRegistry providers) {
+    ProviderWireRoutes.refuseTwoClaimingOneNamespace(providers.modules());
     this.providers = providers;
   }
 
   public Optional<WireAnswer> to(WireFault fault, String address, int statusNothingElseChose) {
-    for (SimulatorProvider provider : providers.modules()) {
-      if (provider.wireRoutes().covers(address)) {
-        return Optional.of(answeredBy(provider, fault, address, statusNothingElseChose));
-      }
+    Optional<SimulatorProvider> claiming =
+        ProviderWireRoutes.theDeepestClaimOn(providers.modules(), address);
+    if (claiming.isPresent()) {
+      return Optional.of(answeredBy(claiming.get(), fault, address, statusNothingElseChose));
     }
     return whoeverThisAddressCouldHaveBeenMeantFor(fault, address, statusNothingElseChose);
   }
@@ -119,7 +120,7 @@ public final class WhatAProviderAnswersOffItsRoutes {
       SimulatorProvider provider, WireFault fault, String address, int statusNothingElseChose) {
     return switch (provider.theAnswerOffItsRoutes(fault, address)) {
       case ProviderWireAnswer.InThisProvidersOwnWords own ->
-          new WireAnswer(own.httpStatus(), own.contentType(), own.body());
+          new WireAnswer(own.httpStatus(), own.contentType(), own.body(), own.headers());
       case ProviderWireAnswer.NothingThisContractPublishes missing ->
           switch (fault) {
             case A_FAILURE_NOTHING_ELSE_ANSWERED ->

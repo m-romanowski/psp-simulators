@@ -225,7 +225,8 @@ final class ProviderModuleDouble implements SimulatorProvider {
                 KeyCarriage.REQUEST_FIELD,
                 "every charge this account has submitted",
                 TestKeyClaims.NEVER_HELD)),
-        Map.of(KeyRole.CORRELATION_KEY, "this double correlates nothing"));
+        Map.of(KeyRole.CORRELATION_KEY, "this double correlates nothing"),
+        answered -> answered);
   }
 
   @Override

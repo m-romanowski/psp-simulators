@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.settings.ProviderSettings;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLogs;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
@@ -43,8 +44,13 @@ public class AutraModule {
   }
 
   @Bean
-  AutraPayments autraPayments(JdbcClient jdbc, PlatformTransactionManager transactionManager) {
-    return new JdbcAutraPayments(jdbc, new TransactionTemplate(transactionManager));
+  AutraPayments autraPayments(
+      JdbcClient jdbc, PlatformTransactionManager transactionManager, KeyedExchangeLogs exchanges) {
+    return new JdbcAutraPayments(
+        jdbc,
+        new TransactionTemplate(transactionManager),
+        exchanges.of(AutraKeyMechanisms.MECHANISMS, JdbcAutraPayments.EXCHANGES),
+        exchanges.sequenced());
   }
 
   @Bean

@@ -34,7 +34,7 @@ class ContractParityIntegrationTest extends PostgresBackedTest {
       "contract-parity-page-code-must-never-be-answered";
 
   private static final List<String> EVERY_PROVIDER =
-      List.of("grow", "autra", "azericard", "worldline", "stripe");
+      List.of("grow", "autra", "azericard", "worldline", "tranzila", "stripe");
 
   private static final String A_TEST_RUN_NO_ID_CAN_BE = "a run id with spaces";
 

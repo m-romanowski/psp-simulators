@@ -129,7 +129,7 @@ class DashboardScreenIntegrationTest extends PostgresBackedTest {
     String overview = page(DASHBOARD + "?testRunId=" + RUN.value());
 
     assertThat(overview).contains("no account is configured");
-    assertThat(overview).contains("2 of 5 answer calls in this test run");
+    assertThat(overview).contains("2 of 6 answer calls in this test run");
   }
 
   @Test
@@ -281,7 +281,7 @@ class DashboardScreenIntegrationTest extends PostgresBackedTest {
     assertThat(reset.location()).doesNotContain("cleared");
     assertThat(cleared)
         .contains("<div class=\"done\" role=\"status\">This test run is reset in every provider.")
-        .contains("across 5 provider(s).");
+        .contains("across " + providers.modules().size() + " provider(s).");
     assertThat(reopened).doesNotContain("This test run is reset").doesNotContain("It cleared");
     assertThat(cleared)
         .contains("No provider of this test run has answered a call or attempted a callback yet")
@@ -309,10 +309,11 @@ class DashboardScreenIntegrationTest extends PostgresBackedTest {
     assertThat(split).containsExactlyInAnyOrderElementsOf(providers.names());
     assertThat(page(DASHBOARD + "?testRunId=" + RUN.value()))
         .contains(
-            "5 objects waiting for a payer on a page the provider hosts are kept by 4 of the 5"
+            "7 objects waiting for a payer on a page the provider hosts are kept by 5 of the 6"
                 + " providers here")
         .contains("autra a card session and a Pix")
         .contains("azericard a payment page")
+        .contains("tranzila a payment page and a 3-D Secure challenge")
         .doesNotContain("Grow is the only provider here that keeps a hosted session");
   }
 

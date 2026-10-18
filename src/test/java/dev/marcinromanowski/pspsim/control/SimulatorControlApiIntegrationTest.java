@@ -1208,10 +1208,10 @@ class SimulatorControlApiIntegrationTest extends PostgresBackedTest {
   void a_provider_this_simulator_does_not_know_is_still_refused_as_an_unknown_provider() {
     assertThat(messageOf(get("no-such-psp", "/state/no-such-object")))
         .isEqualTo(
-            "unknown provider; this simulator knows [autra, azericard, grow, stripe, worldline]");
+            "unknown provider; this simulator knows [autra, azericard, grow, stripe, tranzila, worldline]");
     assertThat(messageOf(get("no-such-psp", "/scenarios/scn_never_written")))
         .isEqualTo(
-            "unknown provider; this simulator knows [autra, azericard, grow, stripe, worldline]");
+            "unknown provider; this simulator knows [autra, azericard, grow, stripe, tranzila, worldline]");
     assertThat(
             messageOf(
                 post(
@@ -1219,7 +1219,7 @@ class SimulatorControlApiIntegrationTest extends PostgresBackedTest {
                     "/hosted/no-such-process/complete",
                     Map.of("testRunId", "control-api-it", "outcome", "ABANDONED"))))
         .isEqualTo(
-            "unknown provider; this simulator knows [autra, azericard, grow, stripe, worldline]");
+            "unknown provider; this simulator knows [autra, azericard, grow, stripe, tranzila, worldline]");
   }
 
   @Test

@@ -99,6 +99,7 @@ public final class WorkbenchScreen {
       boolean reportsAProcessingState,
       boolean itsFlowKeyMayBeReplaced,
       List<String> carries,
+      String failsWith,
       int rulesOfThisRunNamingIt) {
 
     public Operation {
@@ -233,6 +234,7 @@ public final class WorkbenchScreen {
               vocabulary.processingStates().reachedBy(exposed.name()),
               exposed.itsFlowKeyMayBeReplaced(),
               exposed.theFactsItCarries(),
+              vocabulary.theCodesOf(exposed.name()).describedAs(),
               theRulesNaming(exposed.name(), rules)));
     }
     return List.copyOf(operations);

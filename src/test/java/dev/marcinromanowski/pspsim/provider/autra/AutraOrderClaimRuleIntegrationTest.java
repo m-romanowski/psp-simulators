@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLogs;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -37,12 +38,19 @@ class AutraOrderClaimRuleIntegrationTest extends PostgresBackedTest {
 
   @Autowired private PlatformTransactionManager transactionManager;
 
+  @Autowired private KeyedExchangeLogs exchanges;
+
   private JdbcAutraPayments payments;
 
   @BeforeEach
   @AfterEach
   void forgetTheRun() {
-    payments = new JdbcAutraPayments(jdbc, new TransactionTemplate(transactionManager));
+    payments =
+        new JdbcAutraPayments(
+            jdbc,
+            new TransactionTemplate(transactionManager),
+            exchanges.of(AutraKeyMechanisms.MECHANISMS, JdbcAutraPayments.EXCHANGES),
+            exchanges.sequenced());
     jdbc.sql("delete from autra_payment where test_run_id = ?").param(RUN.value()).update();
   }
 

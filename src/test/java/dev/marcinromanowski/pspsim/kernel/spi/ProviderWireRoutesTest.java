@@ -21,7 +21,7 @@ class ProviderWireRoutesTest {
     assertThat(routes.covers("/api/light/server/1.0/createPaymentProcess")).isTrue();
     assertThat(routes.covers("/tokenize/sessions/abc"))
         .as(
-            "two providers of this build own addresses that begin with the same letters, and a"
+            "some providers of this build own addresses that begin with the same letters, and a"
                 + " plain prefix match would hand one provider's address to the other, whose"
                 + " envelope and status are not the same")
         .isFalse();
@@ -30,6 +30,93 @@ class ProviderWireRoutesTest {
     assertThat(routes.covers("/ui/objects")).isFalse();
     assertThat(routes.covers("/")).isFalse();
     assertThat(routes.covers("")).isFalse();
+  }
+
+  @Test
+  void an_address_is_covered_as_deeply_as_the_most_segments_of_a_namespace_it_lies_in() {
+    ProviderWireRoutes routes =
+        new ProviderWireRoutes(ProviderId.of("p"), List.of("/v2", "/v2/handshake"));
+    ProviderWireRoutes slashed =
+        new ProviderWireRoutes(ProviderId.of("q"), List.of("/v2/", "/v22222222"));
+
+    assertThat(routes.howDeeplyItCovers("/v2/handshake/create")).isEqualTo(2);
+    assertThat(routes.howDeeplyItCovers("/v2/handshake")).isEqualTo(2);
+    assertThat(routes.howDeeplyItCovers("/v2/handshakes")).isEqualTo(1);
+    assertThat(slashed.howDeeplyItCovers("/v2/handshake"))
+        .as("a trailing slash adds no segment, so it ranks no deeper than the same path without")
+        .isEqualTo(1);
+    assertThat(slashed.howDeeplyItCovers("/v22222222/x")).isEqualTo(1);
+    assertThat(routes.howDeeplyItCovers("/v1")).isEqualTo(ProviderWireRoutes.COVERS_NOTHING);
+    assertThat(ProviderWireRoutes.COVERS_NOTHING).isEqualTo(-1);
+  }
+
+  @Test
+  void the_provider_claiming_an_address_most_deeply_is_its_claimant_whichever_comes_first() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(outer, inner), "/v2/handshake/x"))
+        .contains(inner);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v2/handshake/x"))
+        .contains(inner);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v2/m/payments"))
+        .contains(outer);
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(inner, outer), "/v1/x")).isEmpty();
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(), "/v2")).isEmpty();
+    ProviderDouble twin =
+        new ProviderDouble("twin")
+            .answering(
+                List.of("/v2/"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    assertThat(ProviderWireRoutes.theDeepestClaimOn(List.of(outer, twin), "/v2/x"))
+        .as(
+            "a claim no deeper than one already read does not take the address from it, and a"
+                + " trailing slash makes no claim deeper")
+        .contains(outer);
+  }
+
+  @Test
+  void two_providers_claiming_one_namespace_at_one_depth_are_refused_and_a_deeper_one_is_not() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble twin =
+        new ProviderDouble("twin")
+            .answering(
+                List.of("/v2/"), new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+    ProviderDouble same =
+        new ProviderDouble("same")
+            .answering(
+                List.of("/v1", "/v2"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing"));
+
+    assertThatCode(() -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(outer, inner)))
+        .doesNotThrowAnyException();
+    assertThatThrownBy(() -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(outer, twin)))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "providers twin and outer both claim the wire namespace /v2/, and the address a"
+                + " client gets wrong under it is answered by the provider whose namespace covers"
+                + " it most deeply, so two claims of one depth would leave the answer to the order"
+                + " the modules happened to be listed in");
+    assertThatThrownBy(
+            () -> ProviderWireRoutes.refuseTwoClaimingOneNamespace(List.of(inner, same, outer)))
+        .hasMessageStartingWith("providers same and outer both claim the wire namespace /v2,");
+    assertThatThrownBy(
+            () -> new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(twin, outer))))
+        .isInstanceOf(IllegalStateException.class);
   }
 
   @Test

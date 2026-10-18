@@ -11,6 +11,7 @@ import dev.marcinromanowski.pspsim.kernel.smoke.CheckJson;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSample;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSamples;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -53,6 +54,8 @@ class StripePaymentIntentIntegrationTest extends PostgresBackedTest {
   @LocalServerPort private int port;
 
   @Autowired private DelayedDeliveries delays;
+
+  @Autowired private TestRuns testRuns;
 
   private RestClient http;
   private final HttpClient wire = HttpClient.newHttpClient();
@@ -212,6 +215,20 @@ class StripePaymentIntentIntegrationTest extends PostgresBackedTest {
     assertThat(replay.statusCode()).isEqualTo(first.statusCode());
     assertThat(bodyOf(replay)).isEqualTo(bodyOf(first));
     assertThat(first.headers().firstValue("Idempotent-Replayed")).isEmpty();
+    assertThat(replay.headers().firstValue("Idempotent-Replayed")).hasValue("true");
+  }
+
+  @Test
+  void replays_a_repeated_request_of_a_run_forgotten_while_its_account_stays_configured() {
+    testRuns.forget(RUN);
+    String key = "a-key-of-a-forgotten-run";
+
+    HttpResponse<byte[]> first = post(PAYMENT_INTENTS, hold("1099"), key);
+    HttpResponse<byte[]> replay = post(PAYMENT_INTENTS, hold("1099"), key);
+
+    assertThat(testRuns.exists(RUN)).isFalse();
+    assertThat(first.statusCode()).isEqualTo(200);
+    assertThat(bodyOf(replay)).isEqualTo(bodyOf(first));
     assertThat(replay.headers().firstValue("Idempotent-Replayed")).hasValue("true");
   }
 

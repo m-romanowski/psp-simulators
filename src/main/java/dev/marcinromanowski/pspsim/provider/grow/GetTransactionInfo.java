@@ -1,12 +1,13 @@
 package dev.marcinromanowski.pspsim.provider.grow;
 
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -87,24 +88,19 @@ final class GetTransactionInfo {
       Instant now,
       GrowOperationResult result) {
     transactions.observed(
-        new GrowObservedRequest(
+        new KeyedObservation(
             testRunId,
             account.accountId(),
             GrowKeyMechanisms.TRANSACTION_ID,
             transactionId,
             GrowOperations.GET_TRANSACTION_INFO,
-            RequestFingerprint.of(
+            KeyedOutcome.RAN_THE_OPERATION,
+            new FingerprintedRequest(
                 GrowLightApi.WIRE_METHOD, GrowOperations.GET_TRANSACTION_INFO, form.values()),
-            transactions.hasSeen(
-                    testRunId, account.accountId(), GrowKeyMechanisms.TRANSACTION_ID, transactionId)
-                ? ExchangeVerdict.CORRELATED_RETRY
-                : ExchangeVerdict.FIRST_REQUEST,
-            GrowLightApi.GROW_HTTP_STATUS,
-            account.wireForm().contentType(),
-            new String(
-                GrowJsonWriter.toBytes(result.body(), account.wireForm()), StandardCharsets.UTF_8),
+            new KeyedAnswer(GrowLightApi.GROW_HTTP_STATUS, result.body().flatten()),
             transactionId,
             false,
+            null,
             now));
   }
 

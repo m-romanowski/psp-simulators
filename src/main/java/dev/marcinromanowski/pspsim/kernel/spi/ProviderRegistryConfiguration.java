@@ -8,10 +8,12 @@ import dev.marcinromanowski.pspsim.kernel.credentials.ProviderAccounts;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.routing.RouteAliases;
+import dev.marcinromanowski.pspsim.kernel.scenario.OperationCodes;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioGrammar;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.settings.DeclaredProviderSettings;
 import dev.marcinromanowski.pspsim.kernel.settings.TestRunSettings;
+import dev.marcinromanowski.pspsim.kernel.testrun.FingerprintKeys;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
@@ -23,13 +25,31 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 public class ProviderRegistryConfiguration {
 
   @Bean
+  public RunResets runResets(UnitOfWork units, ScenarioRules scenarios) {
+    return new RunResets(units, scenarios);
+  }
+
+  @Bean
   public ProviderRegistry providerRegistry(List<SimulatorProvider> providers) {
     return new ProviderRegistry(providers);
+  }
+
+  @Bean
+  public OperationCodes operationCodes(ObjectProvider<ProviderRegistry> providers) {
+    return new VocabularyCodes(providers::getObject);
+  }
+
+  @Bean
+  public KeyedExchangeLogs keyedExchangeLogs(
+      JdbcClient jdbc, FingerprintKeys fingerprintKeys, ObjectMapper json) {
+    return new KeyedExchangeLogs(jdbc, fingerprintKeys, new SequencedRows(), json);
   }
 
   @Bean

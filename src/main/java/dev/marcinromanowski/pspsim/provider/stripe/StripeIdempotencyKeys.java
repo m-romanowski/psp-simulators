@@ -1,7 +1,9 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 
@@ -19,9 +21,9 @@ interface StripeIdempotencyKeys {
 
   void released(TestRunId testRunId, String accountId, String key);
 
-  void observed(StripeObservedRequest request);
+  String fingerprintOf(TestRunId testRunId, FingerprintedRequest request);
 
-  String theAnswerTheTrailAlreadyHolds(TestRunId testRunId, String accountId, String key);
+  void observed(KeyedObservation observation);
 
   KeyedExchangePage exchanges(KeyedExchangeQuery query);
 

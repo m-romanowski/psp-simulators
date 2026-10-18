@@ -2,10 +2,12 @@ package dev.marcinromanowski.pspsim.kernel.spi;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -73,6 +75,76 @@ class WhatAProviderAnswersOffItsRoutesTest {
         .isEqualTo(200);
     assertThat(answered.contentType()).isEqualTo("text/html");
     assertThat(answered.body()).isEqualTo(AN_ENVELOPE_OF_ITS_OWN);
+  }
+
+  @Test
+  void the_headers_a_provider_names_beside_its_own_words_are_carried_and_the_bodys_are_refused() {
+    ProviderDouble paging =
+        new ProviderDouble("paging")
+            .answering(
+                List.of("/pages"),
+                new ProviderWireAnswer.InThisProvidersOwnWords(
+                    404, "text/html", AN_ENVELOPE_OF_ITS_OWN, Map.of("X-One", "1")));
+
+    WireAnswer answered =
+        new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(paging)))
+            .to(WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/pages/x", 404)
+            .orElseThrow();
+
+    assertThat(answered.headers()).containsExactly(Map.entry("X-One", "1")).isUnmodifiable();
+    assertThat(WireAnswer.withNothingInIt(500).headers()).isEmpty();
+    assertThat(
+            new ProviderWireAnswer.InThisProvidersOwnWords(200, "text/html", new byte[0]).headers())
+        .isEmpty();
+    assertThatThrownBy(
+            () ->
+                new ProviderWireAnswer.InThisProvidersOwnWords(
+                    200, "text/html", new byte[0], Map.of("content-TYPE", "text/plain")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("content-TYPE is decided by the body");
+    assertThatThrownBy(
+            () -> new WireAnswer(200, "text/html", new byte[0], Map.of("Content-Length", "1")))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void a_header_beside_a_page_is_a_token_named_one_line_value_set_once_and_no_framing_or_cookie() {
+    java.util.Map<String, String> missing = new java.util.HashMap<>();
+    missing.put("X-A", null);
+    java.util.Map<String, String> twice = new java.util.LinkedHashMap<>();
+    twice.put("X-A", "1");
+    twice.put("x-a", "2");
+
+    for (Map<String, String> refused :
+        List.of(
+            Map.of("a b", "1"),
+            Map.of("X:A", "1"),
+            Map.of("", "1"),
+            Map.of("X-A", "1\r\nSet-Cookie: s=1"),
+            Map.of("X-A", "1\n"),
+            Map.of("X-A", "1\u0000"),
+            Map.of("X-A", "\rsplit"),
+            Map.of("X-A", "\nsplit"),
+            Map.of("X-A", "\u0000split"),
+            Map.of("Set-Cookie", "s=1"),
+            Map.of("TRANSFER-ENCODING", "chunked"),
+            twice,
+            missing)) {
+      assertThatThrownBy(
+              () ->
+                  new ProviderWireAnswer.InThisProvidersOwnWords(
+                      200, "text/html", new byte[0], refused))
+          .as(refused.toString())
+          .isInstanceOf(IllegalArgumentException.class);
+    }
+    assertThat(
+            new ProviderWireAnswer.InThisProvidersOwnWords(
+                    200,
+                    "text/html",
+                    new byte[0],
+                    Map.of("Cache-Control", "no-store", "Content-Security-Policy", "a 'b'; c"))
+                .headers())
+        .hasSize(2);
   }
 
   @Test
@@ -229,6 +301,34 @@ class WhatAProviderAnswersOffItsRoutesTest {
                 + " that mistyped a segment under the contested path, and naming them would say"
                 + " this provider answers under it when it does not")
         .doesNotContain("/tokenize/sessions");
+  }
+
+  @Test
+  void a_namespace_nested_in_another_providers_answers_the_addresses_under_it_in_either_order() {
+    ProviderDouble outer =
+        new ProviderDouble("outer")
+            .answering(
+                List.of("/v2"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing of its own"));
+    ProviderDouble inner =
+        new ProviderDouble("inner")
+            .answering(
+                List.of("/v2/handshake"),
+                new ProviderWireAnswer.NothingThisContractPublishes("nothing of its own"));
+
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(outer, inner)))
+        .to(WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE, "/v2/handshake/x", 404);
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(inner, outer)))
+        .to(WireFault.A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER, "/v2/handshake", 405);
+    new WhatAProviderAnswersOffItsRoutes(new ProviderRegistry(List.of(inner, outer)))
+        .to(WireFault.A_FAILURE_NOTHING_ELSE_ANSWERED, "/v2/m-1/payments", 500);
+
+    assertThat(inner.theFaultsItWasAskedAbout())
+        .containsExactly(
+            WireFault.AN_ADDRESS_THIS_PROVIDER_DOES_NOT_SERVE,
+            WireFault.A_METHOD_THIS_ADDRESS_DOES_NOT_ANSWER);
+    assertThat(outer.theFaultsItWasAskedAbout())
+        .containsExactly(WireFault.A_FAILURE_NOTHING_ELSE_ANSWERED);
   }
 
   @Test

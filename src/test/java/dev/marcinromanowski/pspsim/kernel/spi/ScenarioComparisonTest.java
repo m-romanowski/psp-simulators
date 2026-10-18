@@ -323,6 +323,50 @@ class ScenarioComparisonTest {
   }
 
   @Test
+  void a_decline_code_difference_names_the_codes_of_an_operation_that_declares_its_own() {
+    ProviderVocabulary split =
+        new ProviderVocabulary(
+            GROW,
+            GROW_VOCABULARY.operations(),
+            GROW_VOCABULARY.factsItNeverCarries(),
+            GROW_VOCABULARY.failureCodes(),
+            GROW_VOCABULARY.processingStates(),
+            Map.of(
+                SETTLE,
+                new FailureCodes("1[0-9]+", "a code from 100"),
+                LOOKUP,
+                GROW_VOCABULARY.failureCodes()));
+
+    String said =
+        ScenarioComparison.theCodesItDeclinesWith(
+            rule("scn_101", 1L, ScenarioMatch.anyRequest().naming(SETTLE), aDecline("101"), null),
+            rule("scn_102", 2L, ScenarioMatch.anyRequest().naming(LOOKUP), aDecline("102"), null),
+            split);
+
+    assertThat(said)
+        .isEqualTo(
+            "provider grow declines with "
+                + A_NUMERIC_ERROR_ID
+                + "; operation "
+                + SETTLE
+                + " with a code from 100; operation "
+                + LOOKUP
+                + " with "
+                + A_NUMERIC_ERROR_ID);
+    assertThat(
+            ScenarioComparison.theCodesItDeclinesWith(
+                rule(
+                    "scn_101",
+                    1L,
+                    ScenarioMatch.anyRequest().naming(SETTLE),
+                    aDecline("101"),
+                    null),
+                rule("scn_102", 2L, ScenarioMatch.anyRequest(), aDecline("102"), null),
+                GROW_VOCABULARY))
+        .isEqualTo("provider grow declines with " + A_NUMERIC_ERROR_ID);
+  }
+
+  @Test
   void a_scheduled_outcome_names_the_operations_that_provider_answers_a_processing_state_on() {
     ScenarioRule settling =
         rule(

@@ -9,7 +9,10 @@ import java.util.Map;
 import java.util.Optional;
 
 public record ProviderKeyMechanisms(
-    ProviderId provider, List<DeclaredKey> keys, Map<KeyRole, String> rolesItHasNoMechanismFor) {
+    ProviderId provider,
+    List<DeclaredKey> keys,
+    Map<KeyRole, String> rolesItHasNoMechanismFor,
+    AnswerWithholding withholding) {
 
   public ProviderKeyMechanisms {
     Map<String, DeclaredKey> byName = new LinkedHashMap<>();

@@ -171,7 +171,17 @@ public final class HeaderAbsenceConvention {
   private static final String WHAT_EVERY_MODULE_KEEPS_ITS_SOURCES_IN = "src";
 
   private static final List<String> WHAT_GIT_IGNORES_OR_THIS_BUILD_GENERATES =
-      List.of(".git", ".claude", ".idea", ".vscode", ".settings", ".gradle", "build", "bin", "out");
+      List.of(
+          ".git",
+          ".claude",
+          ".tmp",
+          ".idea",
+          ".vscode",
+          ".settings",
+          ".gradle",
+          "build",
+          "bin",
+          "out");
 
   private static final Path THIS_REPOSITORY = Path.of("");
 

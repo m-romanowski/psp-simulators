@@ -1,6 +1,5 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
-import dev.marcinromanowski.pspsim.kernel.idempotency.RequestFingerprint;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -11,8 +10,6 @@ final class StripeIdempotency {
   static final Duration WINDOW = Duration.ofHours(24);
 
   static final int LONGEST_KEY = 255;
-
-  static final int SEQUENCES_TO_TRY = 16;
 
   static final String KEY_IS_TOO_LONG =
       "The "
@@ -38,9 +35,5 @@ final class StripeIdempotency {
 
   static boolean isTooLong(String key) {
     return key.codePointCount(0, key.length()) > LONGEST_KEY;
-  }
-
-  static String fingerprintOf(String method, String path, Map<String, List<String>> form) {
-    return RequestFingerprint.of(method, path, form);
   }
 }

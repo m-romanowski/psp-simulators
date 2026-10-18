@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.autra;
 
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -26,6 +27,11 @@ record AutraBody(int httpStatus, @Nullable AutraJson json) {
   String text() {
     AutraJson rendered = json;
     return rendered == null ? "" : AutraJsonWriter.toText(rendered);
+  }
+
+  @Nullable KeyedAnswer asAKeyedAnswer() {
+    AutraJson rendered = json;
+    return rendered == null ? null : new KeyedAnswer(httpStatus, rendered.flatten());
   }
 
   Map<String, List<String>> fields() {

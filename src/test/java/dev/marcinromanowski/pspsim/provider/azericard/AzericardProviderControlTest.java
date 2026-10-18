@@ -12,9 +12,10 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
-import dev.marcinromanowski.pspsim.kernel.idempotency.ExchangeVerdict;
+import dev.marcinromanowski.pspsim.kernel.idempotency.FingerprintedRequest;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangePage;
 import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedExchangeQuery;
+import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.Ledger;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
@@ -48,6 +49,8 @@ import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOffer;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedCompletionRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.HostedPageContract;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.MatchFact;
 import dev.marcinromanowski.pspsim.kernel.spi.PairingSetting;
 import dev.marcinromanowski.pspsim.kernel.spi.PayerOutcome;
@@ -177,19 +180,18 @@ class AzericardProviderControlTest {
   @Test
   void hands_back_the_keyed_exchanges_its_payment_store_holds_rather_than_an_empty_page() {
     payments.observed(
-        new AzericardObservedRequest(
+        new KeyedObservation(
             RUN,
             MERCHANT,
             AzericardKeyMechanisms.ORDER,
             "084800",
             "TRTYPE=0",
-            "a-fingerprint",
-            ExchangeVerdict.FIRST_REQUEST,
-            200,
-            "text/html",
-            "<response/>",
+            KeyedOutcome.RAN_THE_OPERATION,
+            new FingerprintedRequest("POST", "TRTYPE=0", Map.of()),
+            new KeyedAnswer(200, Map.of("ACTION", List.of("0"))),
             "INTREF01",
             true,
+            null,
             AT));
 
     KeyedExchangePage page =

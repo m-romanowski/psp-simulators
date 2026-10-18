@@ -10,8 +10,10 @@ val theDirectoriesGitIgnoresOrThisBuildGenerates =
     arrayOf(
         ".git",
         ".claude",
+        ".tmp",
         ".idea",
         "**/.gradle",
+        "**/node_modules",
         "**/build",
         "**/bin",
         "**/out",

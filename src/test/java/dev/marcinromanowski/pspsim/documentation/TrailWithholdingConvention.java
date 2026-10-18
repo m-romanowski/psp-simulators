@@ -82,11 +82,11 @@ public final class TrailWithholdingConvention {
 
   public static final String WHY_AN_ADDRESS_IS_THE_FLOOR =
       "the address of a payer page this simulator serves is published under a name whose own"
-          + " words say it is an address, and for two of the four providers that serve such a"
+          + " words say it is an address, and for some of the providers that serve such a"
           + " page it carries the one-time token a payer completes a payment with. A floor over"
           + " every name that reads like a token or a secret would be a guess: those words name"
           + " account settings, environment variables, persona identifiers and database columns"
-          + " across these five modules far more often than they name a field an answer carries";
+          + " across these modules far more often than they name a field an answer carries";
 
   public static final String HOW_AN_ADDRESS_IS_ADMITTED =
       "a name that reads as an address and is not withheld is admitted by registering it in"
@@ -252,6 +252,81 @@ public final class TrailWithholdingConvention {
                   + " address of the call the client just made, which the same trail row already"
                   + " keeps in its path"),
           new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_API_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's base address; it names no object and reaches a"
+                  + " trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_API_V2_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the handshake version; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_DIRECTNG_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the payment page host; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_HF_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the hosted fields host; it names no"
+                  + " object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "TRANZILA_REPORT_BASE_URL",
+              "the name of the pairing setting a tester copies into their own application, whose"
+                  + " value is this simulator's address of the transaction reports host; it names"
+                  + " no object and reaches a trail row under no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "fail_url",
+              "the column the merchant-supplied fail_url_address is stored under in this build's"
+                  + " own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "fail_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own site;"
+                  + " the page posts the payer's browser there and answers it back in no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "notify_url",
+              "the column the merchant-supplied notify_url_address is stored under in this build's"
+                  + " own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "notify_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own"
+                  + " callback target; tranzila posts the notify there and answers it back in no"
+                  + " field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "redirect_url",
+              "the column the merchant-supplied auth_3ds_redirect url is stored under in this"
+                  + " build's own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "success_url",
+              "the column the merchant-supplied success_url_address is stored under in this"
+                  + " build's own database, which a trail row is never written from"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "success_url_address",
+              "a parameter the merchant sends to the payment page, naming the merchant's own site;"
+                  + " the page posts the payer's browser there and answers it back in no field"),
+          new AnAddressInTheClear(
+              "tranzila",
+              "url",
+              "auth_3ds_redirect.url, the merchant's own site a create with activate_3ds Y names"
+                  + " for the payer's browser after a challenge; it is answered only as"
+                  + " original_request.auth_3ds_redirect.url of the create and the complete answers,"
+                  + " as the merchant sent it, and this build mints no part of it. This gate reads"
+                  + " a module's published names one segment at a time, so the registration names"
+                  + " that last segment"),
+          new AnAddressInTheClear(
               "worldline",
               "Location",
               "the header worldline answers a created payment's own resource address in, built"
@@ -303,8 +378,8 @@ public final class TrailWithholdingConvention {
             + verdict.offences().size()
             + " place(s) break it, each named above. A module is found by the package it compiles"
             + " into, its declaration by the field name every module shares, and the names it"
-            + " publishes by the string constants of its own compiled classes, so a sixth"
-            + " provider is held to this rule by compiling rather than by an edit here. Three"
+            + " publishes by the string constants of its own compiled classes, so a"
+            + " provider added later is held to this rule by compiling rather than by an edit here. Three"
             + " positions are excused, each at the occurrence it sits at and nowhere else in that"
             + " class: "
             + TrailWithholdingDeclarations.AS_AN_ENTRY_OF_ITS_OWN_DECLARATION
@@ -377,8 +452,9 @@ public final class TrailWithholdingConvention {
               + " compiles into "
               + TrailWithholdingDeclarations.PROVIDER_PACKAGE
               + ", so this gate would examine no provider and report that every provider it"
-              + " examined withholds what it must. This simulator serves five providers, so a run"
-              + " that reads no module has a broken classpath, not a clean tree. "
+              + " examined withholds what it must. Every provider this simulator serves compiles into"
+              + " that package, so a run that reads no module there has a broken classpath, not a"
+              + " clean tree. "
               + build.classesRead()
               + " provider class file(s) were read.");
     }
@@ -811,7 +887,7 @@ public final class TrailWithholdingConvention {
             + " keeps a trail row naming any of "
             + TrailWithholdingDeclarations.THE_DIRECTIONS_A_DELIVERY_ROW_NAMES
             + ", so this rule would examine no delivery and report that every module withholds"
-            + " what it delivers. This simulator delivers a callback for four of its five"
+            + " what it delivers. This simulator delivers a callback for most of its"
             + " providers, so a run that reads no delivery row has a broken classpath, not a clean"
             + " tree. "
             + deliveries.classesRead()

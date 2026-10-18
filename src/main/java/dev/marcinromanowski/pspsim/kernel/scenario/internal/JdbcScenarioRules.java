@@ -306,6 +306,36 @@ public final class JdbcScenarioRules implements ScenarioRules {
   }
 
   @Override
+  public int holdForAReset(ProviderId provider, TestRunId testRunId) {
+    return jdbc.sql(
+            """
+            select count(*) from (
+                select 1 from simulator_scenario_story_state
+                where provider = ? and test_run_id = ?
+                for update
+            ) as held
+            """)
+        .params(provider.value(), testRunId.value())
+        .query(Integer.class)
+        .single()
+        .intValue();
+  }
+
+  @Override
+  public int holdEveryRunForAReset(ProviderId provider) {
+    return jdbc.sql(
+            """
+            select count(*) from (
+                select 1 from simulator_scenario_story_state where provider = ? for update
+            ) as held
+            """)
+        .param(provider.value())
+        .query(Integer.class)
+        .single()
+        .intValue();
+  }
+
+  @Override
   public int clearAll(ProviderId provider) {
     jdbc.sql("delete from simulator_scenario_story_state where provider = ?")
         .param(provider.value())

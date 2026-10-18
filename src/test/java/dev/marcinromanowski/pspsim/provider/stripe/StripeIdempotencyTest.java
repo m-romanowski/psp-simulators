@@ -77,6 +77,22 @@ class StripeIdempotencyTest {
   }
 
   @Test
+  void a_first_request_whose_exchange_could_not_be_recorded_leaves_its_answer_to_replay() {
+    accounts.with(account(SECRET_KEY, ACCOUNT));
+    StripeApi api = api(NOW);
+    keys.failingTheNextObservation();
+
+    assertThatThrownBy(() -> api.createPaymentIntent(create(hold("1099"), KEY)))
+        .isInstanceOf(IllegalStateException.class);
+    StripeApiResponse retried = api.createPaymentIntent(create(hold("1099"), KEY));
+
+    assertThat(retried.httpStatus()).isEqualTo(200);
+    assertThat(retried.providerObjectId()).isEqualTo(FIRST_INTENT);
+    assertThat(retried.headers().get("Idempotent-Replayed")).containsExactly("true");
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
   void a_replayed_answer_names_its_headers_in_one_order_whatever_the_process() {
     accounts.with(account(SECRET_KEY, ACCOUNT));
     StripeApi api = api(NOW);

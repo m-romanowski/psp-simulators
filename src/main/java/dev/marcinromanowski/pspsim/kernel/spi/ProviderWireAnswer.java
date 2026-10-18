@@ -1,5 +1,7 @@
 package dev.marcinromanowski.pspsim.kernel.spi;
 
+import java.util.Map;
+
 public sealed interface ProviderWireAnswer {
 
   int LOWEST_HTTP_STATUS = 100;
@@ -11,8 +13,14 @@ public sealed interface ProviderWireAnswer {
     private final int httpStatus;
     private final String contentType;
     private final byte[] body;
+    private final Map<String, String> headers;
 
     public InThisProvidersOwnWords(int httpStatus, String contentType, byte[] body) {
+      this(httpStatus, contentType, body, Map.of());
+    }
+
+    public InThisProvidersOwnWords(
+        int httpStatus, String contentType, byte[] body, Map<String, String> headers) {
       if (httpStatus < LOWEST_HTTP_STATUS || httpStatus > HIGHEST_HTTP_STATUS) {
         throw new IllegalArgumentException(
             "a provider module answers a request off its routes with a status its own contract"
@@ -29,6 +37,11 @@ public sealed interface ProviderWireAnswer {
       this.httpStatus = httpStatus;
       this.contentType = contentType;
       this.body = body.clone();
+      this.headers = WireAnswer.theHeadersBesideTheBody(headers);
+    }
+
+    public Map<String, String> headers() {
+      return headers;
     }
 
     public int httpStatus() {

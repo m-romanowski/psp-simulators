@@ -45,6 +45,9 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
   private static final String WORLDLINE_MERCHANT = "PSPID-4412";
   private static final String WORLDLINE_API_KEY = "worldline-api-key-a-tester-may-read";
   private static final String WORLDLINE_API_SECRET = "worldline-secret-must-never-be-read";
+  private static final String TRANZILA_TERMINAL = "pairingterminal";
+  private static final String TRANZILA_APP_KEY = "tranzila-app-key-a-tester-may-read";
+  private static final String TRANZILA_APP_SECRET = "tranzila-secret-must-never-be-read";
   private static final String STRIPE_SECRET_KEY = "sk_test_must_never_be_read_off_a_monitor";
   private static final String STRIPE_SIGNING_SECRET = "whsec_must_never_be_read_off_a_monitor";
 
@@ -62,11 +65,12 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
           AUTRA_CLIENT_SECRET,
           AUTRA_WEBHOOK_SECRET,
           WORLDLINE_API_SECRET,
+          TRANZILA_APP_SECRET,
           STRIPE_SECRET_KEY,
           STRIPE_SIGNING_SECRET);
 
   private static final List<String> EVERY_PROVIDER =
-      List.of("grow", "autra", "azericard", "worldline", "stripe");
+      List.of("grow", "autra", "azericard", "worldline", "tranzila", "stripe");
 
   @LocalServerPort private int port;
 
@@ -108,6 +112,13 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
             "apiSecret", WORLDLINE_API_SECRET),
         List.of());
     configure(
+        "tranzila",
+        Map.of(
+            "terminalName", TRANZILA_TERMINAL,
+            "appKey", TRANZILA_APP_KEY,
+            "appSecret", TRANZILA_APP_SECRET),
+        List.of());
+    configure(
         "stripe",
         Map.of(
             "secretKey", STRIPE_SECRET_KEY,
@@ -146,6 +157,7 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
     assertThat(page(screen("autra"))).contains("clientSecret");
     assertThat(page(screen("azericard"))).contains("apiSecret");
     assertThat(page(screen("worldline"))).contains("apiSecret");
+    assertThat(page(screen("tranzila"))).contains("appSecret");
     assertThat(page(screen("stripe"))).contains("secretKey");
   }
 
@@ -154,6 +166,7 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
     assertThat(page(screen("autra"))).contains(AUTRA_CLIENT_ID).contains(AUTRA_DOCUMENT_ID);
     assertThat(page(screen("azericard"))).contains(TERMINAL);
     assertThat(page(screen("worldline"))).contains(WORLDLINE_MERCHANT).contains(WORLDLINE_API_KEY);
+    assertThat(page(screen("tranzila"))).contains(TRANZILA_TERMINAL).contains(TRANZILA_APP_KEY);
   }
 
   @Test
@@ -172,6 +185,7 @@ class PairingScreenIntegrationTest extends PostgresBackedTest {
     assertThat(page(screen("autra"))).contains("http://localhost:8080/v1");
     assertThat(page(screen("azericard"))).contains("http://localhost:8080/cgi-bin/cgi_link");
     assertThat(page(screen("worldline"))).contains("http://localhost:8080/v2");
+    assertThat(page(screen("tranzila"))).contains("http://localhost:8080/v1");
     assertThat(page(screen("stripe"))).contains("http://localhost:8080/v1");
   }
 

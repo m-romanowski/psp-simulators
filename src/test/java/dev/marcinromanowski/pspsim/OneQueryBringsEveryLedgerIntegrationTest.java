@@ -161,6 +161,18 @@ class OneQueryBringsEveryLedgerIntegrationTest extends PostgresBackedTest {
         SeededProviderObjects::theAutraPaymentIdOf);
   }
 
+  @Test
+  void growing_the_run_by_one_debit_costs_the_tranzila_listing_no_further_statement() {
+    TestRunId run = TestRunId.of("one-query-tranzila");
+    jdbc.sql("delete from tranzila_transaction where test_run_id = ?").param(run.value()).update();
+
+    theListingCostsTheSameWhateverItHolds(
+        "tranzila",
+        run,
+        held -> seeds().aTranzilaDebit(run, held),
+        SeededProviderObjects::theTranzilaTransactionIdOf);
+  }
+
   private void theListingCostsTheSameWhateverItHolds(
       String providerName, TestRunId run, IntConsumer seedTheNextObject, IntFunction<String> idOf) {
     SimulatorProvider module = providers.find(providerName).orElseThrow();

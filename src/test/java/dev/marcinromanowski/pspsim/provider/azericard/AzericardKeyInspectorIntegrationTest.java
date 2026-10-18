@@ -37,7 +37,7 @@ class AzericardKeyInspectorIntegrationTest extends PostgresBackedTest {
 
   private static final String ORDER = "20260910084800";
   private static final String ANOTHER_ORDER_ENDING_THE_SAME = "20270101084800";
-  private static final String TRACE = "084800";
+  private static final String TRACE = "2026-09-10 084800";
 
   @LocalServerPort private int port;
 
@@ -82,7 +82,7 @@ class AzericardKeyInspectorIntegrationTest extends PostgresBackedTest {
     assertThat(requests).hasSize(2);
     assertThat(requests.get(0)).containsEntry("verdict", "FIRST_REQUEST");
     assertThat(requests.get(1)).containsEntry("verdict", "DUPLICATE_KEY_REFUSAL");
-    assertThat(String.valueOf(requests.get(1).get("body"))).contains("<action>1</action>");
+    assertThat(String.valueOf(requests.get(1).get("body"))).contains("\"action\":[\"1\"]");
     assertThat(replayTimestampsOf(exchange)).isEmpty();
   }
 

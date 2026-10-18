@@ -93,6 +93,22 @@ class ProviderAccountFieldsIntegrationTest extends PostgresBackedTest {
               "VALID",
               "webhookTimestampAge",
               "PT0S"),
+          "tranzila",
+          Map.of(
+              "terminalName",
+              "fieldsterminal",
+              "appKey",
+              "tranzila-fields-key",
+              "appSecret",
+              "tranzila-fields-secret",
+              "tranzila.access-token",
+              "AS_THE_QUICKSTART_SIGNS_IT",
+              "tranzila.authentication",
+              "THE_ACCESS_TOKEN_IS_VERIFIED",
+              "tranzila.verification-approval-code",
+              "000",
+              "tranzila.j5-validity",
+              "P3D"),
           "worldline",
           Map.of(
               "merchantId",
@@ -118,11 +134,13 @@ class ProviderAccountFieldsIntegrationTest extends PostgresBackedTest {
           Map.entry("azericard.partial-completion", "WHEN_THE_MOON_IS_FULL"),
           "stripe",
           Map.entry("refundStatus", "WHEN_THE_MOON_IS_FULL"),
+          "tranzila",
+          Map.entry("tranzila.authentication", "WHEN_THE_MOON_IS_FULL"),
           "worldline",
           Map.entry("worldline.capture-landing", "WHEN_THE_MOON_IS_FULL"));
 
   private static final Map<String, Integer> FIELDS_EACH_PROVIDER_REQUIRES =
-      Map.of("autra", 3, "grow", 2, "azericard", 3, "stripe", 2, "worldline", 3);
+      Map.of("autra", 3, "grow", 2, "azericard", 3, "stripe", 2, "tranzila", 3, "worldline", 3);
 
   @Autowired private ProviderRegistry providers;
   @Autowired private ConfigurationAdmission configurations;

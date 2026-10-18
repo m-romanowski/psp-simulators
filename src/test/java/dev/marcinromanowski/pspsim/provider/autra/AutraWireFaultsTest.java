@@ -24,7 +24,7 @@ class AutraWireFaultsTest {
   void no_address_of_another_provider_or_of_the_screens_is_claimed_for_autra() {
     assertThat(AutraWireFaults.ROUTES.covers("/v1/payment_intents"))
         .as(
-            "two providers of this build answer under /v1, so autra claims the two second"
+            "more than one provider of this build answers under /v1, so autra claims the two second"
                 + " segments its own contract publishes and never /v1 itself")
         .isFalse();
     assertThat(AutraWireFaults.ROUTES.covers("/v1/refunds")).isFalse();

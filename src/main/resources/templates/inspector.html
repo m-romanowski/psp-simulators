@@ -160,17 +160,20 @@
                 <tr>
                   <th>original response</th>
                   <td class="wrap">
-                    <span class="empty" th:unless="${row.aRequestClaimedThisKey()}"
+                    <span class="empty" th:if="${row.theRequestThatRanIsMissing()}"
+                      th:text="${row.notRecorded}"></span>
+                    <span class="empty"
+                      th:if="${!row.theRequestThatRanIsMissing() and !row.aRequestClaimedThisKey()}"
                       th:text="${T(dev.marcinromanowski.pspsim.ui.InspectorScreen).NO_REQUEST_UNDER_THIS_KEY_CLAIMED_IT}"
                     ></span>
-                    <span th:if="${row.aRequestClaimedThisKey()}">
+                    <span th:if="${!row.theRequestThatRanIsMissing() and row.aRequestClaimedThisKey()}">
                       <span th:if="${row.firstRequest().carriesAResponse()}">
                         <span class="id" th:text="${row.firstRequest().status}"></span>
                         <span class="id" th:text="${row.firstRequest().contentType}"></span>
                         <span th:text="${row.firstRequest().body}"></span>
                       </span>
                       <span class="empty" th:unless="${row.firstRequest().carriesAResponse()}"
-                        th:text="${T(dev.marcinromanowski.pspsim.kernel.idempotency.KeyedRequest).NOTHING_WAS_ANSWERED}"
+                        th:text="${row.firstRequest().noAnswerBecause}"
                       ></span>
                     </span>
                   </td>
@@ -243,8 +246,7 @@
                       <span th:text="${request.body}"></span>
                     </span>
                     <span class="empty" th:unless="${request.carriesAResponse()}"
-                      >this simulator recorded no response for this request</span
-                    >
+                      th:text="${request.noAnswerBecause}"></span>
                   </td>
                   <td th:text="${request.stateChanged} ? 'yes' : 'no'"></td>
                   <td class="wrap">

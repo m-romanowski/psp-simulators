@@ -14,8 +14,13 @@ import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.money.OperationOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeLog;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchangeTable;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedExchanges;
+import dev.marcinromanowski.pspsim.kernel.spi.KeyedObservation;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
+import dev.marcinromanowski.pspsim.kernel.spi.SequencedRows;
+import dev.marcinromanowski.pspsim.kernel.spi.SequencedTable;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,6 +39,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 final class JdbcAutraPayments implements AutraPayments {
 
+  static final KeyedExchangeTable EXCHANGES =
+      KeyedExchangeTable.underANamedKey("autra_keyed_exchange", "account_id", false);
+
+  private static final String APPENDING_AN_EVENT =
+      new SequencedTable("autra_payment_event", List.of("test_run_id", "payment_id"))
+          .appendingAtTheNextFreeSequence(
+              List.of("event_type", "status", "amount", "error_code", "msg", "at"));
+
   static final String HELD = "HELD_BEFORE_THE_ACQUIRER_WAS_CALLED";
 
   static final String HELD_BY_THE_PRE_AUTHORIZATION_IT_NAMES =
@@ -41,10 +54,18 @@ final class JdbcAutraPayments implements AutraPayments {
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final KeyedExchangeLog exchanges;
+  private final SequencedRows sequenced;
 
-  JdbcAutraPayments(JdbcClient jdbc, TransactionTemplate transactions) {
+  JdbcAutraPayments(
+      JdbcClient jdbc,
+      TransactionTemplate transactions,
+      KeyedExchangeLog exchanges,
+      SequencedRows sequenced) {
     this.jdbc = jdbc;
     this.transactions = transactions;
+    this.exchanges = exchanges;
+    this.sequenced = sequenced;
   }
 
   @Override
@@ -230,25 +251,21 @@ final class JdbcAutraPayments implements AutraPayments {
 
   @Override
   public void recordEvent(AutraPaymentEvent event) {
-    jdbc.sql(
-            """
-            insert into autra_payment_event
-                (test_run_id, payment_id, seq, event_type, status, amount, error_code, msg, at)
-            select ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?
-            from autra_payment_event
-            where test_run_id = ? and payment_id = ?
-            """)
-        .param(event.testRunId().value())
-        .param(event.paymentId())
-        .param(event.type())
-        .param(event.status())
-        .param(event.amount().value())
-        .param(event.errorCode())
-        .param(event.msg())
-        .param(event.at().atOffset(ZoneOffset.UTC))
-        .param(event.testRunId().value())
-        .param(event.paymentId())
-        .update();
+    sequenced.recorded(
+        "the " + event.type() + " event of payment " + event.paymentId(),
+        () ->
+            jdbc.sql(APPENDING_AN_EVENT)
+                .param(event.testRunId().value())
+                .param(event.paymentId())
+                .param(event.type())
+                .param(event.status())
+                .param(event.amount().value())
+                .param(event.errorCode())
+                .param(event.msg())
+                .param(event.at().atOffset(ZoneOffset.UTC))
+                .param(event.testRunId().value())
+                .param(event.paymentId())
+                .update());
   }
 
   @Override
@@ -420,47 +437,8 @@ final class JdbcAutraPayments implements AutraPayments {
   }
 
   @Override
-  public boolean hasSeen(TestRunId testRunId, String accountId, String keyName, String keyValue) {
-    return !jdbc.sql(
-            """
-            select seq from autra_keyed_exchange
-            where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
-            """)
-        .params(testRunId.value(), accountId, keyName, keyValue)
-        .query(Integer.class)
-        .list()
-        .isEmpty();
-  }
-
-  @Override
-  public void observed(AutraObservedRequest request) {
-    jdbc.sql(
-            """
-            insert into autra_keyed_exchange
-                (test_run_id, account_id, key_name, key_value, seq, operation, fingerprint,
-                 verdict, http_status, content_type, body, provider_object_id, state_changed, at)
-            select ?, ?, ?, ?, coalesce(max(seq) + 1, 0), ?, ?, ?, ?, ?, ?, ?, ?, ?
-            from autra_keyed_exchange
-            where test_run_id = ? and account_id = ? and key_name = ? and key_value = ?
-            """)
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .param(request.operation())
-        .param(request.fingerprint())
-        .param(request.verdict().name())
-        .param(request.httpStatus())
-        .param(request.contentType())
-        .param(request.body())
-        .param(request.providerObjectId())
-        .param(request.stateChanged())
-        .param(request.at().atOffset(ZoneOffset.UTC))
-        .param(request.testRunId().value())
-        .param(request.accountId())
-        .param(request.keyName())
-        .param(request.keyValue())
-        .update();
+  public void observed(KeyedObservation observation) {
+    exchanges.record(observation);
   }
 
   @Override
@@ -470,7 +448,7 @@ final class JdbcAutraPayments implements AutraPayments {
                 """
                 select e.account_id, e.key_name, e.key_value, e.arrival, e.seq, e.operation,
                        e.fingerprint, e.verdict, e.http_status, e.content_type, e.body,
-                       e.provider_object_id, e.state_changed, e.at
+                       e.provider_object_id, e.state_changed, e.answer_kept, e.at
                 from autra_keyed_exchange e
                 join (select account_id, key_name, key_value, arrival
                       from autra_keyed_exchange
@@ -638,6 +616,7 @@ final class JdbcAutraPayments implements AutraPayments {
         rs.getString("provider_object_id"),
         rs.getBoolean("state_changed"),
         null,
-        rs.getObject("at", OffsetDateTime.class).toInstant());
+        rs.getObject("at", OffsetDateTime.class).toInstant(),
+        rs.getBoolean("answer_kept"));
   }
 }

@@ -16,12 +16,50 @@ public record KeyedRequest(
     @Nullable String providerObjectId,
     boolean stateChanged,
     @Nullable AppliedFault transportFault,
-    Instant at) {
+    Instant at,
+    boolean answerKept) {
 
   public static final String NOTHING_WAS_ANSWERED =
       "this simulator answered nothing under this key at this point";
 
+  public static final String ITS_ANSWER_WAS_NOT_KEPT =
+      "this simulator answered this request and keeps none of that answer";
+
+  public KeyedRequest(
+      int sequence,
+      ExchangeVerdict verdict,
+      String fingerprint,
+      String operation,
+      @Nullable Integer httpStatus,
+      @Nullable String contentType,
+      @Nullable String body,
+      @Nullable String providerObjectId,
+      boolean stateChanged,
+      @Nullable AppliedFault transportFault,
+      Instant at) {
+    this(
+        sequence,
+        verdict,
+        fingerprint,
+        operation,
+        httpStatus,
+        contentType,
+        body,
+        providerObjectId,
+        stateChanged,
+        transportFault,
+        at,
+        true);
+  }
+
   public KeyedRequest {
+    if (!answerKept && (httpStatus != null || contentType != null || body != null)) {
+      throw new IllegalArgumentException(
+          "request "
+              + sequence
+              + " is recorded as keeping none of its answer and still carries part of one, so a"
+              + " reader could not tell which of the two is true");
+    }
     if (sequence < 0) {
       throw new IllegalArgumentException(
           "a request under a key is numbered from the first one this simulator answered, so "
@@ -52,6 +90,13 @@ public record KeyedRequest(
 
   public boolean carriesAResponse() {
     return httpStatus != null && body != null;
+  }
+
+  public @Nullable String whyNoAnswerIsShown() {
+    if (carriesAResponse()) {
+      return null;
+    }
+    return answerKept ? NOTHING_WAS_ANSWERED : ITS_ANSWER_WAS_NOT_KEPT;
   }
 
   public @Nullable String whenTheFaultLanded() {

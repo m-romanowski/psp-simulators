@@ -13,9 +13,13 @@ import java.lang.classfile.constantpool.LoadableConstantEntry;
 import java.lang.classfile.constantpool.StringEntry;
 import java.lang.classfile.instruction.ConstantInstruction;
 import java.lang.classfile.instruction.InvokeDynamicInstruction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -49,9 +53,19 @@ public final class PayerPageDeclarations {
           "script", "img", "link", "iframe", "frame", "object", "embed", "audio", "video", "source",
           "track", "applet");
 
+  public static final String AN_ELEMENT_THAT_RUNS_INLINE = "script";
+
+  public static final String AN_INLINE_SCRIPT_CLOSES = "</script>";
+
+  public static final String UNREADABLE = "\u0000";
+
+  public static final String THE_DIRECTIVE_A_SCRIPT_IS_ADMITTED_BY = "script-src";
+
   public static final List<String> HOW_AN_HTML_DOCUMENT_OPENS = List.of("<!doctype html", "<html");
 
   private static final Pattern A_RUN_OF_SPACE = Pattern.compile("\\s+");
+
+  private static final Pattern A_SOURCE_IT_LOADS = Pattern.compile("(^|\\s)src\\s*=");
 
   private static final Pattern A_POLICY_READS_LIKE_THIS =
       Pattern.compile("(?:^|;)\\s*[A-Za-z][A-Za-z0-9-]*\\s+'[^']*'");
@@ -90,11 +104,32 @@ public final class PayerPageDeclarations {
     public List<String> theElementsItLoadsASubresourceFor() {
       List<String> loading = new ArrayList<>();
       for (String element : THE_ELEMENTS_THAT_LOAD_A_SUBRESOURCE) {
-        if (namesAnElement(element)) {
+        boolean loads =
+            AN_ELEMENT_THAT_RUNS_INLINE.equals(element)
+                ? namesAnElementLoadingASource(element)
+                : namesAnElement(element);
+        if (loads) {
           loading.add(element);
         }
       }
       return List.copyOf(loading);
+    }
+
+    public List<String> theInlineScripts() {
+      List<String> scripts = new ArrayList<>();
+      for (String constant : constants) {
+        scripts.addAll(theInlineScriptsIn(constant));
+      }
+      return List.copyOf(scripts);
+    }
+
+    private boolean namesAnElementLoadingASource(String element) {
+      for (String constant : constants) {
+        if (namesTheElementLoadingASource(constant, element)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     private boolean namesAnElement(String element) {
@@ -136,6 +171,66 @@ public final class PayerPageDeclarations {
       at = written.indexOf(opening, at + 1);
     }
     return false;
+  }
+
+  public static boolean namesTheElementLoadingASource(String text, String element) {
+    String written = text.toLowerCase(Locale.ROOT);
+    String opening = "<" + element;
+    int at = written.indexOf(opening);
+    while (at >= 0) {
+      int after = at + opening.length();
+      if (after >= written.length()) {
+        return true;
+      }
+      if (!Character.isLetterOrDigit(written.charAt(after))) {
+        int closes = written.indexOf('>', after);
+        String tag = closes < 0 ? written.substring(after) : written.substring(after, closes);
+        if (closes < 0 || !tag.isEmpty()) {
+          return true;
+        }
+      }
+      at = written.indexOf(opening, at + 1);
+    }
+    return false;
+  }
+
+  public static List<String> theInlineScriptsIn(String constant) {
+    List<String> scripts = new ArrayList<>();
+    String written = constant.toLowerCase(Locale.ROOT);
+    String opening = "<" + AN_ELEMENT_THAT_RUNS_INLINE;
+    int at = written.indexOf(opening);
+    while (at >= 0) {
+      int after = at + opening.length();
+      int tagCloses = written.indexOf('>', after);
+      if (tagCloses < 0) {
+        break;
+      }
+      String attributes = written.substring(after, tagCloses);
+      if (!attributes.isEmpty()
+          && (Character.isLetterOrDigit(attributes.charAt(0))
+              || A_SOURCE_IT_LOADS.matcher(attributes).find())) {
+        at = written.indexOf(opening, after);
+        continue;
+      }
+      int from = tagCloses + 1;
+      int to = written.indexOf(AN_INLINE_SCRIPT_CLOSES, from);
+      scripts.add(to < 0 ? UNREADABLE : constant.substring(from, to));
+      at = to < 0 ? -1 : written.indexOf(opening, to);
+    }
+    return List.copyOf(scripts);
+  }
+
+  public static String theHashOf(String script) {
+    try {
+      return "'sha256-"
+          + Base64.getEncoder()
+              .encodeToString(
+                  MessageDigest.getInstance("SHA-256")
+                      .digest(script.getBytes(StandardCharsets.UTF_8)))
+          + "'";
+    } catch (NoSuchAlgorithmException unavailable) {
+      throw new IllegalStateException(unavailable);
+    }
   }
 
   public static boolean aPolicy(String constant) {
