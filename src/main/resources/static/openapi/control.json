@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "PSP simulator control API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Every schema in this document was generated from the record that serves it, read out of the compiled class files of this build, and the build fails when the two disagree. A component that can arrive null is typed to allow null and is not required; no other component may be absent. Nothing here carries an example, because an example would be a value and this document states shapes only: a field that holds a credential is named and never shown."
   },
   "servers": [
