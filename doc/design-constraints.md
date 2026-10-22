@@ -32,8 +32,8 @@ Provider authentication runs inside provider code, after the body is parsed and 
 
 Operation resolution belongs to the provider and may need the parsed body. Azericard's `POST /cgi-bin/cgi_link` carries
 authorization, pre-authorization, completion, reversal and status, selected by `TRTYPE` `0`/`1`, `21`, `22`/`24` and
-`90`. `POST /token/cgi_link` multiplexes card storage and stored-card payments (`azericard.md`, "Routes and Response
-Formats").
+`90`. `POST /token/cgi_link` multiplexes card storage, stored-card payments and holds, and the completion and reversal
+of a hold (`azericard.md`, "Routes and Response Formats").
 
 ### Provider response bodies are bytes, not shared-serialized DTOs
 

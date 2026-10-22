@@ -30,6 +30,7 @@ class AzericardSettlementIntegrationTest extends PostgresBackedTest {
   private static final String TERMINAL_ID = "70000002";
   private static final String MERCHANT = "merchant-1";
   private static final String CGI_LINK = "/cgi-bin/cgi_link";
+  private static final String TOKEN_CGI_LINK = "/token/cgi_link";
   private static final String HELD = "11.48";
 
   @LocalServerPort private int port;
@@ -161,6 +162,30 @@ class AzericardSettlementIntegrationTest extends PostgresBackedTest {
         .containsEntry("refundableRemainder", "5.00");
   }
 
+  @Test
+  void releases_part_of_a_hold_over_the_token_route_and_reads_the_release_back_from_the_store() {
+    Map<String, String> hold = heldPaymentOf("20260910130007");
+
+    HttpResponse<byte[]> response = postTo(TOKEN_CGI_LINK, signed(settlement(hold, "22", "6.48")));
+
+    assertThat(new String(response.body(), UTF_8)).contains("<action>0</action>");
+    Map<String, Object> state = stateOf(hold.get(AzericardFields.INT_REF));
+    assertThat(state).containsEntry("normalizedStatus", "READY_FOR_CAPTURE");
+    assertThat(operationsOf(state))
+        .hasSize(2)
+        .last()
+        .satisfies(
+            operation ->
+                assertThat(operation)
+                    .containsEntry("kind", "RELEASE")
+                    .containsEntry("amount", "6.48")
+                    .containsEntry("closesAuthorization", null));
+    assertThat(balancesOf(state))
+        .containsEntry("capturedAmount", "0")
+        .containsEntry("capturableRemainder", "5.00")
+        .containsEntry("refundableRemainder", "0");
+  }
+
   private Map<String, String> heldPaymentOf(String order) {
     String body = new String(post(signed(authorization(order))).body(), UTF_8);
     Map<String, String> addressed = new LinkedHashMap<>();
@@ -221,9 +246,13 @@ class AzericardSettlementIntegrationTest extends PostgresBackedTest {
   }
 
   private HttpResponse<byte[]> post(Map<String, String> form) {
+    return postTo(CGI_LINK, form);
+  }
+
+  private HttpResponse<byte[]> postTo(String route, Map<String, String> form) {
     try {
       return wire.send(
-          HttpRequest.newBuilder(URI.create("http://localhost:" + port + CGI_LINK))
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + route))
               .header("Content-Type", "application/x-www-form-urlencoded")
               .POST(HttpRequest.BodyPublishers.ofString(encoded(form)))
               .build(),

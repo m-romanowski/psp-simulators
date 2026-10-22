@@ -10,6 +10,7 @@ public record Ledger(List<MonetaryOperation> operations) {
   public Ledger {
     operations = List.copyOf(operations);
     refuseMoreRefundedThanWasEverCaptured(operations);
+    refuseAReleaseOfMoreThanTheAuthorizationStillHolds(operations);
   }
 
   private static void refuseMoreRefundedThanWasEverCaptured(List<MonetaryOperation> operations) {
@@ -31,6 +32,31 @@ public record Ledger(List<MonetaryOperation> operations) {
           "a ledger cannot return more than it captured: its refund operations exceed its capture"
               + " operations, which no provider state can mean and which would be reported as a"
               + " full refund by the extent this ledger answers with");
+    }
+  }
+
+  private static void refuseAReleaseOfMoreThanTheAuthorizationStillHolds(
+      List<MonetaryOperation> operations) {
+    BigDecimal held = BigDecimal.ZERO;
+    for (MonetaryOperation operation : operations) {
+      Optional<BigDecimal> amount = operation.amount().number();
+      if (amount.isEmpty()) {
+        return;
+      }
+      switch (operation.kind()) {
+        case AUTHORIZATION -> held = held.add(amount.get());
+        case CAPTURE -> held = held.subtract(amount.get());
+        case RELEASE -> {
+          if (amount.get().compareTo(held) > 0) {
+            throw new IllegalArgumentException(
+                "a ledger cannot release more than its authorization still holds: a release"
+                    + " operation exceeds the authorized amount left uncaptured and unreleased"
+                    + " before it, which would be reported as a negative capturable remainder");
+          }
+          held = held.subtract(amount.get());
+        }
+        case REFUND -> {}
+      }
     }
   }
 
@@ -111,6 +137,7 @@ public record Ledger(List<MonetaryOperation> operations) {
       }
       switch (operation.kind()) {
         case AUTHORIZATION -> authorized = authorized.add(amount.get());
+        case RELEASE -> authorized = authorized.subtract(amount.get());
         case CAPTURE -> captured = captured.add(amount.get());
         case REFUND -> refunded = refunded.add(amount.get());
       }

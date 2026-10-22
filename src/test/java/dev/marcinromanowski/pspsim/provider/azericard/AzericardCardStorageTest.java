@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
+import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
 import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -258,12 +259,11 @@ class AzericardCardStorageTest {
         .contains("Error in saved card token field");
   }
 
-  @ParameterizedTest(name = "refuses TRTYPE {0} on the token route, which answers no such call")
-  @ValueSource(strings = {"21", "22", "24", "90"})
-  void refuses_a_transaction_type_the_token_route_does_not_answer(String trtype) {
+  @Test
+  void refuses_a_status_inquiry_on_the_token_route_which_answers_no_such_call() {
     accounts.with(azericardAccount(E2E_RUN, MERCHANT, TERMINAL_ID));
     Map<String, String> form = cardStorage("1");
-    form.put(AzericardFields.TRTYPE, trtype);
+    form.put(AzericardFields.TRTYPE, "90");
     form.put(AzericardFields.P_SIGN, "00");
 
     assertThat(bodyOf(gateway().tokenLink(tokenCall(form))))
@@ -326,16 +326,47 @@ class AzericardCardStorageTest {
   }
 
   @Test
-  void refuses_a_merchant_initiated_payment_sent_as_anything_but_an_authorization() {
+  void holds_funds_on_a_saved_token_for_a_merchant_initiated_pre_authorization() {
     String token = aStoredCard();
     Map<String, String> form = storedCardPayment(token, ANOTHER_ORDER);
     form.put(AzericardFields.TRTYPE, "0");
     form.put(AzericardFields.MERCH_TRAN_STATE, AzericardTokenFlow.MERCHANT_INITIATED);
     form.put(AzericardFields.MERCH_RN_ID, "0123456789ABCDEF");
 
-    assertThat(bodyOf(gateway().tokenLink(tokenCall(signed(form)))))
-        .contains("Error in transaction type field");
-    assertThat(payments.all()).hasSize(1);
+    assertThat(bodyOf(gateway().tokenLink(tokenCall(signed(form))))).contains("<action>0</action>");
+    assertThat(payments.all()).hasSize(2);
+    assertThat(payments.all().get(1).normalizedStatus())
+        .isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+
+    boolean isLedgerHoldCaptured = payments.all().get(1).ledger().holds(OperationKind.CAPTURE);
+    assertThat(isLedgerHoldCaptured).isFalse();
+  }
+
+  @Test
+  void releases_part_of_a_merchant_initiated_hold_and_completes_the_rest_all_on_the_token_route() {
+    String token = aStoredCard();
+    AzericardGateway gateway = gateway();
+    Map<String, String> hold = storedCardPayment(token, ANOTHER_ORDER);
+    hold.put(AzericardFields.TRTYPE, "0");
+    hold.put(AzericardFields.AMOUNT, "11.48");
+    hold.put(AzericardFields.MERCH_TRAN_STATE, AzericardTokenFlow.MERCHANT_INITIATED);
+    hold.put(AzericardFields.MERCH_RN_ID, "0123456789ABCDEF");
+    assertThat(gateway.tokenLink(tokenCall(signed(hold))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+    AzericardPayment held = payments.all().get(1);
+
+    assertThat(gateway.tokenLink(tokenCall(signed(settlementOf(held, "22", "6.48")))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(gateway.tokenLink(tokenCall(signed(settlementOf(held, "21", "5.00")))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+
+    AzericardPayment completed = payments.all().get(1);
+    assertThat(completed.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(completed.ledger().operations())
+        .extracting(MonetaryOperation::kind)
+        .containsExactly(OperationKind.AUTHORIZATION, OperationKind.RELEASE, OperationKind.CAPTURE);
+    assertThat(completed.capturableRemainder()).isEqualByComparingTo("0");
+    assertThat(completed.reversibleRemainder()).isEqualByComparingTo("5.00");
   }
 
   @Test
@@ -416,6 +447,21 @@ class AzericardCardStorageTest {
     form.put(AzericardFields.ORDER, order);
     form.put(AzericardFields.TOKEN, token);
     form.keySet().removeAll(AzericardFields.CARD_DATA);
+    return form;
+  }
+
+  private static Map<String, String> settlementOf(
+      AzericardPayment payment, String trtype, String amount) {
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put(AzericardFields.TERMINAL, payment.terminalId());
+    form.put(AzericardFields.TRTYPE, trtype);
+    form.put(AzericardFields.ORDER, payment.order());
+    form.put(AzericardFields.AMOUNT, amount);
+    form.put(AzericardFields.CURRENCY, payment.currency());
+    form.put(AzericardFields.RRN, payment.rrn());
+    form.put(AzericardFields.INT_REF, payment.intRef());
+    form.put(AzericardFields.TIMESTAMP, AzericardTimestamp.write(NOW));
+    form.put(AzericardFields.NONCE, NONCE);
     return form;
   }
 

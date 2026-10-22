@@ -11,7 +11,9 @@ enum AzericardRoute {
   TOKEN_CGI_LINK {
     @Override
     boolean answers(AzericardTransactionType type) {
-      return type.createsThePayment();
+      return type.createsThePayment()
+          || type == AzericardTransactionType.SALES_COMPLETION
+          || type.reversesThePayment();
     }
   };
 
