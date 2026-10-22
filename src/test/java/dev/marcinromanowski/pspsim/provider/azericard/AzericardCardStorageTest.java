@@ -259,7 +259,7 @@ class AzericardCardStorageTest {
   }
 
   @ParameterizedTest(name = "refuses TRTYPE {0} on the token route, which answers no such call")
-  @ValueSource(strings = {"21", "22", "24", "90"})
+  @ValueSource(strings = {"90"})
   void refuses_a_transaction_type_the_token_route_does_not_answer(String trtype) {
     accounts.with(azericardAccount(E2E_RUN, MERCHANT, TERMINAL_ID));
     Map<String, String> form = cardStorage("1");
@@ -326,7 +326,7 @@ class AzericardCardStorageTest {
   }
 
   @Test
-  void refuses_a_merchant_initiated_payment_sent_as_anything_but_an_authorization() {
+  void holds_funds_on_a_saved_token_for_a_merchant_initiated_pre_authorization() {
     String token = aStoredCard();
     Map<String, String> form = storedCardPayment(token, ANOTHER_ORDER);
     form.put(AzericardFields.TRTYPE, "0");
@@ -334,8 +334,18 @@ class AzericardCardStorageTest {
     form.put(AzericardFields.MERCH_RN_ID, "0123456789ABCDEF");
 
     assertThat(bodyOf(gateway().tokenLink(tokenCall(signed(form)))))
-        .contains("Error in transaction type field");
-    assertThat(payments.all()).hasSize(1);
+        .contains("<action>0</action>");
+    assertThat(payments.all())
+        .hasSize(2);
+    assertThat(payments.all().get(1).normalizedStatus())
+        .isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+
+    boolean isLedgerHoldCaptured = payments.all()
+        .get(1)
+        .ledger()
+        .holds(OperationKind.CAPTURE);
+    assertThat(isLedgerHoldCaptured)
+        .isFalse();
   }
 
   @Test

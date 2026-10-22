@@ -60,7 +60,7 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
   }
 
   private @Nullable AzericardRequiredField theTokenFieldsItCannotUse() {
-    if (route != AzericardRoute.TOKEN_CGI_LINK) {
+    if (route != AzericardRoute.TOKEN_CGI_LINK || !transactionType().createsThePayment()) {
       return null;
     }
     String action = form.first(AzericardFields.TOKEN_ACTION);
@@ -82,9 +82,6 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
     }
     if (!AzericardTokenFlow.MERCHANT_INITIATED.equals(initiation)) {
       return AzericardFields.REQUIRED_MERCH_TRAN_STATE;
-    }
-    if (transactionType() != AzericardTransactionType.AUTHORIZATION) {
-      return AzericardFields.REQUIRED_TRTYPE;
     }
     return form.first(AzericardFields.MERCH_RN_ID) == null
         ? AzericardFields.REQUIRED_MERCH_RN_ID
@@ -154,6 +151,7 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
 
   boolean paysWithAStoredCard() {
     return route == AzericardRoute.TOKEN_CGI_LINK
+        && transactionType().createsThePayment()
         && tokenFlow() == AzericardTokenFlow.STORED_CARD_PAYMENT;
   }
 
@@ -183,7 +181,7 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
 
   String operationName() {
     AzericardTransactionType type = transactionType();
-    return route == AzericardRoute.TOKEN_CGI_LINK
+    return route == AzericardRoute.TOKEN_CGI_LINK && type.createsThePayment()
         ? type.operationName() + " " + tokenFlow().namedInAnOperation()
         : type.operationName();
   }

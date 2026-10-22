@@ -111,6 +111,7 @@ public record Ledger(List<MonetaryOperation> operations) {
       }
       switch (operation.kind()) {
         case AUTHORIZATION -> authorized = authorized.add(amount.get());
+        case RELEASE -> authorized = authorized.subtract(amount.get());
         case CAPTURE -> captured = captured.add(amount.get());
         case REFUND -> refunded = refunded.add(amount.get());
       }

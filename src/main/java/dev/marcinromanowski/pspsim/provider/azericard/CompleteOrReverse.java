@@ -7,6 +7,7 @@ import dev.marcinromanowski.pspsim.kernel.idempotency.KeyedOutcome;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.LedgerClaim;
 import dev.marcinromanowski.pspsim.kernel.money.MonetaryOperation;
+import dev.marcinromanowski.pspsim.kernel.money.OperationKind;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyedAnswer;
@@ -70,7 +71,7 @@ final class CompleteOrReverse {
           AzericardOutcomes.RC_NOT_ADMITTED);
     }
     BigDecimal admitted = theAmountThisPaymentAdmits(payment, message.transactionType());
-    if (!admits(message.transactionType(), requested.get(), admitted)) {
+    if (!admits(message.transactionType(), requested.get(), admitted, payment)) {
       return refused(
           RefusalSubject.theObject(payment.intRef()),
           message,
@@ -151,10 +152,17 @@ final class CompleteOrReverse {
   }
 
   private static boolean admits(
-      AzericardTransactionType type, BigDecimal requested, BigDecimal admitted) {
-    return type.reversesThePayment()
-        ? requested.compareTo(admitted) == 0
-        : requested.compareTo(admitted) <= 0;
+      AzericardTransactionType type,
+      BigDecimal requested,
+      BigDecimal admitted,
+      AzericardPayment payment
+  ) {
+    if (type.reversesThePayment()
+        && (type != AzericardTransactionType.ONLINE_REVERSAL
+            || !payment.aReversalWouldReleaseTheHold())) {
+      return requested.compareTo(admitted) == 0;
+    }
+    return requested.compareTo(admitted) <= 0;
   }
 
   private static Optional<BigDecimal> positive(String amount) {
@@ -188,10 +196,11 @@ final class CompleteOrReverse {
       AzericardPayment payment,
       BigDecimal requested,
       BigDecimal admitted,
-      Instant now) {
+      Instant now
+  ) {
     AzericardTransactionType type = message.transactionType();
     if (type.reversesThePayment() && payment.aReversalWouldReleaseTheHold()) {
-      return appliedAs(payments.reverseTheHold(payment, now), message, terminal, payment, now);
+      return appliedAs(releaseHold(message, payment, requested, admitted, now), message, terminal, payment, now);
     }
     Boolean closesAuthorization =
         type.reversesThePayment()
@@ -212,6 +221,32 @@ final class CompleteOrReverse {
             appliedStatusOf(type, closesAuthorization),
             now);
     return appliedAs(payments.append(payment, operation, now), message, terminal, payment, now);
+  }
+
+  private LedgerClaim releaseHold(
+      AzericardMessage message,
+      AzericardPayment payment,
+      BigDecimal requested,
+      BigDecimal admitted,
+      Instant now
+  ) {
+    if (requested.compareTo(admitted) == 0) {
+      return payments.reverseTheHold(payment, now);
+    }
+    MonetaryOperation release = new MonetaryOperation(
+        payment.ledger()
+            .nextSequence(),
+        OperationKind.RELEASE,
+        Amount.of(message.amount()),
+        false,
+        null,
+        AzericardOutcomes.ACTION_SUCCEEDED
+            + AzericardPayment.NATIVE_STATUS_SEPARATOR
+            + AzericardOutcomes.RC_APPROVED,
+        NormalizedStatus.READY_FOR_CAPTURE,
+        now
+    );
+    return payments.append(payment, release, now);
   }
 
   private static AzericardOperationResult appliedAs(

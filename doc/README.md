@@ -366,7 +366,7 @@ Stories:
 - Amounts are strings in the exact lexical form sent or returned (`"1000"`, `"10.00"` and `"10.0"` differ), with
   `currency` beside them.
 - `operations[]` is the monetary record, in `sequence` order. Each entry has `kind` (`AUTHORIZATION`, `CAPTURE`,
-  `CANCELLATION`, `REFUND`), `amount`, `closesAuthorization` (`null` where the kind cannot close one),
+  `CANCELLATION`, `RELEASE`, `REFUND`), `amount`, `closesAuthorization` (`null` where the kind cannot close one),
   `createdObjectId`, native and normalized status, and a timestamp.
 - `createdObjectId` names a second object the operation created (a Grow or Stripe refund, an Azericard `TOKEN`). It
   never names the object itself.
@@ -586,6 +586,7 @@ Payload shape and signing are in each provider file.
 - Every object with a lifecycle carries one, beside its native status. Refunds and other operations carry their own.
 - A partly refunded payment is a `PARTIALLY_REFUNDED` payment plus a `SUCCEEDED` refund.
 - A payment's status is derived from its operation list.
+- A `RELEASE` operation reduces an authorization's capturable remainder without adding captured or refunded money.
 
 ## The Screens a Tester Drives
 
