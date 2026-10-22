@@ -88,6 +88,10 @@ record AzericardPayment(
     return reversibleRemainder().signum() == 0;
   }
 
+  boolean admitsAPartialRelease() {
+    return aReversalWouldReleaseTheHold() && !ledger.holds(OperationKind.CAPTURE);
+  }
+
   BigDecimal capturableRemainder() {
     return ledger.capturableRemainder(authorizationOpen()).orElse(BigDecimal.ZERO);
   }

@@ -151,7 +151,6 @@ record AzericardMessage(AzericardRoute route, AzericardForm form) {
 
   boolean paysWithAStoredCard() {
     return route == AzericardRoute.TOKEN_CGI_LINK
-        && transactionType().createsThePayment()
         && tokenFlow() == AzericardTokenFlow.STORED_CARD_PAYMENT;
   }
 

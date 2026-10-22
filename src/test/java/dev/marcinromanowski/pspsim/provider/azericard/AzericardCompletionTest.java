@@ -438,8 +438,7 @@ class AzericardCompletionTest {
     AzericardApiResponse response = gateway.cgiLink(call(signed(settlement("24", "5.00"))));
 
     assertThatItWasRefused(response, AzericardOutcomes.RC_NOT_ADMITTED);
-    assertThat(thePayment().normalizedStatus())
-        .isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
   }
 
   @Test
@@ -620,15 +619,10 @@ class AzericardCompletionTest {
   void settles_a_hold_on_the_token_route_without_requiring_the_card_token_again(String trtype) {
     AzericardGateway gateway = gatewayHolding(HELD);
     Map<String, String> form = signed(settlement(trtype, HELD));
-    AzericardApiCall call = new AzericardApiCall(
-        "POST",
-        "/token/cgi_link",
-        Map.of(),
-        fieldsOf(form)
-    );
+    AzericardApiCall call =
+        new AzericardApiCall("POST", "/token/cgi_link", Map.of(), fieldsOf(form));
 
-    assertThat(gateway.tokenLink(call).outcome())
-        .isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(gateway.tokenLink(call).outcome()).isEqualTo(ProviderOutcome.SUCCESS);
     assertThat(thePayment().normalizedStatus())
         .isEqualTo("21".equals(trtype) ? NormalizedStatus.SUCCEEDED : NormalizedStatus.CANCELLED);
   }
@@ -638,24 +632,105 @@ class AzericardCompletionTest {
     AzericardGateway gateway = gatewayHolding(HELD);
     assertThat(gateway.cgiLink(call(signed(settlement("22", "6.48")))).outcome())
         .isEqualTo(ProviderOutcome.SUCCESS);
-    assertThat(thePayment().normalizedStatus())
-        .isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
-    assertThat(thePayment().capturableRemainder())
-        .isEqualByComparingTo("5.00");
-    assertThat(thePayment().ledger().holds(OperationKind.CAPTURE))
-        .isFalse();
-    assertThat(thePayment().ledger().holds(OperationKind.REFUND))
-        .isFalse();
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+    assertThat(thePayment().capturableRemainder()).isEqualByComparingTo("5.00");
+    assertThat(thePayment().ledger().holds(OperationKind.CAPTURE)).isFalse();
+    assertThat(thePayment().ledger().holds(OperationKind.REFUND)).isFalse();
     assertThatItWasRefused(
-        gateway.cgiLink(call(signed(completion(HELD)))),
-        AzericardOutcomes.RC_NOT_ADMITTED
-    );
+        gateway.cgiLink(call(signed(completion(HELD)))), AzericardOutcomes.RC_NOT_ADMITTED);
     assertThat(gateway.cgiLink(call(signed(completion("5.00")))).outcome())
         .isEqualTo(ProviderOutcome.SUCCESS);
-    assertThat(thePayment().normalizedStatus())
-        .isEqualTo(NormalizedStatus.SUCCEEDED);
-    assertThat(thePayment().capturableRemainder())
-        .isEqualByComparingTo("0");
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(thePayment().capturableRemainder()).isEqualByComparingTo("0");
+  }
+
+  @Test
+  void records_a_partial_release_as_a_release_that_cannot_close_the_authorization() {
+    AzericardGateway gateway = gatewayHolding(HELD);
+
+    gateway.cgiLink(call(signed(settlement("22", "6.48"))));
+
+    MonetaryOperation release = thePayment().ledger().operations().get(1);
+    assertThat(release.kind()).isEqualTo(OperationKind.RELEASE);
+    assertThat(release.amount()).isEqualTo(Amount.of("6.48"));
+    assertThat(release.closesAuthorization()).isNull();
+    assertThat(release.normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+  }
+
+  @Test
+  void applies_a_repeated_partial_release_again_because_no_replay_is_detected() {
+    AzericardGateway gateway = gatewayHolding(HELD);
+
+    assertThat(gateway.cgiLink(call(signed(settlement("22", "3.00")))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+    assertThat(gateway.cgiLink(call(signed(settlement("22", "3.00")))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+
+    assertThat(thePayment().ledger().count(OperationKind.RELEASE)).isEqualTo(2);
+    assertThat(thePayment().capturableRemainder()).isEqualByComparingTo("5.48");
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+  }
+
+  @Test
+  void
+      a_partial_completion_after_a_release_closes_the_authorization_as_any_partial_completion_does() {
+    AzericardGateway gateway = gatewayHolding(HELD);
+    gateway.cgiLink(call(signed(settlement("22", "6.48"))));
+
+    assertThat(gateway.cgiLink(call(signed(completion("3.00")))).outcome())
+        .isEqualTo(ProviderOutcome.SUCCESS);
+
+    AzericardPayment payment = thePayment();
+    assertThat(payment.normalizedStatus()).isEqualTo(NormalizedStatus.SUCCEEDED);
+    assertThat(payment.authorizationOpen()).isFalse();
+    assertThat(payment.capturableRemainder()).isEqualByComparingTo("0");
+  }
+
+  @Test
+  void refuses_a_partial_release_of_the_remainder_once_part_of_the_hold_was_completed() {
+    AzericardGateway gateway = gatewayLeavingTheRemainder();
+    gateway.cgiLink(call(signed(completion("5.00"))));
+
+    assertThatItWasRefused(
+        gateway.cgiLink(call(signed(settlement("22", "3.00")))), AzericardOutcomes.RC_NOT_ADMITTED);
+    assertThatItWasRefused(
+        gateway.cgiLink(call(signed(settlement("22", "6.48")))), AzericardOutcomes.RC_NOT_ADMITTED);
+    assertThat(thePayment().ledger().operations()).hasSize(2);
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.PARTIALLY_CAPTURED);
+  }
+
+  @Test
+  void refuses_a_partial_release_of_a_hold_whose_completed_part_was_reversed() {
+    AzericardGateway gateway = gatewayLeavingTheRemainder();
+    gateway.cgiLink(call(signed(completion("5.00"))));
+    gateway.cgiLink(call(signed(settlement("22", "5.00"))));
+    List<MonetaryOperation> before = thePayment().ledger().operations();
+
+    assertThatItWasRefused(
+        gateway.cgiLink(call(signed(settlement("22", "2.00")))), AzericardOutcomes.RC_NOT_ADMITTED);
+    assertThat(thePayment().ledger().operations()).isEqualTo(before);
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.REFUNDED);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"21", "22", "24"})
+  void a_scenario_rule_naming_a_settlement_matches_it_on_the_token_route_too(String trtype) {
+    AzericardGateway gateway = gatewayHolding(HELD);
+    scenarioRules.add(
+        new NewScenarioRule(
+            AzericardGateway.AZERICARD,
+            E2E_RUN,
+            0,
+            ScenarioMatch.anyRequest().naming("TRTYPE=" + trtype),
+            new ScenarioAction.TerminalFailure("05"),
+            null));
+    AzericardApiCall call =
+        new AzericardApiCall(
+            "POST", "/token/cgi_link", Map.of(), fieldsOf(signed(settlement(trtype, HELD))));
+
+    assertThat(gateway.tokenLink(call).outcome()).isEqualTo(ProviderOutcome.FAILURE);
+    assertThat(thePayment().normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
+    assertThat(thePayment().ledger().operations()).hasSize(1);
   }
 
   private void assertThatItWasRefused(AzericardApiResponse response, String responseCode) {

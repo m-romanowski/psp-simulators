@@ -155,14 +155,12 @@ final class CompleteOrReverse {
       AzericardTransactionType type,
       BigDecimal requested,
       BigDecimal admitted,
-      AzericardPayment payment
-  ) {
-    if (type.reversesThePayment()
-        && (type != AzericardTransactionType.ONLINE_REVERSAL
-            || !payment.aReversalWouldReleaseTheHold())) {
-      return requested.compareTo(admitted) == 0;
+      AzericardPayment payment) {
+    if (!type.reversesThePayment()
+        || (type == AzericardTransactionType.ONLINE_REVERSAL && payment.admitsAPartialRelease())) {
+      return requested.compareTo(admitted) <= 0;
     }
-    return requested.compareTo(admitted) <= 0;
+    return requested.compareTo(admitted) == 0;
   }
 
   private static Optional<BigDecimal> positive(String amount) {
@@ -196,11 +194,11 @@ final class CompleteOrReverse {
       AzericardPayment payment,
       BigDecimal requested,
       BigDecimal admitted,
-      Instant now
-  ) {
+      Instant now) {
     AzericardTransactionType type = message.transactionType();
     if (type.reversesThePayment() && payment.aReversalWouldReleaseTheHold()) {
-      return appliedAs(releaseHold(message, payment, requested, admitted, now), message, terminal, payment, now);
+      return appliedAs(
+          releaseHold(message, payment, requested, admitted, now), message, terminal, payment, now);
     }
     Boolean closesAuthorization =
         type.reversesThePayment()
@@ -228,24 +226,22 @@ final class CompleteOrReverse {
       AzericardPayment payment,
       BigDecimal requested,
       BigDecimal admitted,
-      Instant now
-  ) {
+      Instant now) {
     if (requested.compareTo(admitted) == 0) {
       return payments.reverseTheHold(payment, now);
     }
-    MonetaryOperation release = new MonetaryOperation(
-        payment.ledger()
-            .nextSequence(),
-        OperationKind.RELEASE,
-        Amount.of(message.amount()),
-        false,
-        null,
-        AzericardOutcomes.ACTION_SUCCEEDED
-            + AzericardPayment.NATIVE_STATUS_SEPARATOR
-            + AzericardOutcomes.RC_APPROVED,
-        NormalizedStatus.READY_FOR_CAPTURE,
-        now
-    );
+    MonetaryOperation release =
+        new MonetaryOperation(
+            payment.ledger().nextSequence(),
+            OperationKind.RELEASE,
+            Amount.of(message.amount()),
+            null,
+            null,
+            AzericardOutcomes.ACTION_SUCCEEDED
+                + AzericardPayment.NATIVE_STATUS_SEPARATOR
+                + AzericardOutcomes.RC_APPROVED,
+            NormalizedStatus.READY_FOR_CAPTURE,
+            now);
     return payments.append(payment, release, now);
   }
 

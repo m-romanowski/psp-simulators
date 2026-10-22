@@ -16,7 +16,7 @@ inference or simulator decision.
 | `POST /cgi-bin/cgi_link` `TRTYPE=22/24`  | releases a hold in full, or partly with `22`, reverses completed money in full                                                                                                                                                                                                                                                                                                        | partial hold release stays `READY_FOR_CAPTURE`, full release is `CANCELLED`, returned completed money is `REFUNDED`                       |
 | `POST /cgi-bin/cgi_link` `TRTYPE=90`     | status inquiry, JSON under `application/json; charset=UTF-8`                                                                                                                                                                                                                                                                                                                          | the success keys beyond the observed refusal are the simulator's own, `-5` and `-6` are invented codes                                    |
 | `POST /token/cgi_link`                   | card save (`TOKEN_ACTION=REGISTER`, `MERCH_TRAN_STATE=S`, payer page unless the §2.3 card fields are sent), stored-card payment (`TOKEN`) and MIT unscheduled payment/hold (`MERCH_TRAN_STATE=M`, `TRTYPE=1/0`), queues the `BACKREF` callback, with the §2.3 card fields or a `TOKEN` and no target of the terminal's account, it still authorizes and the callback is undeliverable | signed with the `TRTYPE=0/1` order, CIT (`C`) payment refused, MIT scheduled payment (`TRTYPE=185`) not served                            |
-| `POST /token/cgi_link` `TRTYPE=21/22/24` | completion and reversal of a hold, using the original terminal, ORDER, RRN and INT_REF, no TOKEN required                                                                                                                                                                                                                                                                             | vendor correspondence names this endpoint, settlement rules are the same as on `/cgi-bin/cgi_link`, no type-0 inquiry contract is assumed |
+| `POST /token/cgi_link` `TRTYPE=21/22/24` | completion and reversal of a hold, using the original terminal, ORDER, RRN and INT_REF, no TOKEN required                                                                                                                                                                                                                                                                             | vendor correspondence names this endpoint, settlement rules are the same as on `/cgi-bin/cgi_link`, `TRTYPE=90` is refused on this route  |
 | `POST /azericard/payer`                  | the payer page's own submission: authorizes, queues the `BACKREF` callback, answers the result page                                                                                                                                                                                                                                                                                   | the route, the page and the result page are the simulator's own (see "Payer Page")                                                        |
 | `POST <BACKREF>`                         | form-encoded server-to-server callback signed over the published five fields                                                                                                                                                                                                                                                                                                          | `azericard.callback-signature` can send it `CORRUPTED` or `ABSENT`, acknowledged by any `2xx`                                             |
 
@@ -127,9 +127,9 @@ Orders the vendor does not publish, and what the simulator does:
 
 Published routes: `POST https://testmpi.3dsecure.az/cgi-bin/cgi_link` (authorization, pre-authorization, completion,
 online and offline reversal, status, and the S2S, GooglePay and ApplePay variants), `POST
-https://testmpi.3dsecure.az/token/cgi_link` (card storage, stored-card, CIT and MIT payments), and `POST <BACKREF>` (the
-callback). No production host is published. The simulator serves `POST /cgi-bin/cgi_link` and `POST /token/cgi_link`;
-the base URL is configurable.
+https://testmpi.3dsecure.az/token/cgi_link` (card storage, stored-card, CIT and MIT payments, and per vendor
+correspondence MIT holds, completion and reversal), and `POST <BACKREF>` (the callback). No production host is
+published. The simulator serves `POST /cgi-bin/cgi_link` and `POST /token/cgi_link`. The base URL is configurable.
 
 | Response                          | Vendor                                                                                                                                                                                                          | Simulator                                               |
 |-----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------|
@@ -298,28 +298,35 @@ gateway publishes no pending or processing outcome.**
 
 - Request fields: `AMOUNT`, `CURRENCY`, `ORDER`, `RRN`, `INT_REF`, `TERMINAL`, `TRTYPE=21`, `TIMESTAMP`, `NONCE`,
   `P_SIGN`; the sample also carries `LANG`. `RRN` and `INT_REF` are "from authorization response".
-- Vendor correspondence: completion cannot exceed the authorized amount; `/token/cgi_link` serves completion and reversal. A hold of 5 followed by
+- Vendor correspondence: completion cannot exceed the authorized amount; `/token/cgi_link` serves completion and
+  reversal. A hold of 5 followed by
   `TRTYPE=22` for 3 may be completed with `TRTYPE=21` for 2.
-- Simulator decisions: completion only against an approved hold, amount positive, not above the capturable remainder, `CURRENCY` equal to the
-  payment's (otherwise `ACTION=3`, `RC=-3`). A partial completion without a preceding release closes the authorization unless
-  `azericard.partial-completion` is `LEAVES_THE_REMAINDER_CAPTURABLE`. No automatic expiry. The correspondence does not establish that partial capture
-  alone releases the remainder.
+- Simulator decisions: completion only against an approved hold, amount positive, not above the capturable remainder,
+  `CURRENCY` equal to the payment's (otherwise `ACTION=3`, `RC=-3`). A partial completion closes the authorization
+  unless `azericard.partial-completion` is `LEAVES_THE_REMAINDER_CAPTURABLE`, measured against the remainder left after
+  any release. No automatic expiry. The correspondence does not establish that partial capture alone releases the
+  remainder.
 
 ### Reversal
 
 `POST /cgi-bin/cgi_link`, `TRTYPE=22` ("Online reversal") or `TRTYPE=24` ("Offline reversal"). Request fields and MAC order are completion's.
 
-- Both sections say "The following data must be posted **for a refund**"; the overview says "to complete and refund the payment should send below
-  fields depending on trtype (trtype = 21 – checkout, trtype = 22 – online reversal, trtype = 24 – offline reversal)", and the gateway "requests a
-  reversal of **the pending or completed** transaction".
-- Vendor correspondence: `TRTYPE=22` releases part of an uncaptured hold before completion of the remaining amount. A partial release keeps the
-  original references and reduces the capturable balance.
+- Both sections say "The following data must be posted **for a refund**"; the overview says "to complete and refund the
+  payment should send below fields depending on trtype (trtype = 21 – checkout, trtype = 22 – online reversal, trtype =
+  24 – offline reversal)", and the gateway "requests a reversal of **the pending or completed** transaction".
+- Vendor correspondence: `TRTYPE=22` releases part of an uncaptured hold before completion of the remaining amount. A
+  partial release keeps the original references and reduces the capturable balance.
 - Unpublished: partial reversal of completed money, partial hold release with `24`, repeat handling and idempotency.
-- Simulator: `22` and `24` can release the whole uncaptured hold or reverse all reversible completed money. Only `22` accepts a partial
-  uncaptured-hold release, recorded as `RELEASE` with no capture or refund. A completion may follow that partial release but cannot exceed the
-  remainder. After a full hold release or a reversal of completed money, completion is refused (`RC=-3`).
-- A hold that completed nothing reports `refundsAccepted` `true` with `refundableRemainder` zero; the release is reported by `capturableRemainder`
-  (`README.md`, "State response rules").
+- Simulator: `22` and `24` can release the whole uncaptured hold or reverse all reversible completed money. Only `22`
+  accepts a partial uncaptured-hold release, recorded as `RELEASE` with no capture or refund, and only while nothing was
+  completed on the payment. A completion may follow that partial release but cannot exceed the remainder. After a full
+  hold release or a reversal of completed money, completion is refused (`RC=-3`).
+- Simulator: once anything was completed, `22` reverses the completed money only, in full. A remainder left capturable
+  cannot be released partly (`RC=-3`), because the correspondence covers a release before completion only.
+- Simulator: a repeated identical partial `22` is applied again and appends another `RELEASE`, because no replay rule is
+  published.
+- A hold that completed nothing reports `refundsAccepted` `true` with `refundableRemainder` zero; the release is
+  reported by `capturableRemainder` (`README.md`, "State response rules").
 
 ### Card Storage and Stored-Card Payment
 
