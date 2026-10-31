@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class StripeVersionChangesTest {
 
@@ -57,6 +59,34 @@ class StripeVersionChangesTest {
     assertThat(walkingBackTo("2020-08-27"))
         .containsExactly(
             AT_THE_NEWEST_RELEASE, AT_ENDIVES_OPENING, AT_A_DAHLIA_MONTHLY, AT_BASILS_OPENING);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2020-03-02", "2020-08-27"})
+  void a_request_at_a_mobile_sdks_pinned_version_takes_every_change_this_simulator_models(
+      String pinned) {
+    assertThat(StripeVersionChanges.walkingBackTo(new StripeApiVersion(pinned), DECLARED))
+        .containsExactly(
+            AT_THE_NEWEST_RELEASE, AT_ENDIVES_OPENING, AT_A_DAHLIA_MONTHLY, AT_BASILS_OPENING);
+    assertThat(
+            StripeVersionChanges.walkingBackTo(
+                new StripeApiVersion(pinned), StripeVersionChanges.DECLARED))
+        .containsExactly(StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2020-03-02", "2020-08-27"})
+  void an_ephemeral_key_minted_at_a_mobile_sdks_version_reaches_the_core_as_sent(String pinned) {
+    StripeForm sent =
+        StripeForm.of(
+            Map.of("customer", List.of("cus_sim_1"), "payment_method_types[]", List.of("card")));
+
+    StripeCoreRequest atTheCore =
+        StripeVersionChanges.atTheCore(
+            sent, new StripeApiVersion(pinned), "POST /v1/ephemeral_keys");
+
+    assertThat(atTheCore.form()).isSameAs(sent);
+    assertThat(atTheCore.writtenPaymentMethodTypes()).isNull();
   }
 
   @Test

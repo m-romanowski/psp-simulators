@@ -222,7 +222,7 @@ class StripeApiVersionsTest {
             StripeVersionChoice.forTheAccount(
                 Map.of("Stripe-Version", List.of("2026-10-28.endive")), BASIL_OPENED))
         .isEqualTo(new StripeVersionChoice.AnsweredAt(THE_NEWEST));
-    assertThat(StripeVersionChoice.forAShortLivedKey(Map.of(), BASIL_OPENED))
+    assertThat(StripeVersionChoice.admittingTheMobileSdks(Map.of(), BASIL_OPENED))
         .isEqualTo(new StripeVersionChoice.AnsweredAt(BASIL_OPENED));
   }
 
@@ -230,12 +230,12 @@ class StripeApiVersionsTest {
   void only_a_short_lived_key_is_answered_at_a_version_a_mobile_sdk_pins() {
     Map<String, List<String>> android = Map.of("Stripe-Version", List.of("2020-03-02"));
 
-    assertThat(StripeVersionChoice.forAShortLivedKey(android, BASIL_OPENED))
+    assertThat(StripeVersionChoice.admittingTheMobileSdks(android, BASIL_OPENED))
         .isEqualTo(new StripeVersionChoice.AnsweredAt(new StripeApiVersion("2020-03-02")));
     assertThat(StripeVersionChoice.forTheAccount(android, BASIL_OPENED))
         .isInstanceOf(StripeVersionChoice.Refused.class);
     assertThat(
-            StripeVersionChoice.forAShortLivedKey(
+            StripeVersionChoice.admittingTheMobileSdks(
                 Map.of("Stripe-Version", List.of("2024-09-30.acacia")), BASIL_OPENED))
         .isInstanceOf(StripeVersionChoice.Refused.class);
   }
@@ -246,6 +246,7 @@ class StripeApiVersionsTest {
         List.of(
             StripeErrors.versionNotAnswered("2024-06-20"),
             StripeErrors.versionAsksForABeta("2025-03-31.basil; a_beta=v1"),
+            StripeErrors.versionLaterThanTheCatalogue("2026-11-25.endive"),
             StripeErrors.versionUnrecognised("nope"))) {
       assertThat(refused.httpStatus()).isEqualTo(400);
       assertThat(refused.type()).isEqualTo(StripeErrorType.INVALID_REQUEST_ERROR);
@@ -264,8 +265,76 @@ class StripeApiVersionsTest {
             "Stripe-Version 2025-03-31.basil; a_beta=v1 asks for a beta, and this simulator"
                 + " answers no beta. It answers 2025-03-31.basil through 2026-10-28.endive, sent"
                 + " without anything after the version.");
+    assertThat(StripeErrors.versionLaterThanTheCatalogue("2026-11-25.endive").message())
+        .isEqualTo(
+            "Stripe-Version 2026-11-25.endive is dated after 2026-10-28.endive, the newest Stripe"
+                + " API version this simulator was built with, so it may be a release Stripe"
+                + " published since. This simulator does not answer it. It answers"
+                + " 2025-03-31.basil through 2026-10-28.endive. Send one of those, or send no"
+                + " Stripe-Version to be answered at the account's default version.");
     assertThat(StripeErrors.versionUnrecognised("nope").message())
         .isEqualTo("Invalid Stripe API version: nope");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-11-25.endive", "2027-03-31.fig", "2026-12-16.preview"})
+  void a_dated_release_after_the_newest_answered_is_later_than_the_catalogue(String later) {
+    assertThat(StripeApiVersions.isLaterThanTheCatalogue(later)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "2026-10-28.endive",
+        "2026-10-28.zinnia",
+        "2026-10-29",
+        "2026-02-30.endive",
+        "2026-13-01.endive",
+        "2026-11-25.Endive",
+        "2026-11-25.endive; a_beta=v1",
+        "x2026-11-25.endive"
+      })
+  void a_value_not_dated_after_the_newest_answered_is_not_later_than_the_catalogue(
+      String notLater) {
+    assertThat(StripeApiVersions.isLaterThanTheCatalogue(notLater)).isFalse();
+  }
+
+  @Test
+  void the_versions_admitted_differ_only_in_the_versions_the_mobile_sdks_pin() {
+    Map<String, List<String>> ios = Map.of("Stripe-Version", List.of("2020-08-27"));
+    Map<String, List<String>> inRange = Map.of("Stripe-Version", List.of("2026-08-26.dahlia"));
+
+    assertThat(StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN.choose(ios, BASIL_OPENED))
+        .isEqualTo(new StripeVersionChoice.AnsweredAt(new StripeApiVersion("2020-08-27")));
+    assertThat(StripeVersionsAdmitted.THE_RANGE_ANSWERED.choose(ios, BASIL_OPENED))
+        .isInstanceOf(StripeVersionChoice.Refused.class);
+    assertThat(StripeVersionsAdmitted.THE_RANGE_ANSWERED.choose(inRange, BASIL_OPENED))
+        .isEqualTo(new StripeVersionChoice.AnsweredAt(new StripeApiVersion("2026-08-26.dahlia")));
+  }
+
+  @Test
+  void the_majors_a_refusal_names_read_as_prose_however_many_there_are() {
+    assertThat(StripeErrors.inProse(List.of())).isEmpty();
+    assertThat(StripeErrors.inProse(List.of("basil"))).isEqualTo("basil");
+    assertThat(StripeErrors.inProse(List.of("basil", "clover"))).isEqualTo("basil and clover");
+    assertThat(StripeErrors.inProse(List.of("basil", "clover", "dahlia", "endive")))
+        .isEqualTo("basil, clover, dahlia and endive");
+  }
+
+  @Test
+  void a_refusal_reads_a_beta_only_after_a_release_and_never_at_the_start_of_the_value() {
+    assertThat(
+            StripeVersionChoice.forTheAccount(
+                Map.of("Stripe-Version", List.of("; 2025-03-31.basil")), BASIL_OPENED))
+        .isEqualTo(
+            new StripeVersionChoice.Refused(
+                StripeErrors.versionUnrecognised("; 2025-03-31.basil")));
+    assertThat(
+            StripeVersionChoice.forTheAccount(
+                Map.of("Stripe-Version", List.of("2025-03-31.basil ;a=v1;b=v2")), BASIL_OPENED))
+        .isEqualTo(
+            new StripeVersionChoice.Refused(
+                StripeErrors.versionAsksForABeta("2025-03-31.basil ;a=v1;b=v2")));
   }
 
   @Test

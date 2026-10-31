@@ -318,6 +318,19 @@ final class StripeErrors {
             + " account's default version.");
   }
 
+  static StripeError versionLaterThanTheCatalogue(String sent) {
+    return headerRefused(
+        "Stripe-Version "
+            + sent
+            + " is dated after "
+            + StripeApiVersions.newest().wireValue()
+            + ", the newest Stripe API version this simulator was built with, so it may be a"
+            + " release Stripe published since. This simulator does not answer it. It answers "
+            + StripeApiVersions.theRangeAnswered()
+            + ". Send one of those, or send no Stripe-Version to be answered at the account's"
+            + " default version.");
+  }
+
   static StripeError versionAsksForABeta(String sent) {
     return headerRefused(
         "Stripe-Version "
@@ -332,14 +345,23 @@ final class StripeErrors {
   }
 
   private static String theMajorsAnswered() {
-    List<String> codenames =
-        StripeApiVersions.majorsAnswered().stream().map(StripeApiMajor::codename).toList();
-    if (codenames.size() == 1) {
-      return codenames.getFirst();
+    return inProse(
+        StripeApiVersions.majorsAnswered().stream().map(StripeApiMajor::codename).toList());
+  }
+
+  static String inProse(List<String> names) {
+    StringBuilder named = new StringBuilder();
+    for (int at = 0; at < names.size(); at++) {
+      named.append(theWordsBefore(at, names.size())).append(names.get(at));
     }
-    return String.join(", ", codenames.subList(0, codenames.size() - 1))
-        + " and "
-        + codenames.getLast();
+    return named.toString();
+  }
+
+  private static String theWordsBefore(int at, int count) {
+    if (at == 0) {
+      return "";
+    }
+    return at == count - 1 ? " and " : ", ";
   }
 
   static StripeError idempotencyKeyInUse() {

@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
 public final class StripeApi {
@@ -280,6 +281,8 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.CREATE_EPHEMERAL_KEY,
+        new StripeShortLivedAccess.NoShortLivedKeyReachesThisRoute(),
+        StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN,
         (request, headers, testRunId, account, now) ->
             createEphemeralKey.handle(request.form(), testRunId, account, now));
   }
@@ -297,6 +300,16 @@ public final class StripeApi {
       StripeApiCall call,
       String operationName,
       StripeShortLivedAccess access,
+      StripeOperation operation) {
+    return answer(
+        call, operationName, access, StripeVersionsAdmitted.THE_RANGE_ANSWERED, operation);
+  }
+
+  private StripeApiResponse answer(
+      StripeApiCall call,
+      String operationName,
+      StripeShortLivedAccess access,
+      StripeVersionsAdmitted admitted,
       StripeOperation operation) {
     StripeForm form = StripeForm.of(call.form());
     String secretKey = StripeAuthentication.secretKeyIn(call.headers());
@@ -322,6 +335,7 @@ public final class StripeApi {
                     within,
                     withinTheRun(resolution, shortLived),
                     access,
+                    admitted,
                     now,
                     operationName,
                     operation),
@@ -343,12 +357,13 @@ public final class StripeApi {
       List<StripeAccount> matches,
       List<StripeEphemeralKey> shortLived,
       StripeShortLivedAccess access,
+      StripeVersionsAdmitted admitted,
       Instant now,
       String operationName,
       StripeOperation operation) {
     if (matches.size() == 1) {
       return answeredForTheAccount(
-          call, form, testRunId, matches.get(0), now, operationName, operation);
+          call, form, testRunId, matches.get(0), admitted, now, operationName, operation);
     }
     if (matches.isEmpty() && shortLived.size() == 1) {
       return answeredForAShortLivedKey(
@@ -411,28 +426,29 @@ public final class StripeApi {
               StripeErrors.theShortLivedKeyReachesAnotherResource()),
           Map.of());
     }
-    Answered unreadable = refusedOnItsEncoding(call, form);
-    if (unreadable != null) {
-      return unreadable;
-    }
     return accounts
         .find(testRunId, shortLived.accountId())
         .map(
             account ->
-                switch (StripeVersionChoice.forAShortLivedKey(
+                switch (StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN.choose(
                     call.headers(), account.apiVersion())) {
                   case StripeVersionChoice.Refused refused -> refusedOnItsVersion(refused);
                   case StripeVersionChoice.AnsweredAt at ->
                       answeredAt(
                           at.version(),
-                          rendered(
-                              operation.handle(
-                                  StripeVersionChanges.atTheCore(form, at.version(), operationName),
-                                  call.headers(),
-                                  testRunId,
-                                  account,
-                                  now),
-                              Map.of()));
+                          readableOrRefused(
+                              call,
+                              form,
+                              () ->
+                                  rendered(
+                                      operation.handle(
+                                          StripeVersionChanges.atTheCore(
+                                              form, at.version(), operationName),
+                                          call.headers(),
+                                          testRunId,
+                                          account,
+                                          now),
+                                      Map.of())));
                 })
         .orElseGet(
             () ->
@@ -447,21 +463,35 @@ public final class StripeApi {
       StripeForm form,
       TestRunId testRunId,
       StripeAccount account,
+      StripeVersionsAdmitted admitted,
       Instant now,
       String operationName,
       StripeOperation operation) {
-    Answered unreadable = refusedOnItsEncoding(call, form);
-    if (unreadable != null) {
-      return unreadable;
-    }
-    return switch (StripeVersionChoice.forTheAccount(call.headers(), account.apiVersion())) {
+    return switch (admitted.choose(call.headers(), account.apiVersion())) {
       case StripeVersionChoice.Refused refused -> refusedOnItsVersion(refused);
       case StripeVersionChoice.AnsweredAt at ->
           answeredAt(
               at.version(),
-              answeredAtTheVersion(
-                  call, form, testRunId, account, at.version(), now, operationName, operation));
+              readableOrRefused(
+                  call,
+                  form,
+                  () ->
+                      answeredAtTheVersion(
+                          call,
+                          form,
+                          testRunId,
+                          account,
+                          at.version(),
+                          now,
+                          operationName,
+                          operation)));
     };
+  }
+
+  private static Answered readableOrRefused(
+      StripeApiCall call, StripeForm form, Supplier<Answered> readable) {
+    Answered unreadable = refusedOnItsEncoding(call, form);
+    return unreadable == null ? readable.get() : unreadable;
   }
 
   private Answered answeredAtTheVersion(

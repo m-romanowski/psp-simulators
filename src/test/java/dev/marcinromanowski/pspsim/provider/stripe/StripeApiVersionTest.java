@@ -137,7 +137,15 @@ class StripeApiVersionTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"2099-01-01.zinnia", "latest", "2026-10-28", "2026-08-26.DAHLIA"})
+  @ValueSource(
+      strings = {
+        "2025-01-01.zinnia",
+        "2026-13-01.endive",
+        "2026-11-31.endive",
+        "latest",
+        "2026-10-28",
+        "2026-08-26.DAHLIA"
+      })
   void a_value_that_names_no_published_version_is_refused_as_an_invalid_version(String invented) {
     anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
 
@@ -202,6 +210,121 @@ class StripeApiVersionTest {
         api().createPaymentIntent(sending(VERSION_HEADER, THE_JAVA_SDKS_RELEASE));
 
     assertThat(refused.httpStatus()).isEqualTo(401);
+    assertThat(refused.headers()).doesNotHave(aHeaderOfThisNameUnderAnySpelling(VERSION_HEADER));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2026-11-25.endive", "2027-03-31.fig", "2026-12-16.preview"})
+  void a_dated_release_later_than_the_catalogue_is_refused_as_one_this_build_may_not_know(
+      String later) {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+
+    StripeApiResponse refused = api().createPaymentIntent(sending(VERSION_HEADER, later));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains(
+            "Stripe-Version "
+                + later
+                + " is dated after 2026-10-28.endive, the newest Stripe API version this"
+                + " simulator was built with")
+        .contains(THE_RANGE)
+        .doesNotContain("Invalid Stripe API version");
+  }
+
+  @Test
+  void a_later_release_asking_for_a_beta_is_refused_as_asking_for_a_beta() {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    String withABeta = "2026-11-25.endive; a_beta=v2";
+
+    StripeApiResponse refused = api().createPaymentIntent(sending(VERSION_HEADER, withABeta));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains(withABeta + " asks for a beta");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"2020-03-02", "2020-08-27"})
+  void the_secret_key_mints_an_ephemeral_key_at_the_version_a_mobile_sdk_pins(String pinned) {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    String customerId = aCustomer();
+
+    StripeApiResponse minted = mintingAt(customerId, pinned);
+
+    assertThat(minted.httpStatus()).isEqualTo(200);
+    assertThat(minted.headers().get(VERSION_HEADER)).containsExactly(pinned);
+    assertThat(ephemeralKeys.all()).hasSize(1);
+  }
+
+  @Test
+  void the_secret_key_minting_at_a_date_only_version_no_mobile_sdk_pins_is_refused() {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    String customerId = aCustomer();
+
+    StripeApiResponse refused = mintingAt(customerId, A_DATE_ONLY_RELEASE);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains(THE_RANGE);
+    assertThat(ephemeralKeys.all()).isEmpty();
+  }
+
+  @Test
+  void the_secret_key_reading_a_customer_at_the_version_the_ios_sdk_pins_is_refused() {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    String customerId = aCustomer();
+
+    StripeApiResponse read =
+        api()
+            .retrieveCustomer(
+                new StripeApiCall(
+                    "GET",
+                    CUSTOMERS_PATH + "/" + customerId,
+                    headers(SECRET_KEY, VERSION_HEADER, THE_IOS_SDKS_RELEASE),
+                    Map.of()),
+                customerId);
+
+    assertThat(read.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(read)).contains(THE_RANGE);
+  }
+
+  @Test
+  void a_form_this_api_cannot_read_is_refused_at_the_version_the_request_was_answered_at() {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    Map<String, List<String>> unreadable = new LinkedHashMap<>(aHold());
+    unreadable.put("[amount", List.of("1"));
+
+    StripeApiResponse refused =
+        api()
+            .createPaymentIntent(
+                new StripeApiCall(
+                    "POST",
+                    CREATE_PATH,
+                    headers(SECRET_KEY, VERSION_HEADER, THE_JAVA_SDKS_RELEASE),
+                    unreadable));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"type\":\"invalid_request_error\"");
+    assertThat(refused.headers().get(VERSION_HEADER)).containsExactly(THE_JAVA_SDKS_RELEASE);
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
+  void a_version_refusal_is_answered_ahead_of_a_form_this_api_cannot_read() {
+    anAccountDefaultingTo(THE_FIRST_BASIL_RELEASE);
+    Map<String, List<String>> unreadable = new LinkedHashMap<>(aHold());
+    unreadable.put("[amount", List.of("1"));
+
+    StripeApiResponse refused =
+        api()
+            .createPaymentIntent(
+                new StripeApiCall(
+                    "POST",
+                    CREATE_PATH,
+                    headers(SECRET_KEY, VERSION_HEADER, AN_ACACIA_RELEASE),
+                    unreadable));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains(THE_RANGE);
     assertThat(refused.headers()).doesNotHave(aHeaderOfThisNameUnderAnySpelling(VERSION_HEADER));
   }
 
@@ -320,6 +443,16 @@ class StripeApiVersionTest {
                     Map.of(StripeFields.CUSTOMER, List.of(customerId))));
     assertThat(minted.httpStatus()).isEqualTo(200);
     return ephemeralKeys.all().get(0).secret();
+  }
+
+  private StripeApiResponse mintingAt(String customerId, String version) {
+    return api()
+        .createEphemeralKey(
+            new StripeApiCall(
+                "POST",
+                EPHEMERAL_KEYS_PATH,
+                headers(SECRET_KEY, VERSION_HEADER, version),
+                Map.of(StripeFields.CUSTOMER, List.of(customerId))));
   }
 
   private static StripeApiCall sending(String name, String value) {

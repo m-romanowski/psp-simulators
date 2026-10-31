@@ -19,7 +19,7 @@ sealed interface StripeVersionChoice {
     return named(sent);
   }
 
-  static StripeVersionChoice forAShortLivedKey(
+  static StripeVersionChoice admittingTheMobileSdks(
       Map<String, List<String>> headers, StripeApiVersion accountDefault) {
     String sent = sentIn(headers);
     if (sent == null) {
@@ -42,11 +42,22 @@ sealed interface StripeVersionChoice {
     if (StripeApiVersions.isPublished(sent)) {
       return StripeErrors.versionNotAnswered(sent);
     }
-    int beta = sent.indexOf(StripeApiVersions.BETA_SEPARATOR);
-    if (beta >= 0 && StripeApiVersions.isPublished(sent.substring(0, beta).strip())) {
+    if (StripeApiVersions.isLaterThanTheCatalogue(sent)) {
+      return StripeErrors.versionLaterThanTheCatalogue(sent);
+    }
+    if (namesARelease(theReleaseBeforeABeta(sent))) {
       return StripeErrors.versionAsksForABeta(sent);
     }
     return StripeErrors.versionUnrecognised(sent);
+  }
+
+  private static String theReleaseBeforeABeta(String sent) {
+    return StripeApiVersions.A_BETA_AND_WHAT_FOLLOWS.matcher(sent).replaceFirst("").strip();
+  }
+
+  private static boolean namesARelease(String version) {
+    return StripeApiVersions.isPublished(version)
+        || StripeApiVersions.isLaterThanTheCatalogue(version);
   }
 
   static @Nullable String sentIn(Map<String, List<String>> headers) {
