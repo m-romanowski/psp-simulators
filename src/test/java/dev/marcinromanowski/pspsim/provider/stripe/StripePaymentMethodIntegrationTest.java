@@ -186,6 +186,7 @@ class StripePaymentMethodIntegrationTest extends PostgresBackedTest {
                 "amount", "1000",
                 "currency", "usd",
                 "confirm", "true",
+                "return_url", "https://shop.example/checkout/return",
                 "payment_method", FIRST_CARD));
 
     assertThat(detached.statusCode()).isEqualTo(200);

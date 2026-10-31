@@ -36,6 +36,8 @@ class StripeSetupIntentTest {
   private static final String THREE_DAYS = "P3D";
 
   private static final String SETUP_INTENTS = "/v1/setup_intents";
+
+  private static final String A_RETURN_URL = "https://shop.example/checkout/return";
   private static final String CUSTOMERS = "/v1/customers";
 
   private static final String THE_CUSTOMER = "cus_the_one_saving_a_card";
@@ -631,13 +633,15 @@ class StripeSetupIntentTest {
   }
 
   private StripeApiResponse confirm(String setupIntentId, Map<String, String> form) {
+    Map<String, String> returning = new LinkedHashMap<>(form);
+    returning.put(StripeFields.RETURN_URL, A_RETURN_URL);
     return api(LATER)
         .confirmSetupIntent(
             new StripeApiCall(
                 "POST",
                 SETUP_INTENTS + "/" + setupIntentId + "/confirm",
                 bearer(SECRET_KEY),
-                fieldsOf(new LinkedHashMap<>(form))),
+                fieldsOf(returning)),
             setupIntentId);
   }
 

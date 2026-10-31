@@ -350,6 +350,7 @@ class StripeApiVersionIntegrationTest extends PostgresBackedTest {
     form.put("capture_method", "manual");
     form.put("payment_method", "pm_card_visa");
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     HttpRequest.Builder request =
         HttpRequest.newBuilder(URI.create("http://localhost:" + port + PAYMENT_INTENTS))
             .header("Content-Type", "application/x-www-form-urlencoded")

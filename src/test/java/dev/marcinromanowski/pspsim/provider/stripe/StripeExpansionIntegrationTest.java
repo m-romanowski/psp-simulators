@@ -53,6 +53,7 @@ class StripeExpansionIntegrationTest extends PostgresBackedTest {
 
   private static final String A_CUSTOMER = "cus_expanded_over_the_wire";
   private static final String THE_CARD = "pm_expanded_over_the_wire";
+  private static final String A_RETURN_URL = StripePaymentIntentTest.A_RETURN_URL;
 
   @LocalServerPort private int port;
 
@@ -127,6 +128,7 @@ class StripeExpansionIntegrationTest extends PostgresBackedTest {
                 created.getId(),
                 PaymentIntentConfirmParams.builder()
                     .setPaymentMethod(THE_CARD)
+                    .setReturnUrl(A_RETURN_URL)
                     .addExpand("latest_charge")
                     .build());
     PaymentIntent captured =
@@ -268,7 +270,7 @@ class StripeExpansionIntegrationTest extends PostgresBackedTest {
             .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
             .setCustomer(A_CUSTOMER);
     if (confirmed) {
-      hold = hold.setPaymentMethod(THE_CARD).setConfirm(true);
+      hold = hold.setPaymentMethod(THE_CARD).setReturnUrl(A_RETURN_URL).setConfirm(true);
     }
     return client().v1().paymentIntents().create(hold.build());
   }

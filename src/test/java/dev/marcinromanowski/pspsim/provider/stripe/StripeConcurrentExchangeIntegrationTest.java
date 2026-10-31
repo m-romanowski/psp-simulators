@@ -77,6 +77,7 @@ class StripeConcurrentExchangeIntegrationTest extends PostgresBackedTest {
     hold.put("capture_method", "manual");
     hold.put("payment_method", "pm_card_visa");
     hold.put("confirm", "true");
+    hold.put("return_url", "https://shop.example/checkout/return");
 
     List<Integer> statuses = new ArrayList<>();
     for (int round = 0; round < ROUNDS; round++) {

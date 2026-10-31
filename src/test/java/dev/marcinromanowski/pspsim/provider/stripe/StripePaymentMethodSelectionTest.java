@@ -41,6 +41,24 @@ class StripePaymentMethodSelectionTest {
   private static final String THE_CARD = "pm_the_card";
   private static final String THE_WALLET = "pm_the_paypal_wallet";
 
+  private static final String A_RETURN_URL = "https://shop.example/checkout/return";
+
+  private static final String A_PAYMENT_NEEDS_A_RETURN_URL =
+      "A `return_url` must be specified because this Payment Intent is configured to"
+          + " automatically accept the payment methods enabled in the Dashboard, some of which may"
+          + " require a full page redirect to succeed. If you do not want to accept redirect-based"
+          + " payment methods, set `automatic_payment_methods[enabled]` to `true` and"
+          + " `automatic_payment_methods[allow_redirects]` to `never` when creating Setup Intents"
+          + " and Payment Intents.";
+
+  private static final String A_SETUP_NEEDS_A_RETURN_URL =
+      "A `return_url` must be specified because this Setup Intent is configured to"
+          + " automatically accept the payment methods enabled in the Dashboard, some of which may"
+          + " require a full page redirect to succeed. If you do not want to accept redirect-based"
+          + " payment methods, set `automatic_payment_methods[enabled]` to `true` and"
+          + " `automatic_payment_methods[allow_redirects]` to `never` when creating Setup Intents"
+          + " and Payment Intents.";
+
   private static final String NO_LONGER_WRITABLE =
       "payment_method_types is no longer a writable parameter at the API version this request is"
           + " answered at. It stays on the object as the list of payment method types the intent"
@@ -162,7 +180,7 @@ class StripePaymentMethodSelectionTest {
 
     assertThat(bodyOf(inZloty))
         .contains("\"payment_method_types\":[\"card\",\"paypal\"]")
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":true}")
+        .contains("\"automatic_payment_methods\":{\"enabled\":true}")
         .contains("\"allowed_payment_method_types\":null")
         .contains("\"excluded_payment_method_types\":null")
         .contains("\"payment_method_configuration_details\":null");
@@ -178,8 +196,8 @@ class StripePaymentMethodSelectionTest {
     assertThat(body)
         .contains("\"object\":\"payment_intent\",\"allowed_payment_method_types\":null,\"amount\":")
         .contains(
-            "\"amount_received\":0,\"automatic_payment_methods\":{\"allow_redirects\":null,"
-                + "\"enabled\":true},\"cancellation_reason\":")
+            "\"amount_received\":0,\"automatic_payment_methods\":{\"enabled\":true},"
+                + "\"cancellation_reason\":")
         .contains(
             "\"customer\":null,\"excluded_payment_method_types\":null,\"last_payment_error\":")
         .contains(
@@ -300,7 +318,7 @@ class StripePaymentMethodSelectionTest {
 
     assertThat(bodyOf(created))
         .contains("\"excluded_payment_method_types\":[\"paypal\"]")
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":true}")
+        .contains("\"automatic_payment_methods\":{\"enabled\":true}")
         .contains("\"payment_method_types\":[\"card\"]");
   }
 
@@ -348,7 +366,7 @@ class StripePaymentMethodSelectionTest {
             THE_NEWEST_RELEASE, "pln", form("automatic_payment_methods[enabled]", "false"));
 
     assertThat(bodyOf(created))
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":false}")
+        .contains("\"automatic_payment_methods\":{\"enabled\":false}")
         .contains("\"payment_method_types\":[\"card\"]");
   }
 
@@ -399,10 +417,83 @@ class StripePaymentMethodSelectionTest {
     assertThat(bodyOf(created))
         .contains(
             "\"payment_method_configuration_details\":{\"id\":\"pmc_simulated\",\"parent\":null}")
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":true}")
+        .contains("\"automatic_payment_methods\":{\"enabled\":true}")
         .contains("\"payment_method_types\":[\"card\",\"paypal\"]");
     assertThat(tooLong.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(tooLong)).contains("\"param\":\"payment_method_configuration\"");
+  }
+
+  @Test
+  void a_payment_method_configuration_of_exactly_a_hundred_characters_is_the_longest_taken() {
+    anAccount();
+    String theLongestTaken = "p".repeat(100);
+
+    StripeApiResponse taken =
+        createAPayment(
+            THE_NEWEST_RELEASE, "pln", form("payment_method_configuration", theLongestTaken));
+    StripeApiResponse oneLonger =
+        createAPayment(
+            THE_NEWEST_RELEASE, "pln", form("payment_method_configuration", theLongestTaken + "p"));
+
+    assertThat(taken.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(taken))
+        .contains("\"payment_method_configuration_details\":{\"id\":\"" + theLongestTaken + "\"");
+    assertThat(oneLonger.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(oneLonger)).contains("\"param\":\"payment_method_configuration\"");
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
+  void a_dahlia_payment_method_types_that_is_no_list_is_refused_as_unreadable() {
+    anAccount();
+
+    StripeApiResponse aValue =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types", "card"));
+    StripeApiResponse aHashInAList =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types[0][type]", "card"));
+
+    for (StripeApiResponse refused : List.of(aValue, aHashInAList)) {
+      assertThat(refused.httpStatus()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .isEqualTo(
+              "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"A parameter carries"
+                  + " a value this API does not accept. It accepts a list, sent as"
+                  + " payment_method_types[]=... once per element or as payment_method_types[0]=...,"
+                  + " payment_method_types[1]=... numbered from 0 without a gap, and an empty"
+                  + " payment_method_types= as a list of no elements.\","
+                  + "\"param\":\"payment_method_types\"}}");
+    }
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
+  void a_dahlia_payment_method_types_listing_nothing_leaves_the_payment_no_type() {
+    anAccount();
+
+    StripeApiResponse refused =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types", ""));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"code\":\"payment_intent_invalid_parameter\"")
+        .contains("\"param\":\"payment_method_types\"");
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
+  void allowed_types_sent_as_a_single_value_are_refused_as_unreadable() {
+    anAccount();
+
+    StripeApiResponse refused =
+        createAPayment(THE_NEWEST_RELEASE, "pln", form("allowed_payment_method_types", "card"));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"type\":\"invalid_request_error\"")
+        .contains("It accepts a list, sent as allowed_payment_method_types[]=...")
+        .contains("\"param\":\"allowed_payment_method_types\"")
+        .doesNotContain("\"code\"");
+    assertThat(intents.all()).isEmpty();
   }
 
   @Test
@@ -479,7 +570,7 @@ class StripePaymentMethodSelectionTest {
                 + " payment_method_configuration, automatic_payment_methods.\"");
     assertThat(switchedOffBeside.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(switchedOffBeside))
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":false}")
+        .contains("\"automatic_payment_methods\":{\"enabled\":false}")
         .contains("\"payment_method_types\":[\"card\"]");
     assertThat(intents.all()).hasSize(1);
   }
@@ -663,7 +754,10 @@ class StripePaymentMethodSelectionTest {
     StripeApiResponse confirmed =
         confirmThePayment(
             THE_NEWEST_RELEASE,
-            form("excluded_payment_method_types[]", "paypal", "payment_method", THE_CARD));
+            form(
+                "excluded_payment_method_types[]", "paypal",
+                "payment_method", THE_CARD,
+                "return_url", A_RETURN_URL));
 
     assertThat(bodyOf(confirmed))
         .contains("\"excluded_payment_method_types\":[\"paypal\"]")
@@ -705,7 +799,7 @@ class StripePaymentMethodSelectionTest {
 
     assertThat(bodyOf(dynamic))
         .contains("\"payment_method_types\":[\"card\",\"paypal\"]")
-        .contains("\"automatic_payment_methods\":{\"allow_redirects\":null,\"enabled\":true}");
+        .contains("\"automatic_payment_methods\":{\"enabled\":true}");
     assertThat(bodyOf(narrowed))
         .contains("\"allowed_payment_method_types\":[\"card\",\"us_bank_account\"]")
         .contains("\"payment_method_types\":[\"card\"]");
@@ -761,7 +855,7 @@ class StripePaymentMethodSelectionTest {
   }
 
   @Test
-  void a_setup_confirm_does_not_read_payment_method_types_because_it_never_took_it() {
+  void a_setup_confirm_accepts_payment_method_types_like_any_parameter_it_does_not_read() {
     anAccountHoldingACardAndAWallet();
     String setup =
         String.valueOf(
@@ -771,10 +865,306 @@ class StripePaymentMethodSelectionTest {
         confirmTheSetup(
             THE_NEWEST_RELEASE,
             setup,
-            form("payment_method_types[]", "paypal", "payment_method", THE_CARD));
+            form(
+                "payment_method_types[]",
+                "paypal",
+                "a_parameter_stripe_publishes_nowhere",
+                "anything",
+                "payment_method",
+                THE_CARD,
+                "return_url",
+                A_RETURN_URL));
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(confirmed)).contains("\"payment_method_types\":[\"card\",\"paypal\"]");
+  }
+
+  @Test
+  void a_dynamic_payment_confirmed_with_no_return_url_is_refused_in_the_reported_words() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form());
+    StripePaymentIntent before = theStoredPayment();
+
+    StripeApiResponse refused =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form("excluded_payment_method_types[]", "paypal", "payment_method", THE_CARD));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .startsWith(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\""
+                + A_PAYMENT_NEEDS_A_RETURN_URL
+                + "\",\"param\":\"return_url\",\"payment_intent\":{\"id\":\""
+                + FIRST_INTENT
+                + "\"")
+        .contains("\"excluded_payment_method_types\":null")
+        .contains("\"payment_method_types\":[\"card\",\"paypal\"]");
+    assertThat(theStoredPayment()).isEqualTo(before);
+  }
+
+  @Test
+  void a_payment_confirmed_on_creation_with_no_return_url_is_refused_and_nothing_is_minted() {
+    anAccountHoldingACardAndAWallet();
+
+    StripeApiResponse refused =
+        createAPayment(
+            THE_NEWEST_RELEASE, "pln", form("confirm", "true", "payment_method", THE_CARD));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .isEqualTo(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\""
+                + A_PAYMENT_NEEDS_A_RETURN_URL
+                + "\",\"param\":\"return_url\"}}");
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"true", "one_off", "recurring"})
+  void a_dynamic_payment_confirmed_off_session_needs_no_return_url(String offSession) {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form());
+
+    StripeApiResponse confirmed =
+        confirmThePayment(
+            THE_NEWEST_RELEASE, form("off_session", offSession, "payment_method", THE_CARD));
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed)).contains("\"status\":\"succeeded\"");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"false", "", "sometimes"})
+  void an_off_session_that_does_not_say_the_customer_is_away_still_needs_a_return_url(
+      String offSession) {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form());
+
+    StripeApiResponse refused =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form("off_session", offSession, "return_url", "", "payment_method", THE_CARD));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"param\":\"return_url\"");
+  }
+
+  @Test
+  void a_payment_that_refuses_redirects_or_is_not_dynamic_confirms_with_no_return_url() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(
+        THE_NEWEST_RELEASE,
+        "pln",
+        form(
+            "automatic_payment_methods[enabled]",
+            "true",
+            "automatic_payment_methods[allow_redirects]",
+            "never"));
+    String allowed =
+        String.valueOf(
+            createAPayment(
+                    THE_NEWEST_RELEASE, "pln", form("allowed_payment_method_types[]", "card"))
+                .providerObjectId());
+    String listed =
+        String.valueOf(
+            createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types[]", "card"))
+                .providerObjectId());
+
+    StripeApiResponse neverRedirecting =
+        confirmThePayment(THE_NEWEST_RELEASE, form("payment_method", THE_CARD));
+    StripeApiResponse allowedOnly =
+        confirmTheIntent(THE_NEWEST_RELEASE, allowed, form("payment_method", THE_CARD));
+    StripeApiResponse listedOnly =
+        confirmTheIntent(THE_JAVA_SDKS_RELEASE, listed, form("payment_method", THE_CARD));
+
+    for (StripeApiResponse confirmed : List.of(neverRedirecting, allowedOnly, listedOnly)) {
+      assertThat(confirmed.httpStatus()).isEqualTo(200);
+      assertThat(bodyOf(confirmed)).contains("\"status\":\"succeeded\"");
+    }
+  }
+
+  @Test
+  void a_confirm_whose_own_selection_switches_dynamic_off_needs_no_return_url() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form());
+
+    StripeApiResponse confirmed =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form("allowed_payment_method_types[]", "card", "payment_method", THE_CARD));
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+  }
+
+  @Test
+  void a_dynamic_setup_confirmed_with_no_return_url_is_refused_and_attaches_nothing() {
+    anAccountHoldingACardAndAWallet();
+    String setup =
+        String.valueOf(
+            createASetup(THE_NEWEST_RELEASE, form("customer", THE_CUSTOMER)).providerObjectId());
+    StripeSetupIntent before = setupIntents.find(E2E_RUN, setup).orElseThrow();
+
+    StripeApiResponse refused =
+        confirmTheSetup(
+            THE_NEWEST_RELEASE, setup, form("off_session", "true", "payment_method", THE_CARD));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .startsWith(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\""
+                + A_SETUP_NEEDS_A_RETURN_URL
+                + "\",\"param\":\"return_url\",\"setup_intent\":{\"id\":\""
+                + setup
+                + "\"");
+    assertThat(setupIntents.find(E2E_RUN, setup).orElseThrow()).isEqualTo(before);
+    assertThat(paymentMethods.find(E2E_RUN, THE_CARD).orElseThrow().attached()).isFalse();
+  }
+
+  @Test
+  void a_setup_that_refuses_redirects_confirms_with_no_return_url() {
+    anAccountHoldingACardAndAWallet();
+    String setup =
+        String.valueOf(
+            createASetup(
+                    THE_NEWEST_RELEASE,
+                    form(
+                        "customer", THE_CUSTOMER,
+                        "automatic_payment_methods[enabled]", "true",
+                        "automatic_payment_methods[allow_redirects]", "never"))
+                .providerObjectId());
+
+    StripeApiResponse confirmed =
+        confirmTheSetup(THE_NEWEST_RELEASE, setup, form("payment_method", THE_CARD));
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed))
+        .contains("\"automatic_payment_methods\":{\"allow_redirects\":\"never\",\"enabled\":true}")
+        .contains("\"payment_method_types\":[\"card\"]");
+  }
+
+  @Test
+  void an_empty_exclusion_on_confirm_unsets_it_rather_than_naming_no_type() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form("excluded_payment_method_types[]", "paypal"));
+
+    StripeApiResponse confirmed =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form(
+                "excluded_payment_method_types", "",
+                "payment_method", THE_WALLET,
+                "return_url", A_RETURN_URL));
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed))
+        .contains("\"excluded_payment_method_types\":null")
+        .contains("\"payment_method_types\":[\"card\",\"paypal\"]");
+    assertThat(theStoredPayment().selection().excluded()).isNull();
+  }
+
+  @Test
+  void an_empty_exclusion_on_confirm_is_not_refused_beside_the_types_a_payment_allowed() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form("allowed_payment_method_types[]", "card"));
+
+    StripeApiResponse confirmed =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form("excluded_payment_method_types", "", "payment_method", THE_CARD));
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed))
+        .contains("\"allowed_payment_method_types\":[\"card\"]")
+        .contains("\"excluded_payment_method_types\":null");
+  }
+
+  @Test
+  void a_confirm_refused_by_the_selection_it_sent_names_that_selection_and_not_the_intents() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(THE_NEWEST_RELEASE, "pln", form());
+
+    StripeApiResponse refused =
+        confirmThePayment(
+            THE_NEWEST_RELEASE,
+            form("allowed_payment_method_types[]", "card", "payment_method", THE_WALLET));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"code\":\"payment_intent_incompatible_payment_method\"")
+        .contains(
+            "\"message\":\"The PaymentMethod provided (paypal) is not allowed by the payment"
+                + " method types this request selects: card. This PaymentIntent keeps the payment"
+                + " method types it had.\"")
+        .contains("\"allowed_payment_method_types\":null")
+        .contains("\"payment_method_types\":[\"card\",\"paypal\"]");
+  }
+
+  @Test
+  void a_setup_confirm_refused_by_the_selection_it_sent_names_that_selection() {
+    anAccountHoldingACardAndAWallet();
+    String setup =
+        String.valueOf(
+            createASetup(THE_NEWEST_RELEASE, form("customer", THE_CUSTOMER)).providerObjectId());
+
+    StripeApiResponse refused =
+        confirmTheSetup(
+            THE_NEWEST_RELEASE,
+            setup,
+            form("allowed_payment_method_types[]", "card", "payment_method", THE_WALLET));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"code\":\"setup_intent_invalid_parameter\"")
+        .contains(
+            "\"message\":\"The PaymentMethod provided (paypal) is not allowed by the payment"
+                + " method types this request selects: card. This SetupIntent keeps the payment"
+                + " method types it had.\"");
+  }
+
+  @Test
+  void an_endive_confirm_addresses_the_intent_before_it_reads_payment_method_types() {
+    anAccountHoldingACardAndAWallet();
+    createAPayment(
+        THE_NEWEST_RELEASE,
+        "pln",
+        form("confirm", "true", "payment_method", THE_CARD, "return_url", A_RETURN_URL));
+
+    StripeApiResponse unknown =
+        confirmTheIntent(
+            THE_NEWEST_RELEASE, "pi_sim_nobody", form("payment_method_types[]", "card"));
+    StripeApiResponse succeeded =
+        confirmThePayment(THE_NEWEST_RELEASE, form("payment_method_types[]", "card"));
+
+    assertThat(unknown.httpStatus()).isEqualTo(404);
+    assertThat(bodyOf(unknown)).contains("\"code\":\"resource_missing\"");
+    assertThat(succeeded.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(succeeded)).contains("\"code\":\"payment_intent_unexpected_state\"");
+  }
+
+  @Test
+  void a_setup_confirm_whose_selection_is_refused_embeds_the_setup_and_changes_nothing() {
+    anAccountHoldingACardAndAWallet();
+    String setup =
+        String.valueOf(
+            createASetup(THE_NEWEST_RELEASE, form("customer", THE_CUSTOMER)).providerObjectId());
+    StripeSetupIntent before = setupIntents.find(E2E_RUN, setup).orElseThrow();
+
+    StripeApiResponse refused =
+        confirmTheSetup(
+            THE_NEWEST_RELEASE,
+            setup,
+            form(
+                "allowed_payment_method_types[]", "bitcoin",
+                "payment_method", THE_CARD,
+                "return_url", A_RETURN_URL));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"param\":\"allowed_payment_method_types[0]\"")
+        .contains("\"setup_intent\":{\"id\":\"" + setup + "\"");
+    assertThat(setupIntents.find(E2E_RUN, setup).orElseThrow()).isEqualTo(before);
+    assertThat(paymentMethods.find(E2E_RUN, THE_CARD).orElseThrow().attached()).isFalse();
   }
 
   private void anAccount() {
@@ -818,9 +1208,14 @@ class StripePaymentMethodSelectionTest {
   }
 
   private StripeApiResponse confirmThePayment(String version, Map<String, List<String>> sent) {
+    return confirmTheIntent(version, FIRST_INTENT, sent);
+  }
+
+  private StripeApiResponse confirmTheIntent(
+      String version, String intentId, Map<String, List<String>> sent) {
     return api()
         .confirmPaymentIntent(
-            call(version, PAYMENT_INTENTS + "/" + FIRST_INTENT + "/confirm", sent), FIRST_INTENT);
+            call(version, PAYMENT_INTENTS + "/" + intentId + "/confirm", sent), intentId);
   }
 
   private StripeApiResponse retrieveThePayment(String version) {

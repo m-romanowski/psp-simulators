@@ -18,9 +18,12 @@ final class StripeSelectionView {
       return StripeJson.nothing();
     }
     StripeRedirects redirects = selection.allowRedirects();
+    if (redirects == null) {
+      return StripeJson.object(StripeSelections.ENABLED, StripeJson.bool(automatic));
+    }
     return StripeJson.object(
         StripeSelections.ALLOW_REDIRECTS,
-        redirects == null ? StripeJson.nothing() : StripeJson.text(redirects.wireValue()),
+        StripeJson.text(redirects.wireValue()),
         StripeSelections.ENABLED,
         StripeJson.bool(automatic));
   }

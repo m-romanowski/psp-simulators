@@ -789,6 +789,7 @@ class StripeProviderControlTest {
     fields.put("payment_method", List.of("pm_card_visa"));
     fields.put("customer", List.of("cus_sim_1"));
     fields.put("confirm", List.of("true"));
+    fields.put("return_url", List.of(StripePaymentIntentTest.A_RETURN_URL));
     return fields;
   }
 

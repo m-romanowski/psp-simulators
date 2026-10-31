@@ -65,6 +65,13 @@ final class ConfirmPaymentIntent {
       }
       case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
+    StripeError nowhereToReturn =
+        StripeReturnUrl.theRefusalAPaymentConfirmationEarns(request.form(), selection);
+    if (nowhereToReturn != null) {
+      return StripeOperationResult.refused(
+          RefusalSubject.theObject(stored.intentId()),
+          nowhereToReturn.about(StripeIntentView.of(stored, now)));
+    }
     StripePaymentIntent intent = stored.selecting(selection);
     String paymentMethod = paymentMethodOf(request.form(), intent);
     if (paymentMethod == null) {
@@ -84,8 +91,7 @@ final class ConfirmPaymentIntent {
     if (notOffered.isPresent()) {
       return StripeOperationResult.refused(
           RefusalSubject.theObject(intent.intentId()),
-          StripeErrors.paymentMethodNotAllowedForThePayment(
-                  notOffered.get().wireValue(), selection.offeredAsProse())
+          notAllowed(notOffered.get(), stored.selection(), selection)
               .about(StripeIntentView.of(stored, now)));
     }
     return StripeOperationResult.decidedBy(
@@ -93,6 +99,15 @@ final class ConfirmPaymentIntent {
         () -> confirm(intent, paymentMethod, now),
         decline -> decline(intent, paymentMethod, decline, now),
         pending -> pend(intent, paymentMethod, pending, now));
+  }
+
+  private static StripeError notAllowed(
+      StripePaymentMethodType type, StripeSelection kept, StripeSelection selection) {
+    return kept.equals(selection)
+        ? StripeErrors.paymentMethodNotAllowedForThePayment(
+            type.wireValue(), selection.offeredAsProse())
+        : StripeErrors.paymentMethodNotAllowedByTheSelectionSentForThePayment(
+            type.wireValue(), selection.offeredAsProse());
   }
 
   private static @Nullable String paymentMethodOf(StripeForm form, StripePaymentIntent intent) {

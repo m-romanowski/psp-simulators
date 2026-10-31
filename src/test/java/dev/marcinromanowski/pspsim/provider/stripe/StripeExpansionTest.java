@@ -282,6 +282,8 @@ class StripeExpansionTest {
                         THE_CUSTOMER,
                         "payment_method",
                         THE_CARD,
+                        "return_url",
+                        StripePaymentIntentTest.A_RETURN_URL,
                         "confirm",
                         "true",
                         "expand[0]",
@@ -351,7 +353,13 @@ class StripeExpansionTest {
             .confirmPaymentIntent(
                 post(
                     PAYMENT_INTENTS + "/" + FIRST_INTENT + "/confirm",
-                    Map.of("payment_method", THE_CARD, "expand[]", "payment_method")),
+                    Map.of(
+                        "payment_method",
+                        THE_CARD,
+                        "return_url",
+                        StripePaymentIntentTest.A_RETURN_URL,
+                        "expand[]",
+                        "payment_method")),
                 FIRST_INTENT);
     StripeApiResponse captured =
         api()
@@ -556,6 +564,8 @@ class StripeExpansionTest {
                     THE_CUSTOMER,
                     "payment_method",
                     A_PUBLISHED_TEST_CARD,
+                    "return_url",
+                    StripePaymentIntentTest.A_RETURN_URL,
                     "confirm",
                     "true")));
 
@@ -609,6 +619,8 @@ class StripeExpansionTest {
                         THE_CUSTOMER,
                         "payment_method",
                         THE_CARD,
+                        "return_url",
+                        StripePaymentIntentTest.A_RETURN_URL,
                         "confirm",
                         "true",
                         "expand[]",
@@ -813,6 +825,8 @@ class StripeExpansionTest {
                 post(
                     SETUP_INTENTS + "/" + setupIntentId + "/confirm",
                     Map.of(
+                        "return_url",
+                        StripePaymentIntentTest.A_RETURN_URL,
                         "payment_method",
                         A_CARD_OF_NOBODY,
                         "expand[0]",
@@ -1053,7 +1067,11 @@ class StripeExpansionTest {
     answered.put("retrieve an intent", retrieve(FIRST_INTENT, notAListInTheQuery));
     answered.put(
         "confirm an intent",
-        api.confirmPaymentIntent(post(intent + "/confirm", notAList), FIRST_INTENT));
+        api.confirmPaymentIntent(
+            post(
+                intent + "/confirm",
+                Map.of("expand", "customer", "return_url", StripePaymentIntentTest.A_RETURN_URL)),
+            FIRST_INTENT));
     answered.put(
         "capture an intent",
         api.capturePaymentIntent(post(intent + "/capture", notAList), FIRST_INTENT));
@@ -1091,7 +1109,10 @@ class StripeExpansionTest {
     answered.put(
         "confirm a setup intent",
         api.confirmSetupIntent(
-            post(SETUP_INTENTS + "/seti_sim_none/confirm", notAList), "seti_sim_none"));
+            post(
+                SETUP_INTENTS + "/seti_sim_none/confirm",
+                Map.of("expand", "customer", "return_url", StripePaymentIntentTest.A_RETURN_URL)),
+            "seti_sim_none"));
     answered.put(
         "create an ephemeral key", api.createEphemeralKey(post("/v1/ephemeral_keys", notAList)));
 
@@ -1198,6 +1219,8 @@ class StripeExpansionTest {
                     THE_CUSTOMER,
                     "payment_method",
                     THE_CARD,
+                    "return_url",
+                    StripePaymentIntentTest.A_RETURN_URL,
                     "confirm",
                     "true")));
   }

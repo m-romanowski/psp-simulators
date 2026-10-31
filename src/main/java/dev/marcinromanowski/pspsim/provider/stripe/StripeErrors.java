@@ -218,12 +218,7 @@ final class StripeErrors {
     return invalidRequest(
         BAD_REQUEST,
         PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD,
-        "The PaymentMethod provided ("
-            + type
-            + ") is not allowed for this PaymentIntent. Attach a PaymentMethod of one of the"
-            + " following types: "
-            + allowed
-            + ".",
+        notAllowedFor(type, "PaymentIntent", allowed),
         StripeFields.PAYMENT_METHOD);
   }
 
@@ -231,13 +226,76 @@ final class StripeErrors {
     return invalidRequest(
         BAD_REQUEST,
         SETUP_INTENT_INVALID_PARAMETER,
-        "The PaymentMethod provided ("
-            + type
-            + ") is not allowed for this SetupIntent. Attach a PaymentMethod of one of the"
-            + " following types: "
-            + allowed
-            + ".",
+        notAllowedFor(type, "SetupIntent", allowed),
         StripeFields.PAYMENT_METHOD);
+  }
+
+  static StripeError paymentMethodNotAllowedByTheSelectionSentForThePayment(
+      String type, String selected) {
+    return invalidRequest(
+        BAD_REQUEST,
+        PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD,
+        notAllowedByTheSelectionSent(type, "PaymentIntent", selected),
+        StripeFields.PAYMENT_METHOD);
+  }
+
+  static StripeError paymentMethodNotAllowedByTheSelectionSentForTheSetup(
+      String type, String selected) {
+    return invalidRequest(
+        BAD_REQUEST,
+        SETUP_INTENT_INVALID_PARAMETER,
+        notAllowedByTheSelectionSent(type, "SetupIntent", selected),
+        StripeFields.PAYMENT_METHOD);
+  }
+
+  private static String notAllowedFor(String type, String intent, String allowed) {
+    return "The PaymentMethod provided ("
+        + type
+        + ") is not allowed for this "
+        + intent
+        + ". Attach a PaymentMethod of one of the following types: "
+        + allowed
+        + ".";
+  }
+
+  private static String notAllowedByTheSelectionSent(String type, String intent, String selected) {
+    return "The PaymentMethod provided ("
+        + type
+        + ") is not allowed by the payment method types this request selects: "
+        + selected
+        + ". This "
+        + intent
+        + " keeps the payment method types it had.";
+  }
+
+  static StripeError returnUrlRequiredForThePayment() {
+    return returnUrlRequired("Payment Intent");
+  }
+
+  static StripeError returnUrlRequiredForTheSetup() {
+    return returnUrlRequired("Setup Intent");
+  }
+
+  private static StripeError returnUrlRequired(String intent) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "A `"
+            + StripeFields.RETURN_URL
+            + "` must be specified because this "
+            + intent
+            + " is configured to automatically accept the payment methods enabled in the"
+            + " Dashboard, some of which may require a full page redirect to succeed. If you do"
+            + " not want to accept redirect-based payment methods, set `"
+            + StripeFields.AUTOMATIC_PAYMENT_METHODS
+            + "["
+            + StripeSelections.ENABLED
+            + "]` to `true` and `"
+            + StripeFields.AUTOMATIC_PAYMENT_METHODS
+            + "["
+            + StripeSelections.ALLOW_REDIRECTS
+            + "]` to `never` when creating Setup Intents and Payment Intents.",
+        StripeFields.RETURN_URL);
   }
 
   static StripeError unexpectedState(String message) {

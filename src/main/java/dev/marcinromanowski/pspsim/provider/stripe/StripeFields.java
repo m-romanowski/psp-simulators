@@ -29,6 +29,7 @@ final class StripeFields {
   static final String RECEIPT_EMAIL = "receipt_email";
   static final String EMAIL = "email";
   static final String OFF_SESSION = "off_session";
+  static final String RETURN_URL = "return_url";
   static final String AMOUNT_TO_CAPTURE = "amount_to_capture";
   static final String FINAL_CAPTURE = "final_capture";
   static final String PAYMENT_INTENT = "payment_intent";

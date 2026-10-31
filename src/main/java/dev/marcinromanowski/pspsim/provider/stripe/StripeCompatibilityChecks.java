@@ -321,6 +321,8 @@ public final class StripeCompatibilityChecks {
     form.put("capture_method", "manual");
     form.put("payment_method", "pm_card_visa");
     form.put("confirm", "true");
+    form.put("automatic_payment_methods[enabled]", "true");
+    form.put("automatic_payment_methods[allow_redirects]", "never");
     return form;
   }
 }

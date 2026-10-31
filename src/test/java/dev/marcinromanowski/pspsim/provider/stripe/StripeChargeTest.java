@@ -233,10 +233,18 @@ class StripeChargeTest {
     StripeApi api = anAccount();
     declining(StripeOperations.CONFIRM, StripeDecline.GENERIC_DECLINE);
     api.createPaymentIntent(post(CREATE_PATH, unconfirmedHoldOf("1000")));
-    api.confirmPaymentIntent(post(intentPath(FIRST_INTENT) + "/confirm", Map.of()), FIRST_INTENT);
+    api.confirmPaymentIntent(
+        post(
+            intentPath(FIRST_INTENT) + "/confirm",
+            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL)),
+        FIRST_INTENT);
     String failed = theChargeOf(FIRST_INTENT);
     scenarioRules.clear(StripeApi.STRIPE, E2E_RUN);
-    api.confirmPaymentIntent(post(intentPath(FIRST_INTENT) + "/confirm", Map.of()), FIRST_INTENT);
+    api.confirmPaymentIntent(
+        post(
+            intentPath(FIRST_INTENT) + "/confirm",
+            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL)),
+        FIRST_INTENT);
     api.capturePaymentIntent(
         post(capturePath(FIRST_INTENT), Map.of("amount_to_capture", "1000")), FIRST_INTENT);
     api.createRefund(post(REFUNDS_PATH, Map.of("payment_intent", FIRST_INTENT, "amount", "400")));

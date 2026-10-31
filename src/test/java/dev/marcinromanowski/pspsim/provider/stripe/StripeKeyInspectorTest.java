@@ -514,6 +514,7 @@ class StripeKeyInspectorTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 
@@ -546,7 +547,12 @@ class StripeKeyInspectorTest {
         "POST",
         CREATE_PATH + "/" + FIRST_INTENT + "/confirm",
         headers(key),
-        fields(Map.of(StripeFields.PAYMENT_METHOD, CARD)));
+        fields(
+            Map.of(
+                StripeFields.PAYMENT_METHOD,
+                CARD,
+                StripeFields.RETURN_URL,
+                StripePaymentIntentTest.A_RETURN_URL)));
   }
 
   private static StripeApiCall aSetupIntentCall() {
@@ -559,7 +565,10 @@ class StripeKeyInspectorTest {
 
   private static StripeApiCall setupConfirmation(String key) {
     return new StripeApiCall(
-        "POST", SETUP_PATH + "/" + FIRST_SETUP + "/confirm", headers(key), Map.of());
+        "POST",
+        SETUP_PATH + "/" + FIRST_SETUP + "/confirm",
+        headers(key),
+        fields(Map.of(StripeFields.RETURN_URL, StripePaymentIntentTest.A_RETURN_URL)));
   }
 
   private static StripeCustomer aCustomer() {

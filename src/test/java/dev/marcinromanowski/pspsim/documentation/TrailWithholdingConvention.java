@@ -265,6 +265,11 @@ public final class TrailWithholdingConvention {
                   + " never answers: no charge of this build carries a receipt"),
           new AnAddressInTheClear(
               "stripe",
+              "return_url",
+              "a parameter the merchant sends to confirm an intent, naming the merchant's own page;"
+                  + " this build reads only whether one was sent and answers it back in no field"),
+          new AnAddressInTheClear(
+              "stripe",
               "unrecognized_location",
               "the published automatic_tax value this build answers inside the included tax"
                   + " details of a customer; it is a value, never a field name, and carries no"

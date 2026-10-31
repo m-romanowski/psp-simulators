@@ -33,24 +33,27 @@ final class StripeSelections {
   }
 
   enum Endpoint {
-    CREATE_PAYMENT_INTENT("creating a PaymentIntent", true, true, false),
-    CONFIRM_PAYMENT_INTENT("confirming a PaymentIntent", false, true, false),
-    CREATE_SETUP_INTENT("creating a SetupIntent", true, true, true),
-    CONFIRM_SETUP_INTENT("confirming a SetupIntent", false, false, true);
+    CREATE_PAYMENT_INTENT("creating a PaymentIntent", true, true, false, false),
+    CONFIRM_PAYMENT_INTENT("confirming a PaymentIntent", false, true, true, false),
+    CREATE_SETUP_INTENT("creating a SetupIntent", true, true, false, true),
+    CONFIRM_SETUP_INTENT("confirming a SetupIntent", false, false, false, true);
 
     private final String doing;
     private final boolean readsTheDynamicSettings;
     private final boolean readsTheExclusions;
+    private final boolean readsAnEmptyExclusionAsUnset;
     private final boolean forASetup;
 
     Endpoint(
         String doing,
         boolean readsTheDynamicSettings,
         boolean readsTheExclusions,
+        boolean readsAnEmptyExclusionAsUnset,
         boolean forASetup) {
       this.doing = doing;
       this.readsTheDynamicSettings = readsTheDynamicSettings;
       this.readsTheExclusions = readsTheExclusions;
+      this.readsAnEmptyExclusionAsUnset = readsAnEmptyExclusionAsUnset;
       this.forASetup = forASetup;
     }
 
@@ -100,7 +103,7 @@ final class StripeSelections {
     }
     if (stored != null) {
       List<String> excluded = asked.excluded;
-      if (excluded == null) {
+      if (excluded == null && !(asked.exclusionUnset && stored.dynamic())) {
         return new Outcome.Selected(stored);
       }
       return dynamic(stored.allowRedirects(), excluded, stored.configuration(), endpoint, currency);
@@ -135,7 +138,10 @@ final class StripeSelections {
             StripeFields.ALLOWED_PAYMENT_METHOD_TYPES,
             StripePublishedPaymentMethodTypes.ALLOWED,
             values -> asked.allowed = values);
-    if (refused == null && endpoint.readsTheExclusions) {
+    if (endpoint.readsAnEmptyExclusionAsUnset
+        && isEmptyText(form.parameters().get(StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES))) {
+      asked.exclusionUnset = true;
+    } else if (refused == null && endpoint.readsTheExclusions) {
       refused =
           readList(
               form,
@@ -353,6 +359,10 @@ final class StripeSelections {
     return List.copyOf(values);
   }
 
+  private static boolean isEmptyText(@Nullable StripeParameter sent) {
+    return sent instanceof StripeParameter.Scalar scalar && scalar.value().isEmpty();
+  }
+
   private static StripeError unreadableList(String name) {
     return StripeErrors.unreadableParameter(name, StripeForm.theListShapesOf(name));
   }
@@ -378,6 +388,7 @@ final class StripeSelections {
     private @Nullable StripeRedirects allowRedirects;
     private @Nullable List<String> allowed;
     private @Nullable List<String> excluded;
+    private boolean exclusionUnset;
     private @Nullable String configuration;
   }
 }

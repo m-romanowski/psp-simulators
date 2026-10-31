@@ -103,7 +103,10 @@ class StripeOriginationTest {
             StripeOrigination.A_CARD_SET_UP,
             StripeOrigination.A_CARD_SET_UP_AND_CONFIRMED);
     assertThat(provider.originationFields().fieldsItFillsInItself())
-        .containsOnlyKeys(StripeFields.CAPTURE_METHOD, StripeFields.CLIENT_SECRET);
+        .containsOnlyKeys(
+            StripeFields.CAPTURE_METHOD,
+            StripeFields.AUTOMATIC_PAYMENT_METHODS,
+            StripeFields.CLIENT_SECRET);
   }
 
   @Test
@@ -150,7 +153,12 @@ class StripeOriginationTest {
         .isEqualTo("cus_saving");
     assertThat(setupIntents.all())
         .singleElement()
-        .satisfies(setup -> assertThat(setup.status()).isEqualTo(StripeSetupStatus.SUCCEEDED));
+        .satisfies(
+            setup -> {
+              assertThat(setup.status()).isEqualTo(StripeSetupStatus.SUCCEEDED);
+              assertThat(setup.selection().automatic()).isTrue();
+              assertThat(setup.selection().allowRedirects()).isEqualTo(StripeRedirects.NEVER);
+            });
   }
 
   @Test
@@ -212,8 +220,10 @@ class StripeOriginationTest {
     assertThat(setupIntents.all())
         .singleElement()
         .satisfies(
-            setup ->
-                assertThat(setup.status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD));
+            setup -> {
+              assertThat(setup.status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD);
+              assertThat(setup.selection().allowRedirects()).isNull();
+            });
   }
 
   @Test
@@ -264,6 +274,13 @@ class StripeOriginationTest {
     ProviderObjectState intent = theStateOf(outcome);
     assertThat(intent.normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
     assertThat(intent.origin()).isEqualTo(ObjectOrigin.UI);
+    assertThat(intents.all())
+        .singleElement()
+        .satisfies(
+            stored -> {
+              assertThat(stored.selection().automatic()).isTrue();
+              assertThat(stored.selection().allowRedirects()).isEqualTo(StripeRedirects.NEVER);
+            });
   }
 
   @Test
@@ -285,6 +302,9 @@ class StripeOriginationTest {
     assertThat(intent.nativeStatus())
         .isEqualTo(StripeIntentStatus.REQUIRES_CONFIRMATION.wireValue());
     assertThat(intent.normalizedStatus()).isEqualTo(NormalizedStatus.NOT_INITIALIZED);
+    assertThat(intents.all())
+        .singleElement()
+        .satisfies(stored -> assertThat(stored.selection().allowRedirects()).isNull());
   }
 
   @Test

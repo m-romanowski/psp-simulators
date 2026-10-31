@@ -3,6 +3,7 @@ package dev.marcinromanowski.pspsim.provider.stripe;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -144,6 +145,50 @@ class StripeVersionChangesTest {
   }
 
   @Test
+  void a_request_passes_the_older_change_before_the_newer_one() {
+    List<StripeVersionChange> newestFirst =
+        List.of(
+            aChangeRecording("2026-10-28.endive", "newer"),
+            aChangeRecording("2026-09-30.endive", "older"));
+    List<StripeVersionChange> oldestFirst = newestFirst.reversed();
+
+    for (List<StripeVersionChange> declared : List.of(newestFirst, oldestFirst)) {
+      StripeCoreRequest atTheCore =
+          StripeVersionChanges.atTheCore(
+              StripeForm.of(Map.of()),
+              new StripeApiVersion("2026-08-26.dahlia"),
+              "POST /v1/payment_intents",
+              declared);
+
+      assertThat(atTheCore.writtenPaymentMethodTypes())
+          .isEqualTo(new StripeParameter.Appended(List.of("older", "newer")));
+    }
+  }
+
+  @Test
+  void a_request_passes_only_the_changes_that_touch_its_operation_and_are_newer_than_it() {
+    List<StripeVersionChange> declared =
+        List.of(
+            aChangeRecording("2026-10-28.endive", "newer"),
+            aChangeRecording("2026-09-30.endive", "older"),
+            new StripeVersionChange(
+                new StripeApiVersion("2026-10-28.endive"),
+                "https://docs.stripe.com/changelog/elsewhere",
+                Set.of("POST /v1/setup_intents"),
+                recording("elsewhere")));
+
+    StripeCoreRequest atEndivesOpening =
+        StripeVersionChanges.atTheCore(
+            StripeForm.of(Map.of()),
+            new StripeApiVersion("2026-09-30.endive"),
+            "POST /v1/payment_intents",
+            declared);
+
+    assertThat(atEndivesOpening.writtenPaymentMethodTypes())
+        .isEqualTo(new StripeParameter.Appended(List.of("newer")));
+  }
+
+  @Test
   void a_change_is_declared_only_at_a_release_this_simulator_answers() {
     assertThatThrownBy(() -> aChangeAt("2024-09-30.acacia"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -165,6 +210,25 @@ class StripeVersionChangesTest {
 
   private static List<StripeVersionChange> walkingBackTo(String version) {
     return StripeVersionChanges.walkingBackTo(new StripeApiVersion(version), DECLARED);
+  }
+
+  private static StripeVersionChange aChangeRecording(String version, String label) {
+    return new StripeVersionChange(
+        new StripeApiVersion(version),
+        "https://docs.stripe.com/changelog/" + version,
+        Set.of("POST /v1/payment_intents"),
+        recording(label));
+  }
+
+  private static UnaryOperator<StripeCoreRequest> recording(String label) {
+    return request -> {
+      List<String> passed = new ArrayList<>();
+      if (request.writtenPaymentMethodTypes() instanceof StripeParameter.Appended earlier) {
+        passed.addAll(earlier.values());
+      }
+      passed.add(label);
+      return new StripeCoreRequest(request.form(), new StripeParameter.Appended(passed));
+    };
   }
 
   private static StripeVersionChange aChangeAt(String version) {

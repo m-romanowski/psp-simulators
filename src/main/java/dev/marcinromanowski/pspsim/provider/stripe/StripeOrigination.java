@@ -209,6 +209,14 @@ final class StripeOrigination {
             + " and the way of starting the payment you picked above is that choice. A SetupIntent"
             + " carries no capture_method, because it moves no money at all.");
     filled.put(
+        StripeFields.AUTOMATIC_PAYMENT_METHODS,
+        "stripe requires a return_url to confirm an intent that accepts the payment methods"
+            + " enabled in the Dashboard, because some of them redirect the payer. A confirmation"
+            + " this wizard runs has no payer to return, so the call that confirms sends"
+            + " automatic_payment_methods[enabled]=true with allow_redirects=never, the way Stripe"
+            + " publishes to confirm without one. An intent this wizard only creates is left as"
+            + " Stripe defaults it.");
+    filled.put(
         StripeFields.CLIENT_SECRET,
         "stripe publishes client_secret as the value a browser or a mobile application uses to"
             + " finish an intent with a publishable key. This simulator serves no publishable-key"
@@ -236,7 +244,22 @@ final class StripeOrigination {
     if (!setsACardUp(request.startedAs())) {
       fields.put(StripeFields.CAPTURE_METHOD, List.of(theMethodThatCarries(request).wireValue()));
     }
+    if (confirmsInTheCallThatCreates(request)) {
+      fields.put(
+          StripeFields.AUTOMATIC_PAYMENT_METHODS + "[" + StripeSelections.ENABLED + "]",
+          List.of(StripeFlag.TRUE));
+      fields.put(
+          StripeFields.AUTOMATIC_PAYMENT_METHODS + "[" + StripeSelections.ALLOW_REDIRECTS + "]",
+          List.of(StripeRedirects.NEVER.wireValue()));
+    }
     return StripeForm.of(fields);
+  }
+
+  private static boolean confirmsInTheCallThatCreates(OriginationRequest request) {
+    if (setsACardUp(request.startedAs())) {
+      return confirmsTheSetupItself(request.startedAs());
+    }
+    return StripeFlag.TRUE.equals(request.values().get(StripeFields.CONFIRM));
   }
 
   static StripeForm theConfirmationOf(String paymentMethod) {

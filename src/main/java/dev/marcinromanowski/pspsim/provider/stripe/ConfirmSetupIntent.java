@@ -54,6 +54,11 @@ final class ConfirmSetupIntent {
       }
       case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
+    StripeError nowhereToReturn =
+        StripeReturnUrl.theRefusalASetupConfirmationEarns(request.form(), selection);
+    if (nowhereToReturn != null) {
+      return refusedAbout(stored, nowhereToReturn);
+    }
     StripeSetupIntent intent = stored.selecting(selection);
     String paymentMethod = paymentMethodOf(request.form(), intent);
     if (paymentMethod == null) {
@@ -71,15 +76,21 @@ final class ConfirmSetupIntent {
         StripePaymentMethodLookup.theTypeOf(paymentMethods, testRunId, account, paymentMethod)
             .filter(type -> !selection.offers(type));
     if (notOffered.isPresent()) {
-      return refusedAbout(
-          stored,
-          StripeErrors.paymentMethodNotAllowedForTheSetup(
-              notOffered.get().wireValue(), selection.offeredAsProse()));
+      return refusedAbout(stored, notAllowed(notOffered.get(), stored.selection(), selection));
     }
     return StripeOperationResult.decidedBy(
         scenarios.decide(requestOf(headers, testRunId, account, intent, paymentMethod)),
         () -> setUp(intent, paymentMethod, now),
         decline -> fail(intent, paymentMethod, decline, now));
+  }
+
+  private static StripeError notAllowed(
+      StripePaymentMethodType type, StripeSelection kept, StripeSelection selection) {
+    return kept.equals(selection)
+        ? StripeErrors.paymentMethodNotAllowedForTheSetup(
+            type.wireValue(), selection.offeredAsProse())
+        : StripeErrors.paymentMethodNotAllowedByTheSelectionSentForTheSetup(
+            type.wireValue(), selection.offeredAsProse());
   }
 
   private static StripeOperationResult refusedAbout(StripeSetupIntent stored, StripeError error) {
