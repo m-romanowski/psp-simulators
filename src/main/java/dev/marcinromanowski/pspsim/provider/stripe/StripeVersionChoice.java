@@ -45,11 +45,14 @@ sealed interface StripeVersionChoice {
     if (StripeApiVersions.isLaterThanTheCatalogue(sent)) {
       return StripeErrors.versionLaterThanTheCatalogue(sent);
     }
-    int beta = sent.indexOf(StripeApiVersions.BETA_SEPARATOR);
-    if (beta >= 0 && namesARelease(sent.substring(0, beta).strip())) {
+    if (namesARelease(theReleaseBeforeABeta(sent))) {
       return StripeErrors.versionAsksForABeta(sent);
     }
     return StripeErrors.versionUnrecognised(sent);
+  }
+
+  private static String theReleaseBeforeABeta(String sent) {
+    return StripeApiVersions.A_BETA_AND_WHAT_FOLLOWS.matcher(sent).replaceFirst("").strip();
   }
 
   private static boolean namesARelease(String version) {

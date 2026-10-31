@@ -146,6 +146,9 @@ final class StripeApiVersions {
 
   static final String BETA_SEPARATOR = ";";
 
+  static final Pattern A_BETA_AND_WHAT_FOLLOWS =
+      Pattern.compile(BETA_SEPARATOR + ".*", Pattern.DOTALL);
+
   private static final Pattern A_DATED_RELEASE =
       Pattern.compile("([0-9]{4}-[0-9]{2}-[0-9]{2})\\.[a-z]+");
 

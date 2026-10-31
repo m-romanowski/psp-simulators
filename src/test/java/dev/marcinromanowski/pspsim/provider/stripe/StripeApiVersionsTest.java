@@ -313,6 +313,31 @@ class StripeApiVersionsTest {
   }
 
   @Test
+  void the_majors_a_refusal_names_read_as_prose_however_many_there_are() {
+    assertThat(StripeErrors.inProse(List.of())).isEmpty();
+    assertThat(StripeErrors.inProse(List.of("basil"))).isEqualTo("basil");
+    assertThat(StripeErrors.inProse(List.of("basil", "clover"))).isEqualTo("basil and clover");
+    assertThat(StripeErrors.inProse(List.of("basil", "clover", "dahlia", "endive")))
+        .isEqualTo("basil, clover, dahlia and endive");
+  }
+
+  @Test
+  void a_refusal_reads_a_beta_only_after_a_release_and_never_at_the_start_of_the_value() {
+    assertThat(
+            StripeVersionChoice.forTheAccount(
+                Map.of("Stripe-Version", List.of("; 2025-03-31.basil")), BASIL_OPENED))
+        .isEqualTo(
+            new StripeVersionChoice.Refused(
+                StripeErrors.versionUnrecognised("; 2025-03-31.basil")));
+    assertThat(
+            StripeVersionChoice.forTheAccount(
+                Map.of("Stripe-Version", List.of("2025-03-31.basil ;a=v1;b=v2")), BASIL_OPENED))
+        .isEqualTo(
+            new StripeVersionChoice.Refused(
+                StripeErrors.versionAsksForABeta("2025-03-31.basil ;a=v1;b=v2")));
+  }
+
+  @Test
   void a_beta_after_a_value_that_names_no_version_is_refused_as_an_invalid_version() {
     assertThat(
             StripeVersionChoice.forTheAccount(
