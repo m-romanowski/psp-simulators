@@ -684,6 +684,19 @@ final class StripeDoubles {
     }
 
     @Override
+    public List<StripeRefund> ofTheCharge(TestRunId testRunId, String accountId, String chargeId) {
+      List<StripeRefund> newestFirst = new ArrayList<>();
+      for (StripeRefund refund : stored) {
+        if (refund.testRunId().equals(testRunId)
+            && refund.accountId().equals(accountId)
+            && chargeId.equals(refund.chargeId())) {
+          newestFirst.add(0, refund);
+        }
+      }
+      return List.copyOf(newestFirst);
+    }
+
+    @Override
     public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, String refundId) {
       Long arrival = arrivals.get(placeKey(testRunId, refundId));
       return arrival == null
@@ -1056,6 +1069,11 @@ final class StripeDoubles {
     private final List<StripeCustomer> stored = new ArrayList<>();
     private int writesToLose;
     private int writesToRace;
+    private int lookups;
+
+    int lookups() {
+      return lookups;
+    }
 
     Customers losingTheCustomerOnTheNextWrite() {
       this.writesToLose = 1;
@@ -1079,6 +1097,7 @@ final class StripeDoubles {
 
     @Override
     public Optional<StripeCustomer> find(TestRunId testRunId, String customerId) {
+      lookups++;
       return stored.stream()
           .filter(c -> c.testRunId().equals(testRunId) && c.customerId().equals(customerId))
           .findFirst();

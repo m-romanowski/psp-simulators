@@ -44,6 +44,11 @@ class StripeExpansionTest {
   private static final String FIRST_INTENT = "pi_sim_0000000000000001";
   private static final String FIRST_CHARGE = "ch_sim_0000000000000002";
   private static final String FIRST_REFUND = "re_sim_0000000000000003";
+  private static final String SECOND_REFUND = "re_sim_0000000000000004";
+  private static final String ANOTHER_CUSTOMER = "cus_the_other_one_paying";
+  private static final String A_SECOND_CARD_OF_THE_CUSTOMER =
+      "pm_the_second_card_the_customer_saved";
+  private static final String THE_OTHER_CUSTOMERS_CARD = "pm_the_card_the_other_customer_saved";
 
   private static final String PAYMENT_INTENTS = "/v1/payment_intents";
   private static final String PAYMENT_METHODS = "/v1/payment_methods";
@@ -325,7 +330,7 @@ class StripeExpansionTest {
   }
 
   @Test
-  void a_confirmation_and_a_capture_and_a_cancel_each_answer_the_intent_expanded() {
+  void a_confirmation_and_a_capture_each_answer_the_intent_expanded() {
     aCustomerAndTheCardSavedToIt();
     api()
         .createPaymentIntent(
@@ -390,11 +395,10 @@ class StripeExpansionTest {
   }
 
   @Test
-  void a_path_this_object_does_not_publish_as_expandable_is_refused_naming_the_path() {
+  void a_path_naming_a_property_the_object_does_not_have_is_refused_naming_the_path() {
     aHeldPaymentOfTheCustomer();
 
     StripeApiResponse unknown = retrieve(FIRST_INTENT, Map.of("expand[]", List.of("no_such")));
-    StripeApiResponse notExpandable = retrieve(FIRST_INTENT, Map.of("expand[]", List.of("amount")));
     StripeApiResponse nestedUnknown =
         retrieve(FIRST_INTENT, Map.of("expand[]", List.of("latest_charge.no_such.customer")));
 
@@ -402,28 +406,47 @@ class StripeExpansionTest {
     assertThat(bodyOf(unknown))
         .isEqualTo(
             "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
-                + " expanded (no_such).\"}}");
-    assertThat(notExpandable.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(notExpandable))
-        .isEqualTo(
-            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
-                + " expanded (amount).\"}}");
+                + " expanded because it doesn't exist: no_such\"}}");
     assertThat(nestedUnknown.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(nestedUnknown))
         .isEqualTo(
             "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
-                + " expanded (latest_charge.no_such).\"}}");
+                + " expanded because it doesn't exist: latest_charge.no_such\"}}");
   }
 
   @Test
-  void every_element_is_judged_and_one_refused_path_refuses_the_request_whatever_its_place() {
+  void a_property_the_object_has_and_does_not_publish_as_expandable_is_accepted_and_left_alone() {
     aHeldPaymentOfTheCustomer();
 
-    StripeApiResponse refused =
-        retrieve(FIRST_INTENT, Map.of("expand[]", List.of("customer", "", "latest_charge")));
+    StripeApiResponse answered =
+        retrieve(
+            FIRST_INTENT,
+            Map.of("expand[]", List.of("amount", "metadata", "latest_charge.payment_method")));
 
-    assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("\"message\":\"This property cannot be expanded ().\"");
+    assertThat(answered.httpStatus()).isEqualTo(200);
+    assertThat(fieldsOf(answered))
+        .containsEntry("amount", List.of("1000"))
+        .containsEntry("latest_charge.id", List.of(FIRST_CHARGE))
+        .containsEntry("latest_charge.payment_method", List.of(THE_CARD))
+        .doesNotContainKeys("metadata", "latest_charge.payment_method.id");
+  }
+
+  @Test
+  void one_refused_path_refuses_the_request_whether_it_is_sent_first_in_the_middle_or_last() {
+    aHeldPaymentOfTheCustomer();
+
+    for (List<String> paths :
+        List.of(
+            List.of("", "customer", "latest_charge"),
+            List.of("customer", "", "latest_charge"),
+            List.of("customer", "latest_charge", ""))) {
+      StripeApiResponse refused = retrieve(FIRST_INTENT, Map.of("expand[]", paths));
+
+      assertThat(refused.httpStatus()).as(paths.toString()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .as(paths.toString())
+          .contains("\"message\":\"This property cannot be expanded because it doesn't exist: \"");
+    }
   }
 
   @Test
@@ -435,10 +458,11 @@ class StripeExpansionTest {
             .createPaymentIntent(
                 post(
                     PAYMENT_INTENTS,
-                    Map.of("amount", "1000", "currency", "pln", "expand[]", "receipt_email")));
+                    Map.of("amount", "1000", "currency", "pln", "expand[]", "no_such")));
 
     assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("This property cannot be expanded (receipt_email).");
+    assertThat(bodyOf(refused))
+        .contains("This property cannot be expanded because it doesn't exist: no_such");
     assertThat(intents.all()).isEmpty();
   }
 
@@ -618,17 +642,126 @@ class StripeExpansionTest {
   }
 
   @Test
-  void a_charge_does_not_publish_its_payment_method_as_expandable() {
+  void a_charge_answers_its_payment_method_as_an_id_because_a_charge_does_not_expand_it() {
     aHeldPaymentOfTheCustomer();
 
-    StripeApiResponse refused =
+    StripeApiResponse retrieved =
         api()
             .retrieveCharge(
                 get("/v1/charges/" + FIRST_CHARGE, Map.of("expand[]", List.of("payment_method"))),
                 FIRST_CHARGE);
 
+    assertThat(retrieved.httpStatus()).isEqualTo(200);
+    assertThat(fieldsOf(retrieved))
+        .containsEntry("payment_method", List.of(THE_CARD))
+        .doesNotContainKey("payment_method.id");
+  }
+
+  @Test
+  void a_charge_answers_its_customer_and_expands_it_as_the_published_example_does() {
+    aHeldPaymentOfTheCustomer();
+
+    StripeApiResponse plain =
+        api().retrieveCharge(get("/v1/charges/" + FIRST_CHARGE, Map.of()), FIRST_CHARGE);
+    StripeApiResponse expanded =
+        api()
+            .retrieveCharge(
+                get(
+                    "/v1/charges/" + FIRST_CHARGE,
+                    Map.of("expand[]", List.of("customer", "payment_intent.customer"))),
+                FIRST_CHARGE);
+
+    assertThat(fieldsOf(plain)).containsEntry("customer", List.of(THE_CUSTOMER));
+    assertThat(fieldsOf(expanded))
+        .containsEntry("customer.id", List.of(THE_CUSTOMER))
+        .containsEntry("customer.object", List.of("customer"))
+        .containsEntry("payment_intent.customer.id", List.of(THE_CUSTOMER));
+  }
+
+  @Test
+  void a_charge_includes_its_refunds_as_a_list_only_when_asked_to() {
+    aHeldPaymentOfTheCustomer();
+    api()
+        .capturePaymentIntent(
+            post(PAYMENT_INTENTS + "/" + FIRST_INTENT + "/capture", Map.of()), FIRST_INTENT);
+    api()
+        .createRefund(post("/v1/refunds", Map.of("payment_intent", FIRST_INTENT, "amount", "300")));
+    api()
+        .createRefund(post("/v1/refunds", Map.of("payment_intent", FIRST_INTENT, "amount", "200")));
+
+    StripeApiResponse plain =
+        api().retrieveCharge(get("/v1/charges/" + FIRST_CHARGE, Map.of()), FIRST_CHARGE);
+    StripeApiResponse included =
+        api()
+            .retrieveCharge(
+                get("/v1/charges/" + FIRST_CHARGE, Map.of("expand[]", List.of("refunds"))),
+                FIRST_CHARGE);
+
+    assertThat(fieldsOf(plain)).doesNotContainKeys("refunds", "refunds.object");
+    assertThat(fieldsOf(included))
+        .containsEntry("refunds.object", List.of("list"))
+        .containsEntry("refunds.data.id", List.of(SECOND_REFUND, FIRST_REFUND))
+        .containsEntry("refunds.data.object", List.of("refund", "refund"))
+        .containsEntry("refunds.data.amount", List.of("200", "300"))
+        .containsEntry("refunds.data.charge", List.of(FIRST_CHARGE, FIRST_CHARGE))
+        .containsEntry("refunds.has_more", List.of("false"))
+        .containsEntry("refunds.url", List.of("/v1/charges/" + FIRST_CHARGE + "/refunds"));
+  }
+
+  @Test
+  void a_charge_with_no_refund_includes_an_empty_list_and_a_path_inside_it_reaches_each_refund() {
+    aHeldPaymentOfTheCustomer();
+
+    StripeApiResponse none =
+        api()
+            .retrieveCharge(
+                get("/v1/charges/" + FIRST_CHARGE, Map.of("expand[]", List.of("refunds"))),
+                FIRST_CHARGE);
+    api()
+        .capturePaymentIntent(
+            post(PAYMENT_INTENTS + "/" + FIRST_INTENT + "/capture", Map.of()), FIRST_INTENT);
+    api()
+        .createRefund(post("/v1/refunds", Map.of("payment_intent", FIRST_INTENT, "amount", "300")));
+    StripeApiResponse nested =
+        api()
+            .retrieveCharge(
+                get(
+                    "/v1/charges/" + FIRST_CHARGE,
+                    Map.of("expand[]", List.of("refunds.data.payment_intent"))),
+                FIRST_CHARGE);
+    StripeApiResponse refused =
+        api()
+            .retrieveCharge(
+                get("/v1/charges/" + FIRST_CHARGE, Map.of("expand[]", List.of("refunds.charge"))),
+                FIRST_CHARGE);
+
+    assertThat(fieldsOf(none))
+        .containsEntry("refunds.object", List.of("list"))
+        .containsEntry("refunds.data", List.of())
+        .doesNotContainKey("refunds.data.id");
+    assertThat(fieldsOf(nested))
+        .containsEntry("refunds.data.id", List.of(FIRST_REFUND))
+        .containsEntry("refunds.data.payment_intent.id", List.of(FIRST_INTENT))
+        .containsEntry("refunds.data.payment_intent.object", List.of("payment_intent"));
     assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("This property cannot be expanded (payment_method).");
+    assertThat(bodyOf(refused))
+        .contains(
+            "This property cannot be expanded (refunds.charge). You may want to try expanding"
+                + " 'refunds.data.charge' instead.");
+  }
+
+  @Test
+  void a_charge_this_run_does_not_hold_is_refused_as_missing_whatever_it_asks_to_include() {
+    aHeldPaymentOfTheCustomer();
+
+    StripeApiResponse missing =
+        api()
+            .retrieveCharge(
+                get("/v1/charges/ch_sim_none", Map.of("expand[]", List.of("refunds"))),
+                "ch_sim_none");
+
+    assertThat(missing.httpStatus()).isEqualTo(404);
+    assertThat(bodyOf(missing)).contains("\"code\":\"resource_missing\"");
   }
 
   @Test
@@ -700,22 +833,28 @@ class StripeExpansionTest {
   }
 
   @Test
-  void a_list_expands_a_relation_of_every_item_through_data() {
+  void a_list_expands_a_relation_of_every_item_through_data_and_reads_each_customer_once() {
     aCustomerAndTheCardSavedToIt();
+    customers.insertIfAbsent(aCustomerOf(E2E_RUN, ANOTHER_CUSTOMER, ACCOUNT));
+    paymentMethods.insertIfAbsent(aCardOf(A_SECOND_CARD_OF_THE_CUSTOMER, THE_CUSTOMER));
     paymentMethods.insertIfAbsent(aCardOf(A_CARD_OF_NOBODY, null));
+    paymentMethods.insertIfAbsent(aCardOf(THE_OTHER_CUSTOMERS_CARD, ANOTHER_CUSTOMER));
+    int before = customers.lookups();
 
     StripeApiResponse listed =
         api()
             .listPaymentMethods(get(PAYMENT_METHODS, Map.of("expand[]", List.of("data.customer"))));
 
     assertThat(listed.httpStatus()).isEqualTo(200);
-    assertThat(fieldsOf(listed))
-        .containsEntry("object", List.of("list"))
-        .containsEntry("data.customer", List.of())
-        .containsEntry("data.customer.id", List.of(THE_CUSTOMER))
-        .containsEntry("data.customer.object", List.of("customer"));
-    assertThat(fieldsOf(listed).get("data.id"))
-        .containsExactlyInAnyOrder(A_CARD_OF_NOBODY, THE_CARD);
+    Map<String, List<String>> answered = fieldsOf(listed);
+    assertThat(answered).containsEntry("object", List.of("list"));
+    assertThat(answered.get("data.id"))
+        .containsExactlyInAnyOrder(
+            THE_CARD, A_SECOND_CARD_OF_THE_CUSTOMER, A_CARD_OF_NOBODY, THE_OTHER_CUSTOMERS_CARD);
+    assertThat(answered.get("data.customer.id"))
+        .containsExactlyInAnyOrder(THE_CUSTOMER, THE_CUSTOMER, ANOTHER_CUSTOMER);
+    assertThat(answered.get("data.customer.object")).containsOnly("customer").hasSize(3);
+    assertThat(customers.lookups() - before).isEqualTo(2);
   }
 
   @Test
@@ -747,6 +886,8 @@ class StripeExpansionTest {
         api().listPaymentMethods(get(PAYMENT_METHODS, Map.of("expand[]", List.of("customer"))));
     StripeApiResponse inside =
         api().listPaymentMethods(get(PAYMENT_METHODS, Map.of("expand[]", List.of("data.no_such"))));
+    StripeApiResponse ownMember =
+        api().listPaymentMethods(get(PAYMENT_METHODS, Map.of("expand[]", List.of("has_more"))));
 
     assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused))
@@ -755,54 +896,133 @@ class StripeExpansionTest {
                 + " expanded (customer). You may want to try expanding 'data.customer'"
                 + " instead.\"}}");
     assertThat(inside.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(inside)).contains("This property cannot be expanded (data.no_such).");
+    assertThat(bodyOf(inside))
+        .contains("This property cannot be expanded because it doesn't exist: data.no_such");
+    assertThat(ownMember.httpStatus()).isEqualTo(200);
+    assertThat(fieldsOf(ownMember)).containsEntry("has_more", List.of("false"));
   }
 
   @Test
   void a_detached_method_answers_a_customer_of_null_however_it_is_asked_to_be_expanded() {
     aCustomerAndTheCardSavedToIt();
 
-    StripeApiResponse detached =
-        api()
-            .detachPaymentMethod(
-                post(PAYMENT_METHODS + "/" + THE_CARD + "/detach", Map.of("expand[]", "customer")),
-                THE_CARD);
     StripeApiResponse refused =
         api()
             .detachPaymentMethod(
                 post(PAYMENT_METHODS + "/" + THE_CARD + "/detach", Map.of("expand[]", "no_such")),
                 THE_CARD);
+    StripeApiResponse detached =
+        api()
+            .detachPaymentMethod(
+                post(PAYMENT_METHODS + "/" + THE_CARD + "/detach", Map.of("expand[]", "customer")),
+                THE_CARD);
 
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("This property cannot be expanded because it doesn't exist: no_such");
     assertThat(detached.httpStatus()).isEqualTo(200);
     assertThat(fieldsOf(detached))
         .containsEntry("id", List.of(THE_CARD))
         .containsEntry("customer", List.of());
-    assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("This property cannot be expanded (no_such).");
   }
 
   @Test
-  void a_customer_route_accepts_a_published_expandable_field_and_refuses_one_it_does_not_publish() {
+  void a_customer_includes_what_it_publishes_as_includable_only_when_asked_to() {
+    aCustomerAndTheCardSavedToIt();
+
+    StripeApiResponse plain =
+        api().retrieveCustomer(get(CUSTOMERS + "/" + THE_CUSTOMER, Map.of()), THE_CUSTOMER);
+    StripeApiResponse included =
+        api()
+            .retrieveCustomer(
+                get(
+                    CUSTOMERS + "/" + THE_CUSTOMER,
+                    Map.of(
+                        "expand[]",
+                        List.of(
+                            "sources",
+                            "subscriptions",
+                            "tax_ids",
+                            "cash_balance",
+                            "invoice_credit_balance",
+                            "tax"))),
+                THE_CUSTOMER);
+
+    assertThat(fieldsOf(plain))
+        .doesNotContainKeys(
+            "sources.object",
+            "subscriptions.object",
+            "tax_ids.object",
+            "cash_balance",
+            "tax.provider");
+    assertThat(bodyOf(included))
+        .contains(
+            "\"sources\":{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/customers/"
+                + THE_CUSTOMER
+                + "/sources\"}")
+        .contains(
+            "\"subscriptions\":{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/customers/"
+                + THE_CUSTOMER
+                + "/subscriptions\"}")
+        .contains(
+            "\"tax_ids\":{\"object\":\"list\",\"data\":[],\"has_more\":false,\"url\":\"/v1/customers/"
+                + THE_CUSTOMER
+                + "/tax_ids\"}")
+        .contains("\"cash_balance\":null")
+        .contains("\"invoice_credit_balance\":{}")
+        .contains(
+            "\"tax\":{\"automatic_tax\":\"unrecognized_location\",\"ip_address\":null,\"location\":null,\"provider\":\"stripe\"}");
+  }
+
+  @Test
+  void a_customer_reached_through_an_intent_includes_too_and_a_deleted_one_includes_nothing() {
+    aHeldPaymentOfTheCustomer();
+
+    StripeApiResponse live =
+        retrieve(FIRST_INTENT, Map.of("expand[]", List.of("customer.sources")));
+    api().deleteCustomer(delete(CUSTOMERS + "/" + THE_CUSTOMER), THE_CUSTOMER);
+    StripeApiResponse deleted =
+        retrieve(FIRST_INTENT, Map.of("expand[]", List.of("customer.sources")));
+    StripeApiResponse retrievedDeleted =
+        api()
+            .retrieveCustomer(
+                get(CUSTOMERS + "/" + THE_CUSTOMER, Map.of("expand[]", List.of("tax_ids"))),
+                THE_CUSTOMER);
+
+    assertThat(fieldsOf(live))
+        .containsEntry("customer.id", List.of(THE_CUSTOMER))
+        .containsEntry("customer.sources.object", List.of("list"));
+    assertThat(fieldsOf(deleted))
+        .containsEntry("customer.deleted", List.of("true"))
+        .doesNotContainKey("customer.sources.object");
+    assertThat(retrievedDeleted.httpStatus()).isEqualTo(200);
+    assertThat(fieldsOf(retrievedDeleted))
+        .containsEntry("deleted", List.of("true"))
+        .doesNotContainKey("tax_ids.object");
+  }
+
+  @Test
+  void a_customer_route_accepts_a_property_the_customer_has_and_refuses_one_it_does_not() {
     aCustomerAndTheCardSavedToIt();
 
     StripeApiResponse created =
         api().createCustomer(post(CUSTOMERS, Map.of("expand[]", "test_clock")));
-    StripeApiResponse retrieved =
-        api()
-            .retrieveCustomer(
-                get(CUSTOMERS + "/" + THE_CUSTOMER, Map.of("expand[]", List.of("default_source"))),
-                THE_CUSTOMER);
     StripeApiResponse updated =
         api()
             .updateCustomer(
                 post(CUSTOMERS + "/" + THE_CUSTOMER, Map.of("expand[]", "email")), THE_CUSTOMER);
+    StripeApiResponse refused =
+        api()
+            .updateCustomer(
+                post(CUSTOMERS + "/" + THE_CUSTOMER, Map.of("expand[]", "no_such")), THE_CUSTOMER);
 
     assertThat(created.httpStatus()).isEqualTo(200);
     assertThat(fieldsOf(created)).containsEntry("object", List.of("customer"));
-    assertThat(retrieved.httpStatus()).isEqualTo(200);
-    assertThat(fieldsOf(retrieved)).containsEntry("id", List.of(THE_CUSTOMER));
-    assertThat(updated.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(updated)).contains("This property cannot be expanded (email).");
+    assertThat(updated.httpStatus()).isEqualTo(200);
+    assertThat(fieldsOf(updated)).containsEntry("id", List.of(THE_CUSTOMER));
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("This property cannot be expanded because it doesn't exist: no_such");
   }
 
   @Test
@@ -821,17 +1041,67 @@ class StripeExpansionTest {
   }
 
   @Test
-  void an_expand_that_is_not_a_list_is_refused_on_every_route_that_reads_it() {
+  void every_route_that_answers_an_object_reads_expand_and_refuses_one_that_is_not_a_list() {
     aHeldPaymentOfTheCustomer();
+    StripeApi api = api();
+    String intent = PAYMENT_INTENTS + "/" + FIRST_INTENT;
+    Map<String, String> notAList = Map.of("expand", "customer");
+    Map<String, List<String>> notAListInTheQuery = Map.of("expand", List.of("customer"));
 
-    StripeApiResponse retrieved = retrieve(FIRST_INTENT, Map.of("expand", List.of("customer")));
-    StripeApiResponse listed =
-        api().listPaymentMethods(get(PAYMENT_METHODS, Map.of("expand", List.of("data.customer"))));
+    Map<String, StripeApiResponse> answered = new LinkedHashMap<>();
+    answered.put("create an intent", api.createPaymentIntent(post(PAYMENT_INTENTS, notAList)));
+    answered.put("retrieve an intent", retrieve(FIRST_INTENT, notAListInTheQuery));
+    answered.put(
+        "confirm an intent",
+        api.confirmPaymentIntent(post(intent + "/confirm", notAList), FIRST_INTENT));
+    answered.put(
+        "capture an intent",
+        api.capturePaymentIntent(post(intent + "/capture", notAList), FIRST_INTENT));
+    answered.put(
+        "cancel an intent",
+        api.cancelPaymentIntent(post(intent + "/cancel", notAList), FIRST_INTENT));
+    answered.put(
+        "retrieve a charge",
+        api.retrieveCharge(get("/v1/charges/" + FIRST_CHARGE, notAListInTheQuery), FIRST_CHARGE));
+    answered.put("create a refund", api.createRefund(post("/v1/refunds", notAList)));
+    answered.put("create a customer", api.createCustomer(post(CUSTOMERS, notAList)));
+    answered.put(
+        "retrieve a customer",
+        api.retrieveCustomer(
+            get(CUSTOMERS + "/" + THE_CUSTOMER, notAListInTheQuery), THE_CUSTOMER));
+    answered.put(
+        "update a customer",
+        api.updateCustomer(post(CUSTOMERS + "/" + THE_CUSTOMER, notAList), THE_CUSTOMER));
+    answered.put(
+        "list payment methods", api.listPaymentMethods(get(PAYMENT_METHODS, notAListInTheQuery)));
+    answered.put(
+        "list a customer's payment methods",
+        api.listCustomerPaymentMethods(
+            get(CUSTOMERS + "/" + THE_CUSTOMER + "/payment_methods", notAListInTheQuery),
+            THE_CUSTOMER));
+    answered.put(
+        "retrieve a payment method",
+        api.retrievePaymentMethod(
+            get(PAYMENT_METHODS + "/" + THE_CARD, notAListInTheQuery), THE_CARD));
+    answered.put(
+        "detach a payment method",
+        api.detachPaymentMethod(
+            post(PAYMENT_METHODS + "/" + THE_CARD + "/detach", notAList), THE_CARD));
+    answered.put("create a setup intent", api.createSetupIntent(post(SETUP_INTENTS, notAList)));
+    answered.put(
+        "confirm a setup intent",
+        api.confirmSetupIntent(
+            post(SETUP_INTENTS + "/seti_sim_none/confirm", notAList), "seti_sim_none"));
+    answered.put(
+        "create an ephemeral key", api.createEphemeralKey(post("/v1/ephemeral_keys", notAList)));
 
-    for (StripeApiResponse refused : List.of(retrieved, listed)) {
-      assertThat(refused.httpStatus()).isEqualTo(400);
-      assertThat(bodyOf(refused)).contains("\"param\":\"expand\"");
-    }
+    assertThat(answered).hasSize(17);
+    answered.forEach(
+        (route, refused) -> {
+          assertThat(refused.httpStatus()).as(route).isEqualTo(400);
+          assertThat(bodyOf(refused)).as(route).contains("\"param\":\"expand\"");
+        });
+    assertThat(intents.all()).hasSize(1);
   }
 
   @Test
@@ -874,12 +1144,30 @@ class StripeExpansionTest {
                     THE_CUSTOMER,
                     "expand[]",
                     "customer")));
+    StripeApiCall anotherExpansion =
+        new StripeApiCall(
+            "POST",
+            PAYMENT_INTENTS,
+            withTheKey("expand-once"),
+            formOf(
+                Map.of(
+                    "amount",
+                    "1000",
+                    "currency",
+                    "pln",
+                    "customer",
+                    THE_CUSTOMER,
+                    "expand[]",
+                    "latest_charge")));
 
     StripeApiResponse first = api().createPaymentIntent(keyed);
     StripeApiResponse replayed = api().createPaymentIntent(keyed);
+    StripeApiResponse reused = api().createPaymentIntent(anotherExpansion);
 
     assertThat(fieldsOf(first)).containsEntry("customer.id", List.of(THE_CUSTOMER));
     assertThat(bodyOf(replayed)).isEqualTo(bodyOf(first));
+    assertThat(reused.httpStatus()).isEqualTo(400);
+    assertThat(fieldsOf(reused)).containsEntry("error.type", List.of("idempotency_error"));
     assertThat(intents.all()).hasSize(1);
   }
 
@@ -998,6 +1286,7 @@ class StripeExpansionTest {
         paymentMethods,
         intents,
         charges,
+        refunds,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
   }

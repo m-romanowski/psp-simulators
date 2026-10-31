@@ -11,12 +11,15 @@ import com.stripe.model.Charge;
 import com.stripe.model.Customer;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.PaymentMethod;
+import com.stripe.model.Refund;
 import com.stripe.model.StripeCollection;
+import com.stripe.param.ChargeRetrieveParams;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentConfirmParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentIntentRetrieveParams;
 import com.stripe.param.PaymentMethodListParams;
+import com.stripe.param.RefundCreateParams;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.ui.PaymentMethodForm;
@@ -183,7 +186,8 @@ class StripeExpansionIntegrationTest extends PostgresBackedTest {
                         aHold(true).getId(),
                         PaymentIntentRetrieveParams.builder().addExpand("no_such").build()))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessageStartingWith("This property cannot be expanded (no_such).")
+        .hasMessageStartingWith(
+            "This property cannot be expanded because it doesn't exist: no_such")
         .satisfies(
             refused ->
                 assertThat(((InvalidRequestException) refused).getStatusCode()).isEqualTo(400));
@@ -206,6 +210,54 @@ class StripeExpansionIntegrationTest extends PostgresBackedTest {
         .containsEntry("latest_charge.payment_intent.id", List.of(created.getId()))
         .containsEntry("latest_charge.payment_intent.customer.id", List.of(A_CUSTOMER))
         .containsEntry("customer", List.of(A_CUSTOMER));
+  }
+
+  @Test
+  void the_official_java_client_retrieves_a_charge_with_its_refunds_and_its_customer_included()
+      throws StripeException {
+    PaymentIntent hold = aHold(true);
+    client().v1().paymentIntents().capture(hold.getId());
+    Refund first =
+        client()
+            .v1()
+            .refunds()
+            .create(
+                RefundCreateParams.builder()
+                    .setPaymentIntent(hold.getId())
+                    .setAmount(300L)
+                    .build());
+    Refund second =
+        client()
+            .v1()
+            .refunds()
+            .create(
+                RefundCreateParams.builder()
+                    .setPaymentIntent(hold.getId())
+                    .setAmount(200L)
+                    .build());
+    String chargeId = client().v1().paymentIntents().retrieve(hold.getId()).getLatestCharge();
+
+    Charge plain = client().v1().charges().retrieve(chargeId);
+    Charge included =
+        client()
+            .v1()
+            .charges()
+            .retrieve(
+                chargeId,
+                ChargeRetrieveParams.builder().addExpand("refunds").addExpand("customer").build());
+
+    assertThat(plain.getRefunds()).isNull();
+    assertThat(plain.getCustomer()).isEqualTo(A_CUSTOMER);
+    assertThat(included.getRefunds()).isNotNull();
+    assertThat(included.getRefunds().getData())
+        .extracting(Refund::getId)
+        .containsExactly(second.getId(), first.getId());
+    assertThat(included.getRefunds().getData())
+        .extracting(Refund::getAmount)
+        .containsExactly(200L, 300L);
+    assertThat(included.getRefunds().getUrl()).isEqualTo("/v1/charges/" + chargeId + "/refunds");
+    assertThat(included.getCustomerObject()).isNotNull();
+    assertThat(included.getCustomerObject().getId()).isEqualTo(A_CUSTOMER);
   }
 
   private PaymentIntent aHold(boolean confirmed) throws StripeException {

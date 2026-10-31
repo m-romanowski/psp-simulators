@@ -136,6 +136,7 @@ public class StripeModule {
       StripeEphemeralKeys ephemeralKeys,
       StripePaymentIntents intents,
       StripeCharges charges,
+      StripeRefunds refunds,
       StripeCustomers customers,
       StripePaymentMethods paymentMethods,
       TestRuns testRuns,
@@ -171,6 +172,7 @@ public class StripeModule {
         paymentMethods,
         intents,
         charges,
+        refunds,
         createSetupIntent,
         confirmSetupIntent);
   }

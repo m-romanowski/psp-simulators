@@ -254,10 +254,27 @@ public final class TrailWithholdingConvention {
                   + " and carries no address"),
           new AnAddressInTheClear(
               "stripe",
+              "location",
+              "the field the tax details of a stripe customer name the customer's identified tax"
+                  + " location in, which this build answers null when a caller includes tax; it"
+                  + " never carries an address"),
+          new AnAddressInTheClear(
+              "stripe",
+              "receipt_url",
+              "a property of stripe's Charge that this build judges an expand path against and"
+                  + " never answers: no charge of this build carries a receipt"),
+          new AnAddressInTheClear(
+              "stripe",
+              "unrecognized_location",
+              "the published automatic_tax value this build answers inside the included tax"
+                  + " details of a customer; it is a value, never a field name, and carries no"
+                  + " address"),
+          new AnAddressInTheClear(
+              "stripe",
               "url",
-              "the field a stripe list object names its own route in, /v1/payment_methods: the"
-                  + " address of the call the client just made, which the same trail row already"
-                  + " keeps in its path"),
+              "the field a stripe list object names its own route in, such as /v1/payment_methods"
+                  + " or /v1/charges/{id}/refunds: a route of stripe's own API, which names no"
+                  + " merchant and no secret"),
           new AnAddressInTheClear(
               "tranzila",
               "TRANZILA_API_BASE_URL",

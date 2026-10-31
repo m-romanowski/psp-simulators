@@ -96,6 +96,7 @@ public final class StripeApi {
       StripePaymentMethods paymentMethods,
       StripePaymentIntents intents,
       StripeCharges charges,
+      StripeRefunds refunds,
       CreateSetupIntent createSetupIntent,
       ConfirmSetupIntent confirmSetupIntent) {
     this.accounts = accounts;
@@ -123,7 +124,7 @@ public final class StripeApi {
     this.createSetupIntent = createSetupIntent;
     this.confirmSetupIntent = confirmSetupIntent;
     this.createEphemeralKey = new CreateEphemeralKey(ephemeralKeys, customers, ids);
-    this.related = new StripeRelatedObjects(intents, charges, customers, paymentMethods);
+    this.related = new StripeRelatedObjects(intents, charges, refunds, customers, paymentMethods);
   }
 
   @FunctionalInterface
@@ -339,7 +340,7 @@ public final class StripeApi {
         StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN,
         expanding(
             call,
-            StripeExpansion.ofAnObject(StripeExpandable.EPHEMERAL_KEY),
+            StripeExpansion.ofAnObjectThatExpandsNothing(),
             (request, headers, testRunId, account, now) ->
                 createEphemeralKey.handle(request.form(), testRunId, account, now)));
   }

@@ -678,6 +678,7 @@ class StripeEphemeralKeyTest {
         paymentMethods,
         intents,
         charges,
+        refunds,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(setupIntents, paymentMethods, customers, noScenarios));
   }

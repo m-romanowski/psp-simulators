@@ -30,6 +30,8 @@ final class StripeChargeView {
         StripeJson.bool(charge.captured(intent, now)),
         "currency",
         StripeJson.text(charge.currency()),
+        "customer",
+        StripeJson.textOrNull(intent.customer()),
         "paid",
         StripeJson.bool(charge.paid()),
         "payment_intent",

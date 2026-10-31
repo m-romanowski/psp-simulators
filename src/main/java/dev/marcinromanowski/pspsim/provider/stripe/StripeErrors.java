@@ -296,6 +296,14 @@ final class StripeErrors {
         BAD_REQUEST, null, "This property cannot be expanded (" + reached + ").", null);
   }
 
+  static StripeError doesNotExist(String reached) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "This property cannot be expanded because it doesn't exist: " + reached,
+        null);
+  }
+
   static StripeError notExpandableOnAList(String reached, String suggested) {
     return invalidRequest(
         BAD_REQUEST,

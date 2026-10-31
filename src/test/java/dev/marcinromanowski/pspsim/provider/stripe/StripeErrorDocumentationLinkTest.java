@@ -99,7 +99,7 @@ class StripeErrorDocumentationLinkTest {
       }
       refusals.add(refusalFrom(factory));
     }
-    assertThat(refusals).hasSize(41);
+    assertThat(refusals).hasSize(42);
     return refusals;
   }
 

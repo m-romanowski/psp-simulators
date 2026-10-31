@@ -561,6 +561,7 @@ class StripeIdempotencyTest {
         paymentMethods,
         intents,
         charges,
+        refunds,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(
             setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));

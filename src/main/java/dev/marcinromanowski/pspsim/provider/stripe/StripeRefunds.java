@@ -21,6 +21,8 @@ interface StripeRefunds {
 
   List<StripeRefund> allById(TestRunId testRunId, List<String> refundIds);
 
+  List<StripeRefund> ofTheCharge(TestRunId testRunId, String accountId, String chargeId);
+
   Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, String refundId);
 
   List<ArrivalOf<StripeRefund>> newestFirst(

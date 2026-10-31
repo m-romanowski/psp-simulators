@@ -228,7 +228,7 @@ class StripePaymentMethodTest {
   }
 
   @Test
-  void a_retrieve_that_also_asks_for_a_path_a_payment_method_does_not_publish_is_refused() {
+  void a_retrieve_that_also_asks_for_a_property_a_payment_method_does_not_have_is_refused() {
     anAccountHoldingTwoCardsOfOneCustomer();
 
     StripeApiResponse refused =
@@ -244,7 +244,7 @@ class StripePaymentMethodTest {
     assertThat(bodyOf(refused))
         .isEqualTo(
             "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
-                + " expanded (payment_method).\"}}");
+                + " expanded because it doesn't exist: payment_method\"}}");
   }
 
   @Test
@@ -725,6 +725,7 @@ class StripePaymentMethodTest {
         paymentMethods,
         intents,
         charges,
+        refunds,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(
             setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
