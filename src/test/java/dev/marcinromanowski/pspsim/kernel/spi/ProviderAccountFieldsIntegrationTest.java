@@ -83,6 +83,8 @@ class ProviderAccountFieldsIntegrationTest extends PostgresBackedTest {
           Map.of(
               "secretKey",
               "sk_test_provider_account_fields",
+              "publishableKey",
+              "pk_test_provider_account_fields",
               "captureWindow",
               "P3D",
               "refundStatus",
