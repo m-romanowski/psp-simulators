@@ -169,7 +169,7 @@ The catalogue is `StripeApiVersions` and `StripeApiMajor`: every release the cha
 
 | Simulator behaviour                                                                                                                                       | Evidence and reason                                                                                              |
 |-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| Answered: every release of basil, clover, dahlia and endive, `2025-03-31.basil` to `2026-10-28.endive`                                                    | inference: basil's partial capture and cancel create no Refund and `cancellation_reason=expired`, which is how the simulator behaves; no clover or dahlia change touches the modelled surface. `2026-09-30.endive` removes writable `payment_method_types` from PaymentIntent create, update and confirm and SetupIntent create and update, answering `400` `payment_method_types_no_longer_supported` (rule, https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents.md); `2026-08-26.dahlia` still accepts it (stripe/openapi spec at that version). This simulator does not yet answer that refusal at endive, and is modelling it separately |
+| Answered: every release of basil, clover, dahlia and endive, `2025-03-31.basil` to `2026-10-28.endive`                                                    | inference: basil's partial capture and cancel create no Refund and `cancellation_reason=expired`, which is how the simulator behaves; response additions are gated by their per-version OpenAPI schemas as listed under Response conformance. `2026-09-30.endive` removes writable `payment_method_types` from PaymentIntent create, update and confirm and SetupIntent create and update, answering `400` `payment_method_types_no_longer_supported` (rule, https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents.md); `2026-08-26.dahlia` still accepts it (stripe/openapi spec at that version). This simulator answers that refusal at endive |
 | The version is read from `Stripe-Version`, the name matched in any case, the first non-blank value, trimmed. Without one, the account's default `apiVersion` | rule for the order, decision for the reading                                                                     |
 | `apiVersion` left empty gives the account `2026-10-28.endive`, the newest answered, which is stored and kept                                               | decision: Stripe publishes no default for a new account; the newest is what current guides and SDKs pin, and keeping it means the account does not move when the catalogue grows |
 | Accounts stored before `apiVersion` existed hold `2026-10-28.endive` (`V92__stripe_account_names_its_default_api_version.sql`)                              | decision: the same as an empty field                                                                             |
@@ -195,9 +195,9 @@ https://stripe.com/blog/api-versioning).
 | The changes a request takes are those found walking back from the newest release to the request's release, the request's own release excluded. A version older than every release answered, such as a mobile SDK's pinned `2020-08-27`, takes every change | rule (the blog: "walk back") |
 | A request passes its changes oldest first, each touching only the operations it declares                                                                 | decision: each transformation reads the shape of the release before it                                   |
 | A change is declared only at a release this simulator answers, and touches at least one operation                                                         | decision                                                                                                 |
-| A field, parameter or enum value a release added is read and answered at every release, older ones included: `allowed_payment_method_types` (added by `2026-07-29.dahlia`) and `excluded_payment_method_types` with their newest enums, including the values later releases added: `2026-08-26.dahlia` added `touch_n_go` to the first and `sequra` to the second, and `2026-09-30.endive`, a major's opening release, `card_present` and `interac_present` to the first and `paypay` to the second | decision: Stripe publishes no per-version gating of additive changes and calls adding a field safe; the values are the OpenAPI specification's per release |
+| Additive request parameters remain readable at older versions. Emitted response fields follow the pinned schema, except recorded mobile backports listed under Response conformance | decision: response conformance does not define request grammar; probes override historical response-schema gaps explicitly |
 | An answer passes its changes newest first, from the core back to the request's release, each touching only the operations it declares. It is transformed before an `Idempotency-Key` stores it, so a replay answers the bytes first answered | rule (the blog: "walk back"); decision for the order against storing |
-| Only the basil change alters an answer, and only at a release older than basil, which only a mobile SDK's version reaches | rule: the endive change keeps `payment_method_types` on the object |
+| Response transformations remove fields absent at older versions, including inside errors, expanded relations and events; recorded selection-field backports are preserved at the mobile pins | rule for schema membership; probe for the mobile exceptions |
 
 | Change                                         | Release              | Operations                                                                         | Transformation                                                                                           | Changelog                                                                                                                                         |
 |------------------------------------------------|----------------------|------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -213,6 +213,57 @@ answer, and the `2023-08-16` and `2024-04-10` changes alter defaults at creation
 The same removal is filed under `2026-08-26.preview` (https://docs.stripe.com/changelog/dahlia/2026-08-26/removes-payment-method-types-parameter-from-payment-intents-setup-intents),
 a preview release this simulator does not answer; `2026-08-26.dahlia` still lists the parameter (rule: Stripe's
 OpenAPI specification, https://github.com/stripe/openapi, at that release).
+
+### Response conformance
+
+- Rule: `StripeResponseConformanceTest` checks every emitted field, JSON type, nullability and enum against the pinned OpenAPI schema, follows expandable object targets and checks list items. `x-stripeBypassValidation` bypasses enum membership only. Expanded and includable members, declines, error bodies, publishable reductions and event payloads are exercised.
+- Decision: every answered release and both mobile pins have a snapshot, avoiding assumptions that monthly response schemas are equivalent. The catalogue test requires a snapshot when an answered release is added. Mobile coverage follows admitted surfaces: publishable intent/error responses, ephemeral keys and customer reads with payment-method lists.
+- Decision: required-field completeness is not claimed; this simulator deliberately emits a subset. `src/test/resources/stripe-openapi/omissions.json` names omitted attributes with reasons for each rendered root and referenced object. Tests compare published-minus-emitted fields with the list and reject stale entries, including attributes emitted through expansion.
+- Probe: archived `2020-08-27` responses in `stripe-ios-recorded-traffic/PaymentSheetLPMConfirmFlowTests/` carry `allowed_payment_method_types`, `automatic_payment_methods`, `excluded_payment_method_types` and `payment_method_configuration_details`; the Checkout Apple Pay recording carries `capture_method=automatic_async`. These postdate the historical snapshot. `evidence-overrides.json` cites each recording and uses the pinned `2026-10-28.endive` field types. Inference: the same additive backports apply to `2020-03-02`; no corresponding live Android probe is available.
+- Example: https://docs.stripe.com/api/ephemeral_keys/object publishes `associated_objects` although OpenAPI omits it. The explicit evidence extension checks its array, customer type and string id. Decision: apply that example shape to every answered version for this customer-only contract.
+- Rule: `allowed_payment_method_types` appears in the `2026-07-29.dahlia` schemas; PaymentIntent `excluded_payment_method_types` in `2025-08-27.basil`; SetupIntent `excluded_payment_method_types` and Customer tax `provider` in `2025-10-29.clover`. Declared response changes remove those fields before their first published release, with the recorded mobile selection backports preserved. Decision: customer `cash_balance`, `invoice_credit_balance` and `tax`, absent from both mobile schemas, are removed at the oldest answered major boundary; no release within the unsupported interval is claimed.
+- Decision: omit Refund `next_action` because no action payload is modelled. The pinned schemas make it optional and non-nullable; current prose describes it as nullable, so omission satisfies both shapes.
+- Decision: `payment-method-drift.json` guards only the reported unpublished PaymentMethod paths pending S6: card `networks` at `2020-03-02`, and `paypal` at both mobile pins. Type, nullability, enum and unrelated field failures remain fatal; removing those fields makes the guard unnecessary without hiding new drift. PaymentMethod views and creation are owned by S6.
+
+Snapshot provenance (rule: each source's `info.version`; immutable source commit and URL are also stored in each resource):
+
+| Version | Source commit |
+|---------|---------------|
+| `2020-03-02` | [0e77e37c1ad9375293fb8cc397130b9e4ed31393](https://raw.githubusercontent.com/stripe/openapi/0e77e37c1ad9375293fb8cc397130b9e4ed31393/openapi/spec3.json) |
+| `2020-08-27` | [adae467392d46f04ac1afca7b96e7d471c647e1c](https://raw.githubusercontent.com/stripe/openapi/adae467392d46f04ac1afca7b96e7d471c647e1c/openapi/spec3.json) |
+| `2025-03-31.basil` | [072fe51d85959b0ca71c1296b32725c14a78f4a8](https://raw.githubusercontent.com/stripe/openapi/072fe51d85959b0ca71c1296b32725c14a78f4a8/openapi/spec3.json) |
+| `2025-04-30.basil` | [46e685e34c4fc7f56e8696936db2554e0c5b0fc1](https://raw.githubusercontent.com/stripe/openapi/46e685e34c4fc7f56e8696936db2554e0c5b0fc1/openapi/spec3.json) |
+| `2025-05-28.basil` | [6c7b45018fdeb279042e6f74c5141efe1e90b3d6](https://raw.githubusercontent.com/stripe/openapi/6c7b45018fdeb279042e6f74c5141efe1e90b3d6/openapi/spec3.json) |
+| `2025-06-30.basil` | [1729cb1360263b054abb3c5146548630a86fb68c](https://raw.githubusercontent.com/stripe/openapi/1729cb1360263b054abb3c5146548630a86fb68c/openapi/spec3.json) |
+| `2025-07-30.basil` | [805a9b8cc62f35d2673b28c34ca5fa27d0650b8b](https://raw.githubusercontent.com/stripe/openapi/805a9b8cc62f35d2673b28c34ca5fa27d0650b8b/openapi/spec3.json) |
+| `2025-08-27.basil` | [62fbe0713198e910b8843f70fdcd351be3ec979c](https://raw.githubusercontent.com/stripe/openapi/62fbe0713198e910b8843f70fdcd351be3ec979c/openapi/spec3.json) |
+| `2025-09-30.clover` | [053c4b35b25fdb4b8f2afa4294a046026715f820](https://raw.githubusercontent.com/stripe/openapi/053c4b35b25fdb4b8f2afa4294a046026715f820/openapi/spec3.json) |
+| `2025-10-29.clover` | [260f91c74e44bcd2a819bac9428f6c9e57360105](https://raw.githubusercontent.com/stripe/openapi/260f91c74e44bcd2a819bac9428f6c9e57360105/openapi/spec3.json) |
+| `2025-11-17.clover` | [8820133ae30a4b968ea20d803c51f639ab5461c6](https://raw.githubusercontent.com/stripe/openapi/8820133ae30a4b968ea20d803c51f639ab5461c6/openapi/spec3.json) |
+| `2025-12-15.clover` | [ed93b94259c55782b8b04e01f4ffdaa2872e9bcd](https://raw.githubusercontent.com/stripe/openapi/ed93b94259c55782b8b04e01f4ffdaa2872e9bcd/openapi/spec3.json) |
+| `2026-01-28.clover` | [d0f9e4c144d0927877afa13586f6efc78da5b0fc](https://raw.githubusercontent.com/stripe/openapi/d0f9e4c144d0927877afa13586f6efc78da5b0fc/latest/openapi.spec3.json) |
+| `2026-02-25.clover` | [d608561910d9b3a8c36da7bb503a51d8c201618f](https://raw.githubusercontent.com/stripe/openapi/d608561910d9b3a8c36da7bb503a51d8c201618f/latest/openapi.spec3.json) |
+| `2026-03-25.dahlia` | [5146460c7a0c6dfcf9d4c92d1b0abab58719c6ff](https://raw.githubusercontent.com/stripe/openapi/5146460c7a0c6dfcf9d4c92d1b0abab58719c6ff/latest/openapi.spec3.json) |
+| `2026-04-22.dahlia` | [0ed1633f1840f4d46b6b7d938a5b8c8662924495](https://raw.githubusercontent.com/stripe/openapi/0ed1633f1840f4d46b6b7d938a5b8c8662924495/latest/openapi.spec3.json) |
+| `2026-05-27.dahlia` | [eebb74e2089c37baf2d3ccf322e7a30927dd4abf](https://raw.githubusercontent.com/stripe/openapi/eebb74e2089c37baf2d3ccf322e7a30927dd4abf/latest/openapi.spec3.json) |
+| `2026-06-24.dahlia` | [a2de9917ac9c7be3ba11abd5151b5c2df3add59e](https://raw.githubusercontent.com/stripe/openapi/a2de9917ac9c7be3ba11abd5151b5c2df3add59e/latest/openapi.spec3.json) |
+| `2026-07-29.dahlia` | [19be337d65af244fed355eaeb144de6dbeea82f1](https://raw.githubusercontent.com/stripe/openapi/19be337d65af244fed355eaeb144de6dbeea82f1/latest/openapi.spec3.json) |
+| `2026-08-26.dahlia` | [9ac29c7795ab21c7711b4bc25bb2dd739552a5fa](https://raw.githubusercontent.com/stripe/openapi/9ac29c7795ab21c7711b4bc25bb2dd739552a5fa/latest/openapi.spec3.json) |
+| `2026-09-30.endive` | [969d8c308ea65b6dbdef4b6b4a71904027a010b8](https://raw.githubusercontent.com/stripe/openapi/969d8c308ea65b6dbdef4b6b4a71904027a010b8/latest/openapi.spec3.json) |
+| `2026-10-28.endive` | [51610f5f061c9723730582a7638b8cc0e646640d](https://raw.githubusercontent.com/stripe/openapi/51610f5f061c9723730582a7638b8cc0e646640d/latest/openapi.spec3.json) |
+
+Refresh from the worktree (decision: spec data only, no generated client or model): download the immutable source URL above into `/Users/Marcin/Projects/psp-simulators/.tmp/stripe-fidelity/work-s9/`, then run:
+
+```sh
+./gradlew stripeSpecSnapshot \
+  -PstripeSpecInput=/Users/Marcin/Projects/psp-simulators/.tmp/stripe-fidelity/work-s9/spec.json \
+  -PstripeSpecOutput=src/test/resources/stripe-openapi/VERSION.json \
+  -PstripeSpecVersion=VERSION \
+  -PstripeSpecCommit=FULL_COMMIT_SHA \
+  -PstripeSpecSource=IMMUTABLE_SOURCE_URL
+```
+
+`StripeSpecSnapshot` retains the response roots, the list response and their transitive schema references, stripping descriptions, requests and unrelated schemas. It keeps `$ref`, type, nullable, enum, properties, union/intersection alternatives, items, additional properties and Stripe validation extensions. Run twice with separate output paths and compare bytes with `cmp`; update `versions.json` and review `omissions.json` and evidence overrides explicitly. Run `./gradlew test --tests '*StripeResponse*Test' --tests '*StripeSpec*Test'` after refreshing.
 
 ## Payment Method Selection
 
@@ -774,7 +825,7 @@ processing." `pending_reason` is one of `processing`, `insufficient_funds`, `cha
 - A refund comes to rest at the account's `refundStatus` (default `succeeded`) and never moves after that. `pending`
   and `requires_action` hold the money against further refunds, while `failed` and `canceled` do not. The payment's
   refund qualifier counts only `succeeded` refunds. Stripe publishes no rule for when `amount_refunded` moves.
-- `next_action` is `null` at `requires_action`. `pending_reason` and `failure_reason` are not emitted.
+- `next_action`, `pending_reason` and `failure_reason` are not emitted. The pinned OpenAPI schemas make `next_action` optional and non-nullable; no action payload is modelled (rule for the schema, decision for omission).
 - While `requires_capture`, refunds are limited to what was captured, and `amount_capturable` is unaffected.
 
 ### Charges

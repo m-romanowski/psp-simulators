@@ -323,7 +323,7 @@ class StripeRefundTest {
 
     assertThat(bodyOf(awaiting))
         .contains("\"status\":\"requires_action\"")
-        .contains("\"next_action\":null");
+        .doesNotContain("\"next_action\"");
     assertThat(theIntent().normalizedStatusAt(NOW)).isEqualTo(NormalizedStatus.SUCCEEDED);
     assertThat(stateOf(awaiting.providerObjectId()).normalizedStatus())
         .isEqualTo(NormalizedStatus.PROCESSING);

@@ -97,8 +97,12 @@ class StripePaymentMethodSelectionTest {
     assertThat(created.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(created))
         .contains("\"payment_method_types\":[\"paypal\"]")
-        .contains("\"automatic_payment_methods\":null")
-        .contains("\"allowed_payment_method_types\":null");
+        .contains("\"automatic_payment_methods\":null");
+    if (version.equals(A_DAHLIA_RELEASE_BEFORE_ALLOWED_TYPES)) {
+      assertThat(bodyOf(created)).doesNotContain("\"allowed_payment_method_types\"");
+    } else {
+      assertThat(bodyOf(created)).contains("\"allowed_payment_method_types\":null");
+    }
   }
 
   @Test
@@ -227,9 +231,14 @@ class StripePaymentMethodSelectionTest {
 
     assertThat(created.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(created))
-        .contains("\"allowed_payment_method_types\":[\"paypal\",\"card\",\"sepa_debit\"]")
         .contains("\"automatic_payment_methods\":null")
         .contains("\"payment_method_types\":[\"card\"]");
+    if (version.equals(A_DAHLIA_RELEASE_BEFORE_ALLOWED_TYPES)) {
+      assertThat(bodyOf(created)).doesNotContain("\"allowed_payment_method_types\"");
+    } else {
+      assertThat(bodyOf(created))
+          .contains("\"allowed_payment_method_types\":[\"paypal\",\"card\",\"sepa_debit\"]");
+    }
   }
 
   @Test
