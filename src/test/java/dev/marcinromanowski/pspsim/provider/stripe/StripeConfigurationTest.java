@@ -876,8 +876,13 @@ class StripeConfigurationTest {
             new StripeDoubles.CountingIds(),
             scenarioEngine(),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, new StripeDoubles.CountingIds()),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine()));
+        new CreateSetupIntent(setupIntents, paymentMethods, new StripeDoubles.CountingIds()),
+        new ConfirmSetupIntent(
+            setupIntents,
+            paymentMethods,
+            customers,
+            new StripeDoubles.CountingIds(),
+            scenarioEngine()));
   }
 
   private static ScenarioEngine scenarioEngine() {

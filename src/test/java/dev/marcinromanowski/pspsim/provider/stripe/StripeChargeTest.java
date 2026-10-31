@@ -33,7 +33,7 @@ class StripeChargeTest {
   private static final String OTHER_ACCOUNT = "merchant-2";
   private static final String OTHER_SECRET_KEY = "sk_test_51Another";
   private static final String THREE_DAYS = "P3D";
-  private static final String CARD = "pm_card_visa";
+  private static final String CARD = "pm_card_uncatalogued";
 
   private static final String CREATE_PATH = "/v1/payment_intents";
   private static final String REFUNDS_PATH = "/v1/refunds";
@@ -520,8 +520,8 @@ class StripeChargeTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

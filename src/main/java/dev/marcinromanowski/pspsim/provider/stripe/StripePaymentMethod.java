@@ -4,6 +4,10 @@ import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 record StripePaymentMethod(
@@ -12,13 +16,21 @@ record StripePaymentMethod(
     String accountId,
     @Nullable String customerId,
     StripePaymentMethodType type,
-    @Nullable FixtureCard card,
+    @Nullable StripeCard card,
+    StripeBillingDetails billingDetails,
+    Map<String, String> metadata,
+    String allowRedisplay,
     @Nullable Instant detachedAt,
     ObjectOrigin origin,
     Instant createdAt,
     Instant updatedAt) {
 
   static final int LONGEST_PAYMENT_METHOD_ID = 128;
+
+  static final String UNSPECIFIED = "unspecified";
+
+  static final List<String> THE_PUBLISHED_REDISPLAY_VALUES =
+      List.of("always", "limited", UNSPECIFIED);
 
   static final String A_CARD_IS_CARRIED_BY_THE_TYPE_THAT_PUBLISHES_ONE =
       "provider stripe publishes a card hash on a PaymentMethod of type card and on no other, so"
@@ -29,6 +41,10 @@ record StripePaymentMethod(
           + " method that carries a detachment and a customer at the same time would be a method"
           + " this simulator had re-attached";
 
+  static final String A_REDISPLAY_IS_ONE_STRIPE_PUBLISHES =
+      "provider stripe publishes always, limited and unspecified as the allow_redisplay of a"
+          + " PaymentMethod, and unspecified as its default";
+
   StripePaymentMethod {
     if (type.describesACard() == (card == null)) {
       throw new IllegalArgumentException(A_CARD_IS_CARRIED_BY_THE_TYPE_THAT_PUBLISHES_ONE);
@@ -36,6 +52,37 @@ record StripePaymentMethod(
     if (detachedAt != null && customerId != null) {
       throw new IllegalArgumentException(A_DETACHED_METHOD_BELONGS_TO_NOBODY);
     }
+    if (!THE_PUBLISHED_REDISPLAY_VALUES.contains(allowRedisplay)) {
+      throw new IllegalArgumentException(A_REDISPLAY_IS_ONE_STRIPE_PUBLISHES);
+    }
+    metadata = Collections.unmodifiableSequencedMap(new LinkedHashMap<>(metadata));
+  }
+
+  StripePaymentMethod(
+      TestRunId testRunId,
+      String paymentMethodId,
+      String accountId,
+      @Nullable String customerId,
+      StripePaymentMethodType type,
+      @Nullable FixtureCard card,
+      @Nullable Instant detachedAt,
+      ObjectOrigin origin,
+      Instant createdAt,
+      Instant updatedAt) {
+    this(
+        testRunId,
+        paymentMethodId,
+        accountId,
+        customerId,
+        type,
+        card == null ? null : StripeCard.ofAFixture(card),
+        StripeBillingDetails.NONE,
+        Map.of(),
+        UNSPECIFIED,
+        detachedAt,
+        origin,
+        createdAt,
+        updatedAt);
   }
 
   boolean detached() {
@@ -48,6 +95,35 @@ record StripePaymentMethod(
 
   StripePaymentMethod detachedAt(Instant at) {
     return new StripePaymentMethod(
-        testRunId, paymentMethodId, accountId, null, type, card, at, origin, createdAt, at);
+        testRunId,
+        paymentMethodId,
+        accountId,
+        null,
+        type,
+        card,
+        billingDetails,
+        metadata,
+        allowRedisplay,
+        at,
+        origin,
+        createdAt,
+        at);
+  }
+
+  StripePaymentMethod attachedTo(String customer, Instant at) {
+    return new StripePaymentMethod(
+        testRunId,
+        paymentMethodId,
+        accountId,
+        customer,
+        type,
+        card,
+        billingDetails,
+        metadata,
+        allowRedisplay,
+        null,
+        origin,
+        createdAt,
+        at);
   }
 }

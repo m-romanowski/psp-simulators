@@ -39,7 +39,7 @@ class StripeExpansionTest {
   private static final String A_CARD_OF_NOBODY = "pm_the_card_saved_to_nobody";
   private static final String ANOTHER_ACCOUNTS_CUSTOMER = "cus_held_by_another_account";
   private static final String ANOTHER_RUNS_CUSTOMER = "cus_held_in_another_run";
-  private static final String A_PUBLISHED_TEST_CARD = "pm_card_visa";
+  private static final String A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER = "pm_card_uncatalogued";
 
   private static final String FIRST_INTENT = "pi_sim_0000000000000001";
   private static final String FIRST_CHARGE = "ch_sim_0000000000000002";
@@ -563,7 +563,7 @@ class StripeExpansionTest {
                     "customer",
                     THE_CUSTOMER,
                     "payment_method",
-                    A_PUBLISHED_TEST_CARD,
+                    A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER,
                     "return_url",
                     StripePaymentIntentTest.A_RETURN_URL,
                     "confirm",
@@ -573,7 +573,7 @@ class StripeExpansionTest {
         fieldsOf(retrieve(FIRST_INTENT, Map.of("expand[]", List.of("payment_method", "customer"))));
 
     assertThat(answered)
-        .containsEntry("payment_method", List.of(A_PUBLISHED_TEST_CARD))
+        .containsEntry("payment_method", List.of(A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER))
         .containsEntry("customer.id", List.of(THE_CUSTOMER))
         .doesNotContainKey("payment_method.id");
   }
@@ -1310,7 +1310,7 @@ class StripeExpansionTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 }

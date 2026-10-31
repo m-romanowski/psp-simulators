@@ -400,9 +400,8 @@ class StripePaymentIntentIntegrationTest extends PostgresBackedTest {
             null);
 
     assertThat(confirmed.statusCode()).isEqualTo(200);
-    assertThat(bodyOf(confirmed))
-        .contains("\"status\":\"requires_capture\"")
-        .contains("\"payment_method\":\"pm_card_visa\"");
+    assertThat(bodyOf(confirmed)).contains("\"status\":\"requires_capture\"");
+    assertThat(valueIn(bodyOf(confirmed), "payment_method")).matches("pm_sim_[0-9a-f]{20}");
   }
 
   @Test

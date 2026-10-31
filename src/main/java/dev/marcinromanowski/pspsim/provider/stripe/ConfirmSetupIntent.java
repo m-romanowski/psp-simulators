@@ -1,6 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
+import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
+import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioRequest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -14,19 +16,20 @@ import org.jspecify.annotations.Nullable;
 final class ConfirmSetupIntent {
 
   private final StripeSetupIntents intents;
-  private final StripePaymentMethods paymentMethods;
   private final StripeCustomers customers;
   private final ScenarioEngine scenarios;
+  private final StripePaymentMethodMinting minting;
 
   ConfirmSetupIntent(
       StripeSetupIntents intents,
       StripePaymentMethods paymentMethods,
       StripeCustomers customers,
+      IdGenerator ids,
       ScenarioEngine scenarios) {
     this.intents = intents;
-    this.paymentMethods = paymentMethods;
     this.customers = customers;
     this.scenarios = scenarios;
+    this.minting = new StripePaymentMethodMinting(paymentMethods, ids);
   }
 
   StripeSetupIntents store() {
@@ -48,6 +51,20 @@ final class ConfirmSetupIntent {
           StripeErrors.resourceMissing(StripeSetupLookup.SETUP_INTENT_PARAMETER));
     }
     StripeSetupIntent stored = addressed.get();
+    StripeNamedPaymentMethod named;
+    switch (StripeNamedPaymentMethod.of(
+        request.form(),
+        stored.paymentMethodId(),
+        minting,
+        testRunId,
+        account,
+        ObjectOrigin.PROVIDER_API,
+        now)) {
+      case StripeNamedPaymentMethod.Outcome.Refused refused -> {
+        return refusedAbout(stored, refused.error());
+      }
+      case StripeNamedPaymentMethod.Outcome.Named theOne -> named = theOne.method();
+    }
     if (!stored.status().confirmable()) {
       return StripeSetupLookup.unexpectedState(stored, "confirmed");
     }
@@ -64,31 +81,37 @@ final class ConfirmSetupIntent {
       return refusedAbout(stored, nowhereToReturn);
     }
     StripeSetupIntent intent = stored.selecting(selection);
-    String paymentMethod = paymentMethodOf(request.form(), intent);
+    String paymentMethod = named.id();
     if (paymentMethod == null) {
       return StripeOperationResult.refused(
           RefusalSubject.theObject(intent.setupIntentId()),
           StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
     }
-    if (StripePaymentMethodLookup.of(paymentMethods, testRunId, account, paymentMethod).isEmpty()) {
+    StripePaymentMethod method = named.method();
+    if (method == null) {
       return refusedAbout(stored, StripeErrors.noSuchPaymentMethod(paymentMethod));
     }
     StripeError refusal =
-        whatTheAttachmentThisSetupWouldMintEarns(testRunId, account, intent, paymentMethod);
+        whatTheAttachmentThisSetupWouldMintEarns(testRunId, account, intent, method);
     if (refusal != null) {
       return StripeOperationResult.refused(
           RefusalSubject.theObject(intent.setupIntentId()), refusal);
     }
     Optional<StripePaymentMethodType> notOffered =
-        StripePaymentMethodLookup.theTypeOf(paymentMethods, testRunId, account, paymentMethod)
-            .filter(type -> !selection.offers(type));
+        named.type().filter(type -> !selection.offers(type));
     if (notOffered.isPresent()) {
       return refusedAbout(stored, notAllowed(notOffered.get(), stored.selection(), selection));
     }
     return StripeOperationResult.decidedBy(
         scenarios.decide(requestOf(headers, testRunId, account, intent, paymentMethod)),
-        () -> setUp(intent, paymentMethod, now),
-        decline -> fail(intent, paymentMethod, decline, now));
+        () -> {
+          named.storedBy(minting);
+          return setUp(intent, paymentMethod, now);
+        },
+        decline -> {
+          named.storedBy(minting);
+          return fail(intent, paymentMethod, decline, now);
+        });
   }
 
   private static StripeError notAllowed(
@@ -107,10 +130,10 @@ final class ConfirmSetupIntent {
   }
 
   private @Nullable StripeError whatTheAttachmentThisSetupWouldMintEarns(
-      TestRunId testRunId, StripeAccount account, StripeSetupIntent intent, String paymentMethod) {
-    StripePaymentMethod method =
-        StripePaymentMethodLookup.of(paymentMethods, testRunId, account, paymentMethod)
-            .orElseThrow();
+      TestRunId testRunId,
+      StripeAccount account,
+      StripeSetupIntent intent,
+      StripePaymentMethod method) {
     if (method.detached()) {
       return StripeErrors.paymentMethodRefused(
           StripePaymentMethodLookup.A_DETACHED_METHOD_IS_REFUSED_RATHER_THAN_IGNORED);
@@ -136,11 +159,6 @@ final class ConfirmSetupIntent {
           StripeSetupLookup.A_METHOD_ANOTHER_CUSTOMER_HOLDS_IS_REFUSED);
     }
     return null;
-  }
-
-  private static @Nullable String paymentMethodOf(StripeForm form, StripeSetupIntent intent) {
-    String sent = form.first(StripeFields.PAYMENT_METHOD);
-    return sent == null ? intent.paymentMethodId() : sent;
   }
 
   private static ScenarioRequest requestOf(

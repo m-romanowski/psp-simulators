@@ -79,10 +79,12 @@ final class StripeOrigination {
           StripeFields.PAYMENT_METHOD,
           "the payment method to charge",
           false,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " Stripe requires one on a call that confirms, and refuses that call by name"
               + " without it.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn CUSTOMER =
       AFieldATesterFillsIn.typed(
@@ -114,21 +116,25 @@ final class StripeOrigination {
           StripeFields.PAYMENT_METHOD,
           "the payment method to set up",
           true,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " This is the method the confirmation attaches to the customer, and stripe"
               + " publishes that a method already attached to another Customer cannot be used"
               + " here.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn THE_METHOD_TO_SET_UP_LATER =
       AFieldATesterFillsIn.typed(
           StripeFields.PAYMENT_METHOD,
           "the payment method to set up, if you already know it",
           false,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " Stripe does not require one to create a SetupIntent, and a confirmation may name"
               + " one instead.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn THE_CUSTOMER_THE_CARD_IS_SAVED_TO =
       AFieldATesterFillsIn.typed(

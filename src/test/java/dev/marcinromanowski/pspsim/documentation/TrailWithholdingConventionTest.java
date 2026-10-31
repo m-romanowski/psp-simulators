@@ -108,7 +108,7 @@ class TrailWithholdingConventionTest {
           "worldline hostedTokenizationUrl",
           "worldline partialRedirectUrl");
 
-  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 96;
+  private static final int THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE = 104;
 
   private static final String A_PROVIDER_PACKAGE_OF_ITS_OWN =
       "dev.marcinromanowski.pspsim.provider.sixth";
@@ -750,12 +750,12 @@ class TrailWithholdingConventionTest {
                 + " name, each excused in the initializer that stores it")
         .isEqualTo(50);
     assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(246);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(684);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(732);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(980);
+        .isEqualTo(1028);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"

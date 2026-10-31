@@ -743,7 +743,7 @@ class StripePublishableKeyTest {
   }
 
   @Test
-  void a_published_test_method_the_account_holds_none_of_still_pays() {
+  void a_published_test_method_the_account_holds_none_of_pays_with_a_copy_of_its_card() {
     theAccounts();
     Created payment = aPayment();
     Map<String, String> form = new LinkedHashMap<>();
@@ -754,7 +754,8 @@ class StripePublishableKeyTest {
     StripeApiResponse confirmed = confirmPayment(PUBLISHABLE_KEY, payment.id(), form, Map.of());
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
-    assertThat(bodyOf(confirmed)).contains("\"payment_method\":\"pm_card_visa\"");
+    assertThat(bodyOf(confirmed)).contains("\"payment_method\":\"pm_sim_00000000000000000001\"");
+    assertThat(paymentMethods.find(RUN, "pm_sim_00000000000000000001")).isPresent();
   }
 
   @ParameterizedTest
@@ -1033,8 +1034,8 @@ class StripePublishableKeyTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private record Created(String id, String clientSecret) {}

@@ -91,8 +91,8 @@ class StripeOriginationTest {
               ids,
               scenarioEngine,
               StripeDoubles.NO_SCHEDULED_OUTCOMES),
-          new CreateSetupIntent(setupIntents, ids),
-          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+          new CreateSetupIntent(setupIntents, paymentMethods, ids),
+          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
 
   @Test
   void stripe_offers_a_hold_a_charge_and_two_ways_of_setting_a_card_up_for_a_later_charge() {

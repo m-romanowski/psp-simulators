@@ -89,7 +89,20 @@ class StripeErrorDocumentationLinkTest {
                     "https://docs.stripe.com/error-codes#idempotency-key-in-use"),
                 Map.entry(
                     "secret_key_required",
-                    "https://docs.stripe.com/error-codes#secret-key-required")));
+                    "https://docs.stripe.com/error-codes#secret-key-required"),
+                Map.entry(
+                    "incorrect_number", "https://docs.stripe.com/error-codes#incorrect-number"),
+                Map.entry("invalid_number", "https://docs.stripe.com/error-codes#invalid-number"),
+                Map.entry(
+                    "invalid_expiry_month",
+                    "https://docs.stripe.com/error-codes#invalid-expiry-month"),
+                Map.entry(
+                    "invalid_expiry_year",
+                    "https://docs.stripe.com/error-codes#invalid-expiry-year"),
+                Map.entry("invalid_cvc", "https://docs.stripe.com/error-codes#invalid-cvc"),
+                Map.entry(
+                    "parameter_invalid_integer",
+                    "https://docs.stripe.com/error-codes#parameter-invalid-integer")));
   }
 
   private static List<StripeError> everyRefusalThisBuildCanAnswerWith() {
@@ -102,7 +115,7 @@ class StripeErrorDocumentationLinkTest {
       }
       refusals.add(refusalFrom(factory));
     }
-    assertThat(refusals).hasSize(53);
+    assertThat(refusals).hasSize(62);
     return refusals;
   }
 

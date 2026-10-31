@@ -37,6 +37,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.PresetRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderAccountFields;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfiguration;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfigurationRejectedException;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderFixtureRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderKeyMechanisms;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
@@ -260,6 +261,11 @@ final class StripeProvider implements SimulatorProvider {
             fixture, accounts.find(fixture.testRunId(), fixture.merchantId()).orElse(null));
     String customerId = StripeFixtureCards.customerIdOf(fixture);
     String paymentMethodId = StripeFixtureCards.paymentMethodIdOf(fixture);
+    if (aMethodNoFixtureDeclaredHolds(fixture.testRunId(), paymentMethodId)) {
+      throw new ProviderFixtureRejectedException(
+          StripeFixtureCards.PAYMENT_METHOD_PROPERTY,
+          StripeFixtureCards.A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS);
+    }
     return new PaymentMethodFixturePlan(
         seeded -> {
           if (customerId != null) {
@@ -274,19 +280,38 @@ final class StripeProvider implements SimulatorProvider {
                     seeded.createdAt(),
                     seeded.createdAt()));
           }
-          paymentMethods.insertIfAbsent(
-              new StripePaymentMethod(
-                  seeded.testRunId(),
-                  paymentMethodId,
-                  account.accountId(),
-                  customerId,
-                  type,
-                  seeded.card(),
-                  null,
-                  fixture.askedBy(),
-                  seeded.createdAt(),
-                  seeded.createdAt()));
+          boolean stored =
+              paymentMethods.insertIfAbsent(
+                  new StripePaymentMethod(
+                      seeded.testRunId(),
+                      paymentMethodId,
+                      account.accountId(),
+                      customerId,
+                      type,
+                      seeded.card(),
+                      null,
+                      fixture.askedBy(),
+                      seeded.createdAt(),
+                      seeded.createdAt()));
+          if (!stored) {
+            throw new ProviderFixtureRejectedException(
+                StripeFixtureCards.PAYMENT_METHOD_PROPERTY,
+                StripeFixtureCards.A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS);
+          }
         });
+  }
+
+  private boolean aMethodNoFixtureDeclaredHolds(TestRunId testRunId, String paymentMethodId) {
+    if (paymentMethods.find(testRunId, paymentMethodId).isEmpty()) {
+      return false;
+    }
+    for (PaymentMethodFixture declared : fixtures.of(StripeApi.STRIPE, testRunId)) {
+      if (paymentMethodId.equals(
+          declared.providerIds().get(ProviderPaymentMethodFields.PAYMENT_METHOD_ID))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override

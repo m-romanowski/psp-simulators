@@ -1,12 +1,15 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 final class StripeFields {
 
@@ -61,6 +64,14 @@ final class StripeFields {
 
   static final String SECRET = "secret";
 
+  static final String WITHHELD = Redaction.REDACTED;
+
+  static final String CARD = "card";
+
+  static final Set<String> SENSITIVE_CARD_MEMBERS = Set.of("number", "cvc");
+
+  private static final Pattern BETWEEN_KEYS = Pattern.compile("[\\[\\]]+");
+
   static final Set<String> SENSITIVE_RESPONSE_FIELDS = Set.of(CLIENT_SECRET, SECRET);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of("data.object." + CLIENT_SECRET);
@@ -78,6 +89,49 @@ final class StripeFields {
           withheld.put(key, Redaction.redact(Map.of(leaf, values), sensitive).get(leaf));
         });
     return Collections.unmodifiableSequencedMap(withheld);
+  }
+
+  static Map<String, List<String>> withholdingTheCard(Map<String, List<String>> request) {
+    LinkedHashMap<String, List<String>> withheld = new LinkedHashMap<>();
+    request.forEach(
+        (name, values) -> {
+          boolean aCardMember = namesASensitiveCardMember(name);
+          List<String> kept = new ArrayList<>();
+          for (String value : values) {
+            kept.add(aCardMember || readsAsACardNumber(value) ? WITHHELD : value);
+          }
+          withheld.put(name, List.copyOf(kept));
+        });
+    return Collections.unmodifiableMap(withheld);
+  }
+
+  static boolean namesASensitiveCardMember(String name) {
+    List<String> keys = new ArrayList<>();
+    for (String key : BETWEEN_KEYS.split(name.toLowerCase(Locale.ROOT), -1)) {
+      if (!key.isEmpty()) {
+        keys.add(key);
+      }
+    }
+    int card = keys.indexOf(CARD);
+    if (card < 0) {
+      return false;
+    }
+    for (String after : keys.subList(card + 1, keys.size())) {
+      if (SENSITIVE_CARD_MEMBERS.contains(after)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static boolean readsAsACardNumber(String value) {
+    String digits = value.replace(" ", "").replace("-", "");
+    return StripeNewPaymentMethod.theDigitsOf(digits) != null
+        && StripeNewPaymentMethod.passesLuhn(digits);
+  }
+
+  static String withheldIfACardNumber(String value) {
+    return readsAsACardNumber(value) ? WITHHELD : value;
   }
 
   static final Set<String> SENSITIVE_HEADERS =

@@ -120,6 +120,11 @@ class StripeApiController {
     return answered(() -> api.deleteCustomer(StripeWireRequest.callOf(request), customerId));
   }
 
+  @PostMapping(PAYMENT_METHODS)
+  Object createPaymentMethod(HttpServletRequest request) {
+    return answered(() -> api.createPaymentMethod(StripeWireRequest.callOf(request)));
+  }
+
   @GetMapping(PAYMENT_METHODS)
   Object listPaymentMethods(HttpServletRequest request) {
     return answered(() -> api.listPaymentMethods(StripeWireRequest.callOf(request)));

@@ -16,10 +16,13 @@ final class CreateSetupIntent {
 
   private final StripeSetupIntents intents;
   private final IdGenerator ids;
+  private final StripePaymentMethodMinting minting;
 
-  CreateSetupIntent(StripeSetupIntents intents, IdGenerator ids) {
+  CreateSetupIntent(
+      StripeSetupIntents intents, StripePaymentMethods paymentMethods, IdGenerator ids) {
     this.intents = intents;
     this.ids = ids;
+    this.minting = new StripePaymentMethodMinting(paymentMethods, ids);
   }
 
   StripeOperationResult handle(
@@ -41,7 +44,15 @@ final class CreateSetupIntent {
       case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
     StripeSetupUsage usage = requireUsage(form);
-    String paymentMethod = form.first(StripeFields.PAYMENT_METHOD);
+    StripeNamedPaymentMethod named;
+    switch (StripeNamedPaymentMethod.of(form, null, minting, testRunId, account, askedBy, now)) {
+      case StripeNamedPaymentMethod.Outcome.Refused refused -> {
+        return refused(refused.error());
+      }
+      case StripeNamedPaymentMethod.Outcome.Named theOne -> named = theOne.method();
+    }
+    String paymentMethod = named.id();
+    named.storedBy(minting);
     for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
       String setupIntentId = ID_PREFIX + ids.hex(ID_LENGTH);
       StripeSetupIntent intent =

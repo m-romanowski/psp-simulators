@@ -445,7 +445,7 @@ class StripeCustomerObjectTest {
         new CreateRefund(intents, refunds, charges, ids, engine),
         new CreatePaymentIntent(
             intents, paymentMethods, charges, ids, engine, StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, engine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, engine));
   }
 }

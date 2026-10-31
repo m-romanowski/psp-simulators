@@ -7,6 +7,7 @@ import dev.marcinromanowski.pspsim.TheLabelEveryIdentifierGets;
 import dev.marcinromanowski.pspsim.TheSequenceOneAnswerIsIn;
 import dev.marcinromanowski.pspsim.kernel.NormalizedStatus;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
+import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.fixture.PaymentMethodFixture;
 import dev.marcinromanowski.pspsim.kernel.money.Amount;
@@ -111,7 +112,7 @@ class StripeProviderControlTest {
     assertThat(state.origin()).isEqualTo(ObjectOrigin.PROVIDER_API);
     assertThat(state.relatedObjects())
         .containsEntry("account", ACCOUNT)
-        .containsEntry("paymentMethod", "pm_card_visa")
+        .containsEntry("paymentMethod", "pm_card_uncatalogued")
         .containsEntry("customer", "cus_sim_1");
     assertThat(state.derivedBalances())
         .hasValueSatisfying(
@@ -525,6 +526,51 @@ class StripeProviderControlTest {
   }
 
   @Test
+  void a_fixture_under_an_id_a_created_payment_method_holds_is_refused_and_writes_nothing() {
+    accounts.with(StripeDoubles.account(E2E_RUN, ACCOUNT, SECRET_KEY, "P3D"));
+    paymentMethods.insertIfAbsent(
+        new StripePaymentMethod(
+            E2E_RUN,
+            "pm_sim_00000000000000000001",
+            ACCOUNT,
+            null,
+            StripePaymentMethodType.CARD,
+            new FixtureCard("visa", "4242", 10, 2027, "credit"),
+            null,
+            ObjectOrigin.PROVIDER_API,
+            NOW,
+            NOW));
+    PaymentMethodFixtureAdmission admission =
+        new PaymentMethodFixtureAdmission(
+            seededMethods, scenarioRules, testRuns, new RecordedUnitsOfWork(), DEFAULT_RUN);
+
+    PaymentMethodFixtureAdmission.Verdict verdict =
+        admission.seed(
+            provider(NOW),
+            new DeclaredPaymentMethodFixture(
+                E2E_RUN.value(),
+                ACCOUNT,
+                "an-owner",
+                "card",
+                "visa-over-a-created-method",
+                new DeclaredCard("visa", "1881", 12, 2030, "debit"),
+                Map.of(
+                    ProviderPaymentMethodFields.PAYMENT_METHOD_ID, "pm_sim_00000000000000000001"),
+                null),
+            ObjectOrigin.CONTROL_API);
+
+    assertThat(verdict)
+        .isEqualTo(
+            new PaymentMethodFixtureAdmission.Verdict.Refused(
+                "providerIds.paymentMethodId",
+                StripeFixtureCards.A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS));
+    assertThat(seededMethods.of(StripeApi.STRIPE, E2E_RUN)).isEmpty();
+    assertThat(paymentMethods.find(E2E_RUN, "pm_sim_00000000000000000001").orElseThrow().card())
+        .isNotNull()
+        .satisfies(card -> assertThat(card.last4()).isEqualTo("4242"));
+  }
+
+  @Test
   void a_harness_seeds_a_second_card_for_one_customer_because_a_customer_id_names_an_owner() {
     accounts.with(StripeDoubles.account(E2E_RUN, ACCOUNT, SECRET_KEY, "P3D"));
     PaymentMethodFixtureAdmission admission =
@@ -711,8 +757,8 @@ class StripeProviderControlTest {
             ids,
             scenarioEngine(),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine()));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine()));
   }
 
   private ScenarioEngine scenarioEngine() {
@@ -753,9 +799,9 @@ class StripeProviderControlTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static StripeApiCall heldBy(String secretKey) {
@@ -786,7 +832,7 @@ class StripeProviderControlTest {
     fields.put("amount", List.of("1099"));
     fields.put("currency", List.of("pln"));
     fields.put("capture_method", List.of("manual"));
-    fields.put("payment_method", List.of("pm_card_visa"));
+    fields.put("payment_method", List.of("pm_card_uncatalogued"));
     fields.put("customer", List.of("cus_sim_1"));
     fields.put("confirm", List.of("true"));
     fields.put("return_url", List.of(StripePaymentIntentTest.A_RETURN_URL));
@@ -1037,7 +1083,7 @@ class StripeProviderControlTest {
   }
 
   @Test
-  void the_personas_stripe_publishes_mint_a_customer_and_carry_the_one_published_payment_method() {
+  void the_personas_stripe_publishes_mint_a_customer_and_a_payment_method_of_their_own() {
     ProviderPersonas published = provider(NOW).personas(ids);
 
     assertThat(published.provider()).isEqualTo(StripeApi.STRIPE);
@@ -1052,18 +1098,22 @@ class StripeProviderControlTest {
       assertThat(instrument.theProviderNativeKeysItCarries())
           .containsExactly("paymentMethodId", "customerId");
       Map<String, String> minted = instrument.mint();
-      assertThat(minted.get("paymentMethodId")).isEqualTo("pm_card_visa");
+      assertThat(minted.get("paymentMethodId")).matches("pm_sim_[0-9a-f]{20}");
       assertThat(minted.get("customerId")).matches("cus_sim_[0-9a-f]{16}");
       assertThat(instrument.card()).isNotNull();
       assertThat(instrument.card().last4()).isEqualTo("4242");
+      assertThat(instrument.card().brand()).isEqualTo("visa");
+      assertThat(instrument.card().funding()).isEqualTo("credit");
+      assertThat(instrument.theIdsItPublishes()).isEmpty();
     }
   }
 
   @Test
-  void a_stripe_persona_says_it_mints_no_payment_method_id_because_this_build_mints_none() {
+  void a_stripe_persona_says_its_payment_method_is_minted_the_way_the_api_mints_one() {
     for (DeclaredPersona persona : provider(NOW).personas(ids).personas()) {
       assertThat(persona.fixtures().get(0).howThoseAreMinted())
-          .contains("this simulator mints no PaymentMethod id anywhere");
+          .contains("StripePaymentMethodMinting.aPaymentMethodId")
+          .contains("POST /v1/payment_methods");
     }
   }
 

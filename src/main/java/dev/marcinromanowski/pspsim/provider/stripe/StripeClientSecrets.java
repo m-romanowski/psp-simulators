@@ -29,6 +29,7 @@ final class StripeClientSecrets {
       case StripePublishableAccess.NoPublishableKeyReachesThisRoute _ ->
           StripeOperationResult.refusedBeforeExecuting(
               StripeRefusals.thePublishableKeyIsRefused(), StripeErrors.secretKeyRequired());
+      case StripePublishableAccess.ItsOwnAccountWithoutAClientSecret _ -> null;
       case StripePublishableAccess.ThePaymentIntentItsClientSecretOpens payment ->
           judged(
               carrying,

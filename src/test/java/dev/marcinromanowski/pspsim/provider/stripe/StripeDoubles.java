@@ -1016,19 +1016,7 @@ final class StripeDoubles {
           || (method.attached() && !customerId.equals(method.customerId()))) {
         return false;
       }
-      methods.replace(
-          method,
-          new StripePaymentMethod(
-              method.testRunId(),
-              method.paymentMethodId(),
-              method.accountId(),
-              customerId,
-              method.type(),
-              method.card(),
-              null,
-              method.origin(),
-              method.createdAt(),
-              at));
+      methods.replace(method, method.attachedTo(customerId, at));
       return true;
     }
 
