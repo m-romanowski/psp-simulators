@@ -224,8 +224,11 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
 
     assertThat(noSuchSetup.statusCode()).isEqualTo(404);
     assertThat(bodyOf(noSuchSetup)).contains("\"param\":\"intent\"");
-    assertThat(noSuchCard.statusCode()).isEqualTo(404);
-    assertThat(bodyOf(noSuchCard)).contains("\"param\":\"payment_method\"");
+    assertThat(noSuchCard.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(noSuchCard))
+        .contains("\"code\":\"resource_missing\"")
+        .contains("\"param\":\"payment_method\"")
+        .contains("No such PaymentMethod: 'pm_nobody_seeded'");
   }
 
   @Test
@@ -333,7 +336,7 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
             SETUP_INTENTS + "/" + setup + "/confirm",
             Map.of("allowed_payment_method_types[]", "card", "payment_method", "pm_nobody_seeded"));
 
-    assertThat(refused.statusCode()).isEqualTo(404);
+    assertThat(refused.statusCode()).isEqualTo(400);
     assertThat(bodyOf(refused)).contains("\"param\":\"payment_method\"");
     assertThat(theWholeStoredRowOf(setup)).isEqualTo(before);
     assertThat(theStoredSetup(setup))

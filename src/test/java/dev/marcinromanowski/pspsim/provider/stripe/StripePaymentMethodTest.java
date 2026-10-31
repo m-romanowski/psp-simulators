@@ -498,7 +498,9 @@ class StripePaymentMethodTest {
     String intentId =
         api(NOW)
             .createPaymentIntent(
-                post("/v1/payment_intents", Map.of("amount", "1000", "currency", "usd")))
+                post(
+                    "/v1/payment_intents",
+                    Map.of("amount", "1000", "currency", "usd", "customer", A_CUSTOMER)))
             .providerObjectId();
 
     StripeApiResponse confirmed =

@@ -1,8 +1,11 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
+import static dev.marcinromanowski.pspsim.TheSpellingsOfAHeaderName.aHeaderOfThisNameUnderAnySpelling;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -45,7 +48,8 @@ class StripeBrowserAccessTest {
                 + " X-Stripe-External-Auth-Required, X-Stripe-Privileged-Session-Required");
     assertThat(response.getHeader("Access-Control-Max-Age")).isEqualTo("300");
     assertThat(response.getHeader("Vary")).isEqualTo("Origin");
-    assertThat(response.getHeader("Access-Control-Allow-Headers")).isNull();
+    assertThat(answerOf(response).headers())
+        .doesNotHave(aHeaderOfThisNameUnderAnySpelling("Access-Control-Allow-Headers"));
   }
 
   @ParameterizedTest
@@ -68,7 +72,7 @@ class StripeBrowserAccessTest {
     filter.doFilter(request, response, chain);
 
     assertThat(chain.getRequest()).isSameAs(request);
-    assertThat(response.getHeaderNames()).isEmpty();
+    assertThat(answerOf(response).headers()).isEmpty();
   }
 
   @Test
@@ -102,7 +106,8 @@ class StripeBrowserAccessTest {
 
     for (MockHttpServletResponse answered : List.of(none, blank)) {
       assertThat(answered.getStatus()).isEqualTo(200);
-      assertThat(answered.getHeader("Access-Control-Allow-Headers")).isNull();
+      assertThat(answerOf(answered).headers())
+          .doesNotHave(aHeaderOfThisNameUnderAnySpelling("Access-Control-Allow-Headers"));
     }
   }
 
@@ -126,7 +131,8 @@ class StripeBrowserAccessTest {
 
       assertThat(chain.getRequest()).isSameAs(request);
       assertThat(response.getHeader("Access-Control-Allow-Origin")).isEqualTo("*");
-      assertThat(response.getHeader("Access-Control-Allow-Headers")).isNull();
+      assertThat(answerOf(response).headers())
+          .doesNotHave(aHeaderOfThisNameUnderAnySpelling("Access-Control-Allow-Headers"));
     }
   }
 
@@ -137,6 +143,16 @@ class StripeBrowserAccessTest {
 
     assertThat(StripeBrowserAccess.aPreflight(lower)).isTrue();
   }
+
+  private static Answer answerOf(MockHttpServletResponse response) {
+    Map<String, List<String>> headers = new LinkedHashMap<>();
+    for (String name : response.getHeaderNames()) {
+      headers.put(name, response.getHeaders(name));
+    }
+    return new Answer(headers);
+  }
+
+  private record Answer(Map<String, List<String>> headers) {}
 
   private static MockHttpServletRequest aPreflightTo(String path) {
     MockHttpServletRequest request = new MockHttpServletRequest("OPTIONS", path);
