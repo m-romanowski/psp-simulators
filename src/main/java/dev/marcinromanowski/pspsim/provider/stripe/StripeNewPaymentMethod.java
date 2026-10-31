@@ -78,8 +78,6 @@ final class StripeNewPaymentMethod {
 
   private static final Pattern A_SECURITY_CODE = Pattern.compile("[0-9]{3,4}");
 
-  private static final Pattern A_TOKEN_ID = Pattern.compile("tok_[A-Za-z0-9_]+");
-
   record Description(
       StripeCard card,
       StripeBillingDetails billingDetails,
@@ -99,6 +97,11 @@ final class StripeNewPaymentMethod {
   }
 
   private StripeNewPaymentMethod() {}
+
+  static @Nullable StripeParameter thePaymentMethodDataIn(StripeForm form) {
+    StripeParameter sent = form.parameters().get(PAYMENT_METHOD_DATA);
+    return sent == null || isEmptyText(sent) ? null : sent;
+  }
 
   static Outcome ofTheRequest(StripeForm form, Instant now) {
     return read(form.parameters(), "", now);
@@ -186,9 +189,7 @@ final class StripeNewPaymentMethod {
           .orElseGet(
               () ->
                   CardRead.refusedWith(
-                      StripeErrors.noSuchToken(
-                          cardParam + "[" + TOKEN + "]",
-                          A_TOKEN_ID.matcher(token).matches() ? token : StripeFields.WITHHELD)));
+                      StripeErrors.noSuchToken(cardParam + "[" + TOKEN + "]", token)));
     }
     for (String required : List.of(NUMBER, EXP_MONTH, EXP_YEAR)) {
       if (textOf(card.get(required)) == null) {
@@ -206,14 +207,12 @@ final class StripeNewPaymentMethod {
     String month = Objects.requireNonNull(textOf(card.get(EXP_MONTH)));
     if (!AN_INTEGER.matcher(month).matches()) {
       return CardRead.refusedWith(
-          StripeErrors.invalidInteger(
-              cardParam + "[" + EXP_MONTH + "]", StripeFields.withheldIfACardNumber(month)));
+          StripeErrors.invalidInteger(cardParam + "[" + EXP_MONTH + "]", month));
     }
     String year = Objects.requireNonNull(textOf(card.get(EXP_YEAR)));
     if (!AN_INTEGER.matcher(year).matches()) {
       return CardRead.refusedWith(
-          StripeErrors.invalidInteger(
-              cardParam + "[" + EXP_YEAR + "]", StripeFields.withheldIfACardNumber(year)));
+          StripeErrors.invalidInteger(cardParam + "[" + EXP_YEAR + "]", year));
     }
     Integer expMonth = aMonth(month);
     if (expMonth == null) {

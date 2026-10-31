@@ -15,7 +15,8 @@ alter table stripe_payment_method
     add column billing_phone                 varchar(5000),
     add column billing_tax_id                varchar(5000),
     add column metadata                      json        not null default '{}'::json,
-    add column allow_redisplay               varchar(16) not null default 'unspecified';
+    add column allow_redisplay               varchar(16) not null default 'unspecified',
+    add column copied_from                   varchar(128);
 
 update stripe_payment_method
 set card_networks = array[card_brand]::text[]

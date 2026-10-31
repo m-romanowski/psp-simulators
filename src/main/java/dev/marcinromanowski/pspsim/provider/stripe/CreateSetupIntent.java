@@ -51,6 +51,13 @@ final class CreateSetupIntent {
       }
       case StripeNamedPaymentMethod.Outcome.Named theOne -> named = theOne.method();
     }
+    StripeError notAnId = named.theRefusalOfAnIdThatReadsAsACardNumber();
+    if (notAnId == null) {
+      notAnId = StripeNamedPaymentMethod.theRefusalOfACustomerThatReadsAsACardNumber(form);
+    }
+    if (notAnId != null) {
+      return refused(notAnId);
+    }
     String paymentMethod = named.id();
     named.storedBy(minting);
     for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {

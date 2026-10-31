@@ -20,6 +20,7 @@ record StripePaymentMethod(
     StripeBillingDetails billingDetails,
     Map<String, String> metadata,
     String allowRedisplay,
+    @Nullable String copiedFrom,
     @Nullable Instant detachedAt,
     ObjectOrigin origin,
     Instant createdAt,
@@ -79,10 +80,15 @@ record StripePaymentMethod(
         StripeBillingDetails.NONE,
         Map.of(),
         UNSPECIFIED,
+        null,
         detachedAt,
         origin,
         createdAt,
         updatedAt);
+  }
+
+  String theIdARuleNames() {
+    return copiedFrom == null ? paymentMethodId : copiedFrom;
   }
 
   boolean detached() {
@@ -104,6 +110,7 @@ record StripePaymentMethod(
         billingDetails,
         metadata,
         allowRedisplay,
+        copiedFrom,
         at,
         origin,
         createdAt,
@@ -121,6 +128,7 @@ record StripePaymentMethod(
         billingDetails,
         metadata,
         allowRedisplay,
+        copiedFrom,
         null,
         origin,
         createdAt,

@@ -642,6 +642,33 @@ class StripePaymentMethodCreationTest {
   }
 
   @Test
+  void a_type_that_reads_as_a_card_number_is_not_repeated_in_the_refusal_nor_kept_in_the_trail() {
+    StripeApiResponse refused =
+        world.createMethodUnderTheKey(SECRET_KEY, with(aVisa(), "type", "4242424242424242"));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).doesNotContain("4242424242424242").contains("`[redacted]`");
+    assertThat(world.everythingTheTrailAndTheExchangesKeep()).doesNotContain("4242424242424242");
+  }
+
+  @Test
+  void free_text_that_reads_as_a_card_number_is_kept_as_sent_and_withheld_from_the_trail() {
+    Map<String, String> form = aVisa();
+    form.put("metadata[4000058260000005]", "x");
+    form.put("billing_details[name]", "4000056655665556");
+
+    StripeApiResponse created = world.createMethodUnderTheKey(SECRET_KEY, form);
+
+    assertThat(created.httpStatus()).as(bodyOf(created)).isEqualTo(200);
+    assertThat(theValueAt(created, "billing_details.name")).isEqualTo("4000056655665556");
+    assertThat(theValueAt(created, "metadata.4000058260000005")).isEqualTo("x");
+    assertThat(world.everythingTheTrailAndTheExchangesKeep())
+        .doesNotContain("4000056655665556")
+        .doesNotContain("4000058260000005")
+        .contains("metadata[[redacted]]");
+  }
+
+  @Test
   void a_replay_under_the_same_key_answers_the_method_it_created_and_creates_no_second() {
     StripeApiResponse first = world.createMethodUnderTheKey(SECRET_KEY, aVisa());
     StripeApiResponse again = world.createMethodUnderTheKey(SECRET_KEY, aVisa());

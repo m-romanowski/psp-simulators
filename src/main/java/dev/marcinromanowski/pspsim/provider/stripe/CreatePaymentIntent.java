@@ -74,6 +74,14 @@ final class CreatePaymentIntent {
       }
       case StripeNamedPaymentMethod.Outcome.Named theOne -> named = theOne.method();
     }
+    StripeError notAnId = named.theRefusalOfAnIdThatReadsAsACardNumber();
+    if (notAnId == null) {
+      notAnId = StripeNamedPaymentMethod.theRefusalOfACustomerThatReadsAsACardNumber(form);
+    }
+    if (notAnId != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), notAnId);
+    }
     if (confirms(form)) {
       StripeError nowhereToReturn =
           StripeReturnUrl.theRefusalAPaymentConfirmationEarns(form, selection);
@@ -145,7 +153,7 @@ final class CreatePaymentIntent {
     }
     if (confirming
         && !form.has(StripeFields.PAYMENT_METHOD)
-        && !form.carries(StripeNewPaymentMethod.PAYMENT_METHOD_DATA)) {
+        && StripeNewPaymentMethod.thePaymentMethodDataIn(form) == null) {
       return StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD);
     }
     return null;
@@ -189,7 +197,7 @@ final class CreatePaymentIntent {
         null,
         null,
         form.first(StripeFields.CUSTOMER),
-        named.id(),
+        named.theIdARuleNames(),
         Amount.of(form.required(StripeFields.AMOUNT)),
         form.required(StripeFields.CURRENCY),
         StripeOperations.CREATE,

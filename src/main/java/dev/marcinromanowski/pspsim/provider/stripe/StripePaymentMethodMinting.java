@@ -47,12 +47,14 @@ final class StripePaymentMethodMinting {
         description.metadata(),
         description.allowRedisplay(),
         null,
+        null,
         askedBy,
         now,
         now);
   }
 
   StripePaymentMethod clonedFrom(
+      String testId,
       StripeTestCards.TestCard published,
       TestRunId testRunId,
       StripeAccount account,
@@ -68,6 +70,7 @@ final class StripePaymentMethodMinting {
         StripeBillingDetails.NONE,
         Map.of(),
         StripePaymentMethod.UNSPECIFIED,
+        testId,
         null,
         askedBy,
         now,

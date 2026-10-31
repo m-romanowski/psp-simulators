@@ -41,10 +41,10 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
                  billing_address_city, billing_address_country, billing_address_line1,
                  billing_address_line2, billing_address_postal_code, billing_address_state,
                  billing_email, billing_name, billing_phone, billing_tax_id,
-                 metadata, allow_redisplay,
+                 metadata, allow_redisplay, copied_from,
                  detached_at, origin, created_at, updated_at)
             values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?::json, ?, ?, ?, ?, ?)
+                    ?::json, ?, ?, ?, ?, ?, ?)
             on conflict (test_run_id, payment_method_id) do nothing
             """)
             .param(method.testRunId().value())
@@ -74,6 +74,7 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
             .param(billing.taxId())
             .param(metadataAsWritten(method.metadata()))
             .param(method.allowRedisplay())
+            .param(method.copiedFrom())
             .param(at(method.detachedAt()))
             .param(method.origin().name())
             .param(method.createdAt().atOffset(ZoneOffset.UTC))
@@ -240,6 +241,7 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
             rs.getString("billing_tax_id")),
         metadataOf(rs.getString("metadata")),
         rs.getString("allow_redisplay"),
+        rs.getString("copied_from"),
         instantOf(rs.getObject("detached_at", OffsetDateTime.class)),
         ObjectOrigin.valueOf(rs.getString("origin")),
         rs.getObject("created_at", OffsetDateTime.class).toInstant(),

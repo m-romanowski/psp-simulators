@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 final class ConfirmPaymentIntent {
 
@@ -63,7 +64,7 @@ final class ConfirmPaymentIntent {
         ObjectOrigin.PROVIDER_API,
         now)) {
       case StripeNamedPaymentMethod.Outcome.Refused refused -> {
-        return StripeOperationResult.refused(
+        return StripeOperationResult.refusedBeforeExecuting(
             RefusalSubject.theObject(stored.intentId()),
             refused.error().about(StripeIntentView.of(stored, now)));
       }
@@ -75,7 +76,7 @@ final class ConfirmPaymentIntent {
     StripeSelection selection;
     switch (StripeSelections.onConfirmingAPayment(request, stored)) {
       case StripeSelections.Outcome.Refused refused -> {
-        return StripeOperationResult.refused(
+        return StripeOperationResult.refusedBeforeExecuting(
             RefusalSubject.theObject(stored.intentId()),
             refused.error().about(StripeIntentView.of(stored, now)));
       }
@@ -84,14 +85,14 @@ final class ConfirmPaymentIntent {
     StripeError nowhereToReturn =
         StripeReturnUrl.theRefusalAPaymentConfirmationEarns(request.form(), selection);
     if (nowhereToReturn != null) {
-      return StripeOperationResult.refused(
+      return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.theObject(stored.intentId()),
           nowhereToReturn.about(StripeIntentView.of(stored, now)));
     }
     StripePaymentIntent intent = stored.selecting(selection);
     String paymentMethod = named.id();
     if (paymentMethod == null) {
-      return StripeOperationResult.refused(
+      return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.theObject(intent.intentId()),
           StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
     }
@@ -115,19 +116,10 @@ final class ConfirmPaymentIntent {
               .about(StripeIntentView.of(stored, now)));
     }
     return StripeOperationResult.decidedBy(
-        scenarios.decide(requestOf(headers, testRunId, account, intent, paymentMethod)),
-        () -> {
-          named.storedBy(minting);
-          return confirm(intent, paymentMethod, now);
-        },
-        decline -> {
-          named.storedBy(minting);
-          return decline(intent, paymentMethod, decline, now);
-        },
-        pending -> {
-          named.storedBy(minting);
-          return pend(intent, paymentMethod, pending, now);
-        });
+        scenarios.decide(requestOf(headers, testRunId, account, intent, named.theIdARuleNames())),
+        () -> confirm(intent, paymentMethod, named.minted(), now),
+        decline -> decline(intent, paymentMethod, named.minted(), decline, now),
+        pending -> pend(intent, paymentMethod, named.minted(), pending, now));
   }
 
   private static StripeError notAllowed(
@@ -144,7 +136,7 @@ final class ConfirmPaymentIntent {
       TestRunId testRunId,
       StripeAccount account,
       StripePaymentIntent intent,
-      String paymentMethod) {
+      @Nullable String paymentMethod) {
     return new ScenarioRequest(
         StripeApi.STRIPE,
         testRunId,
@@ -161,14 +153,18 @@ final class ConfirmPaymentIntent {
   }
 
   private StripeOperationResult confirm(
-      StripePaymentIntent intent, String paymentMethod, Instant now) {
+      StripePaymentIntent intent,
+      String paymentMethod,
+      @Nullable StripePaymentMethod minted,
+      Instant now) {
     StripeIntentStatus reached = intent.captureMethod().afterASuccessfulConfirmation();
     MonetaryOperation operation =
         StripeConfirmation.operationOf(
             intent.ledger().nextSequence(), intent.captureMethod(), intent.amount(), now);
     StripeCharge charge =
         theChargeThisAttemptMints(intent, paymentMethod, StripeChargeStatus.SUCCEEDED, now);
-    LedgerClaim applied = intents.confirmed(intent, reached, paymentMethod, operation, charge, now);
+    LedgerClaim applied =
+        intents.confirmed(intent, reached, paymentMethod, operation, charge, minted, now);
     return StripeLookup.answeredFor(
         applied,
         intent,
@@ -184,13 +180,15 @@ final class ConfirmPaymentIntent {
   private StripeOperationResult pend(
       StripePaymentIntent intent,
       String paymentMethod,
+      @Nullable StripePaymentMethod minted,
       ScenarioDecision.Pend pending,
       Instant now) {
     StripeDecline comingToRestWith = StripePending.theOutcomeItComesToRestWith(pending);
     Instant landing = now.plus(pending.settlesAfter());
     StripePaymentIntent settling =
         intent.pendingUntil(landing, comingToRestWith, paymentMethod, now);
-    LedgerClaim applied = intents.pending(intent, paymentMethod, landing, comingToRestWith, now);
+    LedgerClaim applied =
+        intents.pending(intent, paymentMethod, landing, comingToRestWith, minted, now);
     return StripeLookup.answeredFor(
         applied,
         intent,
@@ -203,10 +201,14 @@ final class ConfirmPaymentIntent {
   }
 
   private StripeOperationResult decline(
-      StripePaymentIntent intent, String paymentMethod, StripeDecline decline, Instant now) {
+      StripePaymentIntent intent,
+      String paymentMethod,
+      @Nullable StripePaymentMethod minted,
+      StripeDecline decline,
+      Instant now) {
     StripeCharge charge =
         theChargeThisAttemptMints(intent, paymentMethod, StripeChargeStatus.FAILED, now);
-    LedgerClaim applied = intents.declined(intent, decline, paymentMethod, charge, now);
+    LedgerClaim applied = intents.declined(intent, decline, paymentMethod, charge, minted, now);
     return StripeLookup.answeredFor(
         applied,
         intent,

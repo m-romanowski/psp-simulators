@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
+import static dev.marcinromanowski.pspsim.TheSpellingsOfAHeaderName.aHeaderOfThisNameUnderAnySpelling;
 import static dev.marcinromanowski.pspsim.provider.stripe.StripeCardWorld.ACCOUNT;
 import static dev.marcinromanowski.pspsim.provider.stripe.StripeCardWorld.ANOTHER_ACCOUNT;
 import static dev.marcinromanowski.pspsim.provider.stripe.StripeCardWorld.PUBLISHABLE_KEY;
@@ -454,8 +455,9 @@ class StripePaymentMethodUseTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"pm_sim_00000000000000000001,402", "pm_card_visa,200"})
-  void a_scenario_rule_is_decided_about_the_copy_the_operation_uses(String ruledOn, int answered) {
+  @CsvSource({"pm_card_visa,402", "pm_sim_00000000000000000001,200"})
+  void a_scenario_rule_names_the_published_test_id_the_client_named_and_not_its_copy(
+      String ruledOn, int answered) {
     world.scenarioRules.add(
         new NewScenarioRule(
             StripeApi.STRIPE,
@@ -480,6 +482,274 @@ class StripePaymentMethodUseTest {
         world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa"));
 
     assertThat(confirmed.httpStatus()).isEqualTo(answered);
+  }
+
+  @Test
+  void a_rule_naming_a_test_id_steers_the_later_confirm_of_a_payment_created_with_it() {
+    world.scenarioRules.add(
+        new NewScenarioRule(
+            StripeApi.STRIPE,
+            StripeCardWorld.RUN,
+            0,
+            new ScenarioMatch(
+                null,
+                null,
+                null,
+                null,
+                "pm_card_visa_chargeDeclined",
+                null,
+                null,
+                StripeOperations.CONFIRM,
+                null,
+                Map.of()),
+            new ScenarioAction.TerminalFailure(StripeDecline.GENERIC_DECLINE.scenarioCode()),
+            null));
+    Map<String, String> form = aPaymentOf("1050");
+    form.put("payment_method", "pm_card_visa_chargeDeclined");
+    String payment = theIdOf(world.createPayment(SECRET_KEY, form));
+
+    StripeApiResponse declined = world.confirmPayment(SECRET_KEY, payment, Map.of());
+
+    assertThat(declined.httpStatus()).isEqualTo(402);
+    assertThat(world.theMethodStored(THE_FIRST_MINTED_METHOD).copiedFrom())
+        .isEqualTo("pm_card_visa_chargeDeclined");
+  }
+
+  @Test
+  void a_rule_naming_a_test_id_steers_a_setup_confirmed_with_it() {
+    world.scenarioRules.add(
+        new NewScenarioRule(
+            StripeApi.STRIPE,
+            StripeCardWorld.RUN,
+            0,
+            new ScenarioMatch(
+                null,
+                null,
+                null,
+                null,
+                "pm_card_mastercard",
+                null,
+                null,
+                StripeOperations.CONFIRM_SETUP_INTENT,
+                null,
+                Map.of()),
+            new ScenarioAction.TerminalFailure(StripeDecline.GENERIC_DECLINE.scenarioCode()),
+            null));
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+
+    StripeApiResponse declined =
+        world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method", "pm_card_mastercard"));
+
+    assertThat(declined.httpStatus()).isEqualTo(402);
+    assertThat(world.theMethodStored(THE_FIRST_MINTED_METHOD).customerId()).isNull();
+  }
+
+  @Test
+  void a_created_and_confirmed_payment_sending_an_empty_payment_method_data_names_no_method() {
+    Map<String, String> form = aPaymentOf("1050");
+    form.put("confirm", "true");
+    form.put("payment_method_data", "");
+
+    StripeApiResponse refused = world.createPayment(SECRET_KEY, form);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(flat(refused))
+        .containsEntry("error.code", List.of("parameter_missing"))
+        .containsEntry("error.param", List.of("payment_method"));
+    assertThat(world.intents.all()).isEmpty();
+    assertThat(world.charges.all()).isEmpty();
+  }
+
+  @Test
+  void a_confirm_sending_an_empty_payment_method_data_names_no_method_on_either_intent() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+
+    StripeApiResponse payingWithNothing =
+        world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method_data", ""));
+    StripeApiResponse settingUpNothing =
+        world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method_data", ""));
+
+    assertThat(flat(payingWithNothing))
+        .containsEntry("error.code", List.of("parameter_missing"))
+        .containsEntry("error.param", List.of("payment_method"));
+    assertThat(flat(settingUpNothing))
+        .containsEntry("error.code", List.of("parameter_missing"))
+        .containsEntry("error.param", List.of("payment_method"));
+    assertThat(world.intents.find(StripeCardWorld.RUN, payment).orElseThrow().status())
+        .isEqualTo(StripeIntentStatus.REQUIRES_PAYMENT_METHOD);
+  }
+
+  @Test
+  void an_empty_payment_method_data_beside_a_payment_method_is_none_sent() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("payment_method", "pm_card_visa");
+    form.put("payment_method_data", "");
+
+    StripeApiResponse confirmed = world.confirmPayment(SECRET_KEY, payment, form);
+
+    assertThat(confirmed.httpStatus()).as(bodyOf(confirmed)).isEqualTo(200);
+    assertThat(theValueAt(confirmed, "payment_method")).isEqualTo(THE_FIRST_MINTED_METHOD);
+  }
+
+  @Test
+  void a_payment_method_data_refusal_on_a_confirm_claims_no_idempotency_key() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    Map<String, String> refusedCard =
+        with(aCardAsPaymentMethodData(), "payment_method_data[card][cvc]", "12");
+
+    StripeApiResponse first = world.confirmPaymentUnderTheKey(SECRET_KEY, payment, refusedCard);
+    StripeApiResponse second = world.confirmPaymentUnderTheKey(SECRET_KEY, payment, refusedCard);
+    StripeApiResponse corrected =
+        world.confirmPaymentUnderTheKey(SECRET_KEY, payment, aCardAsPaymentMethodData());
+
+    assertThat(first.httpStatus()).isEqualTo(402);
+    assertThat(second.httpStatus()).isEqualTo(402);
+    assertThat(second.headers())
+        .doesNotHave(aHeaderOfThisNameUnderAnySpelling(StripeFields.IDEMPOTENT_REPLAYED_HEADER));
+    assertThat(corrected.httpStatus()).as(bodyOf(corrected)).isEqualTo(200);
+  }
+
+  @Test
+  void a_setup_confirm_refused_on_its_parameters_claims_no_idempotency_key() {
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+    Map<String, String> noCard = Map.of("payment_method_data[type]", "card");
+
+    StripeApiResponse first = world.confirmSetupUnderTheKey(SECRET_KEY, setup, noCard);
+    StripeApiResponse corrected =
+        world.confirmSetupUnderTheKey(SECRET_KEY, setup, aCardAsPaymentMethodData());
+
+    assertThat(first.httpStatus()).isEqualTo(400);
+    assertThat(corrected.httpStatus()).as(bodyOf(corrected)).isEqualTo(200);
+    assertThat(corrected.headers())
+        .doesNotHave(aHeaderOfThisNameUnderAnySpelling(StripeFields.IDEMPOTENT_REPLAYED_HEADER));
+  }
+
+  @Test
+  void a_confirm_refused_about_its_intent_is_kept_under_the_key_and_replayed() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa"));
+
+    StripeApiResponse first =
+        world.confirmPaymentUnderTheKey(
+            SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa"));
+    StripeApiResponse second =
+        world.confirmPaymentUnderTheKey(
+            SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa"));
+
+    assertThat(first.httpStatus()).isEqualTo(400);
+    assertThat(flat(first)).containsEntry("error.code", List.of("payment_intent_unexpected_state"));
+    assertThat(second.headers())
+        .has(aHeaderOfThisNameUnderAnySpelling(StripeFields.IDEMPOTENT_REPLAYED_HEADER));
+  }
+
+  @Test
+  void a_payment_confirm_that_loses_the_race_for_its_intent_keeps_no_copy() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    world.intents.racingTheNextWrite();
+
+    StripeApiResponse lost =
+        world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa"));
+
+    assertThat(lost.httpStatus()).isEqualTo(400);
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_declined_payment_that_loses_the_race_for_its_intent_keeps_no_copy() {
+    world.declining(StripeOperations.CONFIRM, StripeDecline.INSUFFICIENT_FUNDS);
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    world.intents.racingTheNextWrite();
+
+    StripeApiResponse lost = world.confirmPayment(SECRET_KEY, payment, aCardAsPaymentMethodData());
+
+    assertThat(lost.httpStatus()).isEqualTo(400);
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_setup_confirm_that_loses_the_race_for_its_intent_keeps_no_method() {
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+    world.setupIntents.losingTheStatusRaceOnTheNextWrite();
+
+    StripeApiResponse lost = world.confirmSetup(SECRET_KEY, setup, aCardAsPaymentMethodData());
+
+    assertThat(lost.httpStatus()).isEqualTo(400);
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_declined_setup_that_loses_the_race_for_its_intent_keeps_no_method() {
+    world.declining(StripeOperations.CONFIRM_SETUP_INTENT, StripeDecline.GENERIC_DECLINE);
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+    world.setupIntents.losingTheStatusRaceOnTheNextWrite();
+
+    StripeApiResponse lost =
+        world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method", "pm_card_visa"));
+
+    assertThat(lost.httpStatus()).isEqualTo(400);
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_setup_whose_customer_cannot_take_the_new_method_keeps_none() {
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+    world.setupIntents.losingTheAttachmentOnTheNextWrite();
+
+    StripeApiResponse refused = world.confirmSetup(SECRET_KEY, setup, aCardAsPaymentMethodData());
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @ParameterizedTest
+  @CsvSource({"payment_method,false", "payment_method,true", "customer,false", "customer,true"})
+  void a_payment_created_naming_an_id_that_reads_as_a_card_number_is_refused_without_it(
+      String parameter, boolean confirming) {
+    Map<String, String> form = aPaymentOf("1050");
+    form.put(parameter, "4242424242424242");
+    if (confirming) {
+      form.put(
+          "payment_method", parameter.equals("customer") ? "pm_card_visa" : "4242424242424242");
+      form.put("confirm", "true");
+    }
+
+    StripeApiResponse refused = world.createPayment(SECRET_KEY, form);
+
+    assertThat(refused.httpStatus()).isBetween(400, 404);
+    assertThat(flat(refused))
+        .containsEntry("error.code", List.of("resource_missing"))
+        .containsEntry("error.param", List.of(parameter));
+    assertThat(bodyOf(refused)).doesNotContain("4242424242424242");
+    assertThat(world.intents.all()).isEmpty();
+    assertThat(world.everythingTheTrailAndTheExchangesKeep()).doesNotContain("4242424242424242");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"payment_method", "customer"})
+  void a_setup_created_naming_an_id_that_reads_as_a_card_number_is_refused_without_it(
+      String parameter) {
+    Map<String, String> form = aSetupThatConfirmsWithoutARedirect();
+    form.put(parameter, "4242 4242 4242 4242");
+
+    StripeApiResponse refused = world.createSetup(SECRET_KEY, form);
+
+    assertThat(flat(refused)).containsEntry("error.param", List.of(parameter));
+    assertThat(bodyOf(refused)).doesNotContain("4242 4242 4242 4242");
+    assertThat(world.setupIntents.all()).isEmpty();
+  }
+
+  @Test
+  void a_payment_confirmed_with_an_id_that_reads_as_a_card_number_does_not_repeat_it() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+
+    StripeApiResponse refused =
+        world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "4242424242424242"));
+
+    assertThat(theValueAt(refused, "error.message"))
+        .startsWith("No such PaymentMethod: '[redacted]'");
+    assertThat(world.everythingTheTrailAndTheExchangesKeep()).doesNotContain("4242424242424242");
   }
 
   private static Map<String, String> aCardAsPaymentMethodData() {

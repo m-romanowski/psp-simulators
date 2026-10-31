@@ -21,9 +21,11 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final JdbcStripePaymentMethods methods;
 
   JdbcStripeSetupIntents(JdbcClient jdbc, TransactionTemplate transactions) {
     this.jdbc = jdbc;
+    this.methods = new JdbcStripePaymentMethods(jdbc);
     this.transactions = transactions;
   }
 
@@ -104,10 +106,14 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   @Override
   public Setup succeeded(
-      StripeSetupIntent intent, String paymentMethodId, @Nullable String customerId, Instant at) {
+      StripeSetupIntent intent,
+      String paymentMethodId,
+      @Nullable String customerId,
+      @Nullable StripePaymentMethod minted,
+      Instant at) {
     return Objects.requireNonNull(
         transactions.execute(
-            status -> inOneTransaction(status, intent, paymentMethodId, customerId, at)),
+            status -> inOneTransaction(status, intent, paymentMethodId, customerId, minted, at)),
         "the unit of work answered nothing where its callback answers a Setup on every path");
   }
 
@@ -116,8 +122,13 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       StripeSetupIntent intent,
       String paymentMethodId,
       @Nullable String customerId,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
+    if (minted != null) {
+      methods.insertIfAbsent(minted);
+    }
     if (customerId != null && attach(intent, paymentMethodId, customerId, at) != 1) {
+      status.setRollbackOnly();
       return Setup.THE_METHOD_IS_NO_LONGER_ATTACHABLE;
     }
     int moved = moveTo(intent, StripeSetupStatus.SUCCEEDED, paymentMethodId, null, at);
@@ -147,15 +158,31 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   @Override
   public Setup failed(
-      StripeSetupIntent intent, StripeDecline decline, String paymentMethodId, Instant at) {
-    int moved =
-        moveTo(
-            intent,
-            StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
-            paymentMethodId,
-            decline.scenarioCode(),
-            at);
-    return moved == 1 ? Setup.APPLIED : whyNothingMoved(intent);
+      StripeSetupIntent intent,
+      StripeDecline decline,
+      String paymentMethodId,
+      @Nullable StripePaymentMethod minted,
+      Instant at) {
+    return Objects.requireNonNull(
+        transactions.execute(
+            status -> {
+              int moved =
+                  moveTo(
+                      intent,
+                      StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
+                      paymentMethodId,
+                      decline.scenarioCode(),
+                      at);
+              if (moved != 1) {
+                status.setRollbackOnly();
+                return whyNothingMoved(intent);
+              }
+              if (minted != null) {
+                methods.insertIfAbsent(minted);
+              }
+              return Setup.APPLIED;
+            }),
+        "the unit of work answered nothing where its callback answers a Setup on every path");
   }
 
   private int moveTo(

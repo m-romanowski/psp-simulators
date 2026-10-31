@@ -319,6 +319,7 @@ final class StripeDoubles {
 
   static final class Intents implements StripePaymentIntents {
 
+    private final StripePaymentMethods methods;
     private final Map<String, Long> arrivals = new LinkedHashMap<>();
     private final List<StripePaymentIntent> stored = new ArrayList<>();
     private final List<StripeCharge> charges = new ArrayList<>();
@@ -330,6 +331,14 @@ final class StripeDoubles {
     private int writesToLose;
     private @Nullable CountDownLatch reachedTheInsert;
     private @Nullable CountDownLatch mayLeaveTheInsert;
+
+    Intents() {
+      this(new PaymentMethods());
+    }
+
+    Intents(StripePaymentMethods methods) {
+      this.methods = methods;
+    }
 
     Intents withTheIdsAlreadyClaimed(String... intentIds) {
       claimedElsewhere.addAll(List.of(intentIds));
@@ -470,13 +479,23 @@ final class StripeDoubles {
         String paymentMethod,
         Instant settlesAt,
         @Nullable StripeDecline settlesWith,
+        @Nullable StripePaymentMethod minted,
         Instant at) {
-      return applied(
-          intent,
-          held ->
-              held.selecting(intent.selection())
-                  .pendingUntil(settlesAt, settlesWith, paymentMethod, at),
-          intent.status());
+      return storing(
+          applied(
+              intent,
+              held ->
+                  held.selecting(intent.selection())
+                      .pendingUntil(settlesAt, settlesWith, paymentMethod, at),
+              intent.status()),
+          minted);
+    }
+
+    private LedgerClaim storing(LedgerClaim applied, @Nullable StripePaymentMethod minted) {
+      if (applied == LedgerClaim.APPLIED && minted != null) {
+        methods.insertIfAbsent(minted);
+      }
+      return applied;
     }
 
     @Override
@@ -486,15 +505,18 @@ final class StripeDoubles {
         String paymentMethod,
         MonetaryOperation operation,
         StripeCharge charge,
+        @Nullable StripePaymentMethod minted,
         Instant at) {
-      return minted(
-          applied(
-              intent,
-              held ->
-                  held.selecting(intent.selection())
-                      .confirmedAs(reached, paymentMethod, operation, charge.chargeId(), at),
-              intent.status()),
-          charge);
+      return storing(
+          minted(
+              applied(
+                  intent,
+                  held ->
+                      held.selecting(intent.selection())
+                          .confirmedAs(reached, paymentMethod, operation, charge.chargeId(), at),
+                  intent.status()),
+              charge),
+          minted);
     }
 
     @Override
@@ -503,16 +525,19 @@ final class StripeDoubles {
         StripeDecline decline,
         @Nullable String paymentMethod,
         StripeCharge charge,
+        @Nullable StripePaymentMethod minted,
         Instant at) {
       String usingPaymentMethod = paymentMethod == null ? "" : paymentMethod;
-      return minted(
-          applied(
-              intent,
-              held ->
-                  held.selecting(intent.selection())
-                      .declinedWith(decline, usingPaymentMethod, charge.chargeId(), at),
-              intent.status()),
-          charge);
+      return storing(
+          minted(
+              applied(
+                  intent,
+                  held ->
+                      held.selecting(intent.selection())
+                          .declinedWith(decline, usingPaymentMethod, charge.chargeId(), at),
+                  intent.status()),
+              charge),
+          minted);
     }
 
     private LedgerClaim minted(LedgerClaim applied, StripeCharge charge) {
@@ -993,11 +1018,29 @@ final class StripeDoubles {
 
     @Override
     public Setup succeeded(
-        StripeSetupIntent intent, String paymentMethodId, @Nullable String customerId, Instant at) {
+        StripeSetupIntent intent,
+        String paymentMethodId,
+        @Nullable String customerId,
+        @Nullable StripePaymentMethod minted,
+        Instant at) {
+      if (minted != null) {
+        methods.insertIfAbsent(minted);
+      }
       if (customerId != null && !attached(intent, paymentMethodId, customerId, at)) {
+        forgotten(minted);
         return Setup.THE_METHOD_IS_NO_LONGER_ATTACHABLE;
       }
-      return moved(intent, intent.succeededWith(paymentMethodId, at));
+      Setup moved = moved(intent, intent.succeededWith(paymentMethodId, at));
+      if (moved != Setup.APPLIED) {
+        forgotten(minted);
+      }
+      return moved;
+    }
+
+    private void forgotten(@Nullable StripePaymentMethod minted) {
+      if (minted != null) {
+        methods.forget(minted.testRunId(), minted.paymentMethodId());
+      }
     }
 
     private boolean attached(
@@ -1022,8 +1065,16 @@ final class StripeDoubles {
 
     @Override
     public Setup failed(
-        StripeSetupIntent intent, StripeDecline decline, String paymentMethodId, Instant at) {
-      return moved(intent, intent.failedWith(decline, paymentMethodId, at));
+        StripeSetupIntent intent,
+        StripeDecline decline,
+        String paymentMethodId,
+        @Nullable StripePaymentMethod minted,
+        Instant at) {
+      Setup moved = moved(intent, intent.failedWith(decline, paymentMethodId, at));
+      if (moved == Setup.APPLIED && minted != null) {
+        methods.insertIfAbsent(minted);
+      }
+      return moved;
     }
 
     private Setup moved(StripeSetupIntent intent, StripeSetupIntent reached) {

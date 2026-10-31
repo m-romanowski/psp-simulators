@@ -37,6 +37,15 @@ sealed interface StripeNamedPaymentMethod {
     };
   }
 
+  default @Nullable String theIdARuleNames() {
+    StripePaymentMethod method = method();
+    return method == null ? id() : method.theIdARuleNames();
+  }
+
+  default @Nullable StripePaymentMethod minted() {
+    return this instanceof Minted minted ? minted.method() : null;
+  }
+
   default Optional<StripePaymentMethodType> type() {
     return switch (this) {
       case Held held -> Optional.of(held.method().type());
@@ -47,6 +56,21 @@ sealed interface StripeNamedPaymentMethod {
 
   default boolean detached() {
     return this instanceof Held held && held.method().detached();
+  }
+
+  default @Nullable StripeError theRefusalOfAnIdThatReadsAsACardNumber() {
+    if (this instanceof Unknown unknown
+        && StripeFields.readsAsACardNumber(unknown.paymentMethodId())) {
+      return StripeErrors.noSuchPaymentMethod(unknown.paymentMethodId());
+    }
+    return null;
+  }
+
+  static @Nullable StripeError theRefusalOfACustomerThatReadsAsACardNumber(StripeForm form) {
+    String customer = form.first(StripeFields.CUSTOMER);
+    return customer != null && StripeFields.readsAsACardNumber(customer)
+        ? StripeErrors.resourceMissing(StripeFields.CUSTOMER)
+        : null;
   }
 
   default @Nullable StripeError theRefusalOfAMethodNoOneHolds() {
@@ -90,9 +114,8 @@ sealed interface StripeNamedPaymentMethod {
       StripeAccount account,
       ObjectOrigin askedBy,
       Instant now) {
-    StripeParameter data = form.parameters().get(StripeNewPaymentMethod.PAYMENT_METHOD_DATA);
-    if (data != null
-        && !(data instanceof StripeParameter.Scalar scalar && scalar.value().isEmpty())) {
+    StripeParameter data = StripeNewPaymentMethod.thePaymentMethodDataIn(form);
+    if (data != null) {
       if (form.has(StripeFields.PAYMENT_METHOD)) {
         return new Outcome.Refused(
             StripeErrors.parametersExclusive(
@@ -129,7 +152,9 @@ sealed interface StripeNamedPaymentMethod {
     return StripeTestCards.byPaymentMethodId(paymentMethodId)
         .<StripeNamedPaymentMethod>map(
             published ->
-                new Minted(minting.clonedFrom(published, testRunId, account, askedBy, now)))
+                new Minted(
+                    minting.clonedFrom(
+                        paymentMethodId, published, testRunId, account, askedBy, now)))
         .orElseGet(() -> new Unknown(paymentMethodId));
   }
 }

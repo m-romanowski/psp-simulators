@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SequencedMap;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class StripeFields {
@@ -72,6 +73,10 @@ final class StripeFields {
 
   private static final Pattern BETWEEN_KEYS = Pattern.compile("[\\[\\]]+");
 
+  private static final Pattern A_RUN_OF_DIGITS = Pattern.compile("[0-9](?:[0-9 -]*[0-9])?");
+
+  private static final Pattern DIGITS = Pattern.compile("[0-9]+");
+
   static final Set<String> SENSITIVE_RESPONSE_FIELDS = Set.of(CLIENT_SECRET, SECRET);
 
   static final Set<String> SENSITIVE_DELIVERY_FIELDS = Set.of("data.object." + CLIENT_SECRET);
@@ -91,18 +96,51 @@ final class StripeFields {
     return Collections.unmodifiableSequencedMap(withheld);
   }
 
-  static Map<String, List<String>> withholdingTheCard(Map<String, List<String>> request) {
+  static Map<String, List<String>> withholdingTheCard(Map<String, List<String>> fields) {
     LinkedHashMap<String, List<String>> withheld = new LinkedHashMap<>();
-    request.forEach(
+    fields.forEach(
         (name, values) -> {
           boolean aCardMember = namesASensitiveCardMember(name);
-          List<String> kept = new ArrayList<>();
+          List<String> kept =
+              new ArrayList<>(withheld.getOrDefault(withholdingCardNumbersIn(name), List.of()));
           for (String value : values) {
-            kept.add(aCardMember || readsAsACardNumber(value) ? WITHHELD : value);
+            kept.add(aCardMember ? WITHHELD : withholdingCardNumbersIn(value));
           }
-          withheld.put(name, List.copyOf(kept));
+          withheld.put(withholdingCardNumbersIn(name), List.copyOf(kept));
         });
     return Collections.unmodifiableMap(withheld);
+  }
+
+  static String withholdingCardNumbersIn(String text) {
+    boolean[] withheld = new boolean[text.length()];
+    Matcher runs = A_RUN_OF_DIGITS.matcher(text);
+    while (runs.find()) {
+      List<int[]> groups = new ArrayList<>();
+      Matcher digits = DIGITS.matcher(runs.group());
+      while (digits.find()) {
+        groups.add(new int[] {runs.start() + digits.start(), runs.start() + digits.end()});
+      }
+      for (int first = 0; first < groups.size(); first++) {
+        for (int last = first; last < groups.size(); last++) {
+          int from = groups.get(first)[0];
+          int to = groups.get(last)[1];
+          if (readsAsACardNumber(text.substring(from, to))) {
+            for (int at = from; at < to; at++) {
+              withheld[at] = true;
+            }
+          }
+        }
+      }
+    }
+    StringBuilder kept = new StringBuilder();
+    for (int at = 0; at < text.length(); at++) {
+      if (!withheld[at]) {
+        kept.append(text.charAt(at));
+      } else if (at == 0 || !withheld[at - 1]) {
+        kept.append(WITHHELD);
+      }
+    }
+    return kept.toString();
   }
 
   static boolean namesASensitiveCardMember(String name) {
@@ -128,10 +166,6 @@ final class StripeFields {
     String digits = value.replace(" ", "").replace("-", "");
     return StripeNewPaymentMethod.theDigitsOf(digits) != null
         && StripeNewPaymentMethod.passesLuhn(digits);
-  }
-
-  static String withheldIfACardNumber(String value) {
-    return readsAsACardNumber(value) ? WITHHELD : value;
   }
 
   static final Set<String> SENSITIVE_HEADERS =

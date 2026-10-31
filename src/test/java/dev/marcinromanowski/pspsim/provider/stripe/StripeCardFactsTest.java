@@ -69,7 +69,7 @@ class StripeCardFactsTest {
   void a_value_of_twelve_to_nineteen_digits_passing_the_luhn_check_reads_as_a_card_number(
       String value) {
     assertThat(StripeFields.readsAsACardNumber(value)).isTrue();
-    assertThat(StripeFields.withheldIfACardNumber(value)).isEqualTo("[redacted]");
+    assertThat(StripeFields.withholdingCardNumbersIn(value)).isEqualTo("[redacted]");
   }
 
   @ParameterizedTest
@@ -85,7 +85,7 @@ class StripeCardFactsTest {
       })
   void a_value_that_is_no_card_number_is_kept(String value) {
     assertThat(StripeFields.readsAsACardNumber(value)).isFalse();
-    assertThat(StripeFields.withheldIfACardNumber(value)).isEqualTo(value);
+    assertThat(StripeFields.withholdingCardNumbersIn(value)).isEqualTo(value);
   }
 
   @Test
@@ -95,13 +95,33 @@ class StripeCardFactsTest {
     sent.put("card[cvc]", List.of("123"));
     sent.put("card[exp_month]", List.of("10"));
     sent.put("metadata[note]", List.of("4242424242424242", "kept"));
+    sent.put("metadata[4000056655665556]", List.of("x"));
+    sent.put("metadata[5555555555554444]", List.of("y"));
+    sent.put("billing_details[name]", List.of("Jane 4242 4242 4242 4242 Doe"));
 
     assertThat(StripeFields.withholdingTheCard(sent))
         .containsExactly(
             Map.entry("card[number]", List.of("[redacted]")),
             Map.entry("card[cvc]", List.of("[redacted]")),
             Map.entry("card[exp_month]", List.of("10")),
-            Map.entry("metadata[note]", List.of("[redacted]", "kept")));
+            Map.entry("metadata[note]", List.of("[redacted]", "kept")),
+            Map.entry("metadata[[redacted]]", List.of("x", "y")),
+            Map.entry("billing_details[name]", List.of("Jane [redacted] Doe")));
+  }
+
+  @ParameterizedTest
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "No such PaymentMethod: '4242424242424242'|No such PaymentMethod: '[redacted]'",
+        "10 4242424242424242|10 [redacted]",
+        "4242424242424242 and 5555555555554444|[redacted] and [redacted]",
+        "order 2026-10-31 for 1099|order 2026-10-31 for 1099",
+        "4242424242424242424242|4242424242424242424242",
+        "a4242424242424242b|a[redacted]b"
+      })
+  void a_card_number_is_withheld_wherever_it_sits_in_a_text(String text, String withheld) {
+    assertThat(StripeFields.withholdingCardNumbersIn(text)).isEqualTo(withheld);
   }
 
   @ParameterizedTest
@@ -338,6 +358,7 @@ class StripeCardFactsTest {
                     Map.of(),
                     "sometimes",
                     null,
+                    null,
                     ObjectOrigin.PROVIDER_API,
                     NOW,
                     NOW))
@@ -361,6 +382,7 @@ class StripeCardFactsTest {
             new StripeBillingDetails(null, null, null, null, null, null, null, "n", null, null),
             metadata,
             "limited",
+            "pm_card_visa",
             null,
             ObjectOrigin.PROVIDER_API,
             NOW,
@@ -379,5 +401,10 @@ class StripeCardFactsTest {
     assertThat(detached.customerId()).isNull();
     assertThat(detached.metadata()).isEqualTo(metadata);
     assertThat(detached.allowRedisplay()).isEqualTo("limited");
+    assertThat(attached.copiedFrom()).isEqualTo("pm_card_visa");
+    assertThat(detached.copiedFrom()).isEqualTo("pm_card_visa");
+    assertThat(detached.theIdARuleNames()).isEqualTo("pm_card_visa");
+    assertThat(StripeCard.ofAFixture(new FixtureCard("visa", "4242", 12, 2030, "credit")))
+        .isNotNull();
   }
 }

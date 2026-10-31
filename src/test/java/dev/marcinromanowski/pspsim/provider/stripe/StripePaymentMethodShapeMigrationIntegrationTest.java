@@ -82,6 +82,7 @@ class StripePaymentMethodShapeMigrationIntegrationTest extends PostgresBackedTes
     assertThat(card.get("billing_name")).isNull();
     assertThat(String.valueOf(card.get("metadata"))).isEqualTo("{}");
     assertThat(card.get("allow_redisplay")).isEqualTo("unspecified");
+    assertThat(card.get("copied_from")).isNull();
     assertThat(card.get("card_last4")).isEqualTo("4242");
     assertThat(card.get("customer_id")).isEqualTo("cus_1");
   }
@@ -157,6 +158,7 @@ class StripePaymentMethodShapeMigrationIntegrationTest extends PostgresBackedTes
                 "12-3456789"),
             metadata,
             "always",
+            "pm_card_visa",
             null,
             ObjectOrigin.PROVIDER_API,
             AT,
@@ -183,6 +185,7 @@ class StripePaymentMethodShapeMigrationIntegrationTest extends PostgresBackedTes
             StripeBillingDetails.NONE,
             Map.of(),
             "unspecified",
+            null,
             null,
             ObjectOrigin.PROVIDER_API,
             AT,

@@ -52,11 +52,11 @@ final class StripeCardWorld {
   final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   final StripeDoubles.SetupIntents setupIntents = new StripeDoubles.SetupIntents(paymentMethods);
   final StripeDoubles.Keys keys = new StripeDoubles.Keys();
   final StripeDoubles.EphemeralKeys ephemeralKeys = new StripeDoubles.EphemeralKeys();
@@ -158,6 +158,30 @@ final class StripeCardWorld {
     return api()
         .confirmPaymentIntent(
             post(key, PAYMENT_INTENTS + "/" + intentId + "/confirm", form, Map.of()), intentId);
+  }
+
+  StripeApiResponse confirmPaymentUnderTheKey(
+      String key, String intentId, Map<String, String> form) {
+    return api()
+        .confirmPaymentIntent(
+            post(
+                key,
+                PAYMENT_INTENTS + "/" + intentId + "/confirm",
+                form,
+                Map.of(StripeFields.IDEMPOTENCY_KEY_HEADER, AN_IDEMPOTENCY_KEY)),
+            intentId);
+  }
+
+  StripeApiResponse confirmSetupUnderTheKey(
+      String key, String setupIntentId, Map<String, String> form) {
+    return api()
+        .confirmSetupIntent(
+            post(
+                key,
+                SETUP_INTENTS + "/" + setupIntentId + "/confirm",
+                form,
+                Map.of(StripeFields.IDEMPOTENCY_KEY_HEADER, AN_IDEMPOTENCY_KEY)),
+            setupIntentId);
   }
 
   StripeApiResponse createSetup(String key, Map<String, String> form) {

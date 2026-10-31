@@ -1139,8 +1139,9 @@ public final class StripeApi {
             1,
             now,
             DeliveredHeaders.of(delivery, answered.headers()),
-            StripeFields.withholding(
-                answered.bodyForAudit(), StripeFields.SENSITIVE_RESPONSE_FIELDS),
+            StripeFields.withholdingTheCard(
+                StripeFields.withholding(
+                    answered.bodyForAudit(), StripeFields.SENSITIVE_RESPONSE_FIELDS)),
             new DeliveredResponse(
                 delivery.fault(),
                 delivery.declaredContentLength(),
