@@ -30,8 +30,8 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 | `POST /v1/ephemeral_keys`                              | mints a key for a `customer`, expiring after 1 hour                              | `customer` is the only resource served, else `parameter_missing`. The key reaches only the two customer read routes |
 | `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | the selection parameters of "Payment Method Selection"; `payment_method_types` is written before `2026-09-30.endive` and refused from it |
 | `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events                      |
-| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent. No `expand`                       |
-| `GET /v1/payment_intents/{id}`                         | current state                                                                    | no `expand`. No scenarios                                                                                      |
+| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent                                    |
+| `GET /v1/payment_intents/{id}`                         | current state                                                                    | no scenarios                                                                                                   |
 | `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused |
 | `POST /v1/payment_intents/{id}/capture`                | full, partial and multicapture (`final_capture`)                                 | 50 non-final captures, then an `invalid_request_error` on `final_capture` with no `code`                      |
 | `POST /v1/payment_intents/{id}/cancel`                 | cancels                                                                          | `processing` is cancellable although no card reaches it in Stripe                                              |
@@ -39,8 +39,10 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 | `POST /v1/refunds`                                     | refund by `payment_intent` or `charge`                                           | both sent, or neither, is refused. The resting status is set by `refundStatus`                                 |
 | `GET /v1/payment_methods`                              | list, filtered by `customer` and `type`                                          | an unknown customer or type gives an empty list. No paging                                                     |
 | `GET /v1/customers/{id}/payment_methods`               | list for one customer                                                            | an unknown customer is `resource_missing`                                                                      |
-| `GET /v1/payment_methods/{id}`                         | retrieve, with `expand=customer` in either list encoding                         | the only route with expansion. An `expand` that is not a list is refused                                       |
+| `GET /v1/payment_methods/{id}`                         | retrieve                                                                         | an unknown method is `resource_missing`                                                                        |
 | `POST /v1/payment_methods/{id}/detach`                 | detaches permanently                                                             | a second detach, and a detach of a method never attached, are both refused                                     |
+
+Every route above except `DELETE /v1/customers/{id}` reads `expand` (see "Expansion").
 
 Account settings: the `sk_test_` secret key (required), `captureWindow` (required ISO-8601 duration of at least one
 microsecond, with no default),
@@ -79,6 +81,8 @@ microsecond, with no default),
 | PaymentIntent and SetupIntent create, confirm, object, per version | https://docs.stripe.com/api/payment_intents/create.md?api-version=2026-10-28.endive and the same pages at `2026-08-26.dahlia` | fetched 2026-10-31 |
 | Stripe's OpenAPI specification                       | https://github.com/stripe/openapi, at `2026-07-29.dahlia`, `2026-08-26.dahlia`, `2026-09-30.endive` and `2026-10-28.endive` | the request parameters and enums of the four intent operations |
 | Stripe API versioning                                 | https://stripe.com/blog/api-versioning                                | "version change modules"                                                                        |
+| Expanding responses                                   | https://docs.stripe.com/api/expanding_objects.md, https://docs.stripe.com/expand.md | "Expanding multiple levels", "Expanding properties in lists"; fetched 2026-10-31            |
+| Stripe api-discuss, "Expanding objects when listing Events" | https://groups.google.com/a/lists.stripe.com/g/api-discuss/c/GN--PqYSzQs | four error messages quoted from Stripe's answers; fetched 2026-10-31                        |
 
 ## Authentication and Transport
 
@@ -247,6 +251,54 @@ The code is the published one whose description fits ("expected a payment method
 SetupIntent has none of its own. A payment method this account does not hold is not type-checked, as before: its type
 is unknown.
 
+## Expansion
+
+| Fact                                                                                                                                                                         | Evidence                                                                                                       |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| `expand` "is available on all API requests, and applies to the response of that request only", "on any endpoint that returns expandable fields, including list, create, and update endpoints" | rule, https://docs.stripe.com/api/expanding_objects.md                                                         |
+| "You can expand recursively by specifying nested fields after a dot (`.`)"                                                                                                   | rule, the same page                                                                                            |
+| "Expansions have a maximum depth of four levels. Meaning that an `expand` string can contain no more than four properties". The deepest listed example, `data.payment_intent.customer.default_source`, counts `data` as one of the four | rule, https://docs.stripe.com/expand.md and https://docs.stripe.com/api/expanding_objects.md                   |
+| "You can use the `data` keyword in any position in an expand string to move the expand cursor into the list"                                                                 | rule, https://docs.stripe.com/expand.md                                                                        |
+| Each object lists its expandable fields in `x-expandableFields`; a relation is `anyOf` an id string and the object, and `customer` also the `deleted_customer` shape         | rule: the OpenAPI specification at `2026-10-28.endive`                                                         |
+| `expand` is a query parameter of every GET and a body parameter of every POST served here. `DELETE /v1/customers/{id}` has none, and the ephemeral key publishes no expandable field | rule: the same specification                                                                                   |
+| "This property cannot be expanded (customer). You may want to try expanding 'data.customer' instead." on a list; "This property cannot be expanded (data.object)" for `data.object.customer`, naming the path up to the field refused | probe: a developer's report of Stripe's answers on Stripe's api-discuss list, 2017 (Sources). No status, `type` or `param` is quoted |
+| Stripe's iOS SDK retrieves and confirms an intent with `expand[0]=payment_method`, and a declined confirm answers the error's `payment_intent` with `payment_method` `null` | probe: the recordings (`testDeferredConfirmnewinsufficientfundscard`, `testDeferredConfirmvalidsavedcard`)     |
+| With a publishable key and a `client_secret`, `GET /v1/payment_intents/{id}?expand[0]=metadata` answers `200`, and the answer carries no `metadata` at all              | probe: the recordings (`StripeAPIBridgeNetworkTests/testRetrievePaymentIntent`). It shows a publishable-key view ignoring the path, and says nothing of a secret key, the only key this build answers intents to |
+
+The expandable fields served (`StripeExpandable`), each a relation to an object this simulator holds:
+
+| Object         | Field            | Expands into                                                        | Answered by        |
+|----------------|------------------|---------------------------------------------------------------------|--------------------|
+| PaymentIntent  | `customer`       | the customer, or the deleted customer                               | `StripeCustomerView` |
+| PaymentIntent  | `payment_method` | the payment method                                                  | `StripePaymentMethodView` |
+| PaymentIntent  | `latest_charge`  | the charge                                                          | `StripeChargeView` |
+| SetupIntent    | `customer`       | the customer, or the deleted customer                               | `StripeCustomerView` |
+| SetupIntent    | `payment_method` | the payment method                                                  | `StripePaymentMethodView` |
+| PaymentMethod  | `customer`       | the customer                                                        | `StripeCustomerView` |
+| Charge         | `payment_intent` | the PaymentIntent                                                   | `StripeIntentView` |
+| Refund         | `charge`         | the charge                                                          | `StripeChargeView` |
+| Refund         | `payment_intent` | the PaymentIntent                                                   | `StripeIntentView` |
+| list           | `data`           | each listed payment method, with the paths after `data.`           | `StripePaymentMethodView` |
+
+| Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| Expansion is applied to the answer of PaymentIntent create, retrieve, confirm, capture and cancel, SetupIntent create and confirm, PaymentMethod retrieve, list, customer list and detach, Charge retrieve, Refund create, Customer create, retrieve and update, and ephemeral key create | rule                                                                                                                  |
+| A GET reads `expand` from its query and a POST from its body; neither reads the other place                                                                                | rule for where it is published; decision that the other place is not read                                             |
+| Without `expand`, or with an empty `expand=`, every relation is answered as its id. An unset relation stays `null` when it is asked to be expanded                          | rule: the fields are nullable `anyOf` an id and the object                                                            |
+| A nested path expands the object inside the object it expanded, to four levels, `data` included                                                                             | rule                                                                                                                  |
+| Every path is judged before the endpoint runs: a refused one refuses the request and nothing is created, changed or looked up. Several paths sharing a prefix are merged    | decision: a refusal on the parameters names no object                                                                 |
+| A field the object does not list in `x-expandableFields`: `400`, `invalid_request_error`, no `code`, no `param`, "This property cannot be expanded ({path up to the field})." On a list, a path not beginning with `data` adds " You may want to try expanding 'data.{path}' instead." | probe for the messages; decision for the status, the type and the absent `param`, which no quote shows             |
+| More than four levels: `400`, `invalid_request_error`, no `code`, no `param`, "This property cannot be expanded ({path}). Expansions have a maximum depth of four levels." | rule for the limit; decision for the answer: no Stripe answer is published or recorded                                 |
+| A field the object lists as expandable and this simulator holds no relation under (`review`, `on_behalf_of`, `card`, `customer.test_clock`) is accepted and expands nothing; the segments after it are not judged | decision: Stripe accepts the path, and the simulator answers that field as absent or `null` already                   |
+| The fields judged are the `2026-10-28.endive` lists at every version answered. `payment_record` on a PaymentIntent and `paypay` and `sequra` on a PaymentMethod are absent from older specifications and accepted there too | decision: operations do not branch on the version, and the fields expand nothing here                                |
+| A relation is expanded only to an object of the account that answers and of the run the request resolved to; an id of another account or run is answered as the id     | decision: the same scoping as every lookup (`StripeLookup`, `StripeCustomerLookup`, `StripePaymentMethodLookup`, `StripeChargeLookup`) |
+| A relation naming an object this run does not hold, such as a published `pm_card_*` this simulator never mints into a PaymentMethod, or a method a fixture removal forgot, is answered as the id | decision: inventing an object or answering `null` would both misstate a relation that is set                          |
+| A deleted customer expands into the deleted customer object: `id`, `object` `customer`, `deleted` `true`                                                                  | rule: `customer` is `anyOf` the `deleted_customer` shape                                                              |
+| The objects inside an error body (a decline's or a refusal's `payment_intent` or `setup_intent`) are not expanded                                                           | decision: the recordings cannot settle it, as their declined intent carries `payment_method` `null`, and `expand` applies to "the response" the request asked for |
+| An expanded object carries what the object itself carries, `client_secret` included. The trail and the keyed-exchange log withhold `client_secret` and `secret` at any depth | decision: `StripeFields.withholding` matches the last segment of a path                                               |
+| An idempotent replay answers the expanded body the first request stored. A repeat with another `expand` is a reuse with other parameters                                   | rule: `expand` is a parameter like any other under the key                                                            |
+| `expand` on an object answered by the control surface (origination, object actions) is not read                                                                            | decision: those requests are built by this simulator and carry no `expand`                                            |
+
 ## Idempotency
 
 | Rule (published)                                                                                                                                                  | Simulator                                                   |
@@ -407,9 +459,7 @@ Published:
 - Returns `id`, `client_secret`, `amount`, `currency`, `customer`, `payment_method_types`, `status`, and
   `latest_charge`: "ID of the latest Charge object created by this PaymentIntent. This property is `null` until
   PaymentIntent confirmation is attempted."
-- Stripe expands `customer` and `payment_method` when `expand` asks for them. `expand` is read on no PaymentIntent
-  route of this simulator: both members are always ids (`StripeIntentView.of`). The one expansion served is `customer`
-  on `GET /v1/payment_methods/{id}` (`RetrievePaymentMethod.EXPAND`).
+- `customer`, `payment_method` and `latest_charge` are expandable (see "Expansion").
 
 The simulator's object: `id`, `object`, `allowed_payment_method_types`, `amount`, `amount_capturable`,
 `amount_received`, `automatic_payment_methods`, `cancellation_reason`, `capture_method`, `client_secret`, `created`,
@@ -417,7 +467,7 @@ The simulator's object: `id`, `object`, `allowed_payment_method_types`, `amount`
 `payment_method`, `payment_method_configuration_details`, `payment_method_types`, `receipt_email`, `status`.
 
 `GET /v1/payment_intents/{id}`: current state, `latest_charge` after a confirmation attempt, and `resource_missing` for
-an unknown id. The customer and the payment method are ids here too (`StripeIntentView.of`).
+an unknown id.
 
 `POST /v1/payment_intents/{id}/confirm`:
 
@@ -603,7 +653,7 @@ Published:
 | The `paypal` hash is three nulls. Nothing can set it                                                                                                                |
 | Object: `id`, `object`, `type`, `customer`, `created`, `billing_details` and the type hash. No `livemode`                                                            |
 | `billing_details`, `card.country`, `card.checks` and `card.networks.preferred` are null. `card.networks.available` is the fixture's brand                              |
-| `customer` in `expand`, sent as `expand[]=customer` or `expand[0]=customer`, replaces the id with the customer object on retrieve. An `expand` that is not a list is refused before the method is looked up, so an unknown method is refused on `expand` and not as `resource_missing` |
+| `customer` is expandable on retrieve, detach and both lists (`data.customer`), sent as `expand[]=...` or `expand[0]=...`. An `expand` that is not a list, or a path refused, is refused before the method is looked up, so an unknown method is refused on `expand` and not as `resource_missing` |
 | `GET /v1/payment_methods` with an unknown customer or type gives an empty list. The customer route with an unknown customer gives `resource_missing`               |
 | `has_more` is always false, there is no `limit`, and the list is newest first                                                                                       |
 | Detachment is stored, and a constraint forbids a detached method having a customer. Confirm refuses a detached method, and a repeated detach or a detach of a never-attached method is refused |
@@ -921,8 +971,8 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 - PaymentSheet's first call, `v1/elements/sessions`, is in none of the 419 paths of Stripe's OpenAPI specification, so
   `stripe-mock` would answer `404` and this simulator stops at the ephemeral key. The SDK host can be moved on mobile
   only through non-public members, and on the web not at all.
-- `expand` on `GET /v1/payment_methods/{id}` is a deviation: Stripe expands the paths it names, and this simulator
-  expands `customer` only, reading every other element of the list as nothing rather than expanding or refusing it.
+- The answers to a refused `expand` path are quoted from Stripe without a status or `param`, and the answer to a path
+  deeper than four levels is not published at all.
 - Transient failures after an effect (on capture and refund) are this project's fault model. Stripe publishes only
   "Treat requests that return `500` errors as indeterminate".
 - No message is published for an unrecognized address or for a method an address does not answer. The simulator
