@@ -366,6 +366,29 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "createPaymentMethod",
+        "description": "provider stripe answers this route in its own wire format, which no record of this build describes, so no schema is published for it here. Its shape is specified in doc/stripe.md.",
+        "responses": {
+          "default": {
+            "description": "the body provider stripe answers, specified in doc/stripe.md",
+            "content": {
+              "*/*": {
+                "schema": { }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "provider stripe reads this body in its own wire format, specified in doc/stripe.md",
+          "content": {
+            "*/*": {
+              "schema": { }
+            }
+          },
+          "required": true
+        }
       }
     },
     "/v1/payment_methods/{paymentMethodId}": {
