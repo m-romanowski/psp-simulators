@@ -72,6 +72,15 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
   private static final Set<String> A_RECORDING_OF_2025_PREDATES =
       Set.of("allowed_payment_method_types", "excluded_payment_method_types");
 
+  private static final List<String> THE_HEADERS_A_BROWSER_READS =
+      List.of(
+          "access-control-allow-origin",
+          "access-control-allow-credentials",
+          "access-control-allow-methods",
+          "access-control-expose-headers",
+          "access-control-max-age",
+          "vary");
+
   private static final Set<String> AN_ERROR_CARRIES_AND_THIS_SIMULATOR_DOES_NOT_MODEL =
       Set.of("request_log_url");
 
@@ -271,13 +280,18 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
       request =
           request
               .header("Content-Type", "application/x-www-form-urlencoded")
-              .header("Idempotency-Key", recorded.header("idempotency-key"))
               .POST(
                   HttpRequest.BodyPublishers.ofString(substitutedIn(recorded.form(), substituted)));
     } else {
       request = request.GET();
     }
-    return sent(request.build());
+    HttpResponse<byte[]> replayed = sent(request.build());
+    for (String header : THE_HEADERS_A_BROWSER_READS) {
+      assertThat(replayed.headers().allValues(header))
+          .as(header)
+          .containsExactly(recorded.header(header));
+    }
+    return replayed;
   }
 
   private static String substitutedIn(String recorded, Map<String, String> substituted) {

@@ -332,6 +332,64 @@ class StripePublishableKeyIntegrationTest extends PostgresBackedTest {
         .contains("publishableKey is already configured for another account");
   }
 
+  @Test
+  void a_browser_is_answered_a_preflight_and_the_recorded_headers_on_the_routes_of_stripe_only() {
+    Map<String, String> payment = aPayment(SECRET_KEY);
+
+    HttpResponse<byte[]> preflight =
+        preflightTo("/v1/payment_intents/" + payment.get("id") + "/confirm");
+    HttpResponse<byte[]> read =
+        sent(
+            HttpRequest.newBuilder(
+                    URI.create(
+                        "http://localhost:"
+                            + port
+                            + "/v1/payment_intents/"
+                            + payment.get("id")
+                            + "?client_secret="
+                            + payment.get("client_secret")))
+                .header("Origin", "https://shop.example")
+                .header("Authorization", "Bearer " + PUBLISHABLE_KEY)
+                .timeout(Duration.ofSeconds(20))
+                .GET()
+                .build());
+
+    assertThat(preflight.statusCode()).isEqualTo(200);
+    assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin")).contains("*");
+    assertThat(preflight.headers().firstValue("Access-Control-Allow-Headers"))
+        .contains("authorization,content-type");
+    assertThat(preflight.headers().firstValue("Access-Control-Max-Age")).contains("300");
+    assertThat(read.statusCode()).isEqualTo(200);
+    assertThat(read.headers().firstValue("Access-Control-Allow-Origin")).contains("*");
+    assertThat(read.headers().firstValue("Access-Control-Allow-Credentials")).contains("true");
+    for (String elsewhere :
+        List.of(
+            "/v1/oauth/token",
+            "/v1/acquiring/payments",
+            "/ui/audit",
+            "/__simulator/stripe/audit",
+            "/__simulator/stripe/config")) {
+      HttpResponse<byte[]> notStripe = preflightTo(elsewhere);
+      assertThat(notStripe.headers().allValues("Access-Control-Allow-Origin"))
+          .as(elsewhere)
+          .isEmpty();
+      assertThat(notStripe.headers().allValues("Access-Control-Allow-Headers"))
+          .as(elsewhere)
+          .isEmpty();
+    }
+  }
+
+  private HttpResponse<byte[]> preflightTo(String path) {
+    return sent(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+            .header("Origin", "https://shop.example")
+            .header("Access-Control-Request-Method", "POST")
+            .header("Access-Control-Request-Headers", "authorization,content-type")
+            .timeout(Duration.ofSeconds(20))
+            .build());
+  }
+
   private Map<String, String> aPayment(String secretKey) {
     Map<String, String> form = new LinkedHashMap<>();
     form.put("amount", "1099");

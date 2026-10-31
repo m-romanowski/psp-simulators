@@ -16,9 +16,12 @@ import dev.marcinromanowski.pspsim.kernel.transaction.ClaimConstraints;
 import dev.marcinromanowski.pspsim.kernel.webhook.AcknowledgementPolicy;
 import dev.marcinromanowski.pspsim.kernel.webhook.AttemptRendering;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
+import jakarta.servlet.Filter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -29,6 +32,15 @@ public class StripeModule {
   @Bean
   StripeAccounts stripeAccounts(JdbcClient jdbc) {
     return new JdbcStripeAccounts(jdbc);
+  }
+
+  @Bean
+  FilterRegistrationBean<Filter> stripeBrowserAccess() {
+    FilterRegistrationBean<Filter> registration =
+        new FilterRegistrationBean<>(new StripeBrowserAccess(StripeWireFaults.ROUTES));
+    registration.addUrlPatterns("/*");
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 150);
+    return registration;
   }
 
   @Bean
