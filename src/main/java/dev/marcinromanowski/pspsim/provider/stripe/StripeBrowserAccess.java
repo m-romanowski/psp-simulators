@@ -27,8 +27,6 @@ final class StripeBrowserAccess implements Filter {
 
   static final String ALLOW_HEADERS = "Access-Control-Allow-Headers";
 
-  static final int PREFLIGHT_ANSWERED = 200;
-
   static final SequencedMap<String, String> WHAT_EVERY_ANSWER_CARRIES = whatEveryAnswerCarries();
 
   private final ProviderWireRoutes routes;
@@ -49,8 +47,6 @@ final class StripeBrowserAccess implements Filter {
     Map<String, String> answered = theHeadersOf(inbound);
     answered.forEach(outbound::setHeader);
     if (aPreflight(inbound)) {
-      outbound.setStatus(PREFLIGHT_ANSWERED);
-      outbound.setContentLength(0);
       return;
     }
     chain.doFilter(request, response);
