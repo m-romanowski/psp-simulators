@@ -116,7 +116,8 @@ class StripeOriginationTest {
             StripeFields.CLIENT_SECRET,
             why ->
                 assertThat(why)
-                    .contains("serves no publishable-key surface")
+                    .contains(
+                        "beside the publishable key of the account to read and confirm an intent")
                     .contains("never puts a client_secret on a screen"));
     assertThat(provider.originationFields().waysToStartAPayment())
         .hasSize(4)

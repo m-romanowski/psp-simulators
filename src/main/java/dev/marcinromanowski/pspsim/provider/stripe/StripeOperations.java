@@ -48,6 +48,8 @@ final class StripeOperations {
 
   static final String CONFIRM_SETUP_INTENT = "POST /v1/setup_intents/{id}/confirm";
 
+  static final String RETRIEVE_SETUP_INTENT = "GET /v1/setup_intents/{id}";
+
   static final String CREATE_EPHEMERAL_KEY = "POST /v1/ephemeral_keys";
 
   static final String SETUP_INTENT =

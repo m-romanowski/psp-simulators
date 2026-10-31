@@ -14,5 +14,10 @@ interface StripeAccounts {
 
   List<StripeAccount> bySecretKey(String secretKey);
 
+  Optional<StripeAccount> ofTheRunHoldingThePublishableKey(
+      TestRunId testRunId, String publishableKey);
+
+  List<StripeAccount> byPublishableKey(String publishableKey);
+
   Optional<StripeAccount> find(TestRunId testRunId, String accountId);
 }

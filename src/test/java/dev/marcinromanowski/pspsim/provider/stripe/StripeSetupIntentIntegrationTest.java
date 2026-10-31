@@ -164,7 +164,7 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
         .contains("Set a card up for a later charge and confirm it now")
         .contains("Set a card up for a later charge and leave the setup waiting");
     assertThat(whatItSays)
-        .contains("serves no publishable-key surface")
+        .contains("beside the publishable key of the account to read and confirm an intent")
         .contains("the payment method to set up")
         .doesNotContain(StripeClientSecret.INFIX);
   }

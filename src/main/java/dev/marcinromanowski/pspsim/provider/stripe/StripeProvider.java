@@ -85,6 +85,9 @@ final class StripeProvider implements SimulatorProvider {
 
   private static final boolean A_REFUND_HAS_NO_LEDGER_OF_ITS_OWN = false;
 
+  static final String A_KEY_OF_ANOTHER_ACCOUNT =
+      " is already configured for another account in this test run";
+
   private final StripeAccounts accounts;
   private final StripePaymentIntents intents;
   private final StripeCharges charges;
@@ -166,6 +169,7 @@ final class StripeProvider implements SimulatorProvider {
     List<ConfiguredAccount> declared = configuration.accounts();
     List<StripeAccount> parsed = new ArrayList<>();
     Set<String> secretKeys = new LinkedHashSet<>();
+    Set<String> publishableKeys = new LinkedHashSet<>();
     Set<String> rewritten = new LinkedHashSet<>();
     for (ConfiguredAccount named : declared) {
       rewritten.add(named.accountId());
@@ -175,11 +179,18 @@ final class StripeProvider implements SimulatorProvider {
       StripeAccount account = StripeAccount.of(property, testRunId, declared.get(index));
       if (!secretKeys.add(account.secretKey())) {
         throw new ProviderConfigurationRejectedException(
-            property
-                + StripeAccount.SECRET_KEY_PROPERTY
-                + " is already configured for another account in this test run");
+            property + StripeAccount.SECRET_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
       }
       rejectASecretKeyAnAccountThisCallLeavesInPlaceHolds(property, account, rewritten);
+      String publishableKey = account.publishableKey();
+      if (publishableKey != null) {
+        if (!publishableKeys.add(publishableKey)) {
+          throw new ProviderConfigurationRejectedException(
+              property + StripeAccount.PUBLISHABLE_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
+        }
+        rejectAPublishableKeyAnAccountThisCallLeavesInPlaceHolds(
+            property, account.testRunId(), publishableKey, rewritten);
+      }
       parsed.add(account);
     }
     List<StripeAccount> itWillKeep = List.copyOf(parsed);
@@ -195,9 +206,19 @@ final class StripeProvider implements SimulatorProvider {
         .ifPresent(
             held -> {
               throw new ProviderConfigurationRejectedException(
-                  property
-                      + StripeAccount.SECRET_KEY_PROPERTY
-                      + " is already configured for another account in this test run");
+                  property + StripeAccount.SECRET_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
+            });
+  }
+
+  private void rejectAPublishableKeyAnAccountThisCallLeavesInPlaceHolds(
+      String property, TestRunId testRunId, String publishableKey, Set<String> rewritten) {
+    accounts
+        .ofTheRunHoldingThePublishableKey(testRunId, publishableKey)
+        .filter(held -> !rewritten.contains(held.accountId()))
+        .ifPresent(
+            held -> {
+              throw new ProviderConfigurationRejectedException(
+                  property + StripeAccount.PUBLISHABLE_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
             });
   }
 

@@ -9,6 +9,7 @@ final class StripeErrors {
 
   static final int BAD_REQUEST = 400;
   static final int UNAUTHORIZED = 401;
+  static final int FORBIDDEN = 403;
   static final int REQUEST_FAILED = 402;
   static final int NOT_FOUND = 404;
   static final int CONFLICT = 409;
@@ -29,6 +30,7 @@ final class StripeErrors {
   static final String SETUP_INTENT_INVALID_PARAMETER = "setup_intent_invalid_parameter";
   static final String PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD =
       "payment_intent_incompatible_payment_method";
+  static final String SECRET_KEY_REQUIRED = "secret_key_required";
 
   static StripeError noApiKey() {
     return new StripeError(
@@ -55,6 +57,56 @@ final class StripeErrors {
         null,
         null,
         null);
+  }
+
+  static StripeError secretKeyRequired() {
+    return invalidRequest(
+        FORBIDDEN,
+        SECRET_KEY_REQUIRED,
+        "The API key provided is a publishable key, but a secret key is required.",
+        null);
+  }
+
+  static StripeError clientSecretMissing() {
+    return invalidRequest(
+        BAD_REQUEST,
+        PARAMETER_MISSING,
+        "Missing required param: " + StripeFields.CLIENT_SECRET + ".",
+        StripeFields.CLIENT_SECRET);
+  }
+
+  static StripeError clientSecretDoesNotMatchThePayment() {
+    return invalidRequest(
+        BAD_REQUEST,
+        PAYMENT_INTENT_INVALID_PARAMETER,
+        "The client_secret provided does not match the client_secret associated with the"
+            + " PaymentIntent.",
+        StripeFields.CLIENT_SECRET);
+  }
+
+  static StripeError clientSecretDoesNotMatchTheSetup() {
+    return invalidRequest(
+        BAD_REQUEST,
+        SETUP_INTENT_INVALID_PARAMETER,
+        "The client_secret provided does not match the client_secret associated with the"
+            + " SetupIntent.",
+        StripeFields.CLIENT_SECRET);
+  }
+
+  static StripeError noSuchPaymentIntent(String intentId) {
+    return invalidRequest(
+        NOT_FOUND,
+        RESOURCE_MISSING,
+        "No such payment_intent: '" + intentId + "'",
+        StripeLookup.INTENT_PARAMETER);
+  }
+
+  static StripeError noSuchSetupIntent(String setupIntentId) {
+    return invalidRequest(
+        NOT_FOUND,
+        RESOURCE_MISSING,
+        "No such setupintent: '" + setupIntentId + "'",
+        StripeSetupLookup.SETUP_INTENT_PARAMETER);
   }
 
   static StripeError resourceMissing(String param) {

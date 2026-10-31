@@ -29,6 +29,10 @@ final class ConfirmSetupIntent {
     this.scenarios = scenarios;
   }
 
+  StripeSetupIntents store() {
+    return intents;
+  }
+
   StripeOperationResult handle(
       StripeCoreRequest request,
       Map<String, List<String>> headers,

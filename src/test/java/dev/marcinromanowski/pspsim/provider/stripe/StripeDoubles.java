@@ -193,6 +193,22 @@ final class StripeDoubles {
     }
 
     @Override
+    public Optional<StripeAccount> ofTheRunHoldingThePublishableKey(
+        TestRunId testRunId, String publishableKey) {
+      return accounts.stream()
+          .filter(account -> account.testRunId().equals(testRunId))
+          .filter(account -> publishableKey.equals(account.publishableKey()))
+          .findFirst();
+    }
+
+    @Override
+    public List<StripeAccount> byPublishableKey(String publishableKey) {
+      return accounts.stream()
+          .filter(account -> publishableKey.equals(account.publishableKey()))
+          .toList();
+    }
+
+    @Override
     public Optional<StripeAccount> find(TestRunId testRunId, String accountId) {
       return accounts.stream()
           .filter(

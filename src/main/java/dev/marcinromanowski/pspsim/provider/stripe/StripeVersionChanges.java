@@ -1,7 +1,9 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 final class StripeVersionChanges {
@@ -17,8 +19,29 @@ final class StripeVersionChanges {
               StripeOperations.CREATE_SETUP_INTENT),
           StripeVersionChanges::paymentMethodTypesWasWritable);
 
+  static final StripeVersionChange AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED =
+      StripeVersionChange.ofTheAnswer(
+          new StripeApiVersion("2025-03-31.basil"),
+          "https://docs.stripe.com/changelog/basil/2025-03-31/"
+              + "remove-refund-from-partial-capture-and-payment-cancellation-flow",
+          Set.of(
+              StripeOperations.CREATE,
+              StripeOperations.CONFIRM,
+              StripeOperations.CAPTURE,
+              StripeOperations.CANCEL,
+              StripeOperations.RETRIEVE,
+              StripeOperations.RETRIEVE_CHARGE,
+              StripeOperations.REFUND),
+          StripeVersionChanges::anExpiredAuthorizationWasCancelledAutomatically);
+
   static final List<StripeVersionChange> DECLARED =
-      List.of(PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+      List.of(
+          AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED,
+          PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+
+  static final String EXPIRED = "expired";
+
+  static final String AUTOMATIC = "automatic";
 
   private StripeVersionChanges() {}
 
@@ -38,6 +61,24 @@ final class StripeVersionChanges {
       }
     }
     return request;
+  }
+
+  static StripeJson asAnsweredAt(StripeJson answer, StripeApiVersion version, String operation) {
+    return asAnsweredAt(answer, version, operation, DECLARED);
+  }
+
+  static StripeJson asAnsweredAt(
+      StripeJson answer,
+      StripeApiVersion version,
+      String operation,
+      List<StripeVersionChange> declared) {
+    StripeJson answered = answer;
+    for (StripeVersionChange change : walkingBackTo(version, declared)) {
+      if (change.touches(operation)) {
+        answered = change.downgrade().apply(answered);
+      }
+    }
+    return answered;
   }
 
   static List<StripeVersionChange> walkingBackTo(
@@ -63,5 +104,31 @@ final class StripeVersionChanges {
     }
     return new StripeCoreRequest(
         request.form().withoutTheParameter(StripeFields.PAYMENT_METHOD_TYPES), written);
+  }
+
+  private static StripeJson anExpiredAuthorizationWasCancelledAutomatically(StripeJson answer) {
+    return switch (answer) {
+      case StripeJson.JsonObject object -> {
+        Map<String, StripeJson> members = new LinkedHashMap<>();
+        object
+            .members()
+            .forEach(
+                (name, member) ->
+                    members.put(name, anExpiredAuthorizationWasCancelledAutomatically(member)));
+        if (StripeJson.text(StripeIntentView.OBJECT).equals(members.get("object"))
+            && StripeJson.text(EXPIRED).equals(members.get(StripeFields.CANCELLATION_REASON))) {
+          members.put(StripeFields.CANCELLATION_REASON, StripeJson.text(AUTOMATIC));
+        }
+        yield new StripeJson.JsonObject(members);
+      }
+      case StripeJson.JsonArray array -> {
+        List<StripeJson> elements = new ArrayList<>();
+        for (StripeJson element : array.elements()) {
+          elements.add(anExpiredAuthorizationWasCancelledAutomatically(element));
+        }
+        yield StripeJson.array(elements);
+      }
+      default -> answer;
+    };
   }
 }

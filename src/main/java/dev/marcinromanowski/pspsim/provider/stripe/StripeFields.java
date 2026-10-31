@@ -55,9 +55,9 @@ final class StripeFields {
 
   static final String REQUEST_ID_PREFIX = "req_sim_";
 
-  static final Set<String> SENSITIVE_REQUEST_FIELDS = Set.of(PAYMENT_METHOD);
-
   static final String CLIENT_SECRET = "client_secret";
+
+  static final Set<String> SENSITIVE_REQUEST_FIELDS = Set.of(PAYMENT_METHOD, CLIENT_SECRET);
 
   static final String SECRET = "secret";
 

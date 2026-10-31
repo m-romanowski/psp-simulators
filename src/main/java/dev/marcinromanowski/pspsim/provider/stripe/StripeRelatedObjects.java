@@ -30,7 +30,11 @@ final class StripeRelatedObjects {
   }
 
   Reach reachedBy(TestRunId testRunId, StripeAccount account, Instant now) {
-    return new Reach(this, testRunId, account, now);
+    return new Reach(this, testRunId, account, now, false);
+  }
+
+  Reach reachedByAPublishableKey(TestRunId testRunId, StripeAccount account, Instant now) {
+    return new Reach(this, testRunId, account, now, true);
   }
 
   static final class Reach {
@@ -39,17 +43,26 @@ final class StripeRelatedObjects {
     private final TestRunId testRunId;
     private final StripeAccount account;
     private final Instant now;
+    private final boolean onlyThePaymentMethod;
     private final Map<StripeRelation, Map<String, Optional<StripeJson>>> found = new HashMap<>();
 
     private Reach(
-        StripeRelatedObjects held, TestRunId testRunId, StripeAccount account, Instant now) {
+        StripeRelatedObjects held,
+        TestRunId testRunId,
+        StripeAccount account,
+        Instant now,
+        boolean onlyThePaymentMethod) {
       this.held = held;
       this.testRunId = testRunId;
       this.account = account;
       this.now = now;
+      this.onlyThePaymentMethod = onlyThePaymentMethod;
     }
 
     Optional<StripeJson> find(StripeRelation relation, String id) {
+      if (onlyThePaymentMethod && relation != StripeRelation.A_PAYMENT_METHOD) {
+        return Optional.empty();
+      }
       return found
           .computeIfAbsent(relation, unread -> new HashMap<>())
           .computeIfAbsent(id, unread -> lookedUp(relation, id));

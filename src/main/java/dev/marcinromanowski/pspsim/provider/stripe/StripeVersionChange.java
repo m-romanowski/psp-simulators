@@ -7,7 +7,8 @@ record StripeVersionChange(
     StripeApiVersion version,
     String changelog,
     Set<String> operations,
-    UnaryOperator<StripeCoreRequest> upgrade) {
+    UnaryOperator<StripeCoreRequest> upgrade,
+    UnaryOperator<StripeJson> downgrade) {
 
   static final String A_CHANGE_SHIPS_IN_A_RELEASE_THIS_SIMULATOR_ANSWERS =
       "a version change is walked to from the release a request is answered at, so a change"
@@ -25,6 +26,23 @@ record StripeVersionChange(
     if (operations.isEmpty()) {
       throw new IllegalArgumentException(A_CHANGE_TOUCHES_AN_OPERATION);
     }
+  }
+
+  StripeVersionChange(
+      StripeApiVersion version,
+      String changelog,
+      Set<String> operations,
+      UnaryOperator<StripeCoreRequest> upgrade) {
+    this(version, changelog, operations, upgrade, UnaryOperator.identity());
+  }
+
+  static StripeVersionChange ofTheAnswer(
+      StripeApiVersion version,
+      String changelog,
+      Set<String> operations,
+      UnaryOperator<StripeJson> downgrade) {
+    return new StripeVersionChange(
+        version, changelog, operations, UnaryOperator.identity(), downgrade);
   }
 
   boolean touches(String operation) {

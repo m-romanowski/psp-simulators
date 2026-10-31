@@ -86,7 +86,10 @@ class StripeErrorDocumentationLinkTest {
                     "amount_too_large", "https://docs.stripe.com/error-codes#amount-too-large"),
                 Map.entry(
                     "idempotency_key_in_use",
-                    "https://docs.stripe.com/error-codes#idempotency-key-in-use")));
+                    "https://docs.stripe.com/error-codes#idempotency-key-in-use"),
+                Map.entry(
+                    "secret_key_required",
+                    "https://docs.stripe.com/error-codes#secret-key-required")));
   }
 
   private static List<StripeError> everyRefusalThisBuildCanAnswerWith() {
@@ -99,7 +102,7 @@ class StripeErrorDocumentationLinkTest {
       }
       refusals.add(refusalFrom(factory));
     }
-    assertThat(refusals).hasSize(46);
+    assertThat(refusals).hasSize(52);
     return refusals;
   }
 

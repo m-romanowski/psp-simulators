@@ -72,7 +72,9 @@ class StripeVersionChangesTest {
     assertThat(
             StripeVersionChanges.walkingBackTo(
                 new StripeApiVersion(pinned), StripeVersionChanges.DECLARED))
-        .containsExactly(StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+        .containsExactly(
+            StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE,
+            StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED);
   }
 
   @ParameterizedTest
@@ -91,9 +93,31 @@ class StripeVersionChangesTest {
   }
 
   @Test
-  void the_changes_this_simulator_models_are_the_endive_removal_of_payment_method_types() {
+  void the_changes_this_simulator_models_are_the_basil_expiry_reason_and_the_endive_removal() {
     assertThat(StripeVersionChanges.DECLARED)
-        .containsExactly(StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+        .containsExactly(
+            StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED,
+            StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
+    StripeVersionChange basil =
+        StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED;
+    assertThat(basil.version()).isEqualTo(new StripeApiVersion("2025-03-31.basil"));
+    assertThat(basil.changelog())
+        .isEqualTo(
+            "https://docs.stripe.com/changelog/basil/2025-03-31/"
+                + "remove-refund-from-partial-capture-and-payment-cancellation-flow");
+    assertThat(basil.operations())
+        .containsExactlyInAnyOrder(
+            "POST /v1/payment_intents",
+            "POST /v1/payment_intents/{id}/confirm",
+            "POST /v1/payment_intents/{id}/capture",
+            "POST /v1/payment_intents/{id}/cancel",
+            "GET /v1/payment_intents/{id}",
+            "GET /v1/charges/{id}",
+            "POST /v1/refunds");
+    StripeForm sent = StripeForm.of(Map.of("payment_method_types[]", List.of("card")));
+    StripeCoreRequest untouched = basil.upgrade().apply(StripeCoreRequest.asSent(sent));
+    assertThat(untouched.form()).isSameAs(sent);
+    assertThat(untouched.writtenPaymentMethodTypes()).isNull();
     StripeVersionChange change = StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE;
     assertThat(change.version()).isEqualTo(new StripeApiVersion("2026-09-30.endive"));
     assertThat(change.changelog())
@@ -186,6 +210,116 @@ class StripeVersionChangesTest {
 
     assertThat(atEndivesOpening.writtenPaymentMethodTypes())
         .isEqualTo(new StripeParameter.Appended(List.of("newer")));
+  }
+
+  @Test
+  void an_older_answer_names_an_expired_authorization_cancelled_automatically_wherever_it_sits() {
+    StripeJson answered =
+        StripeJson.object(
+            "error",
+            StripeJson.object(
+                "type",
+                StripeJson.text("invalid_request_error"),
+                "payment_intent",
+                anIntentCancelledAs("expired")),
+            "data",
+            StripeJson.array(List.of(anIntentCancelledAs("expired"), StripeJson.text("expired"))),
+            "object",
+            StripeJson.text("payment_intent"),
+            "cancellation_reason",
+            StripeJson.text("expired"));
+
+    StripeJson atIos =
+        StripeVersionChanges.asAnsweredAt(
+            answered, new StripeApiVersion("2020-08-27"), "GET /v1/payment_intents/{id}");
+
+    assertThat(StripeJsonWriter.toText(atIos))
+        .isEqualTo(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"payment_intent\":"
+                + "{\"id\":\"pi_sim_1\",\"object\":\"payment_intent\","
+                + "\"cancellation_reason\":\"automatic\"}},\"data\":[{\"id\":\"pi_sim_1\","
+                + "\"object\":\"payment_intent\",\"cancellation_reason\":\"automatic\"},"
+                + "\"expired\"],\"object\":\"payment_intent\","
+                + "\"cancellation_reason\":\"automatic\"}");
+  }
+
+  @Test
+  void the_expiry_reason_is_kept_at_basil_and_on_an_operation_the_change_does_not_touch() {
+    StripeJson expired = anIntentCancelledAs("expired");
+
+    assertThat(
+            StripeVersionChanges.asAnsweredAt(
+                expired, new StripeApiVersion("2025-03-31.basil"), "GET /v1/payment_intents/{id}"))
+        .isEqualTo(expired);
+    assertThat(
+            StripeVersionChanges.asAnsweredAt(
+                expired, new StripeApiVersion("2020-08-27"), "GET /v1/customers/{id}"))
+        .isEqualTo(expired);
+  }
+
+  @Test
+  void only_an_intent_cancelled_as_expired_changes_its_reason_before_basil() {
+    StripeJson requested = anIntentCancelledAs("requested_by_customer");
+    StripeJson aRefundNamingExpired =
+        StripeJson.object(
+            "object", StripeJson.text("refund"), "cancellation_reason", StripeJson.text("expired"));
+    StripeJson notCancelled =
+        StripeJson.object(
+            "object",
+            StripeJson.text("payment_intent"),
+            "cancellation_reason",
+            StripeJson.nothing());
+
+    for (StripeJson kept : List.of(requested, aRefundNamingExpired, notCancelled)) {
+      assertThat(
+              StripeVersionChanges.asAnsweredAt(
+                  kept,
+                  new StripeApiVersion("2020-03-02"),
+                  "POST /v1/payment_intents/{id}/confirm"))
+          .isEqualTo(kept);
+    }
+  }
+
+  @Test
+  void a_change_of_the_answer_passes_newest_first_back_to_the_requests_release() {
+    List<StripeVersionChange> declared =
+        List.of(
+            StripeVersionChange.ofTheAnswer(
+                new StripeApiVersion("2026-09-30.endive"),
+                "https://docs.stripe.com/changelog/older",
+                Set.of("GET /v1/payment_intents/{id}"),
+                answer -> appending(answer, "older")),
+            StripeVersionChange.ofTheAnswer(
+                new StripeApiVersion("2026-10-28.endive"),
+                "https://docs.stripe.com/changelog/newer",
+                Set.of("GET /v1/payment_intents/{id}"),
+                answer -> appending(answer, "newer")));
+
+    StripeJson atDahlia =
+        StripeVersionChanges.asAnsweredAt(
+            StripeJson.array(List.of()),
+            new StripeApiVersion("2026-08-26.dahlia"),
+            "GET /v1/payment_intents/{id}",
+            declared);
+
+    assertThat(atDahlia)
+        .isEqualTo(StripeJson.array(List.of(StripeJson.text("newer"), StripeJson.text("older"))));
+  }
+
+  private static StripeJson appending(StripeJson answer, String label) {
+    List<StripeJson> passed = new ArrayList<>(((StripeJson.JsonArray) answer).elements());
+    passed.add(StripeJson.text(label));
+    return StripeJson.array(passed);
+  }
+
+  private static StripeJson anIntentCancelledAs(String reason) {
+    return StripeJson.object(
+        "id",
+        StripeJson.text("pi_sim_1"),
+        "object",
+        StripeJson.text("payment_intent"),
+        "cancellation_reason",
+        StripeJson.text(reason));
   }
 
   @Test

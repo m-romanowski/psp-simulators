@@ -218,11 +218,11 @@ final class StripeOrigination {
             + " Stripe defaults it.");
     filled.put(
         StripeFields.CLIENT_SECRET,
-        "stripe publishes client_secret as the value a browser or a mobile application uses to"
-            + " finish an intent with a publishable key. This simulator serves no publishable-key"
-            + " surface, so it never puts a client_secret on a screen and never asks for one: the"
-            + " confirmation this wizard runs is the published server-side confirm, authorised by"
-            + " the secret key of the account you picked above.");
+        "stripe publishes client_secret as the value a browser or a mobile application sends"
+            + " beside the publishable key of the account to read and confirm an intent. This wizard is"
+            + " neither, so it never puts a client_secret on a screen and never asks for one: the"
+            + " confirmation it runs is the published server-side confirm, authorised by the secret"
+            + " key of the account you picked above.");
     return filled;
   }
 

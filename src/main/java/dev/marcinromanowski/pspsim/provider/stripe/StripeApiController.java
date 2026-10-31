@@ -148,6 +148,12 @@ class StripeApiController {
     return answered(() -> api.createSetupIntent(StripeWireRequest.callOf(request)));
   }
 
+  @GetMapping(SETUP_INTENTS + "/{setupIntentId}")
+  Object retrieveSetupIntent(HttpServletRequest request, @PathVariable String setupIntentId) {
+    return answered(
+        () -> api.retrieveSetupIntent(StripeWireRequest.callOf(request), setupIntentId));
+  }
+
   @PostMapping(SETUP_INTENTS + "/{setupIntentId}/confirm")
   Object confirmSetupIntent(HttpServletRequest request, @PathVariable String setupIntentId) {
     return answered(() -> api.confirmSetupIntent(StripeWireRequest.callOf(request), setupIntentId));

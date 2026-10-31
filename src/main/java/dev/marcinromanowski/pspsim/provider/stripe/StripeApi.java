@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
 
@@ -74,6 +75,8 @@ public final class StripeApi {
   private final CreateSetupIntent createSetupIntent;
   private final ConfirmSetupIntent confirmSetupIntent;
   private final CreateEphemeralKey createEphemeralKey;
+  private final RetrieveSetupIntent retrieveSetupIntent;
+  private final StripeClientSecrets clientSecrets;
   private final StripeRelatedObjects related;
 
   StripeApi(
@@ -124,6 +127,8 @@ public final class StripeApi {
     this.createSetupIntent = createSetupIntent;
     this.confirmSetupIntent = confirmSetupIntent;
     this.createEphemeralKey = new CreateEphemeralKey(ephemeralKeys, customers, ids);
+    this.retrieveSetupIntent = new RetrieveSetupIntent(confirmSetupIntent.store());
+    this.clientSecrets = new StripeClientSecrets(intents, confirmSetupIntent.store());
     this.related = new StripeRelatedObjects(intents, charges, refunds, customers, paymentMethods);
   }
 
@@ -134,7 +139,8 @@ public final class StripeApi {
         Map<String, List<String>> headers,
         TestRunId testRunId,
         StripeAccount account,
-        Instant now);
+        Instant now,
+        StripeKeyKind presented);
   }
 
   public StripeApiResponse createPaymentIntent(StripeApiCall call) {
@@ -144,7 +150,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 createPaymentIntent.handle(
                     request, headers, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
@@ -153,10 +159,11 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.CONFIRM,
+        new StripePublishableAccess.ThePaymentIntentItsClientSecretOpens(intentId),
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 confirmPaymentIntent.handle(request, headers, testRunId, account, intentId, now)));
   }
 
@@ -167,7 +174,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 capturePaymentIntent.handle(
                     request.form(), headers, testRunId, account, intentId, now)));
   }
@@ -179,7 +186,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 cancelPaymentIntent.handle(
                     request.form(), headers, testRunId, account, intentId, now)));
   }
@@ -188,10 +195,11 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.RETRIEVE,
+        new StripePublishableAccess.ThePaymentIntentItsClientSecretOpens(intentId),
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 retrievePaymentIntent.handle(testRunId, account, intentId, now)));
   }
 
@@ -202,7 +210,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.CHARGE),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 retrieveCharge.handle(testRunId, account, chargeId, now)));
   }
 
@@ -213,7 +221,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.REFUND),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 createRefund.handle(
                     request.form(), headers, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
@@ -225,7 +233,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 createCustomer.handle(
                     request.form(), testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
@@ -238,7 +246,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 retrieveCustomer.handle(testRunId, account, customerId)));
   }
 
@@ -249,7 +257,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 updateCustomer.handle(request.form(), testRunId, account, customerId, now)));
   }
 
@@ -257,7 +265,7 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.DELETE_CUSTOMER,
-        (request, headers, testRunId, account, now) ->
+        (request, headers, testRunId, account, now, _) ->
             deleteCustomer.handle(testRunId, account, customerId, now));
   }
 
@@ -269,7 +277,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAList(StripeExpandable.PAYMENT_METHOD),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 listPaymentMethods.everyMethod(query, testRunId, account)));
   }
 
@@ -282,7 +290,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAList(StripeExpandable.PAYMENT_METHOD),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 listPaymentMethods.theMethodsOf(query, testRunId, account, customerId)));
   }
 
@@ -293,7 +301,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_METHOD),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 retrievePaymentMethod.handle(testRunId, account, paymentMethodId)));
   }
 
@@ -304,7 +312,7 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_METHOD),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 detachPaymentMethod.handle(testRunId, account, paymentMethodId, now)));
   }
 
@@ -315,19 +323,32 @@ public final class StripeApi {
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.SETUP_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 createSetupIntent.handle(
                     request, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
+  }
+
+  public StripeApiResponse retrieveSetupIntent(StripeApiCall call, String setupIntentId) {
+    return answer(
+        call,
+        StripeOperations.RETRIEVE_SETUP_INTENT,
+        new StripePublishableAccess.TheSetupIntentItsClientSecretOpens(setupIntentId),
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.SETUP_INTENT),
+            (request, headers, testRunId, account, now, _) ->
+                retrieveSetupIntent.handle(testRunId, account, setupIntentId)));
   }
 
   public StripeApiResponse confirmSetupIntent(StripeApiCall call, String setupIntentId) {
     return answer(
         call,
         StripeOperations.CONFIRM_SETUP_INTENT,
+        new StripePublishableAccess.TheSetupIntentItsClientSecretOpens(setupIntentId),
         expanding(
             call,
             StripeExpansion.ofAnObject(StripeExpandable.SETUP_INTENT),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 confirmSetupIntent.handle(
                     request, headers, testRunId, account, setupIntentId, now)));
   }
@@ -338,21 +359,28 @@ public final class StripeApi {
         StripeOperations.CREATE_EPHEMERAL_KEY,
         new StripeShortLivedAccess.NoShortLivedKeyReachesThisRoute(),
         StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN,
+        new StripePublishableAccess.NoPublishableKeyReachesThisRoute(),
         expanding(
             call,
             StripeExpansion.ofAnObjectThatExpandsNothing(),
-            (request, headers, testRunId, account, now) ->
+            (request, headers, testRunId, account, now, _) ->
                 createEphemeralKey.handle(request.form(), testRunId, account, now)));
   }
 
   private StripeOperation expanding(
       StripeApiCall call, StripeExpansion expansion, StripeOperation operation) {
-    StripeForm carrying = StripeForm.of(POST.equals(call.method()) ? call.form() : call.query());
-    return (request, headers, testRunId, account, now) ->
+    StripeForm carrying = carrying(call);
+    return (request, headers, testRunId, account, now, presented) ->
         expansion.answered(
             carrying,
-            related.reachedBy(testRunId, account, now),
-            () -> operation.handle(request, headers, testRunId, account, now));
+            presented == StripeKeyKind.PUBLISHABLE_KEY
+                ? related.reachedByAPublishableKey(testRunId, account, now)
+                : related.reachedBy(testRunId, account, now),
+            () -> operation.handle(request, headers, testRunId, account, now, presented));
+  }
+
+  private static StripeForm carrying(StripeApiCall call) {
+    return StripeForm.of(POST.equals(call.method()) ? call.form() : call.query());
   }
 
   private StripeApiResponse answer(
@@ -367,10 +395,29 @@ public final class StripeApi {
   private StripeApiResponse answer(
       StripeApiCall call,
       String operationName,
+      StripePublishableAccess publishable,
+      StripeOperation operation) {
+    return answer(
+        call,
+        operationName,
+        new StripeShortLivedAccess.NoShortLivedKeyReachesThisRoute(),
+        StripeVersionsAdmitted.THE_RANGE_ANSWERED,
+        publishable,
+        operation);
+  }
+
+  private StripeApiResponse answer(
+      StripeApiCall call,
+      String operationName,
       StripeShortLivedAccess access,
       StripeOperation operation) {
     return answer(
-        call, operationName, access, StripeVersionsAdmitted.THE_RANGE_ANSWERED, operation);
+        call,
+        operationName,
+        access,
+        StripeVersionsAdmitted.THE_RANGE_ANSWERED,
+        new StripePublishableAccess.NoPublishableKeyReachesThisRoute(),
+        operation);
   }
 
   private StripeApiResponse answer(
@@ -378,18 +425,22 @@ public final class StripeApi {
       String operationName,
       StripeShortLivedAccess access,
       StripeVersionsAdmitted admitted,
+      StripePublishableAccess publishable,
       StripeOperation operation) {
     StripeForm form = StripeForm.of(call.form());
     String secretKey = StripeAuthentication.secretKeyIn(call.headers());
     List<StripeAccount> matches = accountsBySecretKey(secretKey);
     List<StripeEphemeralKey> shortLived = shortLivedKeysBySecret(secretKey, matches);
-    TestRunResolution resolution = resolve(call, matches, shortLived);
+    List<StripeAccount> publishedTo = accountsByPublishableKey(secretKey, matches, shortLived);
+    TestRunResolution resolution = resolve(call, matches, shortLived, publishedTo);
     Instant now = clock.now(resolution.testRunId());
 
     List<StripeAccount> within = within(resolution, matches);
-    String account =
-        TheAccountARowNames.amongTheAccountsTheCredentialsMatched(
-            within.stream().map(StripeAccount::accountId).toList());
+    List<StripeAccount> publishedWithin = within(resolution, publishedTo);
+    List<String> named = new ArrayList<>();
+    within.forEach(matched -> named.add(matched.accountId()));
+    publishedWithin.forEach(matched -> named.add(matched.accountId()));
+    String account = TheAccountARowNames.amongTheAccountsTheCredentialsMatched(named);
 
     recordInbound(call, resolution, account, now, form);
     Answered answered =
@@ -402,8 +453,10 @@ public final class StripeApi {
                     resolution.testRunId(),
                     within,
                     withinTheRun(resolution, shortLived),
+                    publishedWithin,
                     access,
                     admitted,
+                    publishable,
                     now,
                     operationName,
                     operation),
@@ -424,8 +477,10 @@ public final class StripeApi {
       TestRunId testRunId,
       List<StripeAccount> matches,
       List<StripeEphemeralKey> shortLived,
+      List<StripeAccount> publishedTo,
       StripeShortLivedAccess access,
       StripeVersionsAdmitted admitted,
+      StripePublishableAccess publishable,
       Instant now,
       String operationName,
       StripeOperation operation) {
@@ -436,6 +491,10 @@ public final class StripeApi {
     if (matches.isEmpty() && shortLived.size() == 1) {
       return answeredForAShortLivedKey(
           call, form, testRunId, shortLived.get(0), access, now, operationName, operation);
+    }
+    if (matches.isEmpty() && shortLived.isEmpty() && publishedTo.size() == 1) {
+      return answeredForAPublishableKey(
+          call, form, testRunId, publishedTo.get(0), publishable, now, operationName, operation);
     }
     return rendered(
         StripeOperationResult.refusedBeforeExecuting(
@@ -509,13 +568,16 @@ public final class StripeApi {
                               form,
                               () ->
                                   rendered(
-                                      operation.handle(
-                                          StripeVersionChanges.atTheCore(
-                                              form, at.version(), operationName),
+                                      handledAt(
+                                          operation,
+                                          form,
+                                          at.version(),
+                                          operationName,
                                           call.headers(),
                                           testRunId,
                                           account,
-                                          now),
+                                          now,
+                                          StripeKeyKind.SHORT_LIVED_KEY),
                                       Map.of())));
                 })
         .orElseGet(
@@ -552,8 +614,76 @@ public final class StripeApi {
                           at.version(),
                           now,
                           operationName,
-                          operation)));
+                          operation,
+                          StripeKeyKind.SECRET_KEY)));
     };
+  }
+
+  private Answered answeredForAPublishableKey(
+      StripeApiCall call,
+      StripeForm form,
+      TestRunId testRunId,
+      StripeAccount account,
+      StripePublishableAccess publishable,
+      Instant now,
+      String operationName,
+      StripeOperation operation) {
+    if (publishable instanceof StripePublishableAccess.NoPublishableKeyReachesThisRoute) {
+      return rendered(
+          Objects.requireNonNull(
+              clientSecrets.theRefusalOf(publishable, carrying(call), testRunId, account)),
+          Map.of());
+    }
+    return switch (StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN.choose(
+        call.headers(), account.apiVersion())) {
+      case StripeVersionChoice.Refused refused -> refusedOnItsVersion(refused);
+      case StripeVersionChoice.AnsweredAt at ->
+          answeredAt(
+              at.version(),
+              readableOrRefused(
+                  call,
+                  form,
+                  () -> {
+                    StripeOperationResult refusal =
+                        clientSecrets.theRefusalOf(publishable, carrying(call), testRunId, account);
+                    return refusal != null
+                        ? rendered(refusal, Map.of())
+                        : answeredAtTheVersion(
+                            call,
+                            form,
+                            testRunId,
+                            account,
+                            at.version(),
+                            now,
+                            operationName,
+                            operation,
+                            StripeKeyKind.PUBLISHABLE_KEY);
+                  }));
+    };
+  }
+
+  private static StripeOperationResult handledAt(
+      StripeOperation operation,
+      StripeForm form,
+      StripeApiVersion version,
+      String operationName,
+      Map<String, List<String>> headers,
+      TestRunId testRunId,
+      StripeAccount account,
+      Instant now,
+      StripeKeyKind presented) {
+    StripeOperationResult result =
+        operation.handle(
+            StripeVersionChanges.atTheCore(form, version, operationName),
+            headers,
+            testRunId,
+            account,
+            now,
+            presented);
+    StripeJson shown =
+        StripeVersionChanges.asAnsweredAt(
+            presented.asShownTo(result.body()), version, operationName);
+    return shown.equals(result.body()) ? result : result.answeringWith(shown);
   }
 
   private static Answered readableOrRefused(
@@ -570,16 +700,21 @@ public final class StripeApi {
       StripeApiVersion version,
       Instant now,
       String operationName,
-      StripeOperation operation) {
+      StripeOperation operation,
+      StripeKeyKind presented) {
     String key = StripeIdempotency.keyIn(call.headers());
     if (key == null || !POST.equals(call.method())) {
       return rendered(
-          operation.handle(
-              StripeVersionChanges.atTheCore(form, version, operationName),
+          handledAt(
+              operation,
+              form,
+              version,
+              operationName,
               call.headers(),
               testRunId,
               account,
-              now),
+              now,
+              presented),
           Map.of());
     }
     if (StripeIdempotency.isTooLong(key)) {
@@ -589,7 +724,8 @@ public final class StripeApi {
               StripeErrors.headerRefused(StripeIdempotency.KEY_IS_TOO_LONG)),
           Map.of());
     }
-    return underTheKey(call, form, testRunId, account, version, now, operationName, operation, key);
+    return underTheKey(
+        call, form, testRunId, account, version, now, operationName, operation, key, presented);
   }
 
   private static Answered refusedOnItsVersion(StripeVersionChoice.Refused refused) {
@@ -621,7 +757,8 @@ public final class StripeApi {
       Instant now,
       String operationName,
       StripeOperation operation,
-      String key) {
+      String key,
+      StripeKeyKind presented) {
     FingerprintedRequest request =
         new FingerprintedRequest(call.method(), call.path(), form.compared());
     StripeIdempotencyClaim claim =
@@ -644,9 +781,11 @@ public final class StripeApi {
               operation,
               form,
               call.headers(),
-              now);
+              now,
+              presented);
       case StripeIdempotencyClaim.Replayed replayed ->
-          observedReplay(testRunId, account, key, operationName, request, replayed.answer(), now);
+          observedReplay(
+              testRunId, account, key, operationName, request, replayed.answer(), now, presented);
       case StripeIdempotencyClaim.InProgressElsewhere _ ->
           observedARefusal(
               testRunId,
@@ -677,7 +816,8 @@ public final class StripeApi {
       String operationName,
       FingerprintedRequest request,
       StripeStoredAnswer answer,
-      Instant now) {
+      Instant now,
+      StripeKeyKind presented) {
     keys.observed(
         new KeyedObservation(
             testRunId,
@@ -692,7 +832,7 @@ public final class StripeApi {
             false,
             null,
             now));
-    return replayed(answer);
+    return replayed(answer, presented);
   }
 
   private Answered observedARefusal(
@@ -736,16 +876,13 @@ public final class StripeApi {
       StripeOperation operation,
       StripeForm form,
       Map<String, List<String>> headers,
-      Instant now) {
+      Instant now,
+      StripeKeyKind presented) {
     StripeOperationResult result;
     try {
       result =
-          operation.handle(
-              StripeVersionChanges.atTheCore(form, version, operationName),
-              headers,
-              testRunId,
-              account,
-              now);
+          handledAt(
+              operation, form, version, operationName, headers, testRunId, account, now, presented);
     } catch (RuntimeException unanswerable) {
       keys.released(testRunId, account.accountId(), key);
       throw unanswerable;
@@ -796,12 +933,16 @@ public final class StripeApi {
     return answered;
   }
 
-  private static Answered replayed(StripeStoredAnswer answer) {
+  private static Answered replayed(StripeStoredAnswer answer, StripeKeyKind presented) {
+    byte[] stored = answer.body().getBytes(StandardCharsets.UTF_8);
     RenderedResponse rendered =
         new RenderedResponse(
             answer.httpStatus(),
             answer.contentType(),
-            answer.body().getBytes(StandardCharsets.UTF_8));
+            presented == StripeKeyKind.PUBLISHABLE_KEY
+                ? StripeJsonWriter.toBytes(
+                    presented.asShownTo(StripeJsonReader.read(answer.body())))
+                : stored);
     return new Answered(
         rendered.asDelivered(),
         answer.outcome(),
@@ -850,24 +991,40 @@ public final class StripeApi {
     return ephemeralKeys.bySecret(secretKey);
   }
 
+  private List<StripeAccount> accountsByPublishableKey(
+      @Nullable String presented,
+      List<StripeAccount> matches,
+      List<StripeEphemeralKey> shortLived) {
+    if (presented == null || !matches.isEmpty() || !shortLived.isEmpty()) {
+      return List.of();
+    }
+    return accounts.byPublishableKey(presented);
+  }
+
   private TestRunResolution resolve(
-      StripeApiCall call, List<StripeAccount> matches, List<StripeEphemeralKey> shortLived) {
+      StripeApiCall call,
+      List<StripeAccount> matches,
+      List<StripeEphemeralKey> shortLived,
+      List<StripeAccount> publishedTo) {
     List<TestRunCandidates> evaluated = new ArrayList<>();
     evaluated.add(TestRunHeader.in(call.headers(), testRuns::exists));
     evaluated.add(call.route().candidatesFor(STRIPE));
     evaluated.add(
         TestRunCandidates.of(
             TestRunResolutionRule.ACCOUNT_CREDENTIALS,
-            theRunsTheseCredentialsName(matches, shortLived)));
+            theRunsTheseCredentialsName(matches, shortLived, publishedTo)));
     return TestRunResolution.of(evaluated, defaultTestRun);
   }
 
   private static List<TestRunId> theRunsTheseCredentialsName(
-      List<StripeAccount> matches, List<StripeEphemeralKey> shortLived) {
+      List<StripeAccount> matches,
+      List<StripeEphemeralKey> shortLived,
+      List<StripeAccount> publishedTo) {
     List<TestRunId> named = new ArrayList<>(testRunsOf(matches));
     for (StripeEphemeralKey key : shortLived) {
       named.add(key.testRunId());
     }
+    named.addAll(testRunsOf(publishedTo));
     return List.copyOf(named);
   }
 
