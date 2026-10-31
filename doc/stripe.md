@@ -97,6 +97,18 @@ Account settings: the `sk_test_` secret key (required), the `pk_test_` publishab
 
 ## Authentication and Transport
 
+- Every answer on a route of provider stripe carries `Access-Control-Allow-Origin: *`,
+  `Access-Control-Allow-Credentials: true`, `Access-Control-Allow-Methods: GET, HEAD, PUT, PATCH, POST, DELETE`,
+  `Access-Control-Expose-Headers: Request-Id, Stripe-Manage-Version, Stripe-Should-Retry,
+  X-Stripe-External-Auth-Required, X-Stripe-Privileged-Session-Required`, `Access-Control-Max-Age: 300` and
+  `Vary: Origin`, whether the request names an `Origin` or not (probe: 3744 of the 3745 recorded api.stripe.com
+  answers, errors included). A preflight, an `OPTIONS` with `Origin` and `Access-Control-Request-Method`, is answered
+  `200` with those headers and `Access-Control-Allow-Headers` naming what it asked for, and goes no further (decision:
+  no preflight is recorded, and a browser that sends its key in `Authorization` needs one). The headers
+  are set at the servlet layer (`StripeBrowserAccess`) for the addresses `StripeWireFaults.ROUTES` names, after a route
+  alias resolves, so another provider's routes, the screens and the control API answer no such header; the trail does
+  not record them.
+
 - Stripe's base is `https://api.stripe.com/v1/...` (example). The simulator's base is configurable.
 - "The Stripe API authenticates requests using HTTP Basic Auth. Provide your API key as the basic auth username value.
   You don't need to provide a password." Bearer is published "for example, for a cross-origin request" (rule). The
@@ -282,8 +294,8 @@ answer):
 | Either confirm, when the request's own selection parameters changed the selection | the same status, type, code and `param`, "The PaymentMethod provided ({type}) is not allowed by the payment method types this request selects: {selected}. This PaymentIntent keeps the payment method types it had." (or "This SetupIntent"), so the message never contradicts the embedded intent |
 
 The code is the published one whose description fits ("expected a payment method with different properties"); a
-SetupIntent has none of its own. A payment method this account does not hold is not type-checked, as before: its type
-is unknown.
+SetupIntent has none of its own. A published test PaymentMethod id this account does not hold is not type-checked: its
+type is unknown. Any other id this account does not hold is refused before the type is judged (see "PaymentIntents").
 
 ## Expansion
 
@@ -369,7 +381,7 @@ The fields served (`StripeExpandable`):
 | "You can retrieve a PaymentIntent client-side using a publishable key when the `client_secret` is in the query string." "If you retrieve a PaymentIntent with a publishable key, it only returns a subset of properties." The SetupIntent retrieve page says the same | rule, the two retrieve pages (Sources)                                                                          |
 | `client_secret` on PaymentIntent and SetupIntent confirm: "Required if using a publishable key." Neither page says anything of a secret-key call that sends one     | rule, the two confirm pages (Sources)                                                                           |
 | "If the `confirmation_method` is `manual`, all payment attempts must be initiated using a secret key."                                                               | rule, https://docs.stripe.com/api/payment_intents/confirm.md                                                    |
-| Stripe's mobile SDKs retrieve an intent with `client_secret` in the query, PaymentSheet with `expand[0]=payment_method`, and confirm it with `client_secret`, `payment_method`, `expand[0]=payment_method` and `use_stripe_sdk=true` in the body, an `Idempotency-Key` and `Stripe-Version: 2020-08-27` | probe: the recordings, `PaymentSheetAPITest/testDeferredConfirmvalidsavedcard`                                    |
+| Stripe's mobile SDKs retrieve an intent with `client_secret` in the query, PaymentSheet with `expand[0]=payment_method`, and confirm it with `client_secret`, `payment_method`, `expand[0]=payment_method` and `use_stripe_sdk=true` in the body and `Stripe-Version: 2020-08-27`. The stripe-ios client sends no `Idempotency-Key`; the `idempotency-key` a recording shows is a response header | probe: the recordings, `PaymentSheetAPITest/testDeferredConfirmvalidsavedcard`; example: stripe-ios `STPAPIClient.swift`, `defaultHeaders` |
 | A wrong `client_secret` on an existing PaymentIntent: `400`, `invalid_request_error`, `payment_intent_invalid_parameter`, `param` `client_secret`, "The client_secret provided does not match the client_secret associated with the PaymentIntent." | probe: the recordings, `STPPaymentIntentFunctionalTest/testRetrieveWithWrongSecret`                               |
 | An intent of another account, with its own secret: `404`, `invalid_request_error`, `resource_missing`, `param` `intent`, "No such payment_intent: 'pi_…'"; for a SetupIntent "No such setupintent: 'seti_…'" | probe: the recordings, `testRetrieveMismatchedPublishableKey`, and the two recorded `404`s on `/v1/setup_intents/{id}` |
 | `secret_key_required`: "The API key provided is a publishable key, but a secret key is required." Status and type are not on the page. 403 is "The API key doesn't have permissions to perform the request" | rule, https://docs.stripe.com/error-codes and https://docs.stripe.com/api/errors                               |
@@ -384,7 +396,7 @@ The key (`StripeAccount.publishableKey`, `V94__stripe_account_carries_a_publisha
 | No two accounts of one test run name the same one; two runs may. The store holds the rule as `stripe_account_by_publishable_key`, and the check `stripe_account_publishable_key_is_a_test_mode_key`. Accounts stored before it carry none | decision: the key resolves the account, as the secret key does                                                  |
 | It is disclosed wherever the account is, never redacted                                                                                                  | rule: Stripe publishes it as the key a client embeds                                                             |
 | A request presenting it, as Basic username or Bearer token, is answered for that account, in the run the request resolves to like any other credentials. A run the key is not configured in reaches nothing: `401` | decision: the same resolution as the secret key                                                                  |
-| The trail names the account. `client_secret` is withheld from the request row and, as before, from every answer                                        | decision: the secret opens the intent to whoever holds it                                                        |
+| The trail names the account. `client_secret` is withheld from the request row and from every answer                                                   | decision: the secret opens the intent to whoever holds it                                                        |
 
 What a key reaches:
 
@@ -418,11 +430,11 @@ What a publishable key is answered (`StripePublishableView`):
 
 | Object         | Shown                                                                                                                         | Never shown                                                         |
 |----------------|-------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
-| PaymentIntent  | the members every recorded answer carries: `allowed_payment_method_types`, `amount`, `amount_details`, `amount_subtotal`, `automatic_payment_methods`, `canceled_at`, `cancellation_reason`, `capture_method`, `client_secret`, `confirmation_method`, `created`, `currency`, `description`, `excluded_payment_method_types`, `id`, `last_payment_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `processing`, `receipt_email`, `setup_future_usage`, `shipping`, `source`, `status`, `total_details`, of which this simulator's object has 18 | `amount_capturable`, `amount_received`, `customer`, `latest_charge`, and anything else |
-| SetupIntent    | `allowed_payment_method_types`, `automatic_payment_methods`, `cancellation_reason`, `client_secret`, `created`, `description`, `excluded_payment_method_types`, `id`, `last_setup_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `status`, `usage`, of which this simulator's object has 14 | `customer`, and anything else                                        |
+| PaymentIntent  | the members every recorded answer carries: `allowed_payment_method_types`, `amount`, `amount_details`, `amount_subtotal`, `automatic_payment_methods`, `canceled_at`, `cancellation_reason`, `capture_method`, `client_secret`, `confirmation_method`, `created`, `currency`, `description`, `excluded_payment_method_types`, `id`, `last_payment_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `processing`, `receipt_email`, `setup_future_usage`, `shipping`, `source`, `status`, `total_details` | `amount_capturable`, `amount_received`, `customer`, `latest_charge`, and anything else |
+| SetupIntent    | `allowed_payment_method_types`, `automatic_payment_methods`, `cancellation_reason`, `client_secret`, `created`, `description`, `excluded_payment_method_types`, `id`, `last_setup_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `status`, `usage` | `customer`, and anything else                                        |
 
-- The list is the recorded one, which is wider than the page badges (probe; rule for the badges). A member this
-  simulator does not model is simply absent (see "What Still Cannot Be Trusted Here").
+- The list is the recorded one, which is wider than the page badges (probe; rule for the badges). A member of the list
+  this simulator's object does not have is absent (see "What Still Cannot Be Trusted Here").
 - Retrieve and confirm are reduced alike, and so is the intent an error embeds, a decline's and a refusal's
   (probe: recorded confirm answers and `402`s carry the same members).
 - `expand` applies: `payment_method` expands into the whole PaymentMethod. No customer or charge is reached: a
@@ -566,7 +578,8 @@ card.
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Created with a `payment_method`: `requires_confirmation`. Created without: `requires_payment_method`. `requires_action`, `processing` and `canceled` are never reached |
 | Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures                                             |
-| Confirm refuses before writing: an unknown method (`resource_missing`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`) |
+| Confirm refuses before writing: an unknown method (`400` `resource_missing` on `payment_method`, the recorded "No such PaymentMethod: '{id}'; …" sentence, with the truncated SetupIntent: probe, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsavedpmsendsanalytic`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a method attached to a Customer when the SetupIntent names none, a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`). A published test PaymentMethod id is refused like any other unknown method, as there is nothing to attach |
+| A method attached to a Customer cannot be set up by a SetupIntent that names no customer: `400`, no `code`, `param` `payment_method`, "Payment methods attached to other Customers cannot be used with this SetupIntent. …" | inference: the SetupIntent's `customer` publishes "Payment methods attached to other Customers cannot be used with this SetupIntent" without saying whether an absent customer is another one; the PaymentIntent's create publishes that a method attached to a Customer requires that Customer to be named, and this reads the SetupIntent the same way |
 | Create accepts any `customer`                                                                                                                                       |
 | The selection parameters are read as "Payment Method Selection" states. With none, `payment_method_types` is `["card", "paypal"]` |
 | `client_secret` appears on the wire only. It is withheld from audit and screens. A publishable key reads and confirms the SetupIntent beside it ("Publishable Key") |
@@ -628,6 +641,24 @@ an unknown id. A publishable key reads it beside its `client_secret` ("Publishab
   further calls to this endpoint will transition the PaymentIntent to the `canceled` state." No number is published,
   and the simulator enforces no limit.
 - A detached method is refused, both on confirm and on inline confirm.
+- On confirm, a payment method this account does not hold in this run is refused as recorded: `400`,
+  `invalid_request_error`, `resource_missing`, `param` `payment_method`, "No such PaymentMethod: '{id}'; It's possible
+  this PaymentMethod exists on one of your connected accounts, in which case you should retry this request on that
+  connected account. Learn more at https://stripe.com/docs/connect/authentication", with the intent as stored embedded
+  (probe: `STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsavedpmsendsanalytic`, `pm_123`, publishable key,
+  2025; `StripeErrors.noSuchPaymentMethod`). A published test PaymentMethod id, one beginning `pm_card_`,
+  `pm_usBankAccount_` or `pm_sepaDebit_`, is accepted without being held (rule: https://docs.stripe.com/testing.md
+  lists every test PaymentMethod id under those stems; decision to accept one, since this simulator mints no
+  PaymentMethod from it). Create with `confirm=true` still accepts any id.
+- On confirm, a payment method attached to a Customer is refused unless the intent names that Customer: "If the
+  payment method is attached to a Customer, it must match the customer that is set on this PaymentIntent", and on the
+  object, "Payment methods attached to other Customers cannot be used with this PaymentIntent" (rule: the OpenAPI
+  specification at `2026-10-28.endive`, confirm `payment_method` and the object's `customer`). The answer is `400`,
+  `invalid_request_error`, no `code`, `param` `payment_method`, the published sentence and why
+  (`StripePaymentMethodLookup.theRefusalAMethodOfAnotherCustomerEarns`); nothing is charged (decision for the shape:
+  no answer is published or recorded). An intent naming no customer is refused such a method too: create's own
+  `payment_method` publishes "you must also provide the ID of that Customer as the `customer` parameter" (rule).
+  Create with `confirm=true` does not judge the customer.
 - Failures: an unknown intent, `payment_intent_unexpected_state` ("The PaymentIntent's state was incompatible with the
   operation you were trying to perform.") for a terminal intent, a method of another customer,
   `authentication_required`, and an issuer decline. A missing `return_url` is refused as "Payment Method Selection"
