@@ -214,6 +214,14 @@ final class StripeErrors {
         param);
   }
 
+  static StripeError unreadableEncoding(@Nullable String param, String why) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "The request encodes a parameter in a way this API cannot read: " + why + ".",
+        param);
+  }
+
   static StripeError headerRefused(String message) {
     return new StripeError(
         BAD_REQUEST, StripeErrorType.INVALID_REQUEST_ERROR, null, null, message, null, null, null);

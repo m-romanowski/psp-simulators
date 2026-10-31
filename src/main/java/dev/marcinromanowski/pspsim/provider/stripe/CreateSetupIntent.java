@@ -80,7 +80,7 @@ final class CreateSetupIntent {
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
-    if (form.carriesAnyFormOf(StripeFields.PAYMENT_METHOD_TYPES)) {
+    if (form.carries(StripeFields.PAYMENT_METHOD_TYPES)) {
       return StripeErrors.parameterUnknown(
           StripeFields.PAYMENT_METHOD_TYPES, THE_SELECTION_PARAMETERS_IT_ACCEPTS);
     }

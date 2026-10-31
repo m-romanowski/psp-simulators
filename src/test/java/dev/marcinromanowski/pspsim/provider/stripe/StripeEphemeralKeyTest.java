@@ -297,6 +297,31 @@ class StripeEphemeralKeyTest {
   }
 
   @Test
+  void a_short_lived_key_reading_with_a_query_that_cannot_be_decoded_is_refused_by_its_encoding() {
+    accounts.with(stripeAccount(ACCOUNT, SECRET_KEY));
+    api(NOW).createCustomer(post(CUSTOMERS_PATH, withEmail(AN_EMAIL)));
+    api(NOW).createEphemeralKey(mintFor(FIRST_CUSTOMER));
+    StripeApiCall reading = readingAs(theOnlyKey().secret(), FIRST_CUSTOMER);
+
+    StripeApiResponse response =
+        api(A_MINUTE_BEFORE_THE_HOUR)
+            .retrieveCustomer(
+                new StripeApiCall(
+                    reading.method(),
+                    reading.path(),
+                    reading.headers(),
+                    Map.of(),
+                    Map.of("expand[]", List.of("a"), "expand[0]", List.of("b"))),
+                FIRST_CUSTOMER);
+
+    assertThat(response.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(response))
+        .contains("\"param\":\"expand\"")
+        .contains(StripeFormGrammar.ONE_PARAMETER_IN_TWO_SHAPES)
+        .doesNotContain(AN_EMAIL);
+  }
+
+  @Test
   void a_short_lived_key_does_not_read_another_customer_of_the_same_account() {
     accounts.with(stripeAccount(ACCOUNT, SECRET_KEY));
     api(NOW).createCustomer(post(CUSTOMERS_PATH, withEmail(AN_EMAIL)));

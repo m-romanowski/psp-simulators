@@ -3,6 +3,11 @@ package dev.marcinromanowski.pspsim.provider.stripe;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.stripe.StripeClient;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Customer;
+import com.stripe.model.PaymentMethod;
+import com.stripe.param.PaymentMethodRetrieveParams;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.ui.PaymentMethodForm;
@@ -97,6 +102,65 @@ class StripePaymentMethodIntegrationTest extends PostgresBackedTest {
         .contains("\"object\":\"payment_method\"")
         .contains("\"customer\":null")
         .contains("\"last4\":\"1111\"");
+  }
+
+  @Test
+  void
+      a_retrieve_expanding_the_customer_answers_the_same_body_whichever_list_encoding_carried_it() {
+    seedFromTheScreen("first", FIRST_CARD, A_CUSTOMER);
+    String retrieve = PAYMENT_METHODS + "/" + FIRST_CARD;
+
+    HttpResponse<byte[]> appendedAsInTheDocs = get(retrieve + "?expand%5B%5D=customer");
+    HttpResponse<byte[]> indexedAsEverySdkSends = get(retrieve + "?expand%5B0%5D=customer");
+    HttpResponse<byte[]> notExpanded = get(retrieve);
+
+    assertThat(appendedAsInTheDocs.statusCode()).isEqualTo(200);
+    assertThat(bodyOf(appendedAsInTheDocs))
+        .contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"")
+        .contains("\"object\":\"customer\"");
+    assertThat(indexedAsEverySdkSends.statusCode()).isEqualTo(200);
+    assertThat(bodyOf(indexedAsEverySdkSends)).isEqualTo(bodyOf(appendedAsInTheDocs));
+    assertThat(bodyOf(notExpanded)).contains("\"customer\":\"" + A_CUSTOMER + "\"");
+  }
+
+  @Test
+  void a_retrieve_whose_query_sends_one_list_in_both_encodings_is_refused_over_the_wire() {
+    seedFromTheScreen("first", FIRST_CARD, A_CUSTOMER);
+
+    HttpResponse<byte[]> refused =
+        get(PAYMENT_METHODS + "/" + FIRST_CARD + "?expand%5B%5D=customer&expand%5B0%5D=customer");
+
+    assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"type\":\"invalid_request_error\"")
+        .contains("\"param\":\"expand\"");
+  }
+
+  @Test
+  void the_official_java_client_retrieves_a_card_with_its_customer_expanded_into_a_customer_object()
+      throws StripeException {
+    seedFromTheScreen("first", FIRST_CARD, A_CUSTOMER);
+    StripeClient client =
+        StripeClient.builder()
+            .setApiKey(SECRET_KEY)
+            .setApiBase("http://localhost:" + port)
+            .setMaxNetworkRetries(0)
+            .build();
+
+    PaymentMethod retrieved =
+        client
+            .v1()
+            .paymentMethods()
+            .retrieve(
+                FIRST_CARD, PaymentMethodRetrieveParams.builder().addExpand("customer").build());
+
+    assertThat(retrieved.getId()).isEqualTo(FIRST_CARD);
+    assertThat(retrieved.getCustomer()).isEqualTo(A_CUSTOMER);
+    Customer expanded = retrieved.getCustomerObject();
+    assertThat(expanded).isNotNull();
+    assertThat(expanded.getId()).isEqualTo(A_CUSTOMER);
+    assertThat(expanded.getObject()).isEqualTo("customer");
+    assertThat(theTrailOfThisRun()).contains("\"expand[0]\":[\"customer\"]");
   }
 
   @Test
@@ -208,6 +272,13 @@ class StripePaymentMethodIntegrationTest extends PostgresBackedTest {
 
     assertThat(get(PAYMENT_METHODS + "/" + FIRST_CARD).statusCode()).isEqualTo(404);
     assertThat(get(CUSTOMERS + "/" + A_CUSTOMER).statusCode()).isEqualTo(200);
+  }
+
+  private String theTrailOfThisRun() {
+    return http.get()
+        .uri("/__simulator/stripe/audit?testRunId=" + RUN.value())
+        .retrieve()
+        .body(String.class);
   }
 
   private String theFixtureIdOf(String paymentMethodId) {

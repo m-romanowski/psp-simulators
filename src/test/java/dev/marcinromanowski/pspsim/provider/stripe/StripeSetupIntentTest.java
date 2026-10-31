@@ -168,6 +168,30 @@ class StripeSetupIntentTest {
     assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused)).contains("\"param\":\"payment_method_types\"");
     assertThat(indexed.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(indexed))
+        .contains("\"code\":\"parameter_unknown\"")
+        .contains("\"param\":\"payment_method_types\"");
+    assertThat(setupIntents.all()).isEmpty();
+  }
+
+  @Test
+  void payment_method_types_is_refused_as_unknown_in_every_shape_the_grammar_decodes() {
+    anAccountHoldingAnUnattachedCardOfNobody();
+
+    for (Map<String, String> sent :
+        List.of(
+            Map.of(StripeFields.PAYMENT_METHOD_TYPES, ""),
+            Map.of("payment_method_types[card]", "true"),
+            Map.of("payment_method_types[0][type]", "card"),
+            Map.of("payment_method_types[0]", "card", "payment_method_types[1]", "paypal"))) {
+      StripeApiResponse refused = create(sent);
+
+      assertThat(refused.httpStatus()).as(sent.toString()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .as(sent.toString())
+          .contains("\"code\":\"parameter_unknown\"")
+          .contains("\"param\":\"payment_method_types\"");
+    }
     assertThat(setupIntents.all()).isEmpty();
   }
 

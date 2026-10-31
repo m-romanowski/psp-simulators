@@ -59,6 +59,8 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation(libs.archunit.junit5)
+    testImplementation(libs.stripe.java)
+    testCompileOnly("com.google.code.gson:gson")
 
     pitest(libs.pitest.junit5)
 }

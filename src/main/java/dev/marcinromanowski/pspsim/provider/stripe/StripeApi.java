@@ -357,6 +357,20 @@ public final class StripeApi {
         Map.of());
   }
 
+  private static @Nullable Answered refusedOnItsEncoding(StripeApiCall call, StripeForm form) {
+    StripeError unreadable = form.unreadable();
+    if (unreadable == null) {
+      unreadable = StripeForm.of(call.query()).unreadable();
+    }
+    if (unreadable == null) {
+      return null;
+    }
+    return rendered(
+        StripeOperationResult.refusedBeforeExecuting(
+            StripeRefusals.theRequestWasRefused(), unreadable),
+        Map.of());
+  }
+
   private static Answered noKeyWasPresented() {
     return rendered(
         StripeOperationResult.refusedBeforeExecuting(
@@ -393,6 +407,10 @@ public final class StripeApi {
               StripeErrors.theShortLivedKeyReachesAnotherResource()),
           Map.of());
     }
+    Answered unreadable = refusedOnItsEncoding(call, form);
+    if (unreadable != null) {
+      return unreadable;
+    }
     return accounts
         .find(testRunId, shortLived.accountId())
         .map(
@@ -414,6 +432,10 @@ public final class StripeApi {
       Instant now,
       String operationName,
       StripeOperation operation) {
+    Answered unreadable = refusedOnItsEncoding(call, form);
+    if (unreadable != null) {
+      return unreadable;
+    }
     String key = StripeIdempotency.keyIn(call.headers());
     if (key == null || !POST.equals(call.method())) {
       return rendered(operation.handle(form, call.headers(), testRunId, account, now), Map.of());
@@ -438,7 +460,7 @@ public final class StripeApi {
       StripeOperation operation,
       String key) {
     FingerprintedRequest request =
-        new FingerprintedRequest(call.method(), call.path(), call.form());
+        new FingerprintedRequest(call.method(), call.path(), form.compared());
     StripeIdempotencyClaim claim =
         keys.claim(
             testRunId,

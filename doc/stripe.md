@@ -27,7 +27,7 @@ All pages were fetched on 2026-09-11.
 | `POST /v1/customers/{id}`                              | updates `email`                                                                  | a blank `email=` is treated as absent. A deleted customer is refused `400` with no `code`                      |
 | `DELETE /v1/customers/{id}`                            | deletes, and detaches every PaymentMethod of the customer                        | no `Idempotency-Key`. A second delete is refused `400` with no `code`                                           |
 | `POST /v1/ephemeral_keys`                              | mints a key for a `customer`, expiring after 1 hour                              | `customer` is the only resource served, else `parameter_missing`. The key reaches only the two customer read routes |
-| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | `payment_method_types` refused with `parameter_unknown`                                                 |
+| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | `payment_method_types` refused with `parameter_unknown`, in any shape it is sent                        |
 | `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events                      |
 | `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | `payment_method_types` ignored. No `expand[]`                                                                  |
 | `GET /v1/payment_intents/{id}`                         | current state                                                                    | no `expand[]`. No scenarios                                                                                    |
@@ -38,7 +38,7 @@ All pages were fetched on 2026-09-11.
 | `POST /v1/refunds`                                     | refund by `payment_intent` or `charge`                                           | both sent, or neither, is refused. The resting status is set by `refundStatus`                                 |
 | `GET /v1/payment_methods`                              | list, filtered by `customer` and `type`                                          | an unknown customer or type gives an empty list. No paging                                                     |
 | `GET /v1/customers/{id}/payment_methods`               | list for one customer                                                            | an unknown customer is `resource_missing`                                                                      |
-| `GET /v1/payment_methods/{id}`                         | retrieve, with `expand[]=customer`                                               | the only route with expansion                                                                                  |
+| `GET /v1/payment_methods/{id}`                         | retrieve, with `expand=customer` in either list encoding                         | the only route with expansion. An `expand` that is not a list is refused                                       |
 | `POST /v1/payment_methods/{id}/detach`                 | detaches permanently                                                             | a second detach, and a detach of a method never attached, are both refused                                     |
 
 Account settings: the `sk_test_` secret key (required), `captureWindow` (required ISO-8601 duration of at least one
@@ -95,6 +95,24 @@ microsecond, with no default),
   and `expand[]`. This is published only through the curl examples, and no page names a `Content-Type`. The simulator
   reads `application/x-www-form-urlencoded` bodies only: a body of any other type, JSON included, supplies no fields.
   `GET` parameters come from the query string. Responses are JSON.
+- The curl examples send a list as `expand[]=customer`, once per element (example). The official Java client numbers
+  each element instead, `expand[0]=customer&expand[1]=...`, sends an empty list as `expand=`, and writes the brackets
+  unescaped in a query string (example: stripe-java 33.4.2, `com.stripe.net.FormEncoder`,
+  https://github.com/stripe/stripe-java/blob/master/src/main/java/com/stripe/net/FormEncoder.java). Stripe publishes
+  no grammar beyond these samples, and no rule for a form that breaks it.
+
+| Form grammar (decision, `StripeFormGrammar`, `StripeForm`)                                                                                    | Reason                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| A name is a word followed by bracketed keys: `amount`, `metadata[order_id]`, `card[exp][month]`, `expand[]`                                    | the only shape any sample or official client sends                                       |
+| `name[]=v` appends `v` to a list, in the order sent. `name[0]=v` addresses key `0` of a hash                                                   | `metadata[0]` is a hash key, so an index only becomes one when the reader asks for a list |
+| A list is read from `name[]` repeated, or from a hash whose keys are exactly `0` to `n-1`, in index order whatever the order sent. An empty `name=` and an absent name read as no elements | the docs and the client must reach the same answer                                       |
+| A list of hashes is sent as `name[0][key]`. `[]` followed by another key is refused                                                            | `a[][b]` does not say which element `b` belongs to                                       |
+| A list read from anything else (a non-empty value, a gap, an index spelled `01`, a key that is not an index) is refused: `400`, `invalid_request_error`, no `code`, `param` the list's name, by `StripeErrors.unreadableParameter` | guessing an order or an element would answer a request nobody sent                       |
+| A name that is not a word and bracketed keys (`a[b`, `a]`, `[a]`, an empty name), one name in two shapes (`x=1&x[k]=2`, `x[]=1&x[0]=2`), and one value sent twice (`x=1&x=2`, `x[k]=1&x[k]=2`) refuse the whole request: `400`, `invalid_request_error`, no `code`, `param` the path where the form stopped being readable (none for an empty name), by `StripeErrors.unreadableEncoding` | no reading of such a form is the one its client meant                                    |
+| The body and the query are both decoded, on every route, after the key is authenticated and before the `Idempotency-Key` is claimed. Neither the refusal nor its key is stored | a validation failure is not cached ("Idempotency")                                        |
+| A value read as one (`amount`) is read only from a plain name. A hash or list under that name reads as absent                                   | unchanged by the grammar                                                                  |
+| The trail records every name exactly as the client spelled it                                                                                 | the trail shows what was sent, not what was understood                                    |
+| `[` and `]` are accepted unescaped in a query string (`server.tomcat.relaxed-query-chars`)                                                     | the servlet container refuses them by default, and the Java client sends them             |
 
 ## Idempotency
 
@@ -105,6 +123,7 @@ microsecond, with no default),
 | "keys expire out of the system after 24 hours". Keys may be pruned once "at least 24 hours old", and "We generate a new request if a key is reused after the original is pruned." | 24-hour window                                              |
 | a replay carries `Idempotent-Replayed: true`                                                                                                                      | same                                                        |
 | a reused key with a different endpoint or parameters: `idempotency_error`                                                                                         | `400`, `idempotency_error`, no `code` (the status is a decision) |
+| "same parameters" is not defined further                                                                                                                          | parameters are compared after decoding, as a path and a value each, ignoring the order of names (decision): `x[]=a&x[]=b` and `x[0]=a&x[1]=b` are the same parameters, `x[]=b&x[]=a` is not, because the client's encoding is not a parameter |
 | a concurrent same key: `409`, `idempotency_key_in_use`, "The idempotency key provided is currently being used in another request. This occurs if your integration is making duplicate requests simultaneously." | same. Retryable                |
 | "We save results only after the execution of an endpoint begins". Validation failures, `429`, a `401` with no key, and "most `400`s that sent invalid parameters" are not cached | validation failures are not cached     |
 | "All `POST` requests accept idempotency keys. Don't send idempotency keys in `GET` and `DELETE` requests because it has no effect."                               | `POST` only. `DELETE /v1/customers/{id}` takes no key       |
@@ -221,7 +240,7 @@ card.
 | Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures                                             |
 | Confirm refuses before writing: an unknown method (`resource_missing`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`) |
 | Create accepts any `customer`                                                                                                                                       |
-| `payment_method_types` on create is refused with `parameter_unknown`, which names the four accepted parameters. On the object it is `["card", "paypal"]`. The four selection parameters narrow nothing |
+| `payment_method_types` on create is refused with `parameter_unknown`, which names the four accepted parameters, whether it is sent as a value, a list or a hash. On the object it is `["card", "paypal"]`. The four selection parameters narrow nothing |
 | `client_secret` appears on the wire only. It is withheld from audit and screens, and no publishable-key surface exists                                              |
 | Object: `id`, `object`, `client_secret`, `created`, `customer`, `last_setup_error`, `livemode`, `payment_method`, `payment_method_types`, `status`, `usage`            |
 | An error embeds a truncated `setup_intent`: `id`, `object`, `customer`, `last_setup_error`, `payment_method`, `status`                                                |
@@ -254,7 +273,7 @@ Published:
 - Returns `id`, `client_secret`, `amount`, `currency`, `customer`, `payment_method_types`, `status`, and
   `latest_charge`: "ID of the latest Charge object created by this PaymentIntent. This property is `null` until
   PaymentIntent confirmation is attempted."
-- Stripe expands `customer` and `payment_method` when `expand[]` asks for them. `expand[]` is read on no PaymentIntent
+- Stripe expands `customer` and `payment_method` when `expand` asks for them. `expand` is read on no PaymentIntent
   route of this simulator: both members are always ids (`StripeIntentView.of`). The one expansion served is `customer`
   on `GET /v1/payment_methods/{id}` (`RetrievePaymentMethod.EXPAND`).
 
@@ -449,7 +468,7 @@ Published:
 | The `paypal` hash is three nulls. Nothing can set it                                                                                                                |
 | Object: `id`, `object`, `type`, `customer`, `created`, `billing_details` and the type hash. No `livemode`                                                            |
 | `billing_details`, `card.country`, `card.checks` and `card.networks.preferred` are null. `card.networks.available` is the fixture's brand                              |
-| `expand[]=customer` on retrieve replaces the id with the customer object                                                                                            |
+| `customer` in `expand`, sent as `expand[]=customer` or `expand[0]=customer`, replaces the id with the customer object on retrieve. Any other element is ignored, and an `expand` that is not a list is refused before the method is looked up |
 | `GET /v1/payment_methods` with an unknown customer or type gives an empty list. The customer route with an unknown customer gives `resource_missing`               |
 | `has_more` is always false, there is no `limit`, and the list is newest first                                                                                       |
 | Detachment is stored, and a constraint forbids a detached method having a customer. Confirm refuses a detached method, and a repeated detach or a detach of a never-attached method is refused |
@@ -663,6 +682,7 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 | a reused key with different parameters                                                  | `idempotency_error`     | 400  | the status is a decision                                         |                                                                                                                            |
 | `parameter_missing`, `parameter_unknown`, `parameter_invalid_integer`, `invalid_charge_amount`, `amount_too_small`, `amount_too_large` | `invalid_request_error` | 400 | inference | `invalid_charge_amount`: "The specified amount is invalid. The charge amount must be a positive integer in the smallest currency unit" |
 | missing or invalid API key                                                             | `invalid_request_error` | 401  | rule and probe. No code is published                             | see "Authentication and Transport"                                                                                          |
+| a form the grammar cannot read, or a list parameter that is not a list                  | `invalid_request_error` | 400  | decision. No code is published                                   | see "Authentication and Transport", form grammar                                                                            |
 
 - `insufficient_funds` is both an error code ("The customer's account has insufficient funds to cover this payment")
   and a decline code ("The card has insufficient funds to complete the purchase."). For a card, the pairing is

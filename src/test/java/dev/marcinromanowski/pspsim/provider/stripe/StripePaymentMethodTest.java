@@ -201,12 +201,89 @@ class StripePaymentMethodTest {
     StripeApiResponse retrieved =
         api(NOW)
             .retrievePaymentMethod(
-                get(method(FIRST_CARD), Map.of(RetrievePaymentMethod.EXPAND, "customer")),
-                FIRST_CARD);
+                get(method(FIRST_CARD), Map.of("expand[]", "customer")), FIRST_CARD);
 
     assertThat(bodyOf(retrieved))
         .contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"")
         .contains("\"object\":\"customer\"");
+  }
+
+  @Test
+  void
+      a_retrieve_that_numbers_its_expansions_by_index_is_answered_exactly_as_one_that_appends_them() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse appended =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(FIRST_CARD), Map.of("expand[]", List.of("customer"))), FIRST_CARD);
+    StripeApiResponse indexed =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(
+                    method(FIRST_CARD),
+                    Map.of(
+                        "expand[0]", List.of("payment_method"), "expand[1]", List.of("customer"))),
+                FIRST_CARD);
+
+    assertThat(bodyOf(appended)).contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"");
+    assertThat(indexed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(indexed)).isEqualTo(bodyOf(appended));
+  }
+
+  @Test
+  void a_retrieve_whose_expansion_list_is_empty_answers_the_customer_by_its_id() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse retrieved =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(FIRST_CARD), Map.of("expand", List.of(""))), FIRST_CARD);
+
+    assertThat(retrieved.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(retrieved)).contains("\"customer\":\"" + A_CUSTOMER + "\"");
+  }
+
+  @Test
+  void a_retrieve_whose_expansions_are_not_a_list_is_refused_naming_the_parameter() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    for (Map<String, List<String>> notAList :
+        List.of(
+            Map.of("expand", List.of("customer")),
+            Map.of("expand[0]", List.of("customer"), "expand[2]", List.of("payment_method")),
+            Map.of("expand[customer]", List.of("true")))) {
+      StripeApiResponse refused =
+          api(NOW).retrievePaymentMethod(querying(method(FIRST_CARD), notAList), FIRST_CARD);
+
+      assertThat(refused.httpStatus()).as(notAList.toString()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .as(notAList.toString())
+          .contains("\"type\":\"invalid_request_error\"")
+          .contains("\"param\":\"expand\"")
+          .contains(StripeForm.theListShapesOf("expand"))
+          .doesNotContain("\"code\"")
+          .doesNotContain(FIRST_CARD);
+    }
+  }
+
+  @Test
+  void a_retrieve_whose_query_sends_one_list_in_both_encodings_is_refused_before_it_is_read() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(
+                    method(FIRST_CARD),
+                    Map.of("expand[]", List.of("customer"), "expand[0]", List.of("customer"))),
+                FIRST_CARD);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"param\":\"expand\"")
+        .contains(StripeFormGrammar.ONE_PARAMETER_IN_TWO_SHAPES)
+        .doesNotContain(FIRST_CARD);
   }
 
   @Test
@@ -558,6 +635,10 @@ class StripePaymentMethodTest {
 
   private static StripeApiCall get(String path, Map<String, String> query) {
     return new StripeApiCall("GET", path, bearer(SECRET_KEY), Map.of(), fieldsOf(query));
+  }
+
+  private static StripeApiCall querying(String path, Map<String, List<String>> query) {
+    return new StripeApiCall("GET", path, bearer(SECRET_KEY), Map.of(), query);
   }
 
   private static StripeApiCall post(String path) {
