@@ -88,6 +88,21 @@ class StripeCardFactsTest {
     assertThat(StripeFields.withholdingCardNumbersIn(value)).isEqualTo(value);
   }
 
+  @ParameterizedTest
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        "424242424242|[redacted]",
+        "4242 4242 4242|[redacted]",
+        "6205500000000000004|[redacted]",
+        "42424242420|42424242420",
+        "62055000000000000040|62055000000000000040"
+      })
+  void a_run_is_withheld_from_twelve_to_nineteen_digits_and_kept_at_eleven_and_twenty(
+      String text, String withheld) {
+    assertThat(StripeFields.withholdingCardNumbersIn(text)).isEqualTo(withheld);
+  }
+
   @Test
   void withholding_the_card_redacts_by_name_and_by_value_and_keeps_every_other_value() {
     Map<String, List<String>> sent = new LinkedHashMap<>();
@@ -132,7 +147,12 @@ class StripeCardFactsTest {
     "79927398713,true",
     "79927398710,false",
     "18,true",
-    "81,false"
+    "81,false",
+    "59,true",
+    "58,false",
+    "091,true",
+    "5,false",
+    "0,true"
   })
   void the_luhn_check_doubles_every_second_digit_from_the_right(String digits, boolean passes) {
     assertThat(StripeNewPaymentMethod.passesLuhn(digits)).isEqualTo(passes);

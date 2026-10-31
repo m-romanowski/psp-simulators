@@ -2,6 +2,7 @@ package dev.marcinromanowski.pspsim.provider.stripe;
 
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.SequencedMap;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 final class StripeFields {
 
@@ -120,17 +122,18 @@ final class StripeFields {
       while (digits.find()) {
         groups.add(new int[] {runs.start() + digits.start(), runs.start() + digits.end()});
       }
-      for (int first = 0; first < groups.size(); first++) {
-        for (int last = first; last < groups.size(); last++) {
-          int from = groups.get(first)[0];
-          int to = groups.get(last)[1];
-          if (readsAsACardNumber(text.substring(from, to))) {
-            for (int at = from; at < to; at++) {
-              withheld[at] = true;
-            }
-          }
-        }
-      }
+      IntStream.range(0, groups.size())
+          .forEach(
+              first ->
+                  IntStream.range(first, groups.size())
+                      .forEach(
+                          last -> {
+                            int from = groups.get(first)[0];
+                            int to = groups.get(last)[1];
+                            if (readsAsACardNumber(text.substring(from, to))) {
+                              Arrays.fill(withheld, from, to, true);
+                            }
+                          }));
     }
     StringBuilder kept = new StringBuilder();
     for (int at = 0; at < text.length(); at++) {

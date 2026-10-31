@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 final class StripePaymentMethodMinting {
@@ -100,13 +101,13 @@ final class StripePaymentMethodMinting {
   }
 
   private String anUnheldId(TestRunId testRunId) {
-    for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
-      String paymentMethodId = aPaymentMethodId(ids);
-      if (methods.find(testRunId, paymentMethodId).isEmpty()) {
-        return paymentMethodId;
-      }
-    }
-    throw new IllegalStateException(
-        "no Stripe PaymentMethod id could be drawn in " + ID_ATTEMPTS + " attempts");
+    return Stream.generate(() -> aPaymentMethodId(ids))
+        .limit(ID_ATTEMPTS)
+        .filter(paymentMethodId -> methods.find(testRunId, paymentMethodId).isEmpty())
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "no Stripe PaymentMethod id could be drawn in " + ID_ATTEMPTS + " attempts"));
   }
 }

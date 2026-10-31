@@ -252,20 +252,13 @@ final class StripeNewPaymentMethod {
   }
 
   static boolean passesLuhn(String digits) {
+    int last = digits.length() - 1;
     int sum = 0;
-    boolean doubled = false;
-    for (int at = digits.length() - 1; at >= 0; at--) {
-      int digit = digits.charAt(at) - '0';
-      if (doubled) {
-        digit *= 2;
-        if (digit > 9) {
-          digit -= 9;
-        }
-      }
-      sum += digit;
-      doubled = !doubled;
+    for (int offset = 1; offset <= last; offset++) {
+      int digit = digits.charAt(last - offset) - '0';
+      sum += offset % 2 == 1 ? digit * 2 / 10 + digit * 2 % 10 : digit;
     }
-    return sum % 10 == 0;
+    return (10 - sum % 10) % 10 == digits.charAt(last) - '0';
   }
 
   private static @Nullable Integer aMonth(String month) {

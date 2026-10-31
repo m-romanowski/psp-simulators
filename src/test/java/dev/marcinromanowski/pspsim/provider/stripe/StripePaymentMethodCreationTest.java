@@ -470,6 +470,32 @@ class StripePaymentMethodCreationTest {
     assertThat(theValueAt(created, "card.exp_year")).isEqualTo(read);
   }
 
+  @ParameterizedTest
+  @CsvSource({"1,1", "01,1", "12,12"})
+  void the_first_and_the_last_month_of_a_year_are_months(String sent, String read) {
+    StripeApiResponse created =
+        world.createMethod(SECRET_KEY, with(aVisa(), "card[exp_month]", sent));
+
+    assertThat(created.httpStatus()).as(bodyOf(created)).isEqualTo(200);
+    assertThat(theValueAt(created, "card.exp_month")).isEqualTo(read);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "billing_details[address][city]",
+    "billing_details[address][postal_code]",
+    "billing_details[email]",
+    "billing_details[tax_id]"
+  })
+  void a_billing_member_longer_than_stripe_accepts_is_refused_by_its_path(String member) {
+    StripeApiResponse refused =
+        world.createMethod(SECRET_KEY, with(aVisa(), member, "x".repeat(5001)));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(flat(refused)).containsEntry("error.param", List.of(member));
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
   @Test
   void a_month_already_past_in_this_year_is_an_invalid_expiry_month() {
     StripeApiResponse refused =
@@ -558,7 +584,7 @@ class StripePaymentMethodCreationTest {
     Map<String, String> fifty = aVisa();
     for (int key = 0; key < 51; key++) {
       fiftyOne.put("metadata[key" + key + "]", "v");
-      if (key < 50) {
+      if (key < 49) {
         fifty.put("metadata[key" + key + "]", "v");
       }
     }
@@ -569,13 +595,17 @@ class StripePaymentMethodCreationTest {
             with(
                 with(fifty, "metadata[key0]", "v".repeat(500)),
                 "metadata[" + "k".repeat(40) + "]",
-                null));
+                "v"));
 
     assertThat(flat(aLongKey))
         .containsEntry("error.param", List.of("metadata[" + "k".repeat(41) + "]"));
     assertThat(flat(aLongValue)).containsEntry("error.param", List.of("metadata[note]"));
     assertThat(flat(tooMany)).containsEntry("error.param", List.of("metadata"));
     assertThat(atTheLimits.httpStatus()).as(bodyOf(atTheLimits)).isEqualTo(200);
+    assertThat(theValueAt(atTheLimits, "metadata." + "k".repeat(40))).isEqualTo("v");
+    assertThat(theValueAt(atTheLimits, "metadata.key0")).hasSize(500);
+    assertThat(flat(atTheLimits).keySet().stream().filter(key -> key.startsWith("metadata.")))
+        .hasSize(50);
     assertThat(world.theMethodsStored()).hasSize(1);
   }
 

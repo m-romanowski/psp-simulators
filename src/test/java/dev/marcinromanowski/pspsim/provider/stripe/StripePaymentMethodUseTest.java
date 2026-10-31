@@ -17,6 +17,7 @@ import static dev.marcinromanowski.pspsim.provider.stripe.StripeCardWorld.with;
 import static dev.marcinromanowski.pspsim.provider.stripe.StripePaymentIntentTest.bodyOf;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
@@ -750,6 +751,66 @@ class StripePaymentMethodUseTest {
     assertThat(theValueAt(refused, "error.message"))
         .startsWith("No such PaymentMethod: '[redacted]'");
     assertThat(world.everythingTheTrailAndTheExchangesKeep()).doesNotContain("4242424242424242");
+  }
+
+  @Test
+  void a_payment_created_with_a_card_refused_inside_payment_method_data_creates_nothing() {
+    Map<String, String> form = aPaymentOf("1050");
+    form.putAll(
+        with(aCardAsPaymentMethodData(), "payment_method_data[card][number]", "4242424242424241"));
+    form.put("confirm", "true");
+
+    StripeApiResponse refused = world.createPayment(SECRET_KEY, form);
+
+    assertThat(refused.httpStatus()).isEqualTo(402);
+    assertThat(flat(refused))
+        .containsEntry("error.code", List.of("incorrect_number"))
+        .doesNotContainKey("error.payment_intent.id");
+    assertThat(world.intents.all()).isEmpty();
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_setup_created_with_payment_method_data_beside_a_payment_method_creates_nothing() {
+    Map<String, String> form = aSetupThatConfirmsWithoutARedirect();
+    form.putAll(aCardAsPaymentMethodData());
+    form.put("payment_method", "pm_card_visa");
+
+    StripeApiResponse refused = world.createSetup(SECRET_KEY, form);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(flat(refused))
+        .containsEntry("error.code", List.of("parameters_exclusive"))
+        .containsEntry("error.param", List.of("payment_method"));
+    assertThat(world.setupIntents.all()).isEmpty();
+    assertThat(world.theMethodsStored()).isEmpty();
+  }
+
+  @Test
+  void a_created_and_confirmed_payment_names_a_detached_method_as_detached_and_not_as_foreign() {
+    world.seedAFixture(ACCOUNT, "pm_detached_here", null);
+    world.paymentMethods.detached(world.theMethodStored("pm_detached_here"), StripeCardWorld.NOW);
+    world.seedAFixture(ACCOUNT, "pm_held_for_the_customer", THE_CUSTOMER);
+    Map<String, String> form = aPaymentOf("1050");
+    form.put("confirm", "true");
+
+    StripeApiResponse detached =
+        world.createPayment(SECRET_KEY, with(form, "payment_method", "pm_detached_here"));
+    StripeApiResponse foreign =
+        world.createPayment(SECRET_KEY, with(form, "payment_method", "pm_held_for_the_customer"));
+
+    assertThat(detached.httpStatus()).isEqualTo(400);
+    assertThat(foreign.httpStatus()).isEqualTo(400);
+    assertThat(
+            world.audit.all().stream()
+                .filter(record -> record.refusal() != null)
+                .map(record -> record.refusal())
+                .toList())
+        .containsExactly(
+            new RefusalSubject.AnObjectItWillNotName(
+                StripeRefusals.THE_METHOD_IS_DETACHED_AND_NO_INTENT_EXISTS_YET),
+            new RefusalSubject.AnObjectItWillNotName(
+                StripeRefusals.THE_METHOD_IS_NOT_THIS_ACCOUNTS_AND_NO_INTENT_EXISTS_YET));
   }
 
   private static Map<String, String> aCardAsPaymentMethodData() {
