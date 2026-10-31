@@ -29,10 +29,11 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 | `DELETE /v1/customers/{id}`                            | deletes, and detaches every PaymentMethod of the customer                        | no `Idempotency-Key`. A second delete is refused `400` with no `code`                                           |
 | `POST /v1/ephemeral_keys`                              | mints a key for a `customer`, expiring after 1 hour                              | `customer` is the only resource served, else `parameter_missing`. The key reaches only the two customer read routes |
 | `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | the selection parameters of "Payment Method Selection"; `payment_method_types` is written before `2026-09-30.endive` and refused from it |
-| `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events                      |
+| `GET /v1/setup_intents/{id}`                           | current state                                                                    | no scenarios. Also answered to a publishable key beside the `client_secret` (see "Publishable Key") |
+| `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events. Also answered to a publishable key |
 | `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent                                    |
-| `GET /v1/payment_intents/{id}`                         | current state                                                                    | no scenarios                                                                                                   |
-| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused |
+| `GET /v1/payment_intents/{id}`                         | current state                                                                    | no scenarios. Also answered to a publishable key beside the `client_secret`                                    |
+| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused. Also answered to a publishable key |
 | `POST /v1/payment_intents/{id}/capture`                | full, partial and multicapture (`final_capture`)                                 | 50 non-final captures, then an `invalid_request_error` on `final_capture` with no `code`                      |
 | `POST /v1/payment_intents/{id}/cancel`                 | cancels                                                                          | `processing` is cancellable although no card reaches it in Stripe                                              |
 | `GET /v1/charges/{id}`                                 | charge read                                                                      | 13 fields only. Not on the control read surface                                                                |
@@ -44,8 +45,8 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 
 Every route above except `DELETE /v1/customers/{id}` reads `expand` (see "Expansion").
 
-Account settings: the `sk_test_` secret key (required), `captureWindow` (required ISO-8601 duration of at least one
-microsecond, with no default),
+Account settings: the `sk_test_` secret key (required), the `pk_test_` publishable key `publishableKey` (optional, see
+"Publishable Key"), `captureWindow` (required ISO-8601 duration of at least one microsecond, with no default),
 `refundStatus` (default `succeeded`), `apiVersion` (the account's default API version, see "API Versions"),
 `webhookSecret` (`whsec_`), `webhookSignature` (`VALID` or `CORRUPTED`) and `webhookTimestampAge` (ISO-8601).
 
@@ -86,6 +87,13 @@ microsecond, with no default),
 | Reports of expansion errors                           | https://forum.adalo.com/t/stripe-subscription-component-error/56346, https://github.com/stripe/stripe-python/issues/316, https://github.com/stripe/stripe-node/issues/1007 | the error messages quoted; fetched 2026-10-31 |
 | Charge and Customer objects                           | https://docs.stripe.com/api/charges/object.md, https://docs.stripe.com/api/customers/object.md | the includable properties; fetched 2026-10-31                                      |
 | Charges no longer auto-expand refunds                 | https://docs.stripe.com/changelog/2022-11-15/deprecates-charges-auto-expand.md | fetched 2026-10-31                                                                    |
+| API keys                                              | https://docs.stripe.com/keys.md                                       | key prefixes, what a publishable key can do; fetched 2026-10-31                                 |
+| PaymentIntent and SetupIntent retrieve                | https://docs.stripe.com/api/payment_intents/retrieve.md, https://docs.stripe.com/api/setup_intents/retrieve.md | the publishable-key sentences and `client_secret`; fetched 2026-10-31   |
+| PaymentIntent and SetupIntent confirm                 | https://docs.stripe.com/api/payment_intents/confirm.md, https://docs.stripe.com/api/setup_intents/confirm.md | `client_secret`, `confirmation_method`; fetched 2026-10-31                 |
+| Partial capture and cancel no longer create a Refund  | https://docs.stripe.com/changelog/basil/2025-03-31/remove-refund-from-partial-capture-and-payment-cancellation-flow.md | "PaymentIntent Object"; fetched 2026-10-31                         |
+| Decline codes added to PaymentIntent, PaymentMethod and SetupIntent | https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-paymentintent-paymentmethod.md, https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-setupintent.md | the codes added; fetched 2026-10-31 |
+| Automatic async capture by default                    | https://docs.stripe.com/changelog/2024-04-10/automatic-sync-default-paymentintents.md | fetched 2026-10-31                                                                   |
+| A publishable key on a secret-key route               | https://mage2.pro/t/topic/4773                                        | a stripe-php stack trace of `GET /v1/account` answered `403`, 2017; fetched 2026-10-31          |
 
 ## Authentication and Transport
 
@@ -93,8 +101,10 @@ microsecond, with no default),
 - "The Stripe API authenticates requests using HTTP Basic Auth. Provide your API key as the basic auth username value.
   You don't need to provide a password." Bearer is published "for example, for a cross-origin request" (rule). The
   simulator accepts both unconditionally (decision).
-- Test keys start with `sk_test_` (rule). Live mode publishes `sk_live_`, `rk_live_` and `pk_`, none of which the
-  simulator needs. Any configured `sk_test_*` key is accepted (decision).
+- "Sandbox keys start with `pk_test_` for publishable keys, `rk_test_` for restricted keys, and `sk_test_` for secret
+  keys" (rule, https://docs.stripe.com/keys.md). Any configured `sk_test_*` key is accepted, and a configured
+  `pk_test_*` key as "Publishable Key" states (decision). Restricted keys and every live-mode prefix are not served:
+  this simulator answers no live-mode traffic and models no key permissions.
 - "Calls made over plain HTTP fail. API requests without authentication also fail." (rule). The simulator does not
   enforce TLS. A missing or unknown key is `401` with `invalid_request_error` and no `code`.
 - Probe (2026-09-28, `POST /v1/payment_intents` with no key): `401`, `Content-Type: application/json`, `WWW-Authenticate: Basic realm="Stripe"`,
@@ -156,14 +166,15 @@ The catalogue is `StripeApiVersions` and `StripeApiMajor`: every release the cha
 | A published version followed by `;` and a beta: the same status and type, "... asks for a beta, and this simulator answers no beta" (`StripeErrors.versionAsksForABeta`) | decision: no beta is modelled                                                                                     |
 | A value shaped `{date}.{codename}`, a real calendar date after `2026-10-28`: the same status and type, "Stripe-Version {sent} is dated after 2026-10-28.endive, the newest Stripe API version this simulator was built with, so it may be a release Stripe published since. ..." (`StripeErrors.versionLaterThanTheCatalogue`) | decision: the catalogue is closed at build time, and calling a release Stripe published since then invalid would tell the client something false |
 | Any other value: the same status and type, "Invalid Stripe API version: {sent}" (`StripeErrors.versionUnrecognised`). Values are compared exactly, so `2026-08-26.DAHLIA` is one | decision: the text is the one a third-party report quotes from the API (https://wordpress.org/support/topic/invalid-stripe-api-version-yith_wcstripe_api_version/), not a vendor source |
-| A request authenticated by an ephemeral key, and `POST /v1/ephemeral_keys` under a secret key, may also send `2020-03-02` or `2020-08-27`, and is answered at it. Every other secret-key route refuses them | decision: the mobile SDKs pin those and send them on the two customer reads an ephemeral key reaches, and a backend mints the key at its mobile client's version (stripe-java `EphemeralKeyCreateParams`: "Set this to the API Version of your mobile client"; stripe-android `EphemeralKeyManager` hands its backend `ApiVersion.get().code`); the simulator's customer, PaymentMethod and ephemeral key fields are the same at both |
+| A request authenticated by an ephemeral key, a request authenticated by a publishable key, and `POST /v1/ephemeral_keys` under a secret key, may also send `2020-03-02` or `2020-08-27`, and is answered at it. Every other secret-key route refuses them, and so does every other release before `2025-03-31.basil` on any key | decision: the mobile SDKs pin those and send them on the two customer reads an ephemeral key reaches and on the intent reads and confirms a publishable key reaches (probe: every recorded publishable-key answer carries `stripe-version: 2020-08-27`), and a backend mints the key at its mobile client's version (stripe-java `EphemeralKeyCreateParams`: "Set this to the API Version of your mobile client"; stripe-android `EphemeralKeyManager` hands its backend `ApiVersion.get().code`). No breaking change between `2020-03-02` and `2020-08-27` touches an intent, a customer or a PaymentMethod (rule: the changelog's two releases) |
 | The version is checked after authentication and before the form and the `Idempotency-Key` claim. A version refusal claims no key, and a form refusal carries the version it was answered at | decision, as for the form grammar |
 | Every answer of an account carries `Stripe-Version`: the version it was answered at. A `401` and a version refusal carry none                            | probe (the recordings)                                                                                           |
 | An event's `api_version` is the account's default when the simulator schedules the event, and every attempt sends the same body. An event owed by a pending outcome is scheduled when the outcome is, so it carries the default of that moment, not of its later `created` | rule for the default; decision for the moment: the body is built once, when scheduled, and this simulator has no webhook endpoint objects, so no endpoint names a version |
 
 Version changes (`StripeVersionChanges`, `StripeVersionChange`) follow Stripe's published design, "version change
-modules": each breaking change declares the release that shipped it, its changelog entry, the operations it touches and
-the transformation that turns a request of the release before into one of the release that shipped it (rule,
+modules": each breaking change declares the release that shipped it, its changelog entry, the operations it touches,
+the transformation that turns a request of the release before into one of the release that shipped it, and the one
+that turns an answer of the release that shipped it into one of the release before (rule,
 https://stripe.com/blog/api-versioning).
 
 | Simulator behaviour                                                                                                                                      | Evidence and reason                                                                                     |
@@ -173,11 +184,19 @@ https://stripe.com/blog/api-versioning).
 | A request passes its changes oldest first, each touching only the operations it declares                                                                 | decision: each transformation reads the shape of the release before it                                   |
 | A change is declared only at a release this simulator answers, and touches at least one operation                                                         | decision                                                                                                 |
 | A field, parameter or enum value a release added is read and answered at every release, older ones included: `allowed_payment_method_types` (added by `2026-07-29.dahlia`) and `excluded_payment_method_types` with their newest enums, including the values later releases added: `2026-08-26.dahlia` added `touch_n_go` to the first and `sequra` to the second, and `2026-09-30.endive`, a major's opening release, `card_present` and `interac_present` to the first and `paypay` to the second | decision: Stripe publishes no per-version gating of additive changes and calls adding a field safe; the values are the OpenAPI specification's per release |
-| Responses are the same at every release: no modelled change alters a response                                                                            | rule: the one change keeps `payment_method_types` on the object                                          |
+| An answer passes its changes newest first, from the core back to the request's release, each touching only the operations it declares. It is transformed before an `Idempotency-Key` stores it, so a replay answers the bytes first answered | rule (the blog: "walk back"); decision for the order against storing |
+| Only the basil change alters an answer, and only at a release older than basil, which only a mobile SDK's version reaches | rule: the endive change keeps `payment_method_types` on the object |
 
 | Change                                         | Release              | Operations                                                                         | Transformation                                                                                           | Changelog                                                                                                                                         |
 |------------------------------------------------|----------------------|------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
 | `payment_method_types` is no longer writable   | `2026-09-30.endive`  | `POST /v1/payment_intents`, `POST /v1/payment_intents/{id}/confirm`, `POST /v1/setup_intents` | an older request's `payment_method_types` leaves the form and reaches the core as the list it wrote; the core refuses the parameter on the form | https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents |
+| an expired authorization is cancelled as `expired` | `2025-03-31.basil` | `POST /v1/payment_intents`, its confirm, capture and cancel, `GET /v1/payment_intents/{id}`, `GET /v1/charges/{id}`, `POST /v1/refunds` | requests are unchanged; in an older answer every PaymentIntent object, embedded or expanded ones included, whose `cancellation_reason` is `expired` answers `automatic` ("It replaces the formerly used value of `automatic`") | https://docs.stripe.com/changelog/basil/2025-03-31/remove-refund-from-partial-capture-and-payment-cancellation-flow |
+
+The fields a publishable key is answered, compared at `2020-08-27` with the core (probe: the recordings; rule: the
+changelog), differ only in that reason. `capture_method` `automatic_async` is answered as it is at `2020-08-27`
+(probe: 179 recorded answers at that version carry it), the decline codes `2022-11-15` added are none this simulator
+answers (rule: both `2022-11-15` entries), `charges`, which `2022-11-15` removed, is in no recorded publishable-key
+answer, and the `2023-08-16` and `2024-04-10` changes alter defaults at creation, which a publishable key never makes.
 
 The same removal is filed under `2026-08-26.preview` (https://docs.stripe.com/changelog/dahlia/2026-08-26/removes-payment-method-types-parameter-from-payment-intents-setup-intents),
 a preview release this simulator does not answer; `2026-08-26.dahlia` still lists the parameter (rule: Stripe's
@@ -320,7 +339,7 @@ The fields served (`StripeExpandable`):
 
 | Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
 |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| Expansion is applied to the answer of PaymentIntent create, retrieve, confirm, capture and cancel, SetupIntent create and confirm, PaymentMethod retrieve, list, customer list and detach, Charge retrieve, Refund create, Customer create, retrieve and update, and ephemeral key create | rule                                                                                                                  |
+| Expansion is applied to the answer of PaymentIntent create, retrieve, confirm, capture and cancel, SetupIntent create, retrieve and confirm, PaymentMethod retrieve, list, customer list and detach, Charge retrieve, Refund create, Customer create, retrieve and update, and ephemeral key create | rule                                                                                                                  |
 | A GET reads `expand` from its query and a POST from its body; neither reads the other place                                                                                | rule for where it is published; decision that the other place is not read                                             |
 | Without `expand`, or with an empty `expand=`, every relation is answered as its id and no includable property is answered. An unset relation stays `null` when it is asked to be expanded | rule: the relations are nullable `anyOf` an id and the object, and the includables are "not returned by default"     |
 | A nested path expands the object inside the object it expanded, to four levels, `data` included                                                                             | rule                                                                                                                  |
@@ -337,9 +356,86 @@ The fields served (`StripeExpandable`):
 | `refunds` answers every refund of the charge with `has_more` `false`                                                                                                        | decision: this build serves no `/v1/charges/{id}/refunds` route a later page could be read from                       |
 | An object named twice in one answer, such as one customer behind several listed methods, is read once                                                                       | decision: the answer describes one moment, and a list has no paging bound                                             |
 | Only a successful answer is expanded. The objects inside an error body (a decline's or a refusal's `payment_intent` or `setup_intent`) are not expanded                    | decision: the recordings cannot settle it, as their declined intent carries `payment_method` `null`, and `expand` applies to "the response" the request asked for |
+| Under a publishable key a path is judged the same way, and only a PaymentMethod is reached: a customer or a charge on the path is answered as its id, and the intent is then reduced (see "Publishable Key") | probe and decision, as that section states |
 | An expanded object carries what the object itself carries, `client_secret` included. The trail and the keyed-exchange log withhold `client_secret` and `secret` at any depth | decision: `StripeFields.withholding` matches the last segment of a path                                               |
 | An idempotent replay answers the expanded body the first request stored. A repeat with another `expand` is refused as a reuse with other parameters                         | rule: `expand` is a parameter like any other under the key                                                            |
 | `expand` on an object answered by the control surface (origination, object actions) is not read                                                                            | decision: those requests are built by this simulator and carry no `expand`                                            |
+
+## Publishable Key
+
+| Fact                                                                                                                                                                 | Evidence                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| A publishable key "can identify your account and create tokens or PaymentMethods from payment details, but it can't perform sensitive operations such as creating charges or reading account data" | rule, https://docs.stripe.com/keys.md                                                                           |
+| "You can retrieve a PaymentIntent client-side using a publishable key when the `client_secret` is in the query string." "If you retrieve a PaymentIntent with a publishable key, it only returns a subset of properties." The SetupIntent retrieve page says the same | rule, the two retrieve pages (Sources)                                                                          |
+| `client_secret` on PaymentIntent and SetupIntent confirm: "Required if using a publishable key." Neither page says anything of a secret-key call that sends one     | rule, the two confirm pages (Sources)                                                                           |
+| "If the `confirmation_method` is `manual`, all payment attempts must be initiated using a secret key."                                                               | rule, https://docs.stripe.com/api/payment_intents/confirm.md                                                    |
+| Stripe's mobile SDKs retrieve an intent with `client_secret` in the query, PaymentSheet with `expand[0]=payment_method`, and confirm it with `client_secret`, `payment_method`, `expand[0]=payment_method` and `use_stripe_sdk=true` in the body, an `Idempotency-Key` and `Stripe-Version: 2020-08-27` | probe: the recordings, `PaymentSheetAPITest/testDeferredConfirmvalidsavedcard`                                    |
+| A wrong `client_secret` on an existing PaymentIntent: `400`, `invalid_request_error`, `payment_intent_invalid_parameter`, `param` `client_secret`, "The client_secret provided does not match the client_secret associated with the PaymentIntent." | probe: the recordings, `STPPaymentIntentFunctionalTest/testRetrieveWithWrongSecret`                               |
+| An intent of another account, with its own secret: `404`, `invalid_request_error`, `resource_missing`, `param` `intent`, "No such payment_intent: 'pi_…'"; for a SetupIntent "No such setupintent: 'seti_…'" | probe: the recordings, `testRetrieveMismatchedPublishableKey`, and the two recorded `404`s on `/v1/setup_intents/{id}` |
+| `secret_key_required`: "The API key provided is a publishable key, but a secret key is required." Status and type are not on the page. 403 is "The API key doesn't have permissions to perform the request" | rule, https://docs.stripe.com/error-codes and https://docs.stripe.com/api/errors                               |
+| A publishable key on `GET /v1/account` was answered `403` ("This API call cannot be made with a publishable API key. Please use a secret API key.") | probe: a developer's stripe-php stack trace, 2017 (Sources)                                                      |
+| The 1996 recorded `200` answers of a PaymentIntent retrieve or confirm and the 442 of a SetupIntent never carry `customer`, `metadata`, `latest_charge`, `amount_received` or `amount_capturable`, nor `customer`, `metadata`, `latest_attempt` or `mandate`. They carry an expanded `payment_method` whole, its `customer` as an id | probe: the recordings                                                                                            |
+
+The key (`StripeAccount.publishableKey`, `V94__stripe_account_carries_a_publishable_key.sql`):
+
+| Simulator behaviour                                                                                                                                       | Evidence and reason                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `publishableKey` is optional. A blank one names none. It must begin with `pk_test_` and be at most 255 characters, like the secret key                   | rule for the prefix; decision for the rest, as for `secretKey`                                                   |
+| No two accounts of one test run name the same one; two runs may. The store holds the rule as `stripe_account_by_publishable_key`, and the check `stripe_account_publishable_key_is_a_test_mode_key`. Accounts stored before it carry none | decision: the key resolves the account, as the secret key does                                                  |
+| It is disclosed wherever the account is, never redacted                                                                                                  | rule: Stripe publishes it as the key a client embeds                                                             |
+| A request presenting it, as Basic username or Bearer token, is answered for that account, in the run the request resolves to like any other credentials. A run the key is not configured in reaches nothing: `401` | decision: the same resolution as the secret key                                                                  |
+| The trail names the account. `client_secret` is withheld from the request row and, as before, from every answer                                        | decision: the secret opens the intent to whoever holds it                                                        |
+
+What a key reaches:
+
+| Route                                                                       | Secret key | Publishable key, with the intent's `client_secret`              | Ephemeral key |
+|-----------------------------------------------------------------------------|------------|-----------------------------------------------------------------|---------------|
+| `GET /v1/payment_intents/{id}`, `GET /v1/setup_intents/{id}`                | yes        | yes, `client_secret` in the query                               | no            |
+| `POST /v1/payment_intents/{id}/confirm`, `POST /v1/setup_intents/{id}/confirm` | yes     | yes, `client_secret` in the body                                | no            |
+| `GET /v1/customers/{id}`, `GET /v1/customers/{id}/payment_methods`          | yes        | no                                                              | its customer  |
+| every other route of "Routes"                                               | yes        | no                                                              | no            |
+
+A publishable key on a route it does not reach is refused before anything else is judged: `403`, `invalid_request_error`,
+`secret_key_required`, the published sentence, no `param` (`StripeErrors.secretKeyRequired`). It carries no
+`Stripe-Version`, claims no `Idempotency-Key` and changes nothing (rule for the code and the sentence; probe, a third-party trace (Sources), for the
+status; decision for the type, which every other refusal of a key carries, and for the order). `GET
+/v1/payment_methods/{id}` is among the refused: no page publishes it for a publishable key, and neither stripe-android
+`StripeApiRepository.kt` nor stripe-ios `STPAPIClient+Payments.swift` sends it with one (example: the SDK sources).
+
+`client_secret` is judged after the key, the version and the form, before the `Idempotency-Key` is claimed
+(`StripeClientSecrets`), in this order; none of these refusals changes anything or claims a key:
+
+| Case                                                                                         | Answer                                                                                                                         | Evidence and reason                                                                                         |
+|----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| none, blank, or sent as a hash or a list                                                     | `400`, `invalid_request_error`, `parameter_missing`, `param` `client_secret`, "Missing required param: client_secret."          | rule that it is required; probe for the sentence's shape ("Missing required param: payment_method_data[card]."); decision for applying it, the server answer being unpublished |
+| an intent the key's account does not hold in this run: unknown, another account's, another run's | `404`, `resource_missing`, `param` `intent`, "No such payment_intent: '{id}'" or "No such setupintent: '{id}'"                   | probe for another account; decision that an unknown intent and another run's are the same answer             |
+| any value that is not the intent's own: malformed, another intent's, another account's, another run's | `400`, `payment_intent_invalid_parameter`, `param` `client_secret`, the recorded sentence; for a SetupIntent `setup_intent_invalid_parameter` and "… associated with the SetupIntent." | probe for a PaymentIntent; decision for a malformed value, which the server answer compares rather than parses, and for the SetupIntent wording |
+
+A secret key's `client_secret` is not read: it is a parameter like any other that this simulator does not read
+(inference: the pages require it only "if using a publishable key").
+
+What a publishable key is answered (`StripePublishableView`):
+
+| Object         | Shown                                                                                                                         | Never shown                                                         |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
+| PaymentIntent  | the members every recorded answer carries: `allowed_payment_method_types`, `amount`, `amount_details`, `amount_subtotal`, `automatic_payment_methods`, `canceled_at`, `cancellation_reason`, `capture_method`, `client_secret`, `confirmation_method`, `created`, `currency`, `description`, `excluded_payment_method_types`, `id`, `last_payment_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `processing`, `receipt_email`, `setup_future_usage`, `shipping`, `source`, `status`, `total_details`, of which this simulator's object has 18 | `amount_capturable`, `amount_received`, `customer`, `latest_charge`, and anything else |
+| SetupIntent    | `allowed_payment_method_types`, `automatic_payment_methods`, `cancellation_reason`, `client_secret`, `created`, `description`, `excluded_payment_method_types`, `id`, `last_setup_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `status`, `usage`, of which this simulator's object has 14 | `customer`, and anything else                                        |
+
+- The list is the recorded one, which is wider than the page badges (probe; rule for the badges). A member this
+  simulator does not model is simply absent (see "What Still Cannot Be Trusted Here").
+- Retrieve and confirm are reduced alike, and so is the intent an error embeds, a decline's and a refusal's
+  (probe: recorded confirm answers and `402`s carry the same members).
+- `expand` applies: `payment_method` expands into the whole PaymentMethod. No customer or charge is reached: a
+  `customer` inside an expanded object stays its id, and a path through `customer` or `latest_charge` is accepted and
+  answers nothing (probe: recorded expanded payment methods carry `customer` as an id; decision for the rest, from
+  "it can't perform sensitive operations").
+
+Confirming under a publishable key runs the same operation as under the secret key: the same scenarios, selection,
+`return_url` rule and payment method checks (decision). An `Idempotency-Key` it sends is claimed in the account's key
+space, the one the secret key uses, and compared with the same parameters (rule: "A key is scoped to an account"). A
+replay to a publishable key is the stored answer reduced, so an answer the secret key stored is never shown whole to
+it (decision). `confirmation_method` is not modelled, so no intent is `manual` and the secret-key-only rule above has
+nothing to refuse.
 
 ## Idempotency
 
@@ -356,7 +452,8 @@ The fields served (`StripeExpandable`):
 | "All `POST` requests accept idempotency keys. Don't send idempotency keys in `GET` and `DELETE` requests because it has no effect."                               | `POST` only. `DELETE /v1/customers/{id}` takes no key       |
 | `Stripe-Should-Retry: true`/`false`, absent when unknown                                                                                                          | not emitted                                                 |
 
-A key is scoped to an account. Stripe publishes nothing wider.
+A key is scoped to an account. Stripe publishes nothing wider. A request a publishable key authenticates claims its key
+in the same account's space (see "Publishable Key").
 
 ## Where the Outcome Lives
 
@@ -458,7 +555,9 @@ Published:
 - Confirm accepts `payment_method`. On `customer`: "If present, the SetupIntent's payment method will be attached to the
   Customer on successful setup. Payment methods attached to other Customers cannot be used with this SetupIntent."
 - `client_secret`: "Used for client-side retrieval using a publishable key".
-- A `GET` for a single SetupIntent is published. It is not served here.
+- `GET /v1/setup_intents/{id}` is published: "Retrieves the details of a SetupIntent that has previously been
+  created." It answers the object, or `404` `resource_missing` on `intent` for one this account and run do not hold
+  (rule, https://docs.stripe.com/api/setup_intents/retrieve.md; the error as for a PaymentIntent).
 
 Failure scenarios: unknown SetupIntent, a method of another customer, `authentication_required`, declined or expired
 card.
@@ -470,7 +569,7 @@ card.
 | Confirm refuses before writing: an unknown method (`resource_missing`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`) |
 | Create accepts any `customer`                                                                                                                                       |
 | The selection parameters are read as "Payment Method Selection" states. With none, `payment_method_types` is `["card", "paypal"]` |
-| `client_secret` appears on the wire only. It is withheld from audit and screens, and no publishable-key surface exists                                              |
+| `client_secret` appears on the wire only. It is withheld from audit and screens. A publishable key reads and confirms the SetupIntent beside it ("Publishable Key") |
 | Object: `id`, `object`, `allowed_payment_method_types`, `automatic_payment_methods`, `client_secret`, `created`, `customer`, `excluded_payment_method_types`, `last_setup_error`, `livemode`, `payment_method`, `payment_method_configuration_details`, `payment_method_types`, `status`, `usage` |
 | An error embeds a truncated `setup_intent`: `id`, `object`, `customer`, `last_setup_error`, `payment_method`, `status`                                                |
 | Only confirm takes scenario decisions (the `CARD_ADD_SUCCESS` and `CARD_ADD_FAILED` presets)                                                                        |
@@ -509,7 +608,7 @@ The simulator's object: `id`, `object`, `allowed_payment_method_types`, `amount`
 `payment_method`, `payment_method_configuration_details`, `payment_method_types`, `receipt_email`, `status`.
 
 `GET /v1/payment_intents/{id}`: current state, `latest_charge` after a confirmation attempt, and `resource_missing` for
-an unknown id.
+an unknown id. A publishable key reads it beside its `client_secret` ("Publishable Key").
 
 `POST /v1/payment_intents/{id}/confirm`:
 
@@ -912,6 +1011,10 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 | a reused key with different parameters                                                  | `idempotency_error`     | 400  | the status is a decision                                         |                                                                                                                            |
 | `parameter_missing`, `parameter_unknown`, `parameter_invalid_integer`, `invalid_charge_amount`, `amount_too_small`, `amount_too_large` | `invalid_request_error` | 400 | inference | `invalid_charge_amount`: "The specified amount is invalid. The charge amount must be a positive integer in the smallest currency unit" |
 | missing or invalid API key                                                             | `invalid_request_error` | 401  | rule and probe. No code is published                             | see "Authentication and Transport"                                                                                          |
+| `secret_key_required`                                                                  | `invalid_request_error` | 403  | probe (a third-party trace); the type is a decision              | "The API key provided is a publishable key, but a secret key is required."                                                  |
+| a publishable key's `client_secret` that is not the intent's own                       | `invalid_request_error` | 400  | probe for `payment_intent_invalid_parameter`; decision for `setup_intent_invalid_parameter` | see "Publishable Key"                                                                                          |
+| a publishable key's request with no `client_secret`                                    | `invalid_request_error` | 400  | decision (`parameter_missing`)                                   | "Missing required param: client_secret."                                                                                    |
+| a publishable key naming an intent its account does not hold                           | `invalid_request_error` | 404  | probe                                                            | "No such payment_intent: '{id}'", "No such setupintent: '{id}'"                                                              |
 | a form the grammar cannot read, or a list parameter that is not a list                  | `invalid_request_error` | 400  | decision. No code is published                                   | see "Authentication and Transport", form grammar                                                                            |
 | a `Stripe-Version` this simulator does not answer, or one naming no published version   | `invalid_request_error` | 400  | decision. Stripe publishes no answer                             | see "API Versions"                                                                                                          |
 | `payment_method_types_no_longer_supported`                                             | `invalid_request_error` | 400  | rule (the endive changelog entry)                                | see "Payment Method Selection"                                                                                              |
@@ -1001,7 +1104,17 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 - Only the no-key request, made without an account and so at no account version, and the recordings, made at
   `2020-08-27`, were observed against Stripe. Everything else is documentation.
 - HTTP statuses are published for three cases only: `402` (a failed payment), `409` (a key conflict) and `401` (no
-  authentication). The other statuses are inferences.
+  authentication). The publishable-key answers' statuses are observed in the recordings, and `403` for
+  `secret_key_required` in one third-party trace. The other statuses are inferences.
+- A publishable key is served on the two intent reads and the two intent confirms only. `POST /v1/payment_methods`
+  and `POST /v1/tokens`, which the SDKs also send with it, are not served at all, so a client that collects raw card
+  details cannot run against this simulator; it confirms a PaymentMethod a fixture seeded. `confirmation_method`,
+  `next_action`, `shipping`, `description`, `canceled_at`, `processing`, `setup_future_usage`, `source` and the other
+  members the recordings carry beyond this simulator's object are absent from its answers.
+- The recorded `doc_url` is `https://stripe.com/docs/error-codes/{code-with-dashes}`, at `2020-08-27`; this simulator
+  sends the form the error-codes page anchors at every version, and no source says whether the form is versioned.
+- The answer to a missing or malformed `client_secret`, and every SetupIntent `client_secret` refusal but the `404`,
+  are decisions: no source shows them.
 - The `return_url` refusal's sentence comes from third-party reports; its status, `code` and `param`, and the
   SetupIntent wording, are decisions.
 - A parameter this simulator does not read is accepted and has no effect, on every route and at every release. Stripe
