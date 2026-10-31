@@ -28,16 +28,17 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 | `POST /v1/customers/{id}`                              | updates `email`                                                                  | a blank `email=` is treated as absent. A deleted customer is refused `400` with no `code`                      |
 | `DELETE /v1/customers/{id}`                            | deletes, and detaches every PaymentMethod of the customer                        | no `Idempotency-Key`. A second delete is refused `400` with no `code`                                           |
 | `POST /v1/ephemeral_keys`                              | mints a key for a `customer`, expiring after 1 hour                              | `customer` is the only resource served, else `parameter_missing`. The key reaches only the two customer read routes |
-| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | the selection parameters of "Payment Method Selection"; `payment_method_types` is written before `2026-09-30.endive` and refused from it |
+| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` or `payment_method_data` | the selection parameters of "Payment Method Selection"; `payment_method_types` is written before `2026-09-30.endive` and refused from it. A published test id is copied ("PaymentMethod Creation") |
 | `GET /v1/setup_intents/{id}`                           | current state                                                                    | no scenarios. Also answered to a publishable key beside the `client_secret` (see "Publishable Key") |
-| `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events. Also answered to a publishable key |
-| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent                                    |
+| `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events. Reads `payment_method_data`. Also answered to a publishable key |
+| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent. Reads `payment_method_data`        |
 | `GET /v1/payment_intents/{id}`                         | current state                                                                    | no scenarios. Also answered to a publishable key beside the `client_secret`                                    |
-| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused. Also answered to a publishable key |
+| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused. Reads `payment_method_data`. Also answered to a publishable key |
 | `POST /v1/payment_intents/{id}/capture`                | full, partial and multicapture (`final_capture`)                                 | 50 non-final captures, then an `invalid_request_error` on `final_capture` with no `code`                      |
 | `POST /v1/payment_intents/{id}/cancel`                 | cancels                                                                          | `processing` is cancellable although no card reaches it in Stripe                                              |
 | `GET /v1/charges/{id}`                                 | charge read                                                                      | 13 fields only. Not on the control read surface                                                                |
 | `POST /v1/refunds`                                     | refund by `payment_intent` or `charge`                                           | both sent, or neither, is refused. The resting status is set by `refundStatus`                                 |
+| `POST /v1/payment_methods`                             | creates a PaymentMethod of type `card` from card details or a published test token | see "PaymentMethod Creation". Also answered to a publishable key, with no `client_secret`                     |
 | `GET /v1/payment_methods`                              | list, filtered by `customer` and `type`                                          | an unknown customer or type gives an empty list. No paging                                                     |
 | `GET /v1/customers/{id}/payment_methods`               | list for one customer                                                            | an unknown customer is `resource_missing`                                                                      |
 | `GET /v1/payment_methods/{id}`                         | retrieve                                                                         | an unknown method is `resource_missing`                                                                        |
@@ -94,6 +95,10 @@ Account settings: the `sk_test_` secret key (required), the `pk_test_` publishab
 | Decline codes added to PaymentIntent, PaymentMethod and SetupIntent | https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-paymentintent-paymentmethod.md, https://docs.stripe.com/changelog/2022-11-15/adds-decline-codes-setupintent.md | the codes added; fetched 2026-10-31 |
 | Automatic async capture by default                    | https://docs.stripe.com/changelog/2024-04-10/automatic-sync-default-paymentintents.md | fetched 2026-10-31                                                                   |
 | A publishable key on a secret-key route               | https://mage2.pro/t/topic/4773                                        | a stripe-php stack trace of `GET /v1/account` answered `403`, 2017; fetched 2026-10-31          |
+| Create a PaymentMethod, PaymentMethod object          | https://docs.stripe.com/api/payment_methods/create.md, https://docs.stripe.com/api/payment_methods/object.md | the parameters and the `card` hash; fetched 2026-10-31                                |
+| Testing                                               | https://docs.stripe.com/testing.md                                    | "Simulate a payment by card brand", "Simulate a payment by country", "Simulate a declined payment", "Trigger an error with invalid data", "Test code"; fetched 2026-10-31 |
+| Metadata                                              | https://docs.stripe.com/api/metadata.md                               | the key and value limits; fetched 2026-10-31                                                    |
+| PaymentIntent and SetupIntent confirm, `payment_method_data` | https://docs.stripe.com/api/payment_intents/confirm.md, https://docs.stripe.com/api/setup_intents/confirm.md | "If provided, this hash will be used to create a PaymentMethod"; fetched 2026-10-31 |
 
 ## Authentication and Transport
 
@@ -278,7 +283,8 @@ On confirm, `allowed_payment_method_types` or `payment_method_types` replaces th
 `excluded_payment_method_types` recomputes a dynamic one, and a confirm sending none keeps it. The selection is stored
 only with the confirmation's own state change: a refused confirm changes nothing.
 
-A confirm is refused in this order: an unknown intent (`404` `resource_missing`), an intent whose status cannot be
+A confirm is refused in this order: an unknown intent (`404` `resource_missing`), `payment_method_data` and its
+exclusion with `payment_method` ("PaymentMethod Creation"), an intent whose status cannot be
 confirmed (`payment_intent_unexpected_state`, `setup_intent_unexpected_state`), the selection parameters, the missing
 `return_url`, then the payment method. So at endive, `payment_method_types` sent to an unknown intent is `404` and to a
 succeeded one `payment_intent_unexpected_state` (decision: Stripe publishes no order; the selection is computed against
@@ -362,7 +368,7 @@ The fields served (`StripeExpandable`):
 | A property the object has that this simulator holds no relation or includable under (`amount`, `metadata`, `review`, `card`, `customer.test_clock`) is accepted and changes nothing; the segments after it are not judged. Where this simulator's object omits such a property (a Refund's `customer` and `payment_method`, a Charge's `balance_transaction`) it stays absent | decision: the table above; the object's own field list is narrower than Stripe's |
 | Properties are judged against `2026-10-28.endive` at every version answered. `payment_record` on a PaymentIntent is absent from both `dahlia` specifications, `paypay` on a PaymentMethod from both, and `sequra` from `2026-07-29.dahlia` only; each is accepted at those versions too. No specification older than `2026-07-29.dahlia` was compared | decision: operations do not branch on the version, and none of them expands anything here |
 | A relation is expanded only to an object of the account that answers and of the run the request resolved to; an id of another account or run is answered as the id. A Charge's refunds are those of the same account and run | decision: the same scoping as every lookup (`StripeLookup`, `StripeCustomerLookup`, `StripePaymentMethodLookup`, `StripeChargeLookup`) |
-| A relation naming an object this run does not hold, such as a published `pm_card_*` this simulator never mints into a PaymentMethod, or a method a fixture removal forgot, is answered as the id | decision: inventing an object or answering `null` would both misstate a relation that is set                          |
+| A relation naming an object this run does not hold, such as a `payment_method` this account holds no method under, or a method a fixture removal forgot, is answered as the id | decision: inventing an object or answering `null` would both misstate a relation that is set                          |
 | A deleted customer expands into the deleted customer object: `id`, `object` `customer`, `deleted` `true`, and includes nothing                                            | rule: `customer` is `anyOf` the `deleted_customer` shape, which has no includable property                            |
 | The Customer's includables are answered empty: no list holds an item, `cash_balance` is `null` and `tax` names no location                                                 | decision: this simulator holds no source, subscription, tax id, cash balance, credit balance, address or IP address; `cash_balance` is nullable, `invoice_credit_balance` is a map of "balances, if any", and `provider` "defaults to `stripe`" |
 | `refunds` answers every refund of the charge with `has_more` `false`                                                                                                        | decision: this build serves no `/v1/charges/{id}/refunds` route a later page could be read from                       |
@@ -405,6 +411,7 @@ What a key reaches:
 | `GET /v1/payment_intents/{id}`, `GET /v1/setup_intents/{id}`                | yes        | yes, `client_secret` in the query                               | no            |
 | `POST /v1/payment_intents/{id}/confirm`, `POST /v1/setup_intents/{id}/confirm` | yes     | yes, `client_secret` in the body                                | no            |
 | `GET /v1/customers/{id}`, `GET /v1/customers/{id}/payment_methods`          | yes        | no                                                              | its customer  |
+| `POST /v1/payment_methods`                                                  | yes        | yes, no `client_secret`                                         | no            |
 | every other route of "Routes"                                               | yes        | no                                                              | no            |
 
 A publishable key on a route it does not reach is refused before anything else is judged: `403`, `invalid_request_error`,
@@ -432,6 +439,7 @@ What a publishable key is answered (`StripePublishableView`):
 |----------------|-------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
 | PaymentIntent  | the members every recorded answer carries: `allowed_payment_method_types`, `amount`, `amount_details`, `amount_subtotal`, `automatic_payment_methods`, `canceled_at`, `cancellation_reason`, `capture_method`, `client_secret`, `confirmation_method`, `created`, `currency`, `description`, `excluded_payment_method_types`, `id`, `last_payment_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `processing`, `receipt_email`, `setup_future_usage`, `shipping`, `source`, `status`, `total_details` | `amount_capturable`, `amount_received`, `customer`, `latest_charge`, and anything else |
 | SetupIntent    | `allowed_payment_method_types`, `automatic_payment_methods`, `cancellation_reason`, `client_secret`, `created`, `description`, `excluded_payment_method_types`, `id`, `last_setup_error`, `livemode`, `next_action`, `object`, `payment_method`, `payment_method_configuration_details`, `payment_method_options`, `payment_method_types`, `status`, `usage` | `customer`, and anything else                                        |
+| PaymentMethod  | `allow_redisplay`, `billing_details`, `card`, `created`, `customer`, `id`, `livemode`, `object`, `type`, and the hash of another type | `metadata`                                                          |
 
 - The list is the recorded one, which is wider than the page badges (probe; rule for the badges). A member of the list
   this simulator's object does not have is absent (see "What Still Cannot Be Trusted Here").
@@ -448,6 +456,126 @@ space, the one the secret key uses, and compared with the same parameters (rule:
 replay to a publishable key is the stored answer reduced, so an answer the secret key stored is never shown whole to
 it (decision). `confirmation_method` is not modelled, so no intent is `manual` and the secret-key-only rule above has
 nothing to refuse.
+
+## PaymentMethod Creation
+
+| Fact                                                                                                                                                                         | Evidence                                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `POST /v1/payment_methods` takes `type` (required), the hash of that type, `billing_details`, `metadata` and `allow_redisplay` (`always`, `limited`, `unspecified`, "defaults to `unspecified`") | rule, https://docs.stripe.com/api/payment_methods/create.md                                                                       |
+| `card` is either `number`, `exp_month`, `exp_year` (required) and `cvc`, or `token` alone: "you can alternatively provide a Stripe token ... with format `card: {token: \"tok_visa\"}`" | rule: the page above and the OpenAPI specification at `2026-10-28.endive` (`anyOf`)                                              |
+| Every `billing_details` value is a string of at most 5000 characters, and `address` and `email`, `name`, `phone` may also be sent as `""`                                    | rule: the same specification                                                                                                     |
+| Metadata: "up to 50 keys, with key names up to 40 characters long and values up to 500 characters long"                                                                      | rule, https://docs.stripe.com/api/metadata.md                                                                                    |
+| A publishable key "can identify your account and create tokens or PaymentMethods from payment details"                                                                      | rule, https://docs.stripe.com/keys.md                                                                                            |
+| Stripe's mobile SDK creates a card PaymentMethod with a publishable key and raw `card[number]`, `card[exp_month]`, `card[exp_year]`, `card[cvc]`, and accepts a number written with spaces | probe: the recordings, 132 answered `POST /v1/payment_methods` of type `card`, and `STPCardFunctionalTest/testCreateCardTokenAsync` (`POST /v1/tokens`) |
+| None of those 132 answers carries `metadata` (3 of them sent some) or `card.fingerprint`                                                                                    | probe: the recordings, `STPPaymentMethodFunctionalTest/testCreateCardPaymentMethod`                                              |
+| The card hash of `4242424242424242`, `4000000000009995` and `4000000000000002`: `brand` `visa`, `funding` `credit`, `country` `US`, `display_brand` `visa`, `networks` `{available: [visa], preferred: null}`, `regulated_status` `unregulated`, `three_d_secure_usage` `{supported: true}`, `checks` three nulls, `generated_from` and `wallet` `null` | probe: the recordings (`testCreateCardPaymentMethod`, `testDeferredConfirmnewinsufficientfundscard`, `CheckoutConfirmationFunctionalTests/testconfirmwithdeclinedcardallowsretrywithvalidcard`) |
+| A two-digit `exp_year` is read as a year of this century: `32`, `42` and `50` were answered as `2032`, `2042` and `2050`, and `20` was refused `invalid_expiry_year` in 2025. "Use a year up to 50 years in the past, such as 95" earns `invalid_expiry_year` | probe: the recordings (`StripeAPIBridgeNetworkTests/testCreatePaymentMethod`, `testPKPaymentError`); rule, https://docs.stripe.com/testing.md "Trigger an error with invalid data" |
+| A card number that fails the Luhn check (`4242424242424241`) earns `incorrect_number`, a month such as 13 `invalid_expiry_month`, a two-digit CVC `invalid_cvc`                | rule, the same section                                                                                                           |
+| On `POST /v1/tokens`: `402`, `card_error`, `incorrect_number` "Your card number is incorrect." `param` `number`; `invalid_expiry_year` "Your card's expiration year is invalid." `param` `exp_year` (2013, and `20`); `invalid_cvc` "Your card's security code is invalid." `param` `cvc` | probe: the recordings, `STPCardFunctionalTest/testCardTokenCreationWithInvalidParams`, `testCardTokenCreationWithExpiredCard`, `testInvalidCVC`, `StripeAPIBridgeNetworkTests/testPKPaymentError` |
+| `invalid_number` "The card number is invalid", `invalid_expiry_month` "The card's expiration month is incorrect", `parameter_invalid_integer` "requires an integer"             | rule, https://docs.stripe.com/error-codes                                                                                        |
+| `payment_method_data` on PaymentIntent create and confirm: "If provided, this hash will be used to create a PaymentMethod. The new PaymentMethod will appear in the payment_method property"; on SetupIntent create and confirm: "this hash creates a PaymentMethod that is set as the payment_method value" | rule, the four pages (Sources)                                                                                                   |
+| Stripe's mobile SDK confirms with `payment_method_data[type]=card&payment_method_data[card][number]=...` and a publishable key, and is answered with a new `pm_...` id; 34 such PaymentIntent and 13 SetupIntent confirms answered `200` | probe: the recordings, `STPPaymentIntentFunctionalTest/testConfirmCardWithoutNetworkParam`, `StripeAPIBridgeNetworkTests/testConfirmSetupIntent` |
+| `payment_method_data[type]=card` with no `card`: `400`, `invalid_request_error`, `parameter_missing`, "Missing required param: payment_method_data[card].", `param` `payment_method_data[card]`, with the `setup_intent` embedded, sent to a SetupIntent that had already succeeded | probe: the recordings, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsendsanalytic`. The public specification gives `payment_method_data` no `card` member |
+| A declined confirm creates the method all the same: the `402` carries the new `payment_method`, the intent's `last_payment_error` or `last_setup_error` names it, and the intent's own `payment_method` is `null` | probe: the recordings, `testDeferredConfirmsavedinsufficientfundscard` (a published test id) and `testconfirmwithdeclinedcardallowsretrywithvalidcard` (`payment_method_data`, a Checkout Session) |
+| A published test id is copied into a new PaymentMethod on use: `payment_method=pm_card_visa` on a confirm is answered with `payment_method` `pm_1RW1PFFY0qyl6XeW2TNBFFMo`, `customer` `null`, `billing_details` all `null`, and an expiry one year after the month of the request (`6/2026` for June 2025, `2/2027` for February 2026) | probe: the recordings, `testPaymentSheetLoadAndConfirmWithPaymentIntentAttachedPaymentMethod`, `testconfirmpaymentintentwithpaymentsorchestration`, `testDeferredConfirmsavedinsufficientfundscard` |
+| "When writing test code, use a `PaymentMethod` such as `pm_card_visa` instead of a card number" and "By default, a `PaymentMethod` isn't attached to a Customer"           | rule, https://docs.stripe.com/testing.md "Test code"                                                                              |
+| A SetupIntent's `customer`: "the SetupIntent's payment method will be attached to the Customer on successful setup"                                                          | rule, https://docs.stripe.com/api/setup_intents/object                                                                           |
+
+The route (`CreatePaymentMethod`, `StripeNewPaymentMethod`):
+
+| Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| Answered to the secret key and to the publishable key without a `client_secret`, in the key's account and the run the request resolves to. A method is read back only by that account in that run | rule for the publishable key; decision for the scoping, the same as every lookup                                       |
+| Only `type=card` is created. Any other `type`: `400`, `invalid_request_error`, no `code`, `param` `type`, a sentence saying so (`StripeErrors.paymentMethodTypeNotCreated`). A PaymentMethod of `paypal` exists only by fixture | decision: the card is the method the client SDKs collect; no other type's details are modelled                        |
+| A missing `type`, `card`, `card[number]`, `card[exp_month]` or `card[exp_year]`: `400`, `invalid_request_error`, `parameter_missing`, "Missing required param: {param}.", `param` the full path | probe for the sentence; rule for what is required                                                                     |
+| `card` sent as a value rather than a hash, a `billing_details` value that is not a string or longer than 5000 characters, a metadata entry outside the limits above: `400`, `invalid_request_error`, no `code`, `param` the path (`StripeErrors.unreadableParameter`) | rule for the limits; decision for the answer                                                                          |
+| `allow_redisplay` outside the three values: `400`, "Invalid allow_redisplay: must be one of always, limited, or unspecified"                                                | probe for the shape (as in "Payment Method Selection")                                                                |
+| `card[token]` beside any of `number`, `exp_month`, `exp_year`, `cvc`: `400`, `parameters_exclusive`, `param` `card[token]`                                                  | rule that the hash is one form or the other; decision for the answer                                                  |
+| `card[token]` names a published test token (`tok_visa`, `tok_us`, ... of "Simulate a payment by card brand", "by country", and the two declines below): the card it stands for. Any other: `404`, `resource_missing`, "No such token: '{token}'", `param` `card[token]`; a value that does not read as a token id is not repeated | decision: no Tokens API is served, so only the published tokens exist; the `404` follows this simulator's other `resource_missing` answers |
+| The number may carry spaces. After removing them: not 12 to 19 digits: `402`, `card_error`, `invalid_number`, "Your card number is invalid.", `param` `number`. Failing the Luhn check: `402`, `card_error`, `incorrect_number`, "Your card number is incorrect.", `param` `number` | probe for `incorrect_number` and the spaces; rule for `invalid_number`; decision for its sentence and the length bounds |
+| `exp_month` or `exp_year` that is not an integer: `400`, `invalid_request_error`, `parameter_invalid_integer`, "Invalid integer: {value}", `param` the path. A month outside 1 to 12: `402`, `invalid_expiry_month`, "Your card's expiration month is invalid.", `param` `exp_month` | rule for the codes; decision for the sentences, written as the recorded ones are                                       |
+| A year of two digits is read as the year of that number nearest the run's clock, no more than 49 years ahead or 50 behind; a year of four digits as written; any other length, or a year before the run's clock: `402`, `invalid_expiry_year`, `param` `exp_year`. A month before the run's month in the run's year: `402`, `invalid_expiry_month` | probe and rule for the years; decision for the window and for naming the month when only the month has passed       |
+| `cvc` is optional; one sent is 3 or 4 digits, whatever the brand, else `402`, `invalid_cvc`, "Your card's security code is invalid.", `param` `cvc`. A blank `cvc` is none | rule ("Any 3 digits", "Any 4 digits" for American Express, two digits refused); decision not to tie the length to the brand |
+| A card is judged in this order: `token`, the three required members, the number, the month and year as integers, the month, the year, the month against the clock, `cvc`; then `billing_details`, `metadata`, `allow_redisplay` | decision: Stripe publishes no order                                                                                    |
+| A refusal stores nothing and claims no `Idempotency-Key`; a created method is answered and stored once, and an `Idempotency-Key` replays it | decision: a validation failure is not cached ("Idempotency")                                                          |
+| `card[networks]`, `customer`, `payment_method` and the other parameters of the page are accepted and have no effect                                                         | decision: the same as any parameter this simulator does not read                                                      |
+| The number and the cvc are kept nowhere: the trail's request row withholds every name whose keys hold `card` and later `number` or `cvc` (`card[number]`, `payment_method_data[card][cvc]`, any spelling), and every value that reads as a card number (12 to 19 digits, spaces and dashes aside, passing the Luhn check), under any name (`StripeFields.withholdingTheCard`). A keyed exchange keeps a keyed fingerprint of the parameters, never the parameters. The object, the answers, the screens and the control API carry `last4` only, and a refusal never repeats a value that reads as a card number | rule: "When providing a card number, you must meet the requirements for PCI compliance"; decision for the floor        |
+
+The card hash (`StripeTestCards`), for a number and for a test token or test id:
+
+| Member                 | Answered                                                                                                                                                         | Evidence                                    |
+|------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| `brand`                | the brand testing.md lists the number under (`visa`, `mastercard`, `amex`, `discover`, `diners`, `jcb`, `unionpay`); `unknown` for a number it does not list   | rule; `unknown` is a published value        |
+| `funding`              | `debit` or `prepaid` where the row says "(debit)" or "(prepaid)", `credit` where it says "(credit)" and for the three recorded numbers, `unknown` otherwise       | rule and probe; `unknown` is a published value |
+| `country`              | the country of "Simulate a payment by country", `US` for the three recorded numbers, `null` otherwise                                                           | rule and probe                              |
+| `display_brand`        | the brand spelled as the `display_brand` values are (`american_express`, `diners_club`, `union_pay`, the others as `brand`); `null` for `unknown`                | inference from the published values         |
+| `networks`             | `{available: [brand], preferred: null}`; `null` for `unknown`                                                                                                    | probe for `visa`; inference for the rest    |
+| `regulated_status`, `three_d_secure_usage` | `unregulated` and `{supported: true}` for the three recorded numbers, `null` otherwise                                                     | probe; both are nullable                    |
+| `last4`                | the last four digits                                                                                                                                             | rule                                        |
+| `exp_month`, `exp_year`| as sent; for a token or a test id, the run's month and the year after                                                                                           | probe for test ids; decision for tokens     |
+| `checks`               | three `null`s                                                                                                                                                    | probe                                       |
+| `generated_from`, `wallet` | `null`                                                                                                                                                       | probe                                       |
+| `fingerprint`          | absent                                                                                                                                                           | probe for the publishable key; decision for the secret key: it is derived from the full number, which this simulator never keeps |
+
+- The catalogue holds the success cards of "Simulate a payment by card brand" and "Simulate a payment by country",
+  except BCcard and DinaCard and Carnet, which publish no `brand` value, and the two declines the recordings answered
+  (`4000000000000002`, `4000000000009995`). The co-branded Cartes Bancaires and eftpos cards are not catalogued: the
+  page names two brands and the API answers one, which no source shows.
+- `pm_card_jcb` and `tok_jcb` are listed under both tables; they stand for the JCB of Japan, `3530111333300000`, the
+  row that publishes a country (decision). `pm_card_amex`, `pm_card_discover` and `pm_card_diners` stand for the first
+  number listed for the brand (decision).
+- A number the catalogue does not hold is created with only what the number itself says (decision: inventing a brand,
+  a country or a funding would answer a fact Stripe never published).
+- The published decline cards and test ids (`4000000000000002`, `pm_card_visa_chargeDeclined`, ...) are created
+  and copied like any other, and are **not honoured**: their decline is not answered. A decline is steered by a
+  scenario rule, as everywhere else ("Test Data").
+
+The object (`StripePaymentMethodView`): `id`, `object`, `allow_redisplay`, `billing_details` (`address` with `city`,
+`country`, `line1`, `line2`, `postal_code`, `state`, then `email`, `name`, `phone`, `tax_id`), `created`, `customer`,
+`livemode` `false`, `metadata`, `type` and the hash of the type. A publishable key is answered the same object
+without `metadata` (`StripePublishableView`), here and wherever a PaymentMethod is expanded (probe). Created methods
+are stored with what they answer (`V95__stripe_payment_method_carries_what_its_creation_publishes.sql`); methods
+stored before keep their brand as their only network and an empty `metadata`.
+
+`payment_method_data` (`StripeNamedPaymentMethod`):
+
+| Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| Read on PaymentIntent create (with or without `confirm=true`) and confirm, and SetupIntent create and confirm, under either key. It is read as the route reads its own body, the paths prefixed `payment_method_data`; the card errors name the same bare `param` | rule; decision for the shared reading                                                                                 |
+| Sent beside a non-blank `payment_method`: `400`, `parameters_exclusive`, `param` `payment_method`                                                                            | decision: both name the method to use                                                                                 |
+| On a confirm it is judged right after the intent is found, before its status: a refusal embeds the intent as stored                                                         | probe: the recorded `parameter_missing` was answered to a SetupIntent that had succeeded                              |
+| The method is created when the operation changes the intent: on success, on a decline and on a confirmation left in flight. A refusal, and a scenario that answers instead of the operation, create none | probe for the decline; decision for the rest: "a refused request changes no state"                                     |
+| A SetupIntent with a `customer` attaches the new method on success; a PaymentIntent leaves it unattached                                                                    | rule                                                                                                                  |
+| An intent created with it reaches `requires_confirmation`, as with a `payment_method`                                                                                        | rule                                                                                                                  |
+
+Published test ids (the cloning rule):
+
+| Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `payment_method` naming a test id of the catalogue (`pm_card_visa`, `pm_card_mastercard`, `pm_card_us`, ...) on PaymentIntent create and confirm and SetupIntent create and confirm, under either key, is copied into a new PaymentMethod `pm_sim_` and twenty hexadecimal characters, and the copy is used and answered. Every use makes a new copy | probe                                                                                                                 |
+| A copy carries the test card's hash, the run's month and the next year as its expiry, no customer, no billing details and no metadata, and is created when the operation changes the intent, as `payment_method_data` is | probe for the members; decision for the moment, as above                                                             |
+| A fixture this account holds under an id wins over the copy: the fixture is used as it is, whatever its id. The operator keeps declaring fixtures with ids of their own, `pm_card_visa` included | decision: a fixture is the operator's declared object; the copy is what Stripe answers to an account that holds none |
+| A `payment_method` that is neither held nor a catalogued test id is refused on every confirm and on create with `confirm=true` with the recorded "No such PaymentMethod", except that a PaymentIntent accepts one beginning `pm_card_`, `pm_usBankAccount_` or `pm_sepaDebit_` as an unknown method ("PaymentIntents"). A create that does not confirm stores the id as sent | probe for the refusal; decision for the uncatalogued test ids, which carry no published card hash |
+| A fixture cannot be declared under an id this run already holds a PaymentMethod under: `422` on `providerIds.paymentMethodId`                                               | decision: two objects under one id would answer two different methods                                                 |
+| A scenario rule's `paymentMethodId` is compared with the method the operation uses: the copy's id, the created method's id, or the fixture's id                             | decision: the operation is decided about the method it charges                                                        |
+
+The generic flow a tester follows to save a card and charge it later, against the standard API only:
+
+1. `POST /v1/customers` with the secret key.
+2. Name a method: declare a fixture on the Payment methods screen or `POST /__simulator/stripe/fixtures/payment-methods`;
+   or `POST /v1/payment_methods` with `type=card` and card details, under either key; or use a published test id
+   such as `pm_card_visa`, or `payment_method_data`, on the confirm itself.
+3. `POST /v1/setup_intents` with the `customer` and `automatic_payment_methods[enabled]=true` and
+   `automatic_payment_methods[allow_redirects]=never` (or a `return_url` on the confirm).
+4. `POST /v1/setup_intents/{id}/confirm` with the `payment_method` (secret key, or publishable key and `client_secret`).
+5. `GET /v1/customers/{id}/payment_methods`, or `GET /v1/payment_methods/{id}` with the secret key: the method carries
+   the `customer`.
+6. Charge later: `POST /v1/payment_intents` with that `customer`, `payment_method`, `confirm=true`, and
+   `off_session=true` or the redirect settings above.
+
+The setup outcome is steered by operation rules on `POST /v1/setup_intents/{id}/confirm`, and the later charge by rules
+on `POST /v1/payment_intents` or `POST /v1/payment_intents/{id}/confirm`. Each rule is matched to its own operation
+and story, so the two outcomes are steered independently.
 
 ## Idempotency
 
@@ -577,8 +705,8 @@ card.
 | Simulator decision                                                                                                                                                  |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Created with a `payment_method`: `requires_confirmation`. Created without: `requires_payment_method`. `requires_action`, `processing` and `canceled` are never reached |
-| Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures                                             |
-| Confirm refuses before writing: an unknown method (`400` `resource_missing` on `payment_method`, the recorded "No such PaymentMethod: '{id}'; …" sentence, with the truncated SetupIntent: probe, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsavedpmsendsanalytic`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a method attached to a Customer when the SetupIntent names none, a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`). A published test PaymentMethod id is refused like any other unknown method, as there is nothing to attach |
+| Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures. A method `payment_method_data` or a published test id creates is stored first, and stays if the confirm then loses a race to another request |
+| Confirm refuses before writing: `payment_method_data` as "PaymentMethod Creation" states, an unknown method (`400` `resource_missing` on `payment_method`, the recorded "No such PaymentMethod: '{id}'; …" sentence, with the truncated SetupIntent: probe, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsavedpmsendsanalytic`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a method attached to a Customer when the SetupIntent names none, a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`). A published test id the catalogue holds is copied into a method and set up ("PaymentMethod Creation"); one it does not hold is refused like any other unknown method, as there is nothing to attach |
 | A method attached to a Customer cannot be set up by a SetupIntent that names no customer: `400`, no `code`, `param` `payment_method`, "Payment methods attached to other Customers cannot be used with this SetupIntent. …" | inference: the SetupIntent's `customer` publishes "Payment methods attached to other Customers cannot be used with this SetupIntent" without saying whether an absent customer is another one; the PaymentIntent's create publishes that a method attached to a Customer requires that Customer to be named, and this reads the SetupIntent the same way |
 | Create accepts any `customer`                                                                                                                                       |
 | The selection parameters are read as "Payment Method Selection" states. With none, `payment_method_types` is `["card", "paypal"]` |
@@ -641,24 +769,26 @@ an unknown id. A publishable key reads it beside its `client_secret` ("Publishab
   further calls to this endpoint will transition the PaymentIntent to the `canceled` state." No number is published,
   and the simulator enforces no limit.
 - A detached method is refused, both on confirm and on inline confirm.
-- On confirm, a payment method this account does not hold in this run is refused as recorded: `400`,
+- On confirm and on create with `confirm=true`, `payment_method_data` and a catalogued test id are read as
+  "PaymentMethod Creation" states, and the method they create is judged like a held one.
+- On confirm and on create with `confirm=true`, a payment method this account does not hold in this run is refused as recorded: `400`,
   `invalid_request_error`, `resource_missing`, `param` `payment_method`, "No such PaymentMethod: '{id}'; It's possible
   this PaymentMethod exists on one of your connected accounts, in which case you should retry this request on that
   connected account. Learn more at https://stripe.com/docs/connect/authentication", with the intent as stored embedded
-  (probe: `STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsavedpmsendsanalytic`, `pm_123`, publishable key,
-  2025; `StripeErrors.noSuchPaymentMethod`). A published test PaymentMethod id, one beginning `pm_card_`,
-  `pm_usBankAccount_` or `pm_sepaDebit_`, is accepted without being held (rule: https://docs.stripe.com/testing.md
-  lists every test PaymentMethod id under those stems; decision to accept one, since this simulator mints no
-  PaymentMethod from it). Create with `confirm=true` still accepts any id.
-- On confirm, a payment method attached to a Customer is refused unless the intent names that Customer: "If the
+  on confirm (probe: `STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsavedpmsendsanalytic`, `pm_123`,
+  publishable key, 2025; `StripeErrors.noSuchPaymentMethod`); create embeds nothing, as no intent exists. A
+  catalogued test id is copied ("PaymentMethod Creation"). Any other id beginning `pm_card_`, `pm_usBankAccount_` or
+  `pm_sepaDebit_` is accepted without being held (rule: https://docs.stripe.com/testing.md lists every test
+  PaymentMethod id under those stems; decision to accept one, since this simulator holds no card hash for it).
+- On confirm and on create with `confirm=true`, a payment method attached to a Customer is refused unless the intent names that Customer: "If the
   payment method is attached to a Customer, it must match the customer that is set on this PaymentIntent", and on the
   object, "Payment methods attached to other Customers cannot be used with this PaymentIntent" (rule: the OpenAPI
   specification at `2026-10-28.endive`, confirm `payment_method` and the object's `customer`). The answer is `400`,
   `invalid_request_error`, no `code`, `param` `payment_method`, the published sentence and why
-  (`StripePaymentMethodLookup.theRefusalAMethodOfAnotherCustomerEarns`); nothing is charged (decision for the shape:
+  (`StripeNamedPaymentMethod.theRefusalItsHolderEarnsOnAPayment`); nothing is charged (decision for the shape:
   no answer is published or recorded). An intent naming no customer is refused such a method too: create's own
   `payment_method` publishes "you must also provide the ID of that Customer as the `customer` parameter" (rule).
-  Create with `confirm=true` does not judge the customer.
+  Create judges the `customer` it is sent.
 - Failures: an unknown intent, `payment_intent_unexpected_state` ("The PaymentIntent's state was incompatible with the
   operation you were trying to perform.") for a terminal intent, a method of another customer,
   `authentication_required`, and an issuer decline. A missing `return_url` is refused as "Payment Method Selection"
@@ -821,16 +951,15 @@ Published:
 
 | Simulator decision                                                                                                                                                  |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Methods exist only by fixture (`providerIds.paymentMethodId` is required). A fixture is refused if no stripe account of the run matches its `merchantId`, if the id is longer than 128 characters — the width a PaymentIntent of this simulator carries its `payment_method` in (`StripePaymentMethod.LONGEST_PAYMENT_METHOD_ID`) — or if it begins with `pi_sim_`, `re_sim_`, `cus_sim_`, `seti_sim_`, `ch_sim_` or `ephkey_sim_` (`A_PAYMENT_METHOD_ID_IS_NOT_A_MINTED_OBJECT_ID`). This list carries `cus_sim_` and the `customerId` list does not: a payment method is not a customer, and a seeded customer is |
+| Methods exist by fixture (`providerIds.paymentMethodId` is required), by `POST /v1/payment_methods`, by `payment_method_data` and by a published test id ("PaymentMethod Creation"). A fixture is refused if no stripe account of the run matches its `merchantId`, if this run already holds a PaymentMethod under its id, if the id is longer than 128 characters — the width a PaymentIntent of this simulator carries its `payment_method` in (`StripePaymentMethod.LONGEST_PAYMENT_METHOD_ID`) — or if it begins with `pi_sim_`, `re_sim_`, `cus_sim_`, `seti_sim_`, `ch_sim_` or `ephkey_sim_` (`A_PAYMENT_METHOD_ID_IS_NOT_A_MINTED_OBJECT_ID`). This list carries `cus_sim_` and the `customerId` list does not: a payment method is not a customer, and a seeded customer is |
 | Fixture type `card` becomes `card`, `wallet` becomes `paypal`, and `psp-token` is refused (no Tokens API)                                                          |
 | The `paypal` hash is three nulls. Nothing can set it                                                                                                                |
-| Object: `id`, `object`, `type`, `customer`, `created`, `billing_details` and the type hash. No `livemode`                                                            |
-| `billing_details`, `card.country`, `card.checks` and `card.networks.preferred` are null. `card.networks.available` is the fixture's brand                              |
+| Object: as "PaymentMethod Creation" states. A fixture answers its own `brand`, `last4`, expiry and `funding`, `billing_details` and `metadata` empty, `card.country`, `display_brand`, `regulated_status` and `three_d_secure_usage` null, and its brand as the only network |
 | `customer` is expandable on retrieve, detach and both lists (`data.customer`), sent as `expand[]=...` or `expand[0]=...`. An `expand` that is not a list, or a path refused, is refused before the method is looked up, so an unknown method is refused on `expand` and not as `resource_missing` |
 | `GET /v1/payment_methods` with an unknown customer or type gives an empty list. The customer route with an unknown customer gives `resource_missing`               |
 | `has_more` is always false, there is no `limit`, and the list is newest first                                                                                       |
 | Detachment is stored, and a constraint forbids a detached method having a customer. Confirm refuses a detached method, and a repeated detach or a detach of a never-attached method is refused |
-| Removing the fixture removes the method. The customer stays                                                                                                         |
+| Removing the fixture removes the method. The customer stays. A created method is removed by a reset of the run                                                       |
 | No scenarios and no events                                                                                                                                          |
 
 ## Status Mapping
@@ -1001,7 +1130,8 @@ Published decline sample ("Declines"):
 
 A decline of this simulator carries no `param`, so `incorrect_cvc` is sent without the sample's `"param": "cvc"`
 (`StripeErrors.declined`). `param` is sent on an `invalid_request_error`, which names the field it refused
-(`StripeErrors.invalidRequest`).
+(`StripeErrors.invalidRequest`), and on a card detail refused as "PaymentMethod Creation" states, named as the sample
+names it (`number`, `exp_month`, `exp_year`, `cvc`).
 
 Stripe's worked failure (example, "Make a payment [Server-side]"):
 
@@ -1034,6 +1164,7 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 | `authentication_required`                                                              | `card_error`            | 402  | rule, and the type from the example                              | "The payment requires authentication to proceed. If your customer is off session, notify your customer to return to your application and complete the payment." |
 | `expired_card`                                                                         | `card_error`            | 402  | rule                                                             | "The card has expired. Check the expiration date or use a different card."                                                 |
 | `incorrect_cvc`, `processing_error`                                                    | `card_error`            | 402  | rule                                                             | the simulator sends no message                                                                                              |
+| `incorrect_number`, `invalid_number`, `invalid_expiry_month`, `invalid_expiry_year`, `invalid_cvc` | `card_error`  | 402  | probe on `POST /v1/tokens` for three of them; decision for the others and for the routes | see "PaymentMethod Creation"                                                                              |
 | `payment_intent_unexpected_state`                                                      | `invalid_request_error` | 400  | inference from "400 Bad Request — The request was unacceptable" | "The PaymentIntent's state was incompatible with the operation you were trying to perform."                                |
 | `setup_intent_unexpected_state`                                                        | `invalid_request_error` | 400  | inference                                                        | "The SetupIntent's state was incompatible with the operation you were trying to perform."                                  |
 | `resource_missing`                                                                     | `invalid_request_error` | 404  | inference from "404 Not Found — The requested resource doesn't exist" | "The ID provided isn't valid. Either the resource doesn't exist, or an ID for a different resource has been provided."     |
@@ -1084,7 +1215,12 @@ Declines (rule, "Simulate a declined payment"). The simulator produces each by t
   with this card always require authentication." The simulator's `authentication_required` scenario imitates this card.
 - `4000000000003220`: "3D Secure authentication must be completed for the payment to be successful."
 - `4242424242424242` succeeds. `4000002500001001` supports multicapture, and `4000008400000076` does not.
-- `pm_card_*` ids (for example `pm_card_visa`) can stand in for a card number.
+- `pm_card_*` ids (for example `pm_card_visa`) can stand in for a card number. The catalogued ones are copied on use
+  ("PaymentMethod Creation").
+- Not yet honoured: a decline card or test id of "Simulate a declined payment" (`4000000000000002`,
+  `pm_card_visa_chargeDeclined`, `tok_visa_chargeDeclined`, ...), the fraud, dispute, refund, 3D Secure and
+  authentication cards. A PaymentMethod made from one is created and succeeds like any other card; its outcome is
+  the one a scenario rule gives the operation.
 
 ## Minimum Test Fixtures
 
@@ -1115,17 +1251,13 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 | `alias`                         | the persona's own name                                                                                            |
 | `ownerId`                       | `a-customer-stripe-holds-a-card-for` (`StripePersonas.THE_OWNER`)                                                 |
 | `type`                          | `card`, which becomes a PaymentMethod of type `card`                                                              |
-| `providerIds.paymentMethodId`   | the published `pm_card_visa`, **not** minted: this simulator mints no PaymentMethod id anywhere, so an invented one would be a shape Stripe never published (`StripePersonas.HOW_THE_IDS_ARE_MINTED`) |
+| `providerIds.paymentMethodId`   | minted by `StripePaymentMethodMinting.aPaymentMethodId`, the same minting `POST /v1/payment_methods` uses: `pm_sim_` and 20 hexadecimal characters (`StripePersonas.HOW_THE_IDS_ARE_MINTED`). Stripe copies a published test id into a new method on use, so a saved card is never `pm_card_visa` itself |
 | `providerIds.customerId`        | minted by `CreateCustomer.aCustomerId`, the same minting `POST /v1/customers` uses: `cus_sim_` and 16 hexadecimal characters, so this account's own key retrieves it |
 | `last4`                         | `4242`, the published success card of "Test Data"                                                                 |
-| `expMonth` / `expYear`          | `12` / `2030`, because Stripe publishes no expiry per test card                                                   |
-| `brand`, `funding`              | `unpublished`: the pages this contract was read from publish the names of those fields and not their values for any one card |
+| `expMonth` / `expYear`          | `12` / `2030`, because Stripe publishes "Any future date" for a test card                                         |
+| `brand`, `funding`              | `visa` (rule, testing.md) and `credit` (probe: the recordings, "PaymentMethod Creation")                         |
 
-- **One of these three per run.** All three seed the one published `pm_card_visa`, and a run claims a `providerIds`
-  value for one instrument, so the second is `409`. Seed the others into runs of their own
-  (`StripePersonas.ONE_PUBLISHED_IDENTIFIER_MEANS_ONE_AT_A_TIME`). The persona's own words in the catalogue and the
-  preview say so; because `pm_card_visa` is published rather than minted, the preview states no unforeseeable refusal
-  over it (`PersonaFixture.theIdsItPublishes`).
+- Every persona mints its own ids, so a run may hold all three.
 - Seed it into an account this run configures for Stripe: every route that answers for a customer or a payment method
   resolves it through the secret key that authenticated the call
   (`StripePersonas.AN_INSTRUMENT_BELONGS_TO_AN_ACCOUNT`).
@@ -1137,15 +1269,20 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 - HTTP statuses are published for three cases only: `402` (a failed payment), `409` (a key conflict) and `401` (no
   authentication). The publishable-key answers' statuses are observed in the recordings, and `403` for
   `secret_key_required` in one third-party trace. The other statuses are inferences.
-- A publishable key is served on the two intent reads and the two intent confirms only. `POST /v1/payment_methods`
-  and `POST /v1/tokens`, which the SDKs also send with it, are not served at all, so a client that collects raw card
-  details cannot run against this simulator; it confirms a PaymentMethod a fixture seeded. `confirmation_method`,
+- A publishable key is served on the two intent reads, the two intent confirms and `POST /v1/payment_methods`.
+  `POST /v1/tokens`, which the SDKs also send with it, is not served, and only the published test tokens can be named
+  in `card[token]`. Only `type=card` is created, and the decline cards are not honoured ("Test Data").
+  `confirmation_method`,
   `next_action`, `shipping`, `description`, `canceled_at`, `processing`, `setup_future_usage`, `source` and the other
   members the recordings carry beyond this simulator's object are absent from its answers.
 - The recorded `doc_url` is `https://stripe.com/docs/error-codes/{code-with-dashes}`, at `2020-08-27`; this simulator
   sends the form the error-codes page anchors at every version, and no source says whether the form is versioned.
 - The answer to a missing or malformed `client_secret`, and every SetupIntent `client_secret` refusal but the `404`,
   are decisions: no source shows them.
+- The card errors of `POST /v1/payment_methods` and `payment_method_data` are the shapes recorded on
+  `POST /v1/tokens`; `invalid_number`, `invalid_expiry_month` and `parameter_invalid_integer` were never observed,
+  and their sentences are decisions. A decline does not carry the created `payment_method` in its error body, nor
+  `last_payment_error.payment_method`, as the recordings show Stripe's does.
 - The `return_url` refusal's sentence comes from third-party reports; its status, `code` and `param`, and the
   SetupIntent wording, are decisions.
 - A parameter this simulator does not read is accepted and has no effect, on every route and at every release. Stripe
