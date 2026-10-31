@@ -634,6 +634,23 @@ class StripePublishableKeyTest {
   }
 
   @Test
+  void the_trail_names_the_account_a_secret_key_resolved_to_and_none_for_a_key_no_account_holds() {
+    theAccounts();
+    Created payment = aPayment();
+
+    get(SECRET_KEY, PAYMENT_INTENTS + "/" + payment.id(), Map.of());
+    get("sk_test_no_account_holds_this", PAYMENT_INTENTS + "/" + payment.id(), Map.of());
+
+    List<AuditRecord> read =
+        audit.all().stream()
+            .filter(row -> (PAYMENT_INTENTS + "/" + payment.id()).equals(row.path()))
+            .toList();
+    assertThat(read).hasSize(4);
+    assertThat(read.subList(0, 2)).extracting(AuditRecord::accountId).containsOnly(ACCOUNT);
+    assertThat(read.subList(2, 4)).extracting(AuditRecord::accountId).containsOnlyNulls();
+  }
+
+  @Test
   void a_key_no_account_holds_is_refused_as_an_invalid_key() {
     theAccounts();
     Created payment = aPayment();
