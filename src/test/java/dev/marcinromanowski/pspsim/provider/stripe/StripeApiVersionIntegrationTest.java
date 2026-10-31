@@ -165,6 +165,43 @@ class StripeApiVersionIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
+  void a_backend_mints_an_ephemeral_key_at_the_version_the_android_sdk_handed_it() {
+    configure(A_BASIL_RELEASE);
+    String customerId = valueIn(bodyOf(posted("/v1/customers", Map.of(), null)), "id");
+
+    HttpResponse<byte[]> minted =
+        posted("/v1/ephemeral_keys", Map.of("customer", customerId), "2020-03-02");
+
+    assertThat(minted.statusCode()).isEqualTo(200);
+    assertThat(minted.headers().allValues(VERSION_HEADER)).containsExactly("2020-03-02");
+    assertThat(bodyOf(minted)).contains("\"object\":\"ephemeral_key\"");
+  }
+
+  @Test
+  void a_form_this_api_cannot_read_is_refused_naming_the_version_it_was_answered_at() {
+    configure(A_BASIL_RELEASE);
+
+    HttpResponse<byte[]> refused =
+        posted(PAYMENT_INTENTS, Map.of("[amount", "1"), THE_JAVA_SDKS_RELEASE);
+
+    assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(refused.headers().allValues(VERSION_HEADER)).containsExactly(THE_JAVA_SDKS_RELEASE);
+  }
+
+  @Test
+  void a_release_dated_after_the_catalogue_is_refused_as_one_this_build_may_not_know() {
+    configure(A_BASIL_RELEASE);
+
+    HttpResponse<byte[]> refused = aHold(VERSION_HEADER, "2026-11-25.endive");
+
+    assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("is dated after " + THE_NEWEST_RELEASE)
+        .contains(THE_RANGE)
+        .doesNotContain("Invalid Stripe API version");
+  }
+
+  @Test
   void an_event_is_rendered_at_the_default_version_of_the_account_it_belongs_to() {
     configure(A_DAHLIA_RELEASE);
     String intentId = valueIn(bodyOf(aHold(VERSION_HEADER, THE_JAVA_SDKS_RELEASE)), "id");
@@ -321,6 +358,20 @@ class StripeApiVersionIntegrationTest extends PostgresBackedTest {
             .POST(HttpRequest.BodyPublishers.ofString(encoded(form)));
     if (versionHeader != null && version != null) {
       request = request.header(versionHeader, version);
+    }
+    return sent(request);
+  }
+
+  private HttpResponse<byte[]> posted(
+      String path, Map<String, String> form, @Nullable String version) {
+    HttpRequest.Builder request =
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Authorization", "Bearer " + SECRET_KEY)
+            .timeout(Duration.ofSeconds(20))
+            .POST(HttpRequest.BodyPublishers.ofString(encoded(form)));
+    if (version != null) {
+      request = request.header(VERSION_HEADER, version);
     }
     return sent(request);
   }

@@ -242,6 +242,19 @@ final class StripeErrors {
             + " account's default version.");
   }
 
+  static StripeError versionLaterThanTheCatalogue(String sent) {
+    return headerRefused(
+        "Stripe-Version "
+            + sent
+            + " is dated after "
+            + StripeApiVersions.newest().wireValue()
+            + ", the newest Stripe API version this simulator was built with, so it may be a"
+            + " release Stripe published since. This simulator does not answer it. It answers "
+            + StripeApiVersions.theRangeAnswered()
+            + ". Send one of those, or send no Stripe-Version to be answered at the account's"
+            + " default version.");
+  }
+
   static StripeError versionAsksForABeta(String sent) {
     return headerRefused(
         "Stripe-Version "

@@ -168,6 +168,31 @@ class StripeWebhookTest {
         .contains(renderedAt(A_DAHLIA_RELEASE));
   }
 
+  @Test
+  void
+      an_owed_event_keeps_the_version_it_was_scheduled_at_when_the_default_moves_before_it_lands() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    inFlight(null);
+    WebhookDispatcher dispatcher = dispatcher();
+    anAsynchronousChargeThrough(dispatcher);
+
+    accounts.merge(
+        E2E_RUN,
+        List.of(
+            StripeDoubles.account(
+                E2E_RUN,
+                ACCOUNT,
+                SECRET_KEY,
+                "P3D",
+                Map.of(StripeApiVersion.SETTING, A_BASIL_RELEASE))));
+    clock.moveTo(NOW.plus(SETTLES_AFTER));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    assertThat(onlyCallback().body())
+        .contains(renderedAt(A_DAHLIA_RELEASE))
+        .doesNotContain(renderedAt(A_BASIL_RELEASE));
+  }
+
   private void anAccountAnsweredAt(String apiVersion) {
     anAccount(Map.of(StripeApiVersion.SETTING, apiVersion));
   }
