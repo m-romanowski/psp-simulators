@@ -26,6 +26,12 @@ class StripePayments implements Payments {
             .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
             .setPaymentMethod(run.savedCard())
             .setConfirm(true)
+            .setAutomaticPaymentMethods(
+                PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                    .setEnabled(true)
+                    .setAllowRedirects(
+                        PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
+                    .build())
             .setDescription(product.name())
             .build();
     try {

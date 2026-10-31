@@ -23,8 +23,16 @@ final class StripeVersionChanges {
   private StripeVersionChanges() {}
 
   static StripeCoreRequest atTheCore(StripeForm form, StripeApiVersion version, String operation) {
+    return atTheCore(form, version, operation, DECLARED);
+  }
+
+  static StripeCoreRequest atTheCore(
+      StripeForm form,
+      StripeApiVersion version,
+      String operation,
+      List<StripeVersionChange> declared) {
     StripeCoreRequest request = StripeCoreRequest.asSent(form);
-    for (StripeVersionChange change : walkingBackTo(version, DECLARED).reversed()) {
+    for (StripeVersionChange change : walkingBackTo(version, declared).reversed()) {
       if (change.touches(operation)) {
         request = change.upgrade().apply(request);
       }

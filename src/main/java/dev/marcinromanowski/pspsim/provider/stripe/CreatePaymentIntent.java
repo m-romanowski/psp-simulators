@@ -67,6 +67,12 @@ final class CreatePaymentIntent {
       case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
     if (confirms(form)) {
+      StripeError nowhereToReturn =
+          StripeReturnUrl.theRefusalAPaymentConfirmationEarns(form, selection);
+      if (nowhereToReturn != null) {
+        return StripeOperationResult.refusedBeforeExecuting(
+            StripeRefusals.theRequestWasRefused(), nowhereToReturn);
+      }
       StripeError detached =
           StripePaymentMethodLookup.theRefusalADetachedMethodEarns(
               paymentMethods, testRunId, account, form.first(StripeFields.PAYMENT_METHOD));

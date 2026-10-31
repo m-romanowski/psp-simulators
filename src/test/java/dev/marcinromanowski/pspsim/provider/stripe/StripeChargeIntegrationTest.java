@@ -177,7 +177,8 @@ class StripeChargeIntegrationTest extends PostgresBackedTest {
         "currency", "pln",
         "capture_method", "manual",
         "payment_method", CARD,
-        "confirm", "true");
+        "confirm", "true",
+        "return_url", "https://shop.example/checkout/return");
   }
 
   private void configure() {

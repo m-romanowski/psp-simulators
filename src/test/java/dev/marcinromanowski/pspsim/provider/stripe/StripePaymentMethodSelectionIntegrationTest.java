@@ -126,6 +126,137 @@ class StripePaymentMethodSelectionIntegrationTest extends PostgresBackedTest {
     }
   }
 
+  @Test
+  void a_confirm_that_succeeds_stores_the_selection_it_sent_with_the_status_it_reached() {
+    String intentId = aDynamicPaymentOverTheWire();
+
+    HttpResponse<byte[]> confirmed =
+        post(
+            "/v1/payment_intents/" + intentId + "/confirm",
+            "2026-10-28.endive",
+            "allowed_payment_method_types%5B%5D=card&payment_method=pm_card_visa");
+
+    assertThat(confirmed.statusCode()).isEqualTo(200);
+    assertThat(theStoredPayment(intentId)).isEqualTo("succeeded|null|{card}|null|{card}");
+    assertThat(
+            new String(get("/v1/payment_intents/" + intentId, "2026-10-28.endive").body(), UTF_8))
+        .contains("\"allowed_payment_method_types\":[\"card\"]")
+        .contains("\"automatic_payment_methods\":null")
+        .contains("\"payment_method_types\":[\"card\"]");
+  }
+
+  @Test
+  void a_confirm_a_scenario_declines_stores_the_selection_it_sent_with_the_decline() {
+    aRuleAnswering(
+        StripeOperations.CONFIRM,
+        Map.of(
+            "type",
+            "TERMINAL_FAILURE",
+            "providerCode",
+            StripeDecline.GENERIC_DECLINE.scenarioCode()));
+    String intentId = aDynamicPaymentOverTheWire();
+
+    HttpResponse<byte[]> declined =
+        post(
+            "/v1/payment_intents/" + intentId + "/confirm",
+            "2026-10-28.endive",
+            "allowed_payment_method_types%5B%5D=card&payment_method=pm_card_visa");
+
+    assertThat(declined.statusCode()).isEqualTo(402);
+    assertThat(theStoredPayment(intentId))
+        .isEqualTo("requires_payment_method|null|{card}|null|{card}");
+  }
+
+  @Test
+  void a_confirm_left_in_flight_stores_the_selection_it_sent_with_the_pending_status() {
+    selectPreset("status-lookup-processing-then-success");
+    String intentId = aDynamicPaymentOverTheWire();
+
+    HttpResponse<byte[]> pending =
+        post(
+            "/v1/payment_intents/" + intentId + "/confirm",
+            "2026-10-28.endive",
+            "excluded_payment_method_types%5B%5D=paypal&payment_method=pm_card_visa"
+                + "&return_url=https%3A%2F%2Fshop.example%2Freturn");
+
+    assertThat(pending.statusCode()).isEqualTo(200);
+    assertThat(theStoredPayment(intentId)).isEqualTo("processing|true|null|{paypal}|{card}");
+  }
+
+  @Test
+  void a_confirm_refused_after_its_selection_was_computed_leaves_the_stored_row_untouched() {
+    String intentId = aDynamicPaymentOverTheWire();
+    String before = theWholeStoredRowOf(intentId);
+
+    HttpResponse<byte[]> refused =
+        post(
+            "/v1/payment_intents/" + intentId + "/confirm",
+            "2026-10-28.endive",
+            "excluded_payment_method_types%5B%5D=paypal&payment_method=pm_card_visa");
+
+    assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(new String(refused.body(), UTF_8)).contains("\"param\":\"return_url\"");
+    assertThat(theWholeStoredRowOf(intentId)).isEqualTo(before);
+    assertThat(theStoredPayment(intentId))
+        .isEqualTo("requires_payment_method|true|null|null|{card,paypal}");
+  }
+
+  private String aDynamicPaymentOverTheWire() {
+    HttpResponse<byte[]> created =
+        post("/v1/payment_intents", "2026-10-28.endive", "amount=1000&currency=pln");
+    assertThat(created.statusCode()).isEqualTo(200);
+    return theIdIn(new String(created.body(), UTF_8));
+  }
+
+  private String theStoredPayment(String intentId) {
+    return jdbc.sql(
+            "select concat_ws('|', status,"
+                + " coalesce(automatic_payment_methods_enabled::text, 'null'),"
+                + " coalesce(allowed_payment_method_types::text, 'null'),"
+                + " coalesce(excluded_payment_method_types::text, 'null'),"
+                + " payment_method_types::text)"
+                + " from stripe_payment_intent where test_run_id = ? and intent_id = ?")
+        .params(RUN.value(), intentId)
+        .query(String.class)
+        .single();
+  }
+
+  private String theWholeStoredRowOf(String intentId) {
+    return jdbc.sql(
+            "select row_to_json(intent)::text from stripe_payment_intent intent"
+                + " where test_run_id = ? and intent_id = ?")
+        .params(RUN.value(), intentId)
+        .query(String.class)
+        .single();
+  }
+
+  private void aRuleAnswering(String operation, Map<String, Object> action) {
+    http.post()
+        .uri("/__simulator/stripe/scenarios")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+            Map.of(
+                "testRunId",
+                RUN.value(),
+                "priority",
+                0,
+                "match",
+                Map.of("operation", operation),
+                "action",
+                action))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  private void selectPreset(String preset) {
+    http.post()
+        .uri("/__simulator/stripe/scenarios/presets")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(Map.of("testRunId", RUN.value(), "preset", preset))
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   private String storedTypesOf(String setupIntentId) {
     return jdbc.sql(
             "select payment_method_types::text from stripe_setup_intent"

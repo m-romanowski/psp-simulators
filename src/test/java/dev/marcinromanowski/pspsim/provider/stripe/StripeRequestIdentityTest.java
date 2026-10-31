@@ -159,7 +159,6 @@ class StripeRequestIdentityTest {
     form.put("statement_descriptor_suffix", "BOOKS");
     form.put("metadata[order_id]", "order-99");
     form.put("metadata[cart_id]", "cart-7");
-    form.put("transfer_group", "group-1");
     return form;
   }
 
@@ -216,6 +215,7 @@ class StripeRequestIdentityTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 

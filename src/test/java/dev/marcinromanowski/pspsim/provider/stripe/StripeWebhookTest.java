@@ -401,6 +401,7 @@ class StripeWebhookTest {
   private void anIntentAwaitingAPaymentMethod() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAHold());
     fields.remove(StripeFields.CONFIRM);
+    fields.remove(StripeFields.RETURN_URL);
     fields.remove(StripeFields.PAYMENT_METHOD);
     api().createPaymentIntent(call("/v1/payment_intents", fields));
   }
@@ -846,6 +847,7 @@ class StripeWebhookTest {
   private void anUnconfirmedPaymentIntent() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAHold());
     fields.remove(StripeFields.CONFIRM);
+    fields.remove(StripeFields.RETURN_URL);
     api().createPaymentIntent(call("/v1/payment_intents", fields));
   }
 
@@ -1033,6 +1035,7 @@ class StripeWebhookTest {
   private void anUnconfirmedCharge() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAnAsynchronousCharge());
     fields.remove("confirm");
+    fields.remove("return_url");
     new CreatePaymentIntent(
             intents,
             paymentMethods,
@@ -1058,7 +1061,9 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             webhooks(dispatcher))
         .handle(
-            StripeCoreRequest.asSent(StripeForm.of(Map.of())),
+            StripeCoreRequest.asSent(
+                StripeForm.of(
+                    Map.of("return_url", List.of("https://shop.example/checkout/return")))),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -1105,6 +1110,7 @@ class StripeWebhookTest {
     fields.put("currency", List.of("pln"));
     fields.put("payment_method", List.of("pm_card_visa"));
     fields.put("confirm", List.of("true"));
+    fields.put("return_url", List.of("https://shop.example/checkout/return"));
     return fields;
   }
 
@@ -1161,6 +1167,7 @@ class StripeWebhookTest {
     fields.put("payment_method", List.of("pm_card_visa"));
     fields.put("customer", List.of("cus_sim_1"));
     fields.put("confirm", List.of("true"));
+    fields.put("return_url", List.of("https://shop.example/checkout/return"));
     return fields;
   }
 

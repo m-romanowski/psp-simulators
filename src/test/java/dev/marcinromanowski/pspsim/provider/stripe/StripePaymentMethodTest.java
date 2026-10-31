@@ -434,7 +434,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, FIRST_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        FIRST_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(refused.httpStatus()).isEqualTo(400);
@@ -458,6 +462,8 @@ class StripePaymentMethodTest {
                         "usd",
                         StripeFields.CONFIRM,
                         "true",
+                        StripeFields.RETURN_URL,
+                        "https://shop.example/checkout/return",
                         StripeFields.PAYMENT_METHOD,
                         FIRST_CARD)));
 
@@ -480,7 +486,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, FIRST_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        FIRST_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
@@ -528,7 +538,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, SECOND_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        SECOND_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(refused.httpStatus()).isEqualTo(400);

@@ -31,6 +31,8 @@ import org.junit.jupiter.api.Test;
 
 class StripePaymentIntentTest {
 
+  static final String A_RETURN_URL = "https://shop.example/checkout/return";
+
   private static final TestRunId DEFAULT_RUN = TestRunId.of("default");
   private static final TestRunId E2E_RUN = TestRunId.of("stripe-run");
   private static final TestRunId ANOTHER_RUN = TestRunId.of("another-run");
@@ -141,7 +143,9 @@ class StripePaymentIntentTest {
                         "payment_method",
                         CARD,
                         "confirm",
-                        "true")));
+                        "true",
+                        "return_url",
+                        A_RETURN_URL)));
 
     assertThat(bodyOf(response))
         .contains("\"status\":\"succeeded\"")
@@ -159,7 +163,10 @@ class StripePaymentIntentTest {
 
     StripeApiResponse response =
         api.confirmPaymentIntent(
-            post(confirmPath(FIRST_INTENT), Map.of("payment_method", CARD)), FIRST_INTENT);
+            post(
+                confirmPath(FIRST_INTENT),
+                Map.of("payment_method", CARD, "return_url", A_RETURN_URL)),
+            FIRST_INTENT);
 
     assertThat(response.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(response))
@@ -174,7 +181,8 @@ class StripePaymentIntentTest {
     api.createPaymentIntent(create(Map.of("amount", "1099", "currency", "pln")));
 
     StripeApiResponse response =
-        api.confirmPaymentIntent(post(confirmPath(FIRST_INTENT), Map.of()), FIRST_INTENT);
+        api.confirmPaymentIntent(
+            post(confirmPath(FIRST_INTENT), Map.of("return_url", A_RETURN_URL)), FIRST_INTENT);
 
     assertThat(response.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(response))
@@ -520,7 +528,10 @@ class StripePaymentIntentTest {
 
     StripeApiResponse response =
         api.confirmPaymentIntent(
-            post(confirmPath(FIRST_INTENT), Map.of("payment_method", CARD)), FIRST_INTENT);
+            post(
+                confirmPath(FIRST_INTENT),
+                Map.of("payment_method", CARD, "return_url", A_RETURN_URL)),
+            FIRST_INTENT);
 
     assertThat(response.httpStatus()).isEqualTo(402);
     assertThat(response.outcome()).isEqualTo(ProviderOutcome.FAILURE);
@@ -544,7 +555,8 @@ class StripePaymentIntentTest {
     api.createPaymentIntent(
         create(Map.of("amount", "1099", "currency", "pln", "capture_method", "manual")));
     api.confirmPaymentIntent(
-        post(confirmPath(FIRST_INTENT), Map.of("payment_method", CARD)), FIRST_INTENT);
+        post(confirmPath(FIRST_INTENT), Map.of("payment_method", CARD, "return_url", A_RETURN_URL)),
+        FIRST_INTENT);
 
     StripeApiResponse response =
         api.retrievePaymentIntent(get(intentPath(FIRST_INTENT)), FIRST_INTENT);
@@ -794,7 +806,9 @@ class StripePaymentIntentTest {
     StripeApiResponse response =
         api(NOW)
             .confirmPaymentIntent(
-                post(confirmPath("pi_sim_nothing"), Map.of("payment_method", CARD)),
+                post(
+                    confirmPath("pi_sim_nothing"),
+                    Map.of("payment_method", CARD, "return_url", A_RETURN_URL)),
                 "pi_sim_nothing");
 
     assertThat(response.httpStatus()).isEqualTo(404);
@@ -833,7 +847,10 @@ class StripePaymentIntentTest {
 
     StripeApiResponse response =
         api.confirmPaymentIntent(
-            post(confirmPath(FIRST_INTENT), Map.of("payment_method", CARD)), FIRST_INTENT);
+            post(
+                confirmPath(FIRST_INTENT),
+                Map.of("payment_method", CARD, "return_url", A_RETURN_URL)),
+            FIRST_INTENT);
 
     assertThat(response.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(response))
@@ -1025,7 +1042,8 @@ class StripePaymentIntentTest {
     api.createPaymentIntent(create(unconfirmedChargeOf("1099")));
 
     StripeApiResponse confirmed =
-        api.confirmPaymentIntent(post(confirmPath(FIRST_INTENT), Map.of()), FIRST_INTENT);
+        api.confirmPaymentIntent(
+            post(confirmPath(FIRST_INTENT), Map.of("return_url", A_RETURN_URL)), FIRST_INTENT);
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(confirmed)).contains("\"status\":\"processing\"");
@@ -1039,7 +1057,8 @@ class StripePaymentIntentTest {
     api.createPaymentIntent(create(unconfirmedChargeOf("1099")));
 
     StripeApiResponse confirmed =
-        api.confirmPaymentIntent(post(confirmPath(FIRST_INTENT), Map.of()), FIRST_INTENT);
+        api.confirmPaymentIntent(
+            post(confirmPath(FIRST_INTENT), Map.of("return_url", A_RETURN_URL)), FIRST_INTENT);
     StripeApiResponse afterwards =
         api(NOW.plus(Duration.ofSeconds(5)))
             .retrievePaymentIntent(get(intentPath(FIRST_INTENT)), FIRST_INTENT);
@@ -1095,6 +1114,7 @@ class StripePaymentIntentTest {
   private static Map<String, String> chargeOf(String amount) {
     Map<String, String> form = unconfirmedChargeOf(amount);
     form.put("confirm", "true");
+    form.put("return_url", A_RETURN_URL);
     return form;
   }
 
@@ -1200,6 +1220,7 @@ class StripePaymentIntentTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", A_RETURN_URL);
     return form;
   }
 

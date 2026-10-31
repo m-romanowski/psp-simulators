@@ -254,6 +254,11 @@ public final class TrailWithholdingConvention {
                   + " and carries no address"),
           new AnAddressInTheClear(
               "stripe",
+              "return_url",
+              "a parameter the merchant sends to confirm an intent, naming the merchant's own page;"
+                  + " this build reads only whether one was sent and answers it back in no field"),
+          new AnAddressInTheClear(
+              "stripe",
               "url",
               "the field a stripe list object names its own route in, /v1/payment_methods: the"
                   + " address of the call the client just made, which the same trail row already"

@@ -488,6 +488,7 @@ class StripeApiVersionTest {
     form.put("capture_method", List.of("manual"));
     form.put("payment_method", List.of("pm_card_visa"));
     form.put("confirm", List.of("true"));
+    form.put("return_url", List.of(StripePaymentIntentTest.A_RETURN_URL));
     return form;
   }
 

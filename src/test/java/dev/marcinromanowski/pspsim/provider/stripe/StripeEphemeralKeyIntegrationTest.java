@@ -200,6 +200,7 @@ class StripeEphemeralKeyIntegrationTest extends PostgresBackedTest {
     form.put("capture_method", "manual");
     form.put("payment_method", "pm_card_visa");
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     form.put("customer", customerId);
     return form;
   }
