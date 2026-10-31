@@ -143,7 +143,7 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void payment_method_types_is_answered_on_the_object_and_refused_as_a_creation_parameter() {
+  void payment_method_types_is_answered_on_the_object_and_refused_at_the_account_default() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
     StripeApiResponse created = aSetupIntentFor(THE_CUSTOMER, null);
@@ -152,35 +152,19 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(created)).contains("\"payment_method_types\":[\"card\",\"paypal\"]");
     assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused))
-        .contains("\"code\":\"parameter_unknown\"")
-        .contains("\"param\":\"payment_method_types\"")
-        .contains("automatic_payment_methods");
+        .contains("\"code\":\"payment_method_types_no_longer_supported\"")
+        .contains("\"param\":\"payment_method_types\"");
     assertThat(setupIntents.all()).hasSize(1);
   }
 
   @Test
-  void payment_method_types_is_refused_in_the_bracketed_form_stripes_own_encoding_produces() {
-    anAccountHoldingAnUnattachedCardOfNobody();
-
-    StripeApiResponse refused = create(Map.of("payment_method_types[]", "card"));
-    StripeApiResponse indexed = create(Map.of("payment_method_types[0]", "card"));
-
-    assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("\"param\":\"payment_method_types\"");
-    assertThat(indexed.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(indexed))
-        .contains("\"code\":\"parameter_unknown\"")
-        .contains("\"param\":\"payment_method_types\"");
-    assertThat(setupIntents.all()).isEmpty();
-  }
-
-  @Test
-  void payment_method_types_is_refused_as_unknown_in_every_shape_the_grammar_decodes() {
+  void payment_method_types_is_refused_at_the_account_default_in_every_shape_the_grammar_decodes() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
     for (Map<String, String> sent :
         List.of(
             Map.of(StripeFields.PAYMENT_METHOD_TYPES, ""),
+            Map.of("payment_method_types[]", "card"),
             Map.of("payment_method_types[card]", "true"),
             Map.of("payment_method_types[0][type]", "card"),
             Map.of("payment_method_types[0]", "card", "payment_method_types[1]", "paypal"))) {
@@ -189,7 +173,7 @@ class StripeSetupIntentTest {
       assertThat(refused.httpStatus()).as(sent.toString()).isEqualTo(400);
       assertThat(bodyOf(refused))
           .as(sent.toString())
-          .contains("\"code\":\"parameter_unknown\"")
+          .contains("\"code\":\"payment_method_types_no_longer_supported\"")
           .contains("\"param\":\"payment_method_types\"");
     }
     assertThat(setupIntents.all()).isEmpty();
@@ -206,20 +190,26 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void the_four_selection_parameters_provider_stripe_publishes_are_taken_without_refusal() {
+  void the_dynamic_selection_parameters_are_taken_together_and_narrow_what_the_setup_offers() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
     StripeApiResponse created =
         create(
             Map.of(
-                StripeFields.CUSTOMER, THE_CUSTOMER,
-                StripeFields.AUTOMATIC_PAYMENT_METHODS, "true",
-                StripeFields.ALLOWED_PAYMENT_METHOD_TYPES, "card",
-                StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES, "paypal",
-                StripeFields.PAYMENT_METHOD_CONFIGURATION, "pmc_simulated"));
+                StripeFields.CUSTOMER,
+                THE_CUSTOMER,
+                "automatic_payment_methods[enabled]",
+                "true",
+                "excluded_payment_method_types[]",
+                "paypal",
+                StripeFields.PAYMENT_METHOD_CONFIGURATION,
+                "pmc_simulated"));
 
     assertThat(created.httpStatus()).isEqualTo(200);
-    assertThat(bodyOf(created)).contains("\"object\":\"setup_intent\"");
+    assertThat(bodyOf(created))
+        .contains("\"object\":\"setup_intent\"")
+        .contains("\"excluded_payment_method_types\":[\"paypal\"]")
+        .contains("\"payment_method_types\":[\"card\"]");
   }
 
   @Test
@@ -580,6 +570,7 @@ class StripeSetupIntentTest {
         null,
         null,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
         setupIntentId + StripeClientSecret.INFIX + "x",
         null,
@@ -597,6 +588,7 @@ class StripeSetupIntentTest {
         THE_CUSTOMER,
         paymentMethod,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         status,
         "seti_sim_under_test_secret_x",
         decline,

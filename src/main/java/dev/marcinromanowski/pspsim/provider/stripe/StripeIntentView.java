@@ -4,14 +4,11 @@ import dev.marcinromanowski.pspsim.kernel.money.Amount;
 import dev.marcinromanowski.pspsim.kernel.money.DerivedBalances;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 final class StripeIntentView {
 
   static final String OBJECT = "payment_intent";
-
-  static final String ONLY_PAYMENT_METHOD_TYPE = StripePaymentMethodType.CARD.wireValue();
 
   private StripeIntentView() {}
 
@@ -21,12 +18,16 @@ final class StripeIntentView {
         StripeJson.text(intent.intentId()),
         "object",
         StripeJson.text(OBJECT),
+        StripeFields.ALLOWED_PAYMENT_METHOD_TYPES,
+        StripeSelectionView.allowed(intent.selection()),
         "amount",
         StripeJson.number(intent.amount().value()),
         "amount_capturable",
         StripeJson.number(intent.capturableRemainderAt(now).toBigInteger().toString()),
         "amount_received",
         StripeJson.number(receivedBy(intent)),
+        StripeFields.AUTOMATIC_PAYMENT_METHODS,
+        StripeSelectionView.automatic(intent.selection()),
         "cancellation_reason",
         reasonOf(intent.cancellationReasonAt(now)),
         "capture_method",
@@ -39,6 +40,8 @@ final class StripeIntentView {
         StripeJson.text(intent.currency()),
         "customer",
         StripeJson.textOrNull(intent.customer()),
+        StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES,
+        StripeSelectionView.excluded(intent.selection()),
         "last_payment_error",
         StripeDeclineView.of(intent.lastPaymentErrorAt(now)),
         "latest_charge",
@@ -47,8 +50,10 @@ final class StripeIntentView {
         StripeJson.bool(false),
         "payment_method",
         StripeJson.textOrNull(intent.paymentMethod()),
-        "payment_method_types",
-        StripeJson.array(List.of(StripeJson.text(ONLY_PAYMENT_METHOD_TYPE))),
+        StripeFields.PAYMENT_METHOD_CONFIGURATION_DETAILS,
+        StripeSelectionView.configurationDetails(intent.selection()),
+        StripeFields.PAYMENT_METHOD_TYPES,
+        StripeSelectionView.offered(intent.selection()),
         "receipt_email",
         StripeJson.textOrNull(intent.receiptEmail()),
         "status",

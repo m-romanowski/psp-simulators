@@ -39,7 +39,7 @@ final class ConfirmPaymentIntent {
   }
 
   StripeOperationResult handle(
-      StripeForm form,
+      StripeCoreRequest request,
       Map<String, List<String>> headers,
       TestRunId testRunId,
       StripeAccount account,
@@ -52,11 +52,21 @@ final class ConfirmPaymentIntent {
           RefusalSubject.noObjectAnsweredTo(StripeLookup.INTENT_PARAMETER),
           StripeErrors.resourceMissing(StripeLookup.INTENT_PARAMETER));
     }
-    StripePaymentIntent intent = addressed.get();
-    if (!intent.statusAt(now).confirmable()) {
-      return StripeLookup.unexpectedState(intent, now, "confirmed");
+    StripePaymentIntent stored = addressed.get();
+    if (!stored.statusAt(now).confirmable()) {
+      return StripeLookup.unexpectedState(stored, now, "confirmed");
     }
-    String paymentMethod = paymentMethodOf(form, intent);
+    StripeSelection selection;
+    switch (StripeSelections.onConfirmingAPayment(request, stored)) {
+      case StripeSelections.Outcome.Refused refused -> {
+        return StripeOperationResult.refused(
+            RefusalSubject.theObject(stored.intentId()),
+            refused.error().about(StripeIntentView.of(stored, now)));
+      }
+      case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
+    }
+    StripePaymentIntent intent = stored.selecting(selection);
+    String paymentMethod = paymentMethodOf(request.form(), intent);
     if (paymentMethod == null) {
       return StripeOperationResult.refused(
           RefusalSubject.theObject(intent.intentId()),
@@ -67,6 +77,16 @@ final class ConfirmPaymentIntent {
             paymentMethods, testRunId, account, paymentMethod);
     if (detached != null) {
       return StripeOperationResult.refused(RefusalSubject.theObject(intent.intentId()), detached);
+    }
+    Optional<StripePaymentMethodType> notOffered =
+        StripePaymentMethodLookup.theTypeOf(paymentMethods, testRunId, account, paymentMethod)
+            .filter(type -> !selection.offers(type));
+    if (notOffered.isPresent()) {
+      return StripeOperationResult.refused(
+          RefusalSubject.theObject(intent.intentId()),
+          StripeErrors.paymentMethodNotAllowedForThePayment(
+                  notOffered.get().wireValue(), selection.offeredAsProse())
+              .about(StripeIntentView.of(stored, now)));
     }
     return StripeOperationResult.decidedBy(
         scenarios.decide(requestOf(headers, testRunId, account, intent, paymentMethod)),

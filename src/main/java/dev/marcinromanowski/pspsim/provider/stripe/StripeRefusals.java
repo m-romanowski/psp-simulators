@@ -30,6 +30,11 @@ final class StripeRefusals {
           + " as detached and unusable, and the endpoint refuses before it mints the PaymentIntent"
           + " that would have carried the refusal";
 
+  static final String THE_METHOD_IS_OF_A_TYPE_NOT_OFFERED_AND_NO_INTENT_EXISTS_YET =
+      "this test run holds the payment method this request names, its type is not one of the"
+          + " payment_method_types this request selects, and the endpoint refuses before it mints"
+          + " the PaymentIntent that would have carried the refusal";
+
   static final String AN_EARLIER_ANSWER_IS_REPLAYED =
       "provider stripe replays under this idempotency key the answer it stored for the first"
           + " request, and its store keeps the object that answer named but not the words the"

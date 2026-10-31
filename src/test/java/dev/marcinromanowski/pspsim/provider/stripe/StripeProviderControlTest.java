@@ -922,6 +922,7 @@ class StripeProviderControlTest {
         null,
         null,
         null,
+        StripeDoubles.DYNAMIC_SELECTION,
         intentId + "_secret",
         null,
         null,

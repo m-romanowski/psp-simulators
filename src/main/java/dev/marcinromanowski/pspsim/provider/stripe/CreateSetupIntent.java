@@ -14,20 +14,6 @@ final class CreateSetupIntent {
 
   static final int ID_LENGTH = 16;
 
-  static final String THE_SELECTION_PARAMETERS_IT_ACCEPTS =
-      StripeFields.AUTOMATIC_PAYMENT_METHODS
-          + ", "
-          + StripeFields.ALLOWED_PAYMENT_METHOD_TYPES
-          + ", "
-          + StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES
-          + " and "
-          + StripeFields.PAYMENT_METHOD_CONFIGURATION
-          + " as the payment-method selection parameters provider stripe publishes for this"
-          + " endpoint. "
-          + StripeFields.PAYMENT_METHOD_TYPES
-          + " is published on the SetupIntent object and on no parameter list of this endpoint, so"
-          + " this simulator answers it rather than reading it";
-
   private final StripeSetupIntents intents;
   private final IdGenerator ids;
 
@@ -37,15 +23,22 @@ final class CreateSetupIntent {
   }
 
   StripeOperationResult handle(
-      StripeForm form,
+      StripeCoreRequest request,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
       ObjectOrigin askedBy) {
+    StripeForm form = request.form();
     StripeError unreadable = whatThisRequestDoesNotCarry(form);
     if (unreadable != null) {
-      return StripeOperationResult.refusedBeforeExecuting(
-          StripeRefusals.theRequestWasRefused(), unreadable);
+      return refused(unreadable);
+    }
+    StripeSelection selection;
+    switch (StripeSelections.onCreatingASetup(request)) {
+      case StripeSelections.Outcome.Refused refused -> {
+        return refused(refused.error());
+      }
+      case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
     StripeSetupUsage usage = requireUsage(form);
     String paymentMethod = form.first(StripeFields.PAYMENT_METHOD);
@@ -59,6 +52,7 @@ final class CreateSetupIntent {
               form.first(StripeFields.CUSTOMER),
               paymentMethod,
               usage,
+              selection,
               statusOf(paymentMethod),
               StripeClientSecret.of(setupIntentId, ids),
               null,
@@ -73,6 +67,11 @@ final class CreateSetupIntent {
         "no Stripe SetupIntent id could be claimed in " + ID_ATTEMPTS + " attempts");
   }
 
+  private static StripeOperationResult refused(StripeError error) {
+    return StripeOperationResult.refusedBeforeExecuting(
+        StripeRefusals.theRequestWasRefused(), error);
+  }
+
   private static StripeSetupStatus statusOf(@Nullable String paymentMethod) {
     return paymentMethod == null
         ? StripeSetupStatus.REQUIRES_PAYMENT_METHOD
@@ -80,10 +79,6 @@ final class CreateSetupIntent {
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
-    if (form.carries(StripeFields.PAYMENT_METHOD_TYPES)) {
-      return StripeErrors.parameterUnknown(
-          StripeFields.PAYMENT_METHOD_TYPES, THE_SELECTION_PARAMETERS_IT_ACCEPTS);
-    }
     if (usageOf(form) == null) {
       return StripeErrors.unreadableParameter(
           StripeFields.USAGE, StripeSetupUsage.theUsagesTheVendorPublishes());

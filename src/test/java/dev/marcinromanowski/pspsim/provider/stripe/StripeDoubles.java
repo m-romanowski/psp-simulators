@@ -52,6 +52,10 @@ import org.jspecify.annotations.Nullable;
 
 final class StripeDoubles {
 
+  static final StripeSelection DYNAMIC_SELECTION =
+      StripeSelection.dynamic(
+          null, null, null, List.of(StripePaymentMethodType.CARD, StripePaymentMethodType.PAYPAL));
+
   private static final String BETWEEN_PARTS = " ";
 
   private StripeDoubles() {}
@@ -453,7 +457,9 @@ final class StripeDoubles {
         Instant at) {
       return applied(
           intent,
-          held -> held.pendingUntil(settlesAt, settlesWith, paymentMethod, at),
+          held ->
+              held.selecting(intent.selection())
+                  .pendingUntil(settlesAt, settlesWith, paymentMethod, at),
           intent.status());
     }
 
@@ -468,7 +474,9 @@ final class StripeDoubles {
       return minted(
           applied(
               intent,
-              held -> held.confirmedAs(reached, paymentMethod, operation, charge.chargeId(), at),
+              held ->
+                  held.selecting(intent.selection())
+                      .confirmedAs(reached, paymentMethod, operation, charge.chargeId(), at),
               intent.status()),
           charge);
     }
@@ -484,7 +492,9 @@ final class StripeDoubles {
       return minted(
           applied(
               intent,
-              held -> held.declinedWith(decline, usingPaymentMethod, charge.chargeId(), at),
+              held ->
+                  held.selecting(intent.selection())
+                      .declinedWith(decline, usingPaymentMethod, charge.chargeId(), at),
               intent.status()),
           charge);
     }

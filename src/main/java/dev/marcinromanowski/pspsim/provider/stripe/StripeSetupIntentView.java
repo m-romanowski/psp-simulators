@@ -1,8 +1,5 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
-import java.util.ArrayList;
-import java.util.List;
-
 final class StripeSetupIntentView {
 
   static final String OBJECT = "setup_intent";
@@ -31,31 +28,31 @@ final class StripeSetupIntentView {
         StripeJson.text(intent.setupIntentId()),
         "object",
         StripeJson.text(OBJECT),
+        StripeFields.ALLOWED_PAYMENT_METHOD_TYPES,
+        StripeSelectionView.allowed(intent.selection()),
+        StripeFields.AUTOMATIC_PAYMENT_METHODS,
+        StripeSelectionView.automatic(intent.selection()),
         StripeFields.CLIENT_SECRET,
         StripeJson.text(intent.clientSecret()),
         "created",
         StripeJson.number(Long.toString(intent.createdAt().getEpochSecond())),
         "customer",
         StripeJson.textOrNull(intent.customerId()),
+        StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES,
+        StripeSelectionView.excluded(intent.selection()),
         "last_setup_error",
         StripeDeclineView.of(intent.lastSetupError()),
         "livemode",
         StripeJson.bool(false),
         "payment_method",
         StripeJson.textOrNull(intent.paymentMethodId()),
-        "payment_method_types",
-        thePublishedTypesThisBuildSetsUp(),
+        StripeFields.PAYMENT_METHOD_CONFIGURATION_DETAILS,
+        StripeSelectionView.configurationDetails(intent.selection()),
+        StripeFields.PAYMENT_METHOD_TYPES,
+        StripeSelectionView.offered(intent.selection()),
         "status",
         StripeJson.text(intent.status().wireValue()),
         "usage",
         StripeJson.text(intent.usage().wireValue()));
-  }
-
-  private static StripeJson thePublishedTypesThisBuildSetsUp() {
-    List<StripeJson> types = new ArrayList<>();
-    for (StripePaymentMethodType type : StripePaymentMethodType.values()) {
-      types.add(StripeJson.text(type.wireValue()));
-    }
-    return StripeJson.array(types);
   }
 }

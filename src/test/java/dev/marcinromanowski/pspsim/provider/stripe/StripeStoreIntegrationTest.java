@@ -521,8 +521,10 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
         """
         insert into stripe_payment_intent
             (test_run_id, intent_id, account_id, amount, currency, capture_method, status,
-             client_secret, capture_expires_at, origin, created_at, updated_at)
-        values (?, ?, ?, ?, 'pln', 'manual', ?, 'secret', ?, 'PROVIDER_API', ?, ?)
+             client_secret, capture_expires_at, origin, created_at, updated_at,
+             automatic_payment_methods_enabled, payment_method_types)
+        values (?, ?, ?, ?, 'pln', 'manual', ?, 'secret', ?, 'PROVIDER_API', ?, ?, true,
+                '{card,paypal}')
         """,
         RUN,
         INTENT,

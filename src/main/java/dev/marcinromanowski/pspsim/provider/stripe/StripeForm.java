@@ -46,6 +46,12 @@ final class StripeForm {
         + "= as a list of no elements";
   }
 
+  StripeForm withoutTheParameter(String name) {
+    LinkedHashMap<String, StripeParameter> kept = new LinkedHashMap<>(parameters);
+    kept.remove(name);
+    return new StripeForm(values, Collections.unmodifiableSequencedMap(kept), unreadable);
+  }
+
   SequencedMap<String, List<String>> values() {
     return values;
   }

@@ -29,27 +29,29 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   @Override
   public boolean insertIfAbsent(StripeSetupIntent intent) {
-    return jdbc.sql(
-                """
-            insert into stripe_setup_intent
-                (test_run_id, setup_intent_id, account_id, customer_id, payment_method_id,
-                 intended_usage, status, client_secret, last_setup_error, origin, created_at,
-                 updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict (test_run_id, setup_intent_id) do nothing
-            """)
-            .param(intent.testRunId().value())
-            .param(intent.setupIntentId())
-            .param(intent.accountId())
-            .param(intent.customerId())
-            .param(intent.paymentMethodId())
-            .param(intent.usage().name())
-            .param(intent.status().name())
-            .param(intent.clientSecret())
-            .param(scenarioCodeOf(intent.lastSetupError()))
-            .param(intent.origin().name())
-            .param(intent.createdAt().atOffset(ZoneOffset.UTC))
-            .param(intent.updatedAt().atOffset(ZoneOffset.UTC))
+    return StripeSelectionColumns.bound(
+                jdbc.sql(
+                        "insert into stripe_setup_intent (test_run_id, setup_intent_id,"
+                            + " account_id, customer_id, payment_method_id, intended_usage,"
+                            + " status, client_secret, last_setup_error, origin, created_at,"
+                            + " updated_at, "
+                            + StripeSelectionColumns.NAMES
+                            + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                            + StripeSelectionColumns.PLACEHOLDERS
+                            + ") on conflict (test_run_id, setup_intent_id) do nothing")
+                    .param(intent.testRunId().value())
+                    .param(intent.setupIntentId())
+                    .param(intent.accountId())
+                    .param(intent.customerId())
+                    .param(intent.paymentMethodId())
+                    .param(intent.usage().name())
+                    .param(intent.status().name())
+                    .param(intent.clientSecret())
+                    .param(scenarioCodeOf(intent.lastSetupError()))
+                    .param(intent.origin().name())
+                    .param(intent.createdAt().atOffset(ZoneOffset.UTC))
+                    .param(intent.updatedAt().atOffset(ZoneOffset.UTC)),
+                intent.selection())
             .update()
         == 1;
   }
@@ -162,16 +164,17 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       String paymentMethodId,
       @Nullable String lastSetupError,
       Instant at) {
-    return jdbc.sql(
-            """
-            update stripe_setup_intent
-            set status = ?, payment_method_id = ?, last_setup_error = ?, updated_at = ?
-            where test_run_id = ? and setup_intent_id = ? and status = ?
-            """)
-        .param(reached.name())
-        .param(paymentMethodId)
-        .param(lastSetupError)
-        .param(at.atOffset(ZoneOffset.UTC))
+    return StripeSelectionColumns.bound(
+            jdbc.sql(
+                    "update stripe_setup_intent set status = ?, payment_method_id = ?,"
+                        + " last_setup_error = ?, updated_at = ?, "
+                        + StripeSelectionColumns.ASSIGNMENTS
+                        + " where test_run_id = ? and setup_intent_id = ? and status = ?")
+                .param(reached.name())
+                .param(paymentMethodId)
+                .param(lastSetupError)
+                .param(at.atOffset(ZoneOffset.UTC)),
+            intent.selection())
         .param(intent.testRunId().value())
         .param(intent.setupIntentId())
         .param(intent.status().name())
@@ -213,6 +216,7 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
         rs.getString("customer_id"),
         rs.getString("payment_method_id"),
         StripeSetupUsage.valueOf(rs.getString("intended_usage")),
+        StripeSelectionColumns.read(rs),
         StripeSetupStatus.valueOf(rs.getString("status")),
         rs.getString("client_secret"),
         declineOf(rs.getString("last_setup_error")),

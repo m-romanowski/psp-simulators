@@ -83,6 +83,7 @@ class TrailWithholdingConventionTest {
           "grow success_url",
           "grow url",
           "stripe doc_url",
+          "stripe link",
           "stripe url",
           "tranzila TRANZILA_API_BASE_URL",
           "tranzila TRANZILA_API_V2_BASE_URL",
@@ -316,10 +317,10 @@ class TrailWithholdingConventionTest {
             "the fourth denominator: the names the floor was compared against, named one by one"
                 + " so a sweep that stopped matching could not pass as a clean tree")
         .containsExactlyElementsOf(THE_ADDRESSES_THIS_BUILD_PUBLISHES);
-    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(34);
+    assertThat(TrailWithholdingConvention.howManyAddressShapedNames(build.modules())).isEqualTo(35);
     assertThat(TrailWithholdingConvention.THE_ADDRESSES_A_MODULE_MAY_ANSWER_IN_THE_CLEAR)
         .as("the registry is the whole of what any module answers in the clear")
-        .hasSize(29)
+        .hasSize(30)
         .allSatisfy(admitted -> assertThat(admitted.why()).isNotBlank());
     assertThat(TrailWithholdingConvention.theModulesThatRegisterAnAddress())
         .containsExactlyElementsOf(THE_MODULES_THIS_SIMULATOR_SERVES);
@@ -351,8 +352,8 @@ class TrailWithholdingConventionTest {
         .contains("leaves " + THE_NAMES_EXCUSED_SOMEWHERE_AND_PUBLISHED_ELSEWHERE + " name(s)")
         .contains("dev.marcinromanowski.pspsim.provider.autra.AutraPixEvent FINANCIAL_TRANSACTION");
     assertThat(read.get(2)).contains("read 37 withheld response field(s)");
-    assertThat(read.get(3)).contains("examined 34 published name(s) that read as an address");
-    assertThat(read.get(4)).contains("29 of those address(es) are registered").contains("over 6");
+    assertThat(read.get(3)).contains("examined 35 published name(s) that read as an address");
+    assertThat(read.get(4)).contains("30 of those address(es) are registered").contains("over 6");
     assertThat(read.get(5))
         .as("the response declaration of stripe is the one this build hands to no whole-key reader")
         .contains("stripe matches not a whole key")
@@ -582,9 +583,9 @@ class TrailWithholdingConventionTest {
 
     assertThat(TrailWithholdingConvention.theRegistrationsNoModuleUses(List.of(module)))
         .as(
-            "a build holding grow alone, publishing no address, leaves all 29 addresses and the"
+            "a build holding grow alone, publishing no address, leaves all 30 addresses and the"
                 + " one page registered against nothing")
-        .hasSize(30)
+        .hasSize(31)
         .anySatisfy(
             offence ->
                 assertThat(offence)
@@ -744,13 +745,13 @@ class TrailWithholdingConventionTest {
             "the 37 response entries and the 13 delivered entries the declarations of this build"
                 + " name, each excused in the initializer that stores it")
         .isEqualTo(50);
-    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(218);
-    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(648);
+    assertThat(excused.asTheNameOfAnEnumConstant()).isEqualTo(224);
+    assertThat(excused.asTheComponentNamesOfItsOwnRecord()).isEqualTo(663);
     assertThat(excused.occurrences())
         .as(
             "the denominator of this exclusion, against the %s occurrences read",
             build.constantsRead())
-        .isEqualTo(916);
+        .isEqualTo(937);
     assertThat(excused.theNamesOfItsOwnEnumConstantsAndRecordComponentsPublishedAnyway())
         .as(
             "what a class-wide exclusion dropped and this one reads: the names these classes name"

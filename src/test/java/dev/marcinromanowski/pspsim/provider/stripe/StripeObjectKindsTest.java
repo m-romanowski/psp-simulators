@@ -71,6 +71,7 @@ class StripeObjectKindsTest {
         null,
         null,
         null,
+        StripeDoubles.DYNAMIC_SELECTION,
         "pi_simulated_1_secret",
         null,
         null,

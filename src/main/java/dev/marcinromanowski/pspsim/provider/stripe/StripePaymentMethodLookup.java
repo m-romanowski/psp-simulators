@@ -29,6 +29,17 @@ final class StripePaymentMethodLookup {
         .filter(method -> method.accountId().equals(account.accountId()));
   }
 
+  static Optional<StripePaymentMethodType> theTypeOf(
+      StripePaymentMethods methods,
+      TestRunId testRunId,
+      StripeAccount account,
+      @Nullable String paymentMethodId) {
+    if (paymentMethodId == null) {
+      return Optional.empty();
+    }
+    return of(methods, testRunId, account, paymentMethodId).map(StripePaymentMethod::type);
+  }
+
   static @Nullable StripeError theRefusalADetachedMethodEarns(
       StripePaymentMethods methods,
       TestRunId testRunId,

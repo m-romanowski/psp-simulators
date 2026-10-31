@@ -16,13 +16,19 @@ final class StripeErrors {
   static final String RESOURCE_MISSING = "resource_missing";
   static final String PAYMENT_INTENT_UNEXPECTED_STATE = "payment_intent_unexpected_state";
   static final String SETUP_INTENT_UNEXPECTED_STATE = "setup_intent_unexpected_state";
-  static final String PARAMETER_UNKNOWN = "parameter_unknown";
   static final String CHARGE_EXPIRED_FOR_CAPTURE = "charge_expired_for_capture";
   static final String INVALID_CHARGE_AMOUNT = "invalid_charge_amount";
   static final String AMOUNT_TOO_LARGE = "amount_too_large";
   static final String PARAMETER_MISSING = "parameter_missing";
   static final String IDEMPOTENCY_KEY_IN_USE = "idempotency_key_in_use";
   static final String CHARGE_ALREADY_REFUNDED = "charge_already_refunded";
+  static final String PAYMENT_METHOD_TYPES_NO_LONGER_SUPPORTED =
+      "payment_method_types_no_longer_supported";
+  static final String PARAMETERS_EXCLUSIVE = "parameters_exclusive";
+  static final String PAYMENT_INTENT_INVALID_PARAMETER = "payment_intent_invalid_parameter";
+  static final String SETUP_INTENT_INVALID_PARAMETER = "setup_intent_invalid_parameter";
+  static final String PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD =
+      "payment_intent_incompatible_payment_method";
 
   static StripeError noApiKey() {
     return new StripeError(
@@ -156,12 +162,82 @@ final class StripeErrors {
     return invalidRequest(BAD_REQUEST, SETUP_INTENT_UNEXPECTED_STATE, message, null);
   }
 
-  static StripeError parameterUnknown(String param, String accepted) {
+  static StripeError paymentMethodTypesNoLongerSupported() {
     return invalidRequest(
         BAD_REQUEST,
-        PARAMETER_UNKNOWN,
-        "Received unknown parameter. This endpoint accepts " + accepted + ".",
+        PAYMENT_METHOD_TYPES_NO_LONGER_SUPPORTED,
+        StripeFields.PAYMENT_METHOD_TYPES
+            + " is no longer a writable parameter at the API version this request is answered at."
+            + " It stays on the object as the list of payment method types the intent computed."
+            + " Send "
+            + StripeFields.ALLOWED_PAYMENT_METHOD_TYPES
+            + " to name the types you accept, or "
+            + StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES
+            + " to narrow the dynamic ones.",
+        StripeFields.PAYMENT_METHOD_TYPES);
+  }
+
+  static StripeError invalidValue(String param, String oneOf) {
+    return invalidRequest(
+        BAD_REQUEST, null, "Invalid " + param + ": must be one of " + oneOf, param);
+  }
+
+  static StripeError parametersExclusive(String param, String other) {
+    return invalidRequest(
+        BAD_REQUEST,
+        PARAMETERS_EXCLUSIVE,
+        "You may only specify one of these parameters: " + param + ", " + other + ".",
         param);
+  }
+
+  static StripeError paymentMethodTypeNotSupported(String type, String when) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "The payment method type `" + type + "` is not supported when " + when + ".",
+        StripeFields.PAYMENT_METHOD_TYPES);
+  }
+
+  static StripeError noPaymentMethodTypeLeftForThePayment(String param) {
+    return invalidRequest(
+        BAD_REQUEST,
+        PAYMENT_INTENT_INVALID_PARAMETER,
+        StripeSelection.NO_TYPE_IS_LEFT + " PaymentIntent.",
+        param);
+  }
+
+  static StripeError noPaymentMethodTypeLeftForTheSetup(String param) {
+    return invalidRequest(
+        BAD_REQUEST,
+        SETUP_INTENT_INVALID_PARAMETER,
+        StripeSelection.NO_TYPE_IS_LEFT + " SetupIntent.",
+        param);
+  }
+
+  static StripeError paymentMethodNotAllowedForThePayment(String type, String allowed) {
+    return invalidRequest(
+        BAD_REQUEST,
+        PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD,
+        "The PaymentMethod provided ("
+            + type
+            + ") is not allowed for this PaymentIntent. Attach a PaymentMethod of one of the"
+            + " following types: "
+            + allowed
+            + ".",
+        StripeFields.PAYMENT_METHOD);
+  }
+
+  static StripeError paymentMethodNotAllowedForTheSetup(String type, String allowed) {
+    return invalidRequest(
+        BAD_REQUEST,
+        SETUP_INTENT_INVALID_PARAMETER,
+        "The PaymentMethod provided ("
+            + type
+            + ") is not allowed for this SetupIntent. Attach a PaymentMethod of one of the"
+            + " following types: "
+            + allowed
+            + ".",
+        StripeFields.PAYMENT_METHOD);
   }
 
   static StripeError unexpectedState(String message) {

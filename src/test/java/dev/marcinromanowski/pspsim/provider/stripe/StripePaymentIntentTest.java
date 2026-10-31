@@ -86,7 +86,7 @@ class StripePaymentIntentTest {
         .contains("\"currency\":\"pln\"")
         .contains("\"last_payment_error\":null")
         .contains("\"livemode\":false")
-        .contains("\"payment_method_types\":[\"card\"]")
+        .contains("\"payment_method_types\":[\"card\",\"paypal\"]")
         .contains("\"status\":\"requires_capture\"");
     assertThat(theStoredIntent().ledger().operations())
         .singleElement()

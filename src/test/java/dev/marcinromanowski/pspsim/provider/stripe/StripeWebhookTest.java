@@ -1016,7 +1016,7 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             StripeDoubles.NO_SCHEDULED_OUTCOMES)
         .handle(
-            StripeForm.of(fields),
+            StripeCoreRequest.asSent(StripeForm.of(fields)),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -1033,7 +1033,7 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             webhooks(dispatcher))
         .handle(
-            StripeForm.of(Map.of()),
+            StripeCoreRequest.asSent(StripeForm.of(Map.of())),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -1050,7 +1050,7 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             webhooks(dispatcher))
         .handle(
-            StripeForm.of(fieldsOfAnAsynchronousCharge()),
+            StripeCoreRequest.asSent(StripeForm.of(fieldsOfAnAsynchronousCharge())),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),

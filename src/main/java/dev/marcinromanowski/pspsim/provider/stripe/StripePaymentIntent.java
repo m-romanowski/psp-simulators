@@ -22,6 +22,7 @@ record StripePaymentIntent(
     @Nullable String paymentMethod,
     @Nullable String customer,
     @Nullable String receiptEmail,
+    StripeSelection selection,
     String clientSecret,
     @Nullable String latestCharge,
     @Nullable StripeDecline lastPaymentError,
@@ -208,6 +209,7 @@ record StripePaymentIntent(
         usingPaymentMethod,
         customer,
         receiptEmail,
+        selection,
         clientSecret,
         latestCharge,
         null,
@@ -219,6 +221,32 @@ record StripePaymentIntent(
         origin,
         createdAt,
         at);
+  }
+
+  StripePaymentIntent selecting(StripeSelection reached) {
+    return new StripePaymentIntent(
+        testRunId,
+        intentId,
+        accountId,
+        amount,
+        currency,
+        captureMethod,
+        status,
+        paymentMethod,
+        customer,
+        receiptEmail,
+        reached,
+        clientSecret,
+        latestCharge,
+        lastPaymentError,
+        cancellationReason,
+        captureExpiresAt,
+        settlesAt,
+        settlesWith,
+        ledger,
+        origin,
+        createdAt,
+        updatedAt);
   }
 
   StripePaymentIntent chargedBy(String mintedCharge) {
@@ -251,6 +279,7 @@ record StripePaymentIntent(
         usingPaymentMethod,
         customer,
         receiptEmail,
+        selection,
         clientSecret,
         reachedCharge,
         decline,

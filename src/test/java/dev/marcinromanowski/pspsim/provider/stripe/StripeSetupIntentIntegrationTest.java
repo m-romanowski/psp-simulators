@@ -239,12 +239,13 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void payment_method_types_is_refused_on_create_and_answered_on_the_object_it_never_set() {
+  void payment_method_types_is_refused_at_the_account_default_and_answered_as_the_computed_list() {
     HttpResponse<byte[]> refused =
         post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER, "payment_method_types[]", "card"));
     HttpResponse<byte[]> created = post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER));
 
     assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"code\":\"payment_method_types_no_longer_supported\"");
     assertThat(bodyOf(created)).contains("\"payment_method_types\":[\"card\",\"paypal\"]");
   }
 

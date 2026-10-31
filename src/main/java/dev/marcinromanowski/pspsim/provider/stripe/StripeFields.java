@@ -24,6 +24,7 @@ final class StripeFields {
   static final String ALLOWED_PAYMENT_METHOD_TYPES = "allowed_payment_method_types";
   static final String EXCLUDED_PAYMENT_METHOD_TYPES = "excluded_payment_method_types";
   static final String PAYMENT_METHOD_CONFIGURATION = "payment_method_configuration";
+  static final String PAYMENT_METHOD_CONFIGURATION_DETAILS = "payment_method_configuration_details";
   static final String TYPE = "type";
   static final String RECEIPT_EMAIL = "receipt_email";
   static final String EMAIL = "email";

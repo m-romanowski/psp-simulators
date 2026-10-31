@@ -372,10 +372,10 @@ class StripeIdempotencyTest {
     accounts.with(account(SECRET_KEY, ACCOUNT));
     StripeApi api = api(NOW);
     Map<String, List<String>> appended = fields(hold("1099"));
-    appended.put("payment_method_types[]", List.of("card", "paypal"));
+    appended.put("allowed_payment_method_types[]", List.of("card", "paypal"));
     Map<String, List<String>> indexed = fields(hold("1099"));
-    indexed.put("payment_method_types[1]", List.of("paypal"));
-    indexed.put("payment_method_types[0]", List.of("card"));
+    indexed.put("allowed_payment_method_types[1]", List.of("paypal"));
+    indexed.put("allowed_payment_method_types[0]", List.of("card"));
     StripeApiResponse first = api.createPaymentIntent(sending(appended, KEY));
 
     StripeApiResponse replay = api.createPaymentIntent(sending(indexed, KEY));
@@ -390,10 +390,10 @@ class StripeIdempotencyTest {
     accounts.with(account(SECRET_KEY, ACCOUNT));
     StripeApi api = api(NOW);
     Map<String, List<String>> inOneOrder = fields(hold("1099"));
-    inOneOrder.put("payment_method_types[]", List.of("card", "paypal"));
+    inOneOrder.put("allowed_payment_method_types[]", List.of("card", "paypal"));
     Map<String, List<String>> inTheOther = fields(hold("1099"));
-    inTheOther.put("payment_method_types[0]", List.of("paypal"));
-    inTheOther.put("payment_method_types[1]", List.of("card"));
+    inTheOther.put("allowed_payment_method_types[0]", List.of("paypal"));
+    inTheOther.put("allowed_payment_method_types[1]", List.of("card"));
     api.createPaymentIntent(sending(inOneOrder, KEY));
 
     StripeApiResponse reused = api.createPaymentIntent(sending(inTheOther, KEY));

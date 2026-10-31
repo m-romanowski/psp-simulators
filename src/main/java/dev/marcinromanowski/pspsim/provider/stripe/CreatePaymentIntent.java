@@ -12,6 +12,7 @@ import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 final class CreatePaymentIntent {
@@ -45,16 +46,25 @@ final class CreatePaymentIntent {
   }
 
   StripeOperationResult handle(
-      StripeForm form,
+      StripeCoreRequest request,
       Map<String, List<String>> headers,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
       ObjectOrigin askedBy) {
+    StripeForm form = request.form();
     StripeError unreadable = whatThisRequestDoesNotCarry(form);
     if (unreadable != null) {
       return StripeOperationResult.refusedBeforeExecuting(
           StripeRefusals.theRequestWasRefused(), unreadable);
+    }
+    StripeSelection selection;
+    switch (StripeSelections.onCreatingAPayment(request, form.required(StripeFields.CURRENCY))) {
+      case StripeSelections.Outcome.Refused refused -> {
+        return StripeOperationResult.refusedBeforeExecuting(
+            StripeRefusals.theRequestWasRefused(), refused.error());
+      }
+      case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
     if (confirms(form)) {
       StripeError detached =
@@ -66,13 +76,26 @@ final class CreatePaymentIntent {
                 StripeRefusals.THE_METHOD_IS_DETACHED_AND_NO_INTENT_EXISTS_YET),
             detached);
       }
+      Optional<StripePaymentMethodType> notOffered =
+          StripePaymentMethodLookup.theTypeOf(
+                  paymentMethods, testRunId, account, form.first(StripeFields.PAYMENT_METHOD))
+              .filter(type -> !selection.offers(type));
+      if (notOffered.isPresent()) {
+        return StripeOperationResult.refusedBeforeExecuting(
+            RefusalSubject.anObjectItWillNotName(
+                StripeRefusals.THE_METHOD_IS_OF_A_TYPE_NOT_OFFERED_AND_NO_INTENT_EXISTS_YET),
+            StripeErrors.paymentMethodNotAllowedForThePayment(
+                notOffered.get().wireValue(), selection.offeredAsProse()));
+      }
     }
     String intentId = anIntentIdClaimedForThisDecision(testRunId);
     return StripeOperationResult.decidedBy(
         scenarios.decide(requestOf(form, headers, testRunId, account, intentId)),
-        () -> create(form, testRunId, account, now, intentId, askedBy),
-        decline -> createDeclined(form, testRunId, account, now, intentId, decline, askedBy),
-        pending -> createPending(form, testRunId, account, now, intentId, pending, askedBy));
+        () -> create(form, selection, testRunId, account, now, intentId, askedBy),
+        decline ->
+            createDeclined(form, selection, testRunId, account, now, intentId, decline, askedBy),
+        pending ->
+            createPending(form, selection, testRunId, account, now, intentId, pending, askedBy));
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
@@ -150,6 +173,7 @@ final class CreatePaymentIntent {
 
   private StripeOperationResult create(
       StripeForm form,
+      StripeSelection selection,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
@@ -167,6 +191,7 @@ final class CreatePaymentIntent {
     StripePaymentIntent intent =
         stored(
             form,
+            selection,
             testRunId,
             account,
             now,
@@ -183,6 +208,7 @@ final class CreatePaymentIntent {
 
   private StripeOperationResult createPending(
       StripeForm form,
+      StripeSelection selection,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
@@ -190,13 +216,14 @@ final class CreatePaymentIntent {
       ScenarioDecision.Pend pending,
       ObjectOrigin askedBy) {
     if (!confirms(form)) {
-      return create(form, testRunId, account, now, intentId, askedBy);
+      return create(form, selection, testRunId, account, now, intentId, askedBy);
     }
     StripeDecline comingToRestWith = StripePending.theOutcomeItComesToRestWith(pending);
     Instant landing = now.plus(pending.settlesAfter());
     StripePaymentIntent intent =
         stored(
             form,
+            selection,
             testRunId,
             account,
             now,
@@ -214,6 +241,7 @@ final class CreatePaymentIntent {
 
   private StripeOperationResult createDeclined(
       StripeForm form,
+      StripeSelection selection,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
@@ -223,6 +251,7 @@ final class CreatePaymentIntent {
     StripePaymentIntent intent =
         stored(
             form,
+            selection,
             testRunId,
             account,
             now,
@@ -241,6 +270,7 @@ final class CreatePaymentIntent {
 
   private StripePaymentIntent stored(
       StripeForm form,
+      StripeSelection selection,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
@@ -264,6 +294,7 @@ final class CreatePaymentIntent {
             form.first(StripeFields.PAYMENT_METHOD),
             form.first(StripeFields.CUSTOMER),
             form.first(StripeFields.RECEIPT_EMAIL),
+            selection,
             StripeClientSecret.of(intentId, ids),
             null,
             decline,

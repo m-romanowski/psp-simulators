@@ -461,7 +461,7 @@ final class StripeProvider implements SimulatorProvider {
     }
     StripeOperationResult result =
         createPaymentIntent.handle(
-            StripeOrigination.formOf(request),
+            StripeCoreRequest.asSent(StripeOrigination.formOf(request)),
             Map.of(),
             request.testRunId(),
             account.get(),
@@ -474,7 +474,7 @@ final class StripeProvider implements SimulatorProvider {
       OriginationRequest request, StripeAccount account, Instant now) {
     StripeOperationResult created =
         createSetupIntent.handle(
-            StripeOrigination.formOf(request),
+            StripeCoreRequest.asSent(StripeOrigination.formOf(request)),
             request.testRunId(),
             account,
             now,
@@ -486,7 +486,8 @@ final class StripeProvider implements SimulatorProvider {
     }
     StripeOperationResult confirmed =
         confirmSetupIntent.handle(
-            StripeOrigination.theConfirmationOf(request.required(StripeFields.PAYMENT_METHOD)),
+            StripeCoreRequest.asSent(
+                StripeOrigination.theConfirmationOf(request.required(StripeFields.PAYMENT_METHOD))),
             Map.of(),
             request.testRunId(),
             account,

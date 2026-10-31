@@ -215,6 +215,7 @@ class StripeDeliveryWithholdingTest {
         filled ? "pm_card_visa" : null,
         filled ? "cus_sim_1" : null,
         filled ? "payer@example.test" : null,
+        StripeDoubles.DYNAMIC_SELECTION,
         THE_CLIENT_SECRET,
         filled ? "ch_sim_0000000000000001" : null,
         lastPaymentError,

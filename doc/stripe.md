@@ -11,8 +11,9 @@ Evidence classes, per `README.md`, "Evidence Classes":
 
 - **rule**: prose or a table on a Stripe page,
 - **example**: a sample on a Stripe page,
-- **probe**: observed against Stripe itself. The only one is a `POST /v1/payment_intents` carrying no API key, probed
-  2026-09-28, because every other probe needs an account,
+- **probe**: observed against Stripe itself: a `POST /v1/payment_intents` carrying no API key, probed 2026-09-28, and
+  the api.stripe.com traffic Stripe's own iOS SDK recorded with `pk_test_` keys at `Stripe-Version: 2020-08-27`
+  (stripe-ios, `StripePayments/StripePaymentsTestUtils/Resources/recorded_network_traffic`, "the recordings"),
 - **decision**: a choice made by this simulator,
 - **inference**: read off the wording, stated nowhere.
 
@@ -27,11 +28,11 @@ All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 | `POST /v1/customers/{id}`                              | updates `email`                                                                  | a blank `email=` is treated as absent. A deleted customer is refused `400` with no `code`                      |
 | `DELETE /v1/customers/{id}`                            | deletes, and detaches every PaymentMethod of the customer                        | no `Idempotency-Key`. A second delete is refused `400` with no `code`                                           |
 | `POST /v1/ephemeral_keys`                              | mints a key for a `customer`, expiring after 1 hour                              | `customer` is the only resource served, else `parameter_missing`. The key reaches only the two customer read routes |
-| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | `payment_method_types` refused with `parameter_unknown`, in any shape it is sent                        |
+| `POST /v1/setup_intents`                               | creates at `requires_payment_method`, or `requires_confirmation` with a `payment_method` | the selection parameters of "Payment Method Selection"; `payment_method_types` is written before `2026-09-30.endive` and refused from it |
 | `POST /v1/setup_intents/{id}/confirm`                  | attaches the method to the customer and ends at `succeeded`, or fails to `requires_payment_method` | the only SetupIntent operation that takes scenarios. No SetupIntent events                      |
-| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | `payment_method_types` ignored. No `expand`                                                                    |
+| `POST /v1/payment_intents`                             | creates, and optionally confirms inline (`confirm=true`)                          | the selection parameters of "Payment Method Selection", as on a SetupIntent. No `expand`                       |
 | `GET /v1/payment_intents/{id}`                         | current state                                                                    | no `expand`. No scenarios                                                                                      |
-| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline                                          |
+| `POST /v1/payment_intents/{id}/confirm`                | authorizes or charges, and mints a charge                                        | no `requires_action` path: authentication-required is a `402` decline. A method of a type the intent does not offer is refused |
 | `POST /v1/payment_intents/{id}/capture`                | full, partial and multicapture (`final_capture`)                                 | 50 non-final captures, then an `invalid_request_error` on `final_capture` with no `code`                      |
 | `POST /v1/payment_intents/{id}/cancel`                 | cancels                                                                          | `processing` is cancellable although no card reaches it in Stripe                                              |
 | `GET /v1/charges/{id}`                                 | charge read                                                                      | 12 fields only. Not on the control read surface                                                                |
@@ -73,6 +74,11 @@ microsecond, with no default),
 | Error handling                                        | https://docs.stripe.com/error-handling                                | "Catch exceptions", "Types of error and responses", "Payment errors"                            |
 | Payments without card authentication                  | https://docs.stripe.com/payments/without-card-authentication          | "Make a payment [Server-side]"                                                                  |
 | Save and reuse                                        | https://docs.stripe.com/payments/save-and-reuse                       | "Setup Intents API"                                                                             |
+| Changelog entries on payment method selection         | https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents.md, https://docs.stripe.com/changelog/dahlia/2026-07-29/allowed-payment-method-types-parameter.md, https://docs.stripe.com/changelog/2023-08-16/automatic-payment-methods.md | fetched 2026-10-31 |
+| Payment method support, PayPal                        | https://docs.stripe.com/payments/payment-methods/payment-method-support.md, https://docs.stripe.com/payments/paypal.md | "Country and currency support", "Additional API support"; "Payment method properties", fetched 2026-10-31 |
+| PaymentIntent and SetupIntent create, confirm, object, per version | https://docs.stripe.com/api/payment_intents/create.md?api-version=2026-10-28.endive and the same pages at `2026-08-26.dahlia` | fetched 2026-10-31 |
+| Stripe's OpenAPI specification                       | https://github.com/stripe/openapi, at `2026-07-29.dahlia`, `2026-08-26.dahlia`, `2026-09-30.endive` and `2026-10-28.endive` | the request parameters and enums of the four intent operations |
+| Stripe API versioning                                 | https://stripe.com/blog/api-versioning                                | "version change modules"                                                                        |
 
 ## Authentication and Transport
 
@@ -124,8 +130,8 @@ microsecond, with no default),
 | Breaking changes ship only in a major's first release. Monthly releases add and break nothing                                                              | rule, https://docs.stripe.com/api-versions.md                                                                    |
 | "Requests made with curl use your Stripe account's default API version ... unless you override it by setting the `Stripe-Version` header". An SDK sends the version it pins as that header | rule, https://docs.stripe.com/api/versioning.md                                                  |
 | Events use the endpoint's version if one was set at creation, else the account's default                                                                   | rule, https://docs.stripe.com/webhooks/versioning.md                                                              |
-| A response carries `stripe-version` naming the version it was answered at, on `200`, `400`, `402` and `404`, and not on a `401` for an invalid key            | example: 3734 of the 3745 api.stripe.com responses stripe-ios recorded (`StripePayments/StripePaymentsTestUtils/Resources/recorded_network_traffic`); the two invalid-key `401`s carry none |
-| A version can carry a beta: `2020-08-27; vipps_preview=v1`, echoed back as sent                                                                             | example: the same recordings                                                                                     |
+| A response carries `stripe-version` naming the version it was answered at, on `200`, `400`, `402` and `404`, and not on a `401` for an invalid key            | probe: 3734 of the 3745 responses in the recordings; the two invalid-key `401`s carry none                          |
+| A version can carry a beta: `2020-08-27; vipps_preview=v1`, echoed back as sent                                                                             | probe: the recordings                                                                                            |
 | stripe-ios pins `2020-08-27` (`STPAPIClient.swift`) and stripe-android pins `2020-03-02` (`ApiVersion.kt`), and both send it as `Stripe-Version` on their API calls (`STPAPIClient.swift`, `RequestHeadersFactory.kt`). stripe-ios sends it on `GET /v1/customers/{id}` | example: SDK sources, and the recordings (`get_v1_customers_*`) |
 | The answer to an unknown or unsupported version is unpublished                                                                                             | none found on docs.stripe.com. stripe-mock's opt-in version check answers `400` `invalid_request_error`, no code (a mock) |
 
@@ -144,9 +150,101 @@ The catalogue is `StripeApiVersions` and `StripeApiMajor`: every release the cha
 | Any other value: the same status and type, "Invalid Stripe API version: {sent}" (`StripeErrors.versionUnrecognised`). Values are compared exactly, so `2026-08-26.DAHLIA` is one | decision: the text is the one a third-party report quotes from the API (https://wordpress.org/support/topic/invalid-stripe-api-version-yith_wcstripe_api_version/), not a vendor source |
 | A request authenticated by an ephemeral key may also send `2020-03-02` or `2020-08-27`, and is answered at it                                              | decision: the mobile SDKs pin those and send them on the two customer reads an ephemeral key reaches; the simulator's customer and PaymentMethod fields are the same at both |
 | The version is checked after authentication and the form, before `Idempotency-Key` is claimed. A refusal claims no key                                     | decision, as for the form grammar                                                                                 |
-| Every answer of an account carries `Stripe-Version`: the version it was answered at. A `401` and a version refusal carry none                            | example (the recordings)                                                                                         |
+| Every answer of an account carries `Stripe-Version`: the version it was answered at. A `401` and a version refusal carry none                            | probe (the recordings)                                                                                           |
 | An event's `api_version` is the account's default when the event is created, and a retry sends the same body                                               | rule for the default; decision for the moment: this simulator has no webhook endpoint objects, so no endpoint names a version |
-| Operations receive the resolved version (`StripeApi.StripeOperation`). No operation behaves differently by version                                         | decision                                                                                                          |
+
+Version changes (`StripeVersionChanges`, `StripeVersionChange`) follow Stripe's published design, "version change
+modules": each breaking change declares the release that shipped it, its changelog entry, the operations it touches and
+the transformation that turns a request of the release before into one of the release that shipped it (rule,
+https://stripe.com/blog/api-versioning).
+
+| Simulator behaviour                                                                                                                                      | Evidence and reason                                                                                     |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| The operations implement the newest release answered. No operation receives the version: `StripeApi` hands it the request at that release (`StripeCoreRequest`) | rule (the blog: the core is the current version); decision for enforcing it in the signature            |
+| The changes a request takes are those found walking back from the newest release to the request's release, the request's own release excluded. A version older than every release answered, such as a mobile SDK's pinned `2020-08-27`, takes every change | rule (the blog: "walk back") |
+| A request passes its changes oldest first, each touching only the operations it declares                                                                 | decision: each transformation reads the shape of the release before it                                   |
+| A change is declared only at a release this simulator answers, and touches at least one operation                                                         | decision                                                                                                 |
+| A field or parameter a monthly release added is read and answered at every release, older ones included: `allowed_payment_method_types` and `excluded_payment_method_types` with their newest enums | decision: Stripe publishes no per-version gating of additive changes and calls adding a field safe       |
+| Responses are the same at every release: no modelled change alters a response                                                                            | rule: the one change keeps `payment_method_types` on the object                                          |
+
+| Change                                         | Release              | Operations                                                                         | Transformation                                                                                           | Changelog                                                                                                                                         |
+|------------------------------------------------|----------------------|------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `payment_method_types` is no longer writable   | `2026-09-30.endive`  | `POST /v1/payment_intents`, `POST /v1/payment_intents/{id}/confirm`, `POST /v1/setup_intents` | an older request's `payment_method_types` leaves the form and reaches the core as the list it wrote; the core refuses the parameter on the form | https://docs.stripe.com/changelog/endive/2026-09-30/removes-the-payment-method-types-parameter-from-payment-intents-and-setup-intents |
+
+The same removal is filed under `2026-08-26.preview` (https://docs.stripe.com/changelog/dahlia/2026-08-26/removes-payment-method-types-parameter-from-payment-intents-setup-intents),
+a preview release this simulator does not answer; `2026-08-26.dahlia` still lists the parameter (rule: Stripe's
+OpenAPI specification, https://github.com/stripe/openapi, at that release).
+
+## Payment Method Selection
+
+| Fact                                                                                                                                                                         | Evidence                                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| Up to `2026-08-26.dahlia`, `payment_method_types` is a parameter of PaymentIntent create and confirm and SetupIntent create, a list of strings with no enum, and not one of SetupIntent confirm | rule: the OpenAPI specification at `2026-07-29.dahlia` and `2026-08-26.dahlia`                                                   |
+| `payment_method_types` "returns an error when you specify an incompatible payment method"                                                                                  | rule, https://docs.stripe.com/changelog/dahlia/2026-07-29/allowed-payment-method-types-parameter                                   |
+| `2026-09-30.endive` removes it from those operations (and update): "Passing `payment_method_types` on this API version returns a 400 error with the code `payment_method_types_no_longer_supported`". It "remains as a read-only property ... reflecting the computed list" | rule, the endive changelog entry above                                                                                           |
+| `allowed_payment_method_types` (from `2026-07-29.dahlia`, on PaymentIntent create and confirm and SetupIntent create and confirm) "silently filters out incompatible methods", is reflected in `payment_method_types`, and "is mutually exclusive with `payment_method_types`, `excluded_payment_method_types`, `automatic_payment_methods`, and `payment_method_configuration`" | rule, the `2026-07-29` entry. The error for a combination is not stated there                                                     |
+| `parameters_exclusive`: "Two or more mutually exclusive parameters were provided."                                                                                           | rule, https://docs.stripe.com/error-codes                                                                                         |
+| `excluded_payment_method_types` is a parameter of PaymentIntent create and confirm and SetupIntent create; `automatic_payment_methods` (`enabled` required, `allow_redirects` `always` or `never`) and `payment_method_configuration` (at most 100 characters) of the two creates | rule: the OpenAPI specification at `2026-10-28.endive`, and https://docs.stripe.com/api/payment_intents/create, https://docs.stripe.com/api/setup_intents/create |
+| `allowed_payment_method_types` and `excluded_payment_method_types` are enums of 99 and 55 published values                                                                   | rule: the OpenAPI specification at `2026-10-28.endive`                                                                            |
+| Without a selection, automatic payment methods are enabled: "The previous default was to accept only card payments when both `payment_method_types` and `automatic_payment_methods` weren't specified" | rule, https://docs.stripe.com/changelog/2023-08-16/automatic-payment-methods                                                       |
+| `allow_redirects=never` filters payment methods that require a redirect. PayPal requires one; a card does not                                                                | rule, the 2023-08-16 entry and https://docs.stripe.com/payments/payment-methods/payment-method-support ("Requires redirect")       |
+| Cards present in "Most currencies". PayPal presents in AUD, CAD, CHF, CZK, DKK, EUR, GBP, HKD, NOK, NZD, PLN, SEK, SGD and USD. Both support PaymentIntents, SetupIntents and manual capture | rule, https://docs.stripe.com/payments/payment-methods/payment-method-support and https://docs.stripe.com/payments/paypal          |
+| The object carries `allowed_payment_method_types`, `automatic_payment_methods` (`allow_redirects`, `enabled`), `excluded_payment_method_types`, `payment_method_configuration_details` (`id`, `parent`) and `payment_method_types` | rule, https://docs.stripe.com/api/payment_intents/object, https://docs.stripe.com/api/setup_intents/object                         |
+| An enum value outside the published list: `400`, `invalid_request_error`, no `code`, `param` the path, "Invalid payment_method_options[card][network]: must be one of amex, ..., or unknown" | probe: the recordings (`testConfirmCardWithInvalidNetworkParam`)                                                                    |
+| A type the deferred SetupIntent cannot use: `400`, `invalid_request_error`, no `code`, "The payment method type `foo` is not supported when creating a SetupIntent."           | probe: the recordings (`testPaymentSheetLoadDeferredIntentFails`, `GET /v1/elements/sessions`)                                     |
+| `payment_intent_incompatible_payment_method`: "The PaymentIntent expected a payment method with different properties than what was provided." `setup_intent_invalid_parameter` and `payment_intent_invalid_parameter`: "One or more provided parameters wasn't allowed for the given operation" on the intent | rule, https://docs.stripe.com/error-codes                                                                                         |
+
+What a request selects (`StripeSelections`), per operation:
+
+| Operation                         | Reads                                                                                                   |
+|-----------------------------------|---------------------------------------------------------------------------------------------------------|
+| PaymentIntent and SetupIntent create | `automatic_payment_methods`, `allowed_payment_method_types`, `excluded_payment_method_types`, `payment_method_configuration`, and `payment_method_types` before `2026-09-30.endive` |
+| PaymentIntent confirm             | `allowed_payment_method_types`, `excluded_payment_method_types`, and `payment_method_types` before `2026-09-30.endive` |
+| SetupIntent confirm               | `allowed_payment_method_types`. `payment_method_types` is not read at any release, as it never was a parameter there |
+
+| Simulator behaviour                                                                                                                                                         | Evidence and reason                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| The types a selection can offer are the ones this simulator models, `card` and `paypal` (`StripePaymentMethodType`). The account's Dashboard settings are taken as enabling both | decision: no Dashboard is modelled, and a type no fixture can stand for could never be confirmed                       |
+| A type is compatible unless a PaymentIntent's currency is one PayPal does not present in, or `allow_redirects=never` meets PayPal. A SetupIntent has no currency               | rule for both facts; decision that nothing else (country, amount, customer) is modelled                               |
+| No selection, `automatic_payment_methods[enabled]=true`, `excluded_payment_method_types` or `payment_method_configuration`: dynamic. It offers every compatible modelled type not excluded, in the order `card`, `paypal`, and the object shows `automatic_payment_methods` `enabled: true` | rule for the default; decision for the order                                                                          |
+| `allow_redirects` is answered as sent, `null` when the request sent none                                                                                                    | decision: the object's field is nullable and Stripe's sample omits it                                                  |
+| `automatic_payment_methods[enabled]=false` alone offers `card`                                                                                                              | rule: Stripe's default before dynamic payment methods                                                                 |
+| `allowed_payment_method_types` offers the modelled, compatible types of the list, in the order sent, and drops the rest silently, a published type this simulator does not model included. The object shows the list as sent, repeats removed | rule for the filter; decision for the order and for an unmodelled type                                                |
+| `payment_method_types` offers the list in the order sent, repeats removed. A type not modelled, not published or not compatible refuses the request: `400`, `invalid_request_error`, no `code`, `param` `payment_method_types`, "The payment method type `{type}` is not supported when creating a PaymentIntent." (or "confirming a PaymentIntent", "creating a SetupIntent") | rule that it errors; the shape is the recorded one                                                                    |
+| From `2026-09-30.endive`, `payment_method_types` on those three operations: `400`, `invalid_request_error`, `payment_method_types_no_longer_supported`, `param` `payment_method_types`, in any shape it is sent | rule for status and code; decision for `param` and the message. `doc_url` follows the code like every other, although the error-codes page has no entry for it |
+| A selection that leaves no type: `400`, `invalid_request_error`, `payment_intent_invalid_parameter` or `setup_intent_invalid_parameter`, `param` the parameter that emptied it | decision: an intent offering nothing could never be confirmed                                                          |
+| An unpublished value in `allowed_payment_method_types` or `excluded_payment_method_types`: `400`, `invalid_request_error`, no `code`, "Invalid {name}[{index}]: must be one of {the published values}", `param` `{name}[{index}]`. The same shape refuses `automatic_payment_methods[allow_redirects]` | probe for the shape; decision for the indexed `param`                                                                  |
+| `automatic_payment_methods` without `enabled`: `parameter_missing`, `param` `automatic_payment_methods[enabled]`. An `enabled` that is not `true` or `false`, a parameter that is not a hash, and a `payment_method_configuration` that is empty or longer than 100 characters are refused with no `code`, by `StripeErrors.unreadableParameter` | rule for the shapes; decision for the answers                                                                         |
+| `payment_method_configuration` is accepted without being looked up: it selects dynamically and is answered as `payment_method_configuration_details` `{"id": sent, "parent": null}`. Without one, the details are `null` | decision: no configuration objects are modelled, and refusing every id would refuse every integration that uses one |
+| A selection is stored on the intent (`V93__stripe_intents_carry_their_payment_method_selection.sql`). Intents stored before keep the list they were answered with, `["card"]` for a PaymentIntent and `["card", "paypal"]` for a SetupIntent, and read as dynamic | decision: a list already answered does not change; neither intent was created with a selection                       |
+
+Mutual exclusion (`400`, `invalid_request_error`, `parameters_exclusive`, "You may only specify one of these parameters:
+{param}, {other}.", `param` the first named):
+
+| Refused together                                                                                       | Evidence and reason                                                                                                         |
+|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `allowed_payment_method_types` and any of `payment_method_types`, `excluded_payment_method_types`, `automatic_payment_methods`, `payment_method_configuration` | rule for the exclusion and the code; decision for the message and `param`                                                   |
+| `payment_method_types` and `automatic_payment_methods[enabled]=true`                                   | decision: one fixes the list, the other computes it. A third-party report says Stripe refuses the pair (https://github.com/laravel/cashier-stripe/pull/1345) |
+| `excluded_payment_method_types` or `payment_method_configuration` beside `payment_method_types` or `automatic_payment_methods[enabled]=false` | decision: both narrow or choose the dynamic set, which these switch off                                                      |
+| On confirm, `excluded_payment_method_types` sent to an intent whose selection is not dynamic, named against the parameter that chose it | decision                                                                                                                    |
+
+`payment_method_types` and `automatic_payment_methods[enabled]=false` together are accepted.
+
+On confirm, `allowed_payment_method_types` or `payment_method_types` replaces the intent's selection,
+`excluded_payment_method_types` recomputes a dynamic one, and a confirm sending none keeps it. The selection is stored
+only with the confirmation's own state change: a refused confirm changes nothing.
+
+Confirming a payment method this account holds whose type the selection does not offer (decision: Stripe publishes no
+answer):
+
+| Operation                                       | Answer                                                                                                                                                                         |
+|-------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| PaymentIntent confirm, and create with `confirm=true` | `400`, `invalid_request_error`, `payment_intent_incompatible_payment_method`, `param` `payment_method`, "The PaymentMethod provided ({type}) is not allowed for this PaymentIntent. Attach a PaymentMethod of one of the following types: {offered}." Confirm embeds the intent as stored; create mints nothing |
+| SetupIntent confirm                             | `400`, `invalid_request_error`, `setup_intent_invalid_parameter`, the same sentence with SetupIntent, and the truncated SetupIntent. Nothing is attached                        |
+
+The code is the published one whose description fits ("expected a payment method with different properties"); a
+SetupIntent has none of its own. A payment method this account does not hold is not type-checked, as before: its type
+is unknown.
 
 ## Idempotency
 
@@ -256,10 +354,7 @@ optional. "Creates a short-lived API key for a given resource". Published respon
 Published:
 
 - Create accepts `customer`, `usage` (`on_session`/`off_session`, "If not provided, this value defaults to
-  `off_session`"), `payment_method`, metadata, and the selection parameters `automatic_payment_methods`,
-  `allowed_payment_method_types`, `excluded_payment_method_types` and `payment_method_configuration`.
-  `payment_method_types` is not a create parameter (re-fetched with `?query=payment_method_types`). It appears only on
-  the object.
+  `off_session`"), `payment_method`, metadata, and the selection parameters of "Payment Method Selection".
 - Status enum: `requires_payment_method`, `requires_confirmation`, `requires_action`, `processing`, `canceled`,
   `succeeded`. There is no `failed`: "If the setup fails, the SetupIntent's status returns to
   `requires_payment_method`", with the failure in `last_setup_error`, "The error encountered in the previous SetupIntent
@@ -278,9 +373,9 @@ card.
 | Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures                                             |
 | Confirm refuses before writing: an unknown method (`resource_missing`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`) |
 | Create accepts any `customer`                                                                                                                                       |
-| `payment_method_types` on create is refused with `parameter_unknown`, which names the four accepted parameters, whether it is sent as a value, a list or a hash. On the object it is `["card", "paypal"]`. The four selection parameters narrow nothing |
+| The selection parameters are read as "Payment Method Selection" states. With none, `payment_method_types` is `["card", "paypal"]` |
 | `client_secret` appears on the wire only. It is withheld from audit and screens, and no publishable-key surface exists                                              |
-| Object: `id`, `object`, `client_secret`, `created`, `customer`, `last_setup_error`, `livemode`, `payment_method`, `payment_method_types`, `status`, `usage`            |
+| Object: `id`, `object`, `allowed_payment_method_types`, `automatic_payment_methods`, `client_secret`, `created`, `customer`, `excluded_payment_method_types`, `last_setup_error`, `livemode`, `payment_method`, `payment_method_configuration_details`, `payment_method_types`, `status`, `usage` |
 | An error embeds a truncated `setup_intent`: `id`, `object`, `customer`, `last_setup_error`, `payment_method`, `status`                                                |
 | Only confirm takes scenario decisions (the `CARD_ADD_SUCCESS` and `CARD_ADD_FAILED` presets)                                                                        |
 | No `setup_intent.*` events. Scheduling one is refused by name                                                                                                       |
@@ -296,9 +391,8 @@ Published:
   never emits them.
 - `capture_method`: `automatic`, `automatic_async` (the default) and `manual`. The simulator treats the two automatic
   values alike.
-- `payment_method_types` is not a create parameter, only an object field: "The list of payment method types (e.g. card)
-  that this PaymentIntent is allowed to use". Stripe publishes no deprecation note, so whether create still accepts it is
-  unknown. The simulator ignores it on create.
+- `payment_method_types` on the object is "The list of payment method types (e.g. card) that this PaymentIntent is
+  allowed to use". Which parameters set it, per release, is in "Payment Method Selection".
 
 `POST /v1/payment_intents`:
 
@@ -315,9 +409,10 @@ Published:
   route of this simulator: both members are always ids (`StripeIntentView.of`). The one expansion served is `customer`
   on `GET /v1/payment_methods/{id}` (`RetrievePaymentMethod.EXPAND`).
 
-The simulator's object: `id`, `object`, `amount`, `amount_capturable`, `amount_received`, `cancellation_reason`,
-`capture_method`, `client_secret`, `created`, `currency`, `customer`, `last_payment_error`, `latest_charge`, `livemode`,
-`payment_method`, `payment_method_types` (`["card"]`), `receipt_email`, `status`.
+The simulator's object: `id`, `object`, `allowed_payment_method_types`, `amount`, `amount_capturable`,
+`amount_received`, `automatic_payment_methods`, `cancellation_reason`, `capture_method`, `client_secret`, `created`,
+`currency`, `customer`, `excluded_payment_method_types`, `last_payment_error`, `latest_charge`, `livemode`,
+`payment_method`, `payment_method_configuration_details`, `payment_method_types`, `receipt_email`, `status`.
 
 `GET /v1/payment_intents/{id}`: current state, `latest_charge` after a confirmation attempt, and `resource_missing` for
 an unknown id. The customer and the payment method are ids here too (`StripeIntentView.of`).
@@ -724,6 +819,9 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 | missing or invalid API key                                                             | `invalid_request_error` | 401  | rule and probe. No code is published                             | see "Authentication and Transport"                                                                                          |
 | a form the grammar cannot read, or a list parameter that is not a list                  | `invalid_request_error` | 400  | decision. No code is published                                   | see "Authentication and Transport", form grammar                                                                            |
 | a `Stripe-Version` this simulator does not answer, or one naming no published version   | `invalid_request_error` | 400  | decision. Stripe publishes no answer                             | see "API Versions"                                                                                                          |
+| `payment_method_types_no_longer_supported`                                             | `invalid_request_error` | 400  | rule (the endive changelog entry)                                | see "Payment Method Selection"                                                                                              |
+| `parameters_exclusive`, `payment_intent_invalid_parameter`, `setup_intent_invalid_parameter`, `payment_intent_incompatible_payment_method` | `invalid_request_error` | 400 | decision. The codes are published, their uses here are not | see "Payment Method Selection"                                                                                              |
+| an enum value outside the published list                                                | `invalid_request_error` | 400  | probe. No code                                                   | "Invalid {param}: must be one of {values}"                                                                                  |
 
 - `insufficient_funds` is both an error code ("The customer's account has insufficient funds to cover this payment")
   and a decline code ("The card has insufficient funds to complete the purchase."). For a card, the pairing is
@@ -805,11 +903,15 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 
 ## What Still Cannot Be Trusted Here
 
-- Only the no-key request was observed against Stripe. Everything else is documentation.
+- Only the no-key request and the recordings, all made at `2020-08-27`, were observed against Stripe. Everything else
+  is documentation.
 - HTTP statuses are published for three cases only: `402` (a failed payment), `409` (a key conflict) and `401` (no
   authentication). The other statuses are inferences.
-- Whether create still accepts `payment_method_types` is unknown. The two create routes differ here: SetupIntent refuses
-  it and PaymentIntent ignores it.
+- Confirming with dynamic payment methods requires a `return_url` unless `off_session=true` or `allow_redirects=never`
+  (rule, the 2023-08-16 entry). The simulator does not require one, because no type it models needs a redirect it
+  serves.
+- Compatibility is modelled by currency and redirects alone, over two types; Stripe also weighs amount, country,
+  customer and the account's Dashboard settings.
 - The ephemeral-key TTL comes from one example.
 - The range of versions answered rests on an inventory of the breaking changes from acacia to endive, read once,
   and not on a per-version comparison of Stripe's specification. A request answered at a version outside the range

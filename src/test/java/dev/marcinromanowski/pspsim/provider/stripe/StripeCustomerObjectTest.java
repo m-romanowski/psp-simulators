@@ -389,6 +389,7 @@ class StripeCustomerObjectTest {
         null,
         null,
         null,
+        StripeDoubles.DYNAMIC_SELECTION,
         AN_INTENT + "_secret",
         null,
         null,

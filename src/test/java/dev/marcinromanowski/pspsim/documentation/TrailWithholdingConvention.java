@@ -247,6 +247,13 @@ public final class TrailWithholdingConvention {
                   + " every test run"),
           new AnAddressInTheClear(
               "stripe",
+              "link",
+              "a payment method type stripe publishes, the Link wallet, which this build names only"
+                  + " among the values an invalid allowed_payment_method_types or"
+                  + " excluded_payment_method_types is refused against; it is never a field name"
+                  + " and carries no address"),
+          new AnAddressInTheClear(
+              "stripe",
               "url",
               "the field a stripe list object names its own route in, /v1/payment_methods: the"
                   + " address of the call the client just made, which the same trail row already"

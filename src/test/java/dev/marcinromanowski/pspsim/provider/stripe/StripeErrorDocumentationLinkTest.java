@@ -53,7 +53,20 @@ class StripeErrorDocumentationLinkTest {
                 Map.entry(
                     "parameter_missing", "https://docs.stripe.com/error-codes#parameter-missing"),
                 Map.entry(
-                    "parameter_unknown", "https://docs.stripe.com/error-codes#parameter-unknown"),
+                    "parameters_exclusive",
+                    "https://docs.stripe.com/error-codes#parameters-exclusive"),
+                Map.entry(
+                    "payment_method_types_no_longer_supported",
+                    "https://docs.stripe.com/error-codes#payment-method-types-no-longer-supported"),
+                Map.entry(
+                    "payment_intent_invalid_parameter",
+                    "https://docs.stripe.com/error-codes#payment-intent-invalid-parameter"),
+                Map.entry(
+                    "payment_intent_incompatible_payment_method",
+                    "https://docs.stripe.com/error-codes#payment-intent-incompatible-payment-method"),
+                Map.entry(
+                    "setup_intent_invalid_parameter",
+                    "https://docs.stripe.com/error-codes#setup-intent-invalid-parameter"),
                 Map.entry(
                     "payment_intent_unexpected_state",
                     "https://docs.stripe.com/error-codes#payment-intent-unexpected-state"),
@@ -86,7 +99,7 @@ class StripeErrorDocumentationLinkTest {
       }
       refusals.add(refusalFrom(factory));
     }
-    assertThat(refusals).hasSize(30);
+    assertThat(refusals).hasSize(37);
     return refusals;
   }
 
