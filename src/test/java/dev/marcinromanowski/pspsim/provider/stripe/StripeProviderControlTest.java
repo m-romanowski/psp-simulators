@@ -697,6 +697,7 @@ class StripeProviderControlTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             deliveries,
             StripeDoubles.clockAt(now),
             ids),

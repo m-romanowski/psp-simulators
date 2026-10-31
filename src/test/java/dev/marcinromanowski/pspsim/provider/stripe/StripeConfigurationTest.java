@@ -326,7 +326,8 @@ class StripeConfigurationTest {
             StripeWebhookSigning.SECRET_SETTING,
             StripeWebhookSigning.EMISSION_SETTING,
             StripeWebhookSigning.AGE_SETTING,
-            StripeRefundOutcome.SETTING);
+            StripeRefundOutcome.SETTING,
+            StripeApiVersion.SETTING);
     assertThat(plan.longestStoryKeysItCouldSpell()).isEmpty();
   }
 
@@ -695,6 +696,7 @@ class StripeConfigurationTest {
             customers,
             paymentMethods,
             setupIntents,
+            accounts,
             accounts,
             deliveries,
             StripeDoubles.clockAt(Instant.EPOCH),

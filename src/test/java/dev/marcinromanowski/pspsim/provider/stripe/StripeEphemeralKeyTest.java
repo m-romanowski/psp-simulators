@@ -626,6 +626,7 @@ class StripeEphemeralKeyTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOW),
             ids),

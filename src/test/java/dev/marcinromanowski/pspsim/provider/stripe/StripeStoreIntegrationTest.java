@@ -507,8 +507,8 @@ class StripeStoreIntegrationTest extends PostgresBackedTest {
         """
         insert into stripe_account
             (test_run_id, account_id, secret_key, capture_window, webhook_secret,
-             webhook_signature, webhook_timestamp_age, refund_status)
-        values (?, ?, ?, ?, null, 'VALID', 'PT0S', 'SUCCEEDED')
+             webhook_signature, webhook_timestamp_age, refund_status, api_version)
+        values (?, ?, ?, ?, null, 'VALID', 'PT0S', 'SUCCEEDED', '2026-10-28.endive')
         """,
         RUN,
         MERCHANT,

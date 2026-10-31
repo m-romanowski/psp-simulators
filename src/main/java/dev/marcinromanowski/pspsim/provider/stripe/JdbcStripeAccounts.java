@@ -32,15 +32,16 @@ final class JdbcStripeAccounts implements StripeAccounts {
               """
               insert into stripe_account
                   (test_run_id, account_id, secret_key, capture_window, webhook_secret,
-                   webhook_signature, webhook_timestamp_age, refund_status)
-              values (?, ?, ?, ?, ?, ?, ?, ?)
+                   webhook_signature, webhook_timestamp_age, refund_status, api_version)
+              values (?, ?, ?, ?, ?, ?, ?, ?, ?)
               on conflict (test_run_id, account_id) do update set
                   secret_key = excluded.secret_key,
                   capture_window = excluded.capture_window,
                   webhook_secret = excluded.webhook_secret,
                   webhook_signature = excluded.webhook_signature,
                   webhook_timestamp_age = excluded.webhook_timestamp_age,
-                  refund_status = excluded.refund_status
+                  refund_status = excluded.refund_status,
+                  api_version = excluded.api_version
               """)
           .param(testRunId.value())
           .param(account.accountId())
@@ -50,6 +51,7 @@ final class JdbcStripeAccounts implements StripeAccounts {
           .param(account.webhookSigning().emission().name())
           .param(account.webhookSigning().storedAge())
           .param(account.refundOutcome().storedForm())
+          .param(account.apiVersion().storedForm())
           .update();
     }
   }
@@ -100,6 +102,7 @@ final class JdbcStripeAccounts implements StripeAccounts {
             rs.getString("webhook_secret"),
             rs.getString("webhook_signature"),
             rs.getString("webhook_timestamp_age")),
-        StripeRefundOutcome.stored(rs.getString("refund_status")));
+        StripeRefundOutcome.stored(rs.getString("refund_status")),
+        StripeApiVersion.stored(rs.getString("api_version")));
   }
 }

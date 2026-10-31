@@ -49,6 +49,8 @@ final class StripeFields {
 
   static final String REQUEST_ID_HEADER = "Request-Id";
 
+  static final String STRIPE_VERSION_HEADER = "Stripe-Version";
+
   static final String REQUEST_ID_PREFIX = "req_sim_";
 
   static final Set<String> SENSITIVE_REQUEST_FIELDS = Set.of(PAYMENT_METHOD);

@@ -16,7 +16,7 @@ Evidence classes, per `README.md`, "Evidence Classes":
 - **decision**: a choice made by this simulator,
 - **inference**: read off the wording, stated nowhere.
 
-All pages were fetched on 2026-09-11.
+All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 
 ### Routes
 
@@ -43,8 +43,8 @@ All pages were fetched on 2026-09-11.
 
 Account settings: the `sk_test_` secret key (required), `captureWindow` (required ISO-8601 duration of at least one
 microsecond, with no default),
-`refundStatus` (default `succeeded`), `webhookSecret` (`whsec_`), `webhookSignature` (`VALID` or `CORRUPTED`) and
-`webhookTimestampAge` (ISO-8601).
+`refundStatus` (default `succeeded`), `apiVersion` (the account's default API version, see "API Versions"),
+`webhookSecret` (`whsec_`), `webhookSignature` (`VALID` or `CORRUPTED`) and `webhookTimestampAge` (ISO-8601).
 
 ### Sources
 
@@ -68,6 +68,8 @@ microsecond, with no default),
 | Event object, event types                             | https://docs.stripe.com/api/events/object, https://docs.stripe.com/api/events/types |                                                                                   |
 | Webhooks                                              | https://docs.stripe.com/webhooks                                      | "Verify webhook signatures manually", "Preventing replay attacks", "Event delivery behaviors", "Handle duplicate events" |
 | Testing                                               | https://docs.stripe.com/testing                                       | "Simulate a declined payment", "Test 3D Secure authentication"                                  |
+| Versioning, API versions, changelog, upgrades         | https://docs.stripe.com/api/versioning.md, https://docs.stripe.com/api-versions.md, https://docs.stripe.com/changelog.md, https://docs.stripe.com/upgrades.md | fetched 2026-10-31                                  |
+| Webhook versioning                                    | https://docs.stripe.com/webhooks/versioning.md                        | fetched 2026-10-31                                                                              |
 | Error handling                                        | https://docs.stripe.com/error-handling                                | "Catch exceptions", "Types of error and responses", "Payment errors"                            |
 | Payments without card authentication                  | https://docs.stripe.com/payments/without-card-authentication          | "Make a payment [Server-side]"                                                                  |
 | Save and reuse                                        | https://docs.stripe.com/payments/save-and-reuse                       | "Setup Intents API"                                                                             |
@@ -113,6 +115,38 @@ microsecond, with no default),
 | A value read as one (`amount`) is read only from a plain name. A hash or list under that name reads as absent                                   | a hash or a list carries no single value to read                                          |
 | The trail records every name exactly as the client spelled it                                                                                 | the trail shows what was sent, not what was understood                                    |
 | `[` and `]` are accepted unescaped in a query string (`server.tomcat.relaxed-query-chars`)                                                     | the servlet container refuses them by default, and the Java client sends them             |
+
+## API Versions
+
+| Fact                                                                                                                                                       | Evidence                                                                                                         |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| A version is a date and, from `2024-09-30.acacia` on, a major's codename: `2026-10-28.endive`. Older ones are dates only, `2011-06-21` to `2024-06-20`         | rule, https://docs.stripe.com/changelog.md                                                                       |
+| Breaking changes ship only in a major's first release. Monthly releases add and break nothing                                                              | rule, https://docs.stripe.com/api-versions.md                                                                    |
+| "Requests made with curl use your Stripe account's default API version ... unless you override it by setting the `Stripe-Version` header". An SDK sends the version it pins as that header | rule, https://docs.stripe.com/api/versioning.md                                                  |
+| Events use the endpoint's version if one was set at creation, else the account's default                                                                   | rule, https://docs.stripe.com/webhooks/versioning.md                                                              |
+| A response carries `stripe-version` naming the version it was answered at, on `200`, `400`, `402` and `404`, and not on a `401` for an invalid key            | example: 3734 of the 3745 api.stripe.com responses stripe-ios recorded (`StripePayments/StripePaymentsTestUtils/Resources/recorded_network_traffic`); the two invalid-key `401`s carry none |
+| A version can carry a beta: `2020-08-27; vipps_preview=v1`, echoed back as sent                                                                             | example: the same recordings                                                                                     |
+| stripe-ios pins `2020-08-27` (`STPAPIClient.swift`) and stripe-android pins `2020-03-02` (`ApiVersion.kt`), and both send it as `Stripe-Version` on their API calls (`STPAPIClient.swift`, `RequestHeadersFactory.kt`). stripe-ios sends it on `GET /v1/customers/{id}` | example: SDK sources, and the recordings (`get_v1_customers_*`) |
+| The answer to an unknown or unsupported version is unpublished                                                                                             | none found on docs.stripe.com. stripe-mock's opt-in version check answers `400` `invalid_request_error`, no code (a mock) |
+
+The catalogue is `StripeApiVersions` and `StripeApiMajor`: every release the changelog heads, including the dated
+`.preview` ones.
+
+| Simulator behaviour                                                                                                                                       | Evidence and reason                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| Answered: every release of basil, clover, dahlia and endive, `2025-03-31.basil` to `2026-10-28.endive`                                                    | inference: basil's partial capture and cancel create no Refund and `cancellation_reason=expired`, which is how the simulator behaves; no clover or dahlia change touches the modelled surface |
+| The version is read from `Stripe-Version`, the name matched in any case, the first non-blank value, trimmed. Without one, the account's default `apiVersion` | rule for the order, decision for the reading                                                                     |
+| `apiVersion` left empty gives the account `2026-10-28.endive`, the newest answered, which is stored and kept                                               | decision: Stripe publishes no default for a new account; the newest is what current guides and SDKs pin, and keeping it means the account does not move when the catalogue grows |
+| Accounts stored before `apiVersion` existed hold `2026-10-28.endive` (`V92__stripe_account_names_its_default_api_version.sql`)                              | decision: the same as an empty field                                                                             |
+| `stripe_account_api_version_is_a_release_of_a_major` refuses a stored value that is not `date.codename`, or that is a `.preview`                             | decision                                                                                                         |
+| A published version outside the range (acacia, a date-only one, a preview): `400`, `invalid_request_error`, no `code`, no `param`, "Stripe-Version {sent} is a published Stripe API version this simulator does not answer. It answers 2025-03-31.basil through 2026-10-28.endive, ..." (`StripeErrors.versionNotAnswered`) | decision: Stripe would answer it; the simulator cannot claim its behaviour at those versions, so it refuses rather than answering wrongly |
+| A published version followed by `;` and a beta: the same status and type, "... asks for a beta, and this simulator answers no beta" (`StripeErrors.versionAsksForABeta`) | decision: no beta is modelled                                                                                     |
+| Any other value: the same status and type, "Invalid Stripe API version: {sent}" (`StripeErrors.versionUnrecognised`). Values are compared exactly, so `2026-08-26.DAHLIA` is one | decision: the text is the one a third-party report quotes from the API (https://wordpress.org/support/topic/invalid-stripe-api-version-yith_wcstripe_api_version/), not a vendor source |
+| A request authenticated by an ephemeral key may also send `2020-03-02` or `2020-08-27`, and is answered at it                                              | decision: the mobile SDKs pin those and send them on the two customer reads an ephemeral key reaches; the simulator's customer and PaymentMethod fields are the same at both |
+| The version is checked after authentication and the form, before `Idempotency-Key` is claimed. A refusal claims no key                                     | decision, as for the form grammar                                                                                 |
+| Every answer of an account carries `Stripe-Version`: the version it was answered at. A `401` and a version refusal carry none                            | example (the recordings)                                                                                         |
+| An event's `api_version` is the account's default when the event is created, and a retry sends the same body                                               | rule for the default; decision for the moment: this simulator has no webhook endpoint objects, so no endpoint names a version |
+| Operations receive the resolved version (`StripeApi.StripeOperation`). No operation behaves differently by version                                         | decision                                                                                                          |
 
 ## Idempotency
 
@@ -208,7 +242,11 @@ optional. "Creates a short-lived API key for a given resource". Published respon
   `V57__stripe_ephemeral_key.sql` does: a key lives an hour and is resolved by its secret, so an `id` the migration
   renamed would be one no client was ever handed. Nothing parses the `id`: lookup is by the primary key or by the
   secret.
-- `Stripe-Version` is not a published parameter. Mobile guides send it. The simulator ignores it.
+- `Stripe-Version` is a header, not a parameter. Every official server SDK refuses locally to create an ephemeral key
+  without one (example: stripe-java 33.4.2 `EphemeralKeyService.create`, "`stripe-version` must be explicitly specified
+  in `params` as the stripe version of your mobile client.", and stripe-node `EphemeralKeys.create`). What the API
+  answers a request carrying none is unpublished, so the simulator answers it at the account's default like any other
+  request (decision, see "API Versions").
 - The simulator serves only `customer`. With none, the answer is `400` `parameter_missing` on `customer`.
 - The key authenticates `GET /v1/customers/{id}` and `GET /v1/customers/{id}/payment_methods` for its own customer
   only. Anything else is `401`, and so is an expired key.
@@ -567,7 +605,7 @@ emits:
 {
   "id": "evt_...",
   "object": "event",
-  "api_version": "2026-01-01",
+  "api_version": "2026-10-28.endive",
   "type": "payment_intent.succeeded",
   "created": 1788772800,
   "livemode": false,
@@ -576,6 +614,8 @@ emits:
   "data": {"object": { "...": "the same PaymentIntent or Refund object the API returns" }}
 }
 ```
+
+`api_version` is the account's default version when the event is created (see "API Versions").
 
 Events are scheduled through the control API, or automatically when a pending outcome lands, against a PaymentIntent
 or a Refund. A PaymentIntent event must match the state the intent has reached.
@@ -683,6 +723,7 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 | `parameter_missing`, `parameter_unknown`, `parameter_invalid_integer`, `invalid_charge_amount`, `amount_too_small`, `amount_too_large` | `invalid_request_error` | 400 | inference | `invalid_charge_amount`: "The specified amount is invalid. The charge amount must be a positive integer in the smallest currency unit" |
 | missing or invalid API key                                                             | `invalid_request_error` | 401  | rule and probe. No code is published                             | see "Authentication and Transport"                                                                                          |
 | a form the grammar cannot read, or a list parameter that is not a list                  | `invalid_request_error` | 400  | decision. No code is published                                   | see "Authentication and Transport", form grammar                                                                            |
+| a `Stripe-Version` this simulator does not answer, or one naming no published version   | `invalid_request_error` | 400  | decision. Stripe publishes no answer                             | see "API Versions"                                                                                                          |
 
 - `insufficient_funds` is both an error code ("The customer's account has insufficient funds to cover this payment")
   and a decline code ("The card has insufficient funds to complete the purchase."). For a card, the pairing is
@@ -770,6 +811,9 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
 - Whether create still accepts `payment_method_types` is unknown. The two create routes differ here: SetupIntent refuses
   it and PaymentIntent ignores it.
 - The ephemeral-key TTL comes from one example.
+- The range of versions answered rests on an inventory of the breaking changes from acacia to endive, read once,
+  and not on a per-version comparison of Stripe's specification. A request answered at a version outside the range
+  is refused, while Stripe would answer it.
 - PaymentSheet's first call, `v1/elements/sessions`, is in none of the 419 paths of Stripe's OpenAPI specification, so
   `stripe-mock` would answer `404` and this simulator stops at the ephemeral key. The SDK host can be moved on mobile
   only through non-public members, and on the web not at all.

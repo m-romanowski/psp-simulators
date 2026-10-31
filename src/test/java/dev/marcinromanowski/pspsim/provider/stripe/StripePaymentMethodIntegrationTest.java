@@ -40,6 +40,8 @@ class StripePaymentMethodIntegrationTest extends PostgresBackedTest {
   private static final String SECRET_KEY = "sk_test_51PaymentMethodSimulator";
   private static final String THREE_DAYS = "P3D";
 
+  private static final String THE_VERSION_THE_JAVA_CLIENT_PINS = "2026-08-26.dahlia";
+
   private static final String PAYMENT_METHODS = "/v1/payment_methods";
   private static final String CUSTOMERS = "/v1/customers";
   private static final String PAYMENT_INTENTS = "/v1/payment_intents";
@@ -161,6 +163,12 @@ class StripePaymentMethodIntegrationTest extends PostgresBackedTest {
     assertThat(expanded.getId()).isEqualTo(A_CUSTOMER);
     assertThat(expanded.getObject()).isEqualTo("customer");
     assertThat(theTrailOfThisRun()).contains("\"expand[0]\":[\"customer\"]");
+    assertThat(com.stripe.Stripe.API_VERSION).isEqualTo(THE_VERSION_THE_JAVA_CLIENT_PINS);
+    assertThat(retrieved.getLastResponse().headers().firstValue("Stripe-Version"))
+        .as("the client sends the version it pins, and the answer names the version it was given")
+        .contains(THE_VERSION_THE_JAVA_CLIENT_PINS);
+    assertThat(theTrailOfThisRun())
+        .contains("\"Stripe-Version\":[\"" + THE_VERSION_THE_JAVA_CLIENT_PINS + "\"]");
   }
 
   @Test

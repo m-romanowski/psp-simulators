@@ -19,7 +19,8 @@ record StripeAccount(
     String secretKey,
     StripeCaptureWindow captureWindow,
     StripeWebhookSigning webhookSigning,
-    StripeRefundOutcome refundOutcome) {
+    StripeRefundOutcome refundOutcome,
+    StripeApiVersion apiVersion) {
 
   static final String SECRET_KEY_PROPERTY = "secretKey";
 
@@ -64,6 +65,18 @@ record StripeAccount(
                   false,
                   false,
                   StripeRefundStatus.acceptedValues()),
+              new ConfigurableField(
+                  StripeApiVersion.SETTING,
+                  "default API version",
+                  "The Stripe API version a request of this account is answered at when it sends"
+                      + " no Stripe-Version header, and the version its webhook events are rendered"
+                      + " at. Leaving it empty gives the account the newest version this simulator"
+                      + " answers, "
+                      + StripeApiVersions.newest().wireValue()
+                      + ", and the account keeps that one.",
+                  false,
+                  false,
+                  StripeApiVersions.acceptedValues()),
               new ConfigurableField(
                   StripeWebhookSigning.SECRET_SETTING,
                   "webhook signing secret",
@@ -128,7 +141,8 @@ record StripeAccount(
         theSecretKey(propertyPrefix, configuration.get(SECRET_KEY_PROPERTY)),
         StripeCaptureWindow.of(propertyPrefix, configuration.get(StripeCaptureWindow.SETTING)),
         StripeWebhookSigning.of(propertyPrefix, configuration),
-        StripeRefundOutcome.of(propertyPrefix, configuration.get(StripeRefundOutcome.SETTING)));
+        StripeRefundOutcome.of(propertyPrefix, configuration.get(StripeRefundOutcome.SETTING)),
+        StripeApiVersion.ofTheAccount(propertyPrefix, configuration.get(StripeApiVersion.SETTING)));
   }
 
   DisclosedAccount disclosure() {
@@ -136,6 +150,7 @@ record StripeAccount(
     disclosed.put(SECRET_KEY_PROPERTY, List.of(secretKey));
     disclosed.put(StripeCaptureWindow.SETTING, List.of(captureWindow.storedForm()));
     disclosed.put(StripeRefundOutcome.SETTING, List.of(refundOutcome.storedForm()));
+    disclosed.put(StripeApiVersion.SETTING, List.of(apiVersion.storedForm()));
     String signingSecret = webhookSigning.secret();
     if (signingSecret == null) {
       disclosed.put(StripeWebhookSigning.SECRET_SETTING, List.of());

@@ -84,6 +84,7 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
   private final StripePaymentMethods paymentMethods;
   private final StripeSetupIntents setupIntents;
   private final ProviderAccounts accounts;
+  private final StripeAccounts stripeAccounts;
   private final WebhookDispatcher dispatcher;
   private final SimulatorClock clock;
   private final IdGenerator ids;
@@ -95,6 +96,7 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
       StripePaymentMethods paymentMethods,
       StripeSetupIntents setupIntents,
       ProviderAccounts accounts,
+      StripeAccounts stripeAccounts,
       WebhookDispatcher dispatcher,
       SimulatorClock clock,
       IdGenerator ids) {
@@ -104,6 +106,7 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
     this.paymentMethods = paymentMethods;
     this.setupIntents = setupIntents;
     this.accounts = accounts;
+    this.stripeAccounts = stripeAccounts;
     this.dispatcher = dispatcher;
     this.clock = clock;
     this.ids = ids;
@@ -135,8 +138,8 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
   @Override
   public void theOutcomeScheduledFor(
       StripePaymentIntent settling, Instant landing, Duration after) {
-    Optional<String> target = theSingleTargetOf(settling.accountId(), settling.testRunId());
-    if (target.isEmpty()) {
+    Optional<Destination> destination = destinationOf(settling.accountId(), settling.testRunId());
+    if (destination.isEmpty()) {
       return;
     }
     StripeEventType reporting =
@@ -148,8 +151,13 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
             settling.accountId(),
             reporting.wireValue(),
             settling.intentId(),
-            target.get(),
-            payloadOf(eventIdOf(null), reporting, StripeIntentView.of(settling, landing), landing),
+            destination.get().url(),
+            payloadOf(
+                eventIdOf(null),
+                reporting,
+                StripeIntentView.of(settling, landing),
+                landing,
+                destination.get().version()),
             null,
             null,
             after));
@@ -157,7 +165,9 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
 
   private List<ScheduledWebhook> scheduled(
       WebhookScheduleRequest request, TestRunId testRunId, Reported reported, Instant now) {
-    String target = targetOf(reported.accountId(), testRunId);
+    Destination destination =
+        destinationOf(reported.accountId(), testRunId)
+            .orElseThrow(() -> new WebhookNotSchedulableException(NO_SINGLE_TARGET));
     String eventId = eventIdOf(request.reuseEventId());
     return List.copyOf(
         jobsOf(
@@ -168,16 +178,25 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
                     reported.accountId(),
                     reported.type().wireValue(),
                     reported.objectId(),
-                    target,
-                    payloadOf(eventId, reported.type(), reported.dataObject(), now),
+                    destination.url(),
+                    payloadOf(
+                        eventId,
+                        reported.type(),
+                        reported.dataObject(),
+                        now,
+                        destination.version()),
                     eventId,
                     null,
                     request.delay()))));
   }
 
   private static WebhookPayload payloadOf(
-      String eventId, StripeEventType type, StripeJson dataObject, Instant at) {
-    StripeJson event = StripeEvent.of(eventId, type, dataObject, at);
+      String eventId,
+      StripeEventType type,
+      StripeJson dataObject,
+      Instant at,
+      StripeApiVersion renderedAt) {
+    StripeJson event = StripeEvent.of(eventId, type, dataObject, at, renderedAt);
     return new WebhookPayload(
         StripeEvent.CONTENT_TYPE,
         Map.of(),
@@ -247,9 +266,14 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
                     NOT_A_PUBLISHED_EVENT + StripeEventType.thePublishedNames()));
   }
 
-  private String targetOf(String accountId, TestRunId testRunId) {
-    return theSingleTargetOf(accountId, testRunId)
-        .orElseThrow(() -> new WebhookNotSchedulableException(NO_SINGLE_TARGET));
+  private Optional<Destination> destinationOf(String accountId, TestRunId testRunId) {
+    Optional<String> target = theSingleTargetOf(accountId, testRunId);
+    if (target.isEmpty()) {
+      return Optional.empty();
+    }
+    return stripeAccounts
+        .find(testRunId, accountId)
+        .map(account -> new Destination(target.get(), account.apiVersion()));
   }
 
   private Optional<String> theSingleTargetOf(String accountId, TestRunId testRunId) {
@@ -261,6 +285,8 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
     }
     return ofAccount.size() == 1 ? Optional.of(ofAccount.get(0).url()) : Optional.empty();
   }
+
+  private record Destination(String url, StripeApiVersion version) {}
 
   private record Reported(
       StripeEventType type, String accountId, String objectId, StripeJson dataObject) {}

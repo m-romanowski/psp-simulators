@@ -104,7 +104,7 @@ class StripeIdempotencyTest {
         .as(
             "a client cannot tell this simulator from the provider by a difference that moves,"
                 + " and a header order drawn from an unordered copy varies per process")
-        .containsExactly("Idempotent-Replayed", "Request-Id", "Content-Type");
+        .containsExactly("Idempotent-Replayed", "Stripe-Version", "Request-Id", "Content-Type");
   }
 
   @Test

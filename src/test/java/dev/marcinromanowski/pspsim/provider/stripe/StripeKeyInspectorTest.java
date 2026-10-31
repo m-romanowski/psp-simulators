@@ -447,6 +447,7 @@ class StripeKeyInspectorTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOON),
             ids),

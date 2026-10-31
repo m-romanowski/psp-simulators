@@ -197,6 +197,7 @@ The keys each provider reads (values listed default first):
 | `stripe`    | `secretKey`                             | required, `sk_test_...`, at most 255, unique in the run. The only thing a request carries its account on |
 | `stripe`    | `captureWindow`                         | required, ISO-8601 duration, at least one microsecond, at most 365 days. No default                     |
 | `stripe`    | `refundStatus`                          | `succeeded`, `pending`, `requires_action`, `failed` or `canceled`: where a refund comes to rest         |
+| `stripe`    | `apiVersion`                            | a version from `2025-03-31.basil` to `2026-10-28.endive`. Empty takes `2026-10-28.endive` and keeps it  |
 | `stripe`    | `webhookSecret`                         | optional, `whsec_...`, at most 255. Absent means no `Stripe-Signature`                                  |
 | `stripe`    | `webhookSignature`                      | `VALID` or `CORRUPTED`. Needs `webhookSecret`                                                           |
 | `stripe`    | `webhookTimestampAge`                   | ISO-8601 duration, `PT0S`, at most 365 days. Needs `webhookSecret`                                     |

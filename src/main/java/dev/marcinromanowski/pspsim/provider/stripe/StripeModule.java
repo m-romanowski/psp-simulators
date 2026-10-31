@@ -191,6 +191,7 @@ public class StripeModule {
       StripePaymentMethods paymentMethods,
       StripeSetupIntents setupIntents,
       ProviderAccounts accounts,
+      StripeAccounts stripeAccounts,
       WebhookDispatcher dispatcher,
       SimulatorClock clock,
       IdGenerator ids) {
@@ -201,6 +202,7 @@ public class StripeModule {
         paymentMethods,
         setupIntents,
         accounts,
+        stripeAccounts,
         dispatcher,
         clock,
         ids);

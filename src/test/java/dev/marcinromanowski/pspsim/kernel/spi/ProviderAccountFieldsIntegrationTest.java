@@ -87,6 +87,8 @@ class ProviderAccountFieldsIntegrationTest extends PostgresBackedTest {
               "P3D",
               "refundStatus",
               "SUCCEEDED",
+              "apiVersion",
+              "2026-08-26.dahlia",
               "webhookSecret",
               "whsec_provider_account_fields",
               "webhookSignature",

@@ -64,6 +64,10 @@ class StripeWebhookTest {
 
   private static final Duration SETTLES_AFTER = Duration.ofSeconds(5);
 
+  private static final String THE_NEWEST_RELEASE = "2026-10-28.endive";
+  private static final String A_DAHLIA_RELEASE = "2026-04-22.dahlia";
+  private static final String A_BASIL_RELEASE = "2025-08-27.basil";
+
   private final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
@@ -100,7 +104,7 @@ class StripeWebhookTest {
         .contains("\"type\":\"payment_intent.amount_capturable_updated\"")
         .contains("\"object\":\"event\"")
         .contains("\"id\":\"" + scheduled.eventId() + "\"")
-        .contains("\"api_version\":\"" + StripeEvent.API_VERSION + "\"")
+        .contains(renderedAt(THE_NEWEST_RELEASE))
         .contains("\"livemode\":false")
         .contains("\"pending_webhooks\":0")
         .contains("\"object\":\"payment_intent\"")
@@ -109,6 +113,67 @@ class StripeWebhookTest {
     assertThat(signatureOf(delivered).timestamp()).isEqualTo(NOW.getEpochSecond());
     assertThat(signatureOf(delivered).v1())
         .isEqualTo(hmac(SIGNING_SECRET, NOW.getEpochSecond() + "." + delivered.body()));
+  }
+
+  @Test
+  void an_event_scheduled_through_the_control_api_is_rendered_at_the_accounts_default_version() {
+    anAccountAnsweredAt(A_BASIL_RELEASE);
+    aHeldPaymentIntent();
+
+    send(null);
+
+    assertThat(onlyCallback().body())
+        .contains(renderedAt(A_BASIL_RELEASE))
+        .doesNotContain(renderedAt(THE_NEWEST_RELEASE));
+  }
+
+  @Test
+  void the_event_a_pending_payment_is_owed_is_rendered_at_the_accounts_default_version() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    inFlight(null);
+    WebhookDispatcher dispatcher = dispatcher();
+    anAsynchronousChargeThrough(dispatcher);
+
+    clock.moveTo(NOW.plus(SETTLES_AFTER));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    assertThat(onlyCallback().body()).contains(renderedAt(A_DAHLIA_RELEASE));
+  }
+
+  @Test
+  void
+      an_event_keeps_the_version_it_was_created_at_when_the_account_default_moves_before_a_retry() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    aHeldPaymentIntent();
+    merchant.thenAnswering(new Answer.Respond(500, "the endpoint is restarting"));
+    WebhookDispatcher dispatcher = dispatcher();
+    send(dispatcher, null);
+
+    accounts.merge(
+        E2E_RUN,
+        List.of(
+            StripeDoubles.account(
+                E2E_RUN,
+                ACCOUNT,
+                SECRET_KEY,
+                "P3D",
+                Map.of(StripeApiVersion.SETTING, A_BASIL_RELEASE))));
+    clock.moveTo(NOW.plusSeconds(1));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    List<ReceivedCallback> attempts = merchant.received();
+    assertThat(attempts).hasSize(2);
+    assertThat(attempts.get(1).body())
+        .isEqualTo(attempts.get(0).body())
+        .contains(renderedAt(A_DAHLIA_RELEASE));
+  }
+
+  private void anAccountAnsweredAt(String apiVersion) {
+    anAccount(Map.of(StripeApiVersion.SETTING, apiVersion));
+  }
+
+  private static String renderedAt(String apiVersion) {
+    return "\"api_version\":\"" + apiVersion + "\"";
   }
 
   @Test
@@ -783,6 +848,7 @@ class StripeWebhookTest {
         customers,
         paymentMethods,
         setupIntents,
+        accounts,
         accounts,
         dispatcher,
         clock,

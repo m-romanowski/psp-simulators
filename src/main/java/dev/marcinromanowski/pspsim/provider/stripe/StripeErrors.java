@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 final class StripeErrors {
@@ -225,6 +226,44 @@ final class StripeErrors {
   static StripeError headerRefused(String message) {
     return new StripeError(
         BAD_REQUEST, StripeErrorType.INVALID_REQUEST_ERROR, null, null, message, null, null, null);
+  }
+
+  static StripeError versionNotAnswered(String sent) {
+    return headerRefused(
+        "Stripe-Version "
+            + sent
+            + " is a published Stripe API version this simulator does not answer. It answers "
+            + StripeApiVersions.theRangeAnswered()
+            + ", every release of "
+            + theMajorsAnswered()
+            + ", because its behaviour carries the breaking changes "
+            + StripeApiVersions.oldestAnswered().wireValue()
+            + " shipped. Send one of those, or send no Stripe-Version to be answered at the"
+            + " account's default version.");
+  }
+
+  static StripeError versionAsksForABeta(String sent) {
+    return headerRefused(
+        "Stripe-Version "
+            + sent
+            + " asks for a beta, and this simulator answers no beta. It answers "
+            + StripeApiVersions.theRangeAnswered()
+            + ", sent without anything after the version.");
+  }
+
+  static StripeError versionUnrecognised(String sent) {
+    return headerRefused("Invalid Stripe API version: " + sent);
+  }
+
+  private static String theMajorsAnswered() {
+    List<String> codenames =
+        StripeApiVersions.majorsAnswered().stream().map(StripeApiMajor::codename).toList();
+    if (codenames.size() == 1) {
+      return codenames.getFirst();
+    }
+    return String.join(", ", codenames.subList(0, codenames.size() - 1))
+        + " and "
+        + codenames.getLast();
   }
 
   static StripeError idempotencyKeyInUse() {
