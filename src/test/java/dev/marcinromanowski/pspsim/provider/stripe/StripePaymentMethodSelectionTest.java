@@ -424,6 +424,79 @@ class StripePaymentMethodSelectionTest {
   }
 
   @Test
+  void a_payment_method_configuration_of_exactly_a_hundred_characters_is_the_longest_taken() {
+    anAccount();
+    String theLongestTaken = "p".repeat(100);
+
+    StripeApiResponse taken =
+        createAPayment(
+            THE_NEWEST_RELEASE, "pln", form("payment_method_configuration", theLongestTaken));
+    StripeApiResponse oneLonger =
+        createAPayment(
+            THE_NEWEST_RELEASE, "pln", form("payment_method_configuration", theLongestTaken + "p"));
+
+    assertThat(taken.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(taken))
+        .contains("\"payment_method_configuration_details\":{\"id\":\"" + theLongestTaken + "\"");
+    assertThat(oneLonger.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(oneLonger)).contains("\"param\":\"payment_method_configuration\"");
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
+  void a_dahlia_payment_method_types_that_is_no_list_is_refused_as_unreadable() {
+    anAccount();
+
+    StripeApiResponse aValue =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types", "card"));
+    StripeApiResponse aHashInAList =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types[0][type]", "card"));
+
+    for (StripeApiResponse refused : List.of(aValue, aHashInAList)) {
+      assertThat(refused.httpStatus()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .isEqualTo(
+              "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"A parameter carries"
+                  + " a value this API does not accept. It accepts a list, sent as"
+                  + " payment_method_types[]=... once per element or as payment_method_types[0]=...,"
+                  + " payment_method_types[1]=... numbered from 0 without a gap, and an empty"
+                  + " payment_method_types= as a list of no elements.\","
+                  + "\"param\":\"payment_method_types\"}}");
+    }
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
+  void a_dahlia_payment_method_types_listing_nothing_leaves_the_payment_no_type() {
+    anAccount();
+
+    StripeApiResponse refused =
+        createAPayment(THE_JAVA_SDKS_RELEASE, "pln", form("payment_method_types", ""));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"code\":\"payment_intent_invalid_parameter\"")
+        .contains("\"param\":\"payment_method_types\"");
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
+  void allowed_types_sent_as_a_single_value_are_refused_as_unreadable() {
+    anAccount();
+
+    StripeApiResponse refused =
+        createAPayment(THE_NEWEST_RELEASE, "pln", form("allowed_payment_method_types", "card"));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"type\":\"invalid_request_error\"")
+        .contains("It accepts a list, sent as allowed_payment_method_types[]=...")
+        .contains("\"param\":\"allowed_payment_method_types\"")
+        .doesNotContain("\"code\"");
+    assertThat(intents.all()).isEmpty();
+  }
+
+  @Test
   void allowed_types_are_refused_beside_each_parameter_stripe_publishes_them_exclusive_with() {
     anAccount();
     Map<String, String> pairs = new LinkedHashMap<>();
@@ -1067,6 +1140,31 @@ class StripePaymentMethodSelectionTest {
     assertThat(bodyOf(unknown)).contains("\"code\":\"resource_missing\"");
     assertThat(succeeded.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(succeeded)).contains("\"code\":\"payment_intent_unexpected_state\"");
+  }
+
+  @Test
+  void a_setup_confirm_whose_selection_is_refused_embeds_the_setup_and_changes_nothing() {
+    anAccountHoldingACardAndAWallet();
+    String setup =
+        String.valueOf(
+            createASetup(THE_NEWEST_RELEASE, form("customer", THE_CUSTOMER)).providerObjectId());
+    StripeSetupIntent before = setupIntents.find(E2E_RUN, setup).orElseThrow();
+
+    StripeApiResponse refused =
+        confirmTheSetup(
+            THE_NEWEST_RELEASE,
+            setup,
+            form(
+                "allowed_payment_method_types[]", "bitcoin",
+                "payment_method", THE_CARD,
+                "return_url", A_RETURN_URL));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"param\":\"allowed_payment_method_types[0]\"")
+        .contains("\"setup_intent\":{\"id\":\"" + setup + "\"");
+    assertThat(setupIntents.find(E2E_RUN, setup).orElseThrow()).isEqualTo(before);
+    assertThat(paymentMethods.find(E2E_RUN, THE_CARD).orElseThrow().attached()).isFalse();
   }
 
   private void anAccount() {
