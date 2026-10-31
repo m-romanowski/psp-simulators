@@ -228,6 +228,26 @@ class StripePaymentMethodTest {
   }
 
   @Test
+  void a_retrieve_that_also_asks_for_a_path_a_payment_method_does_not_publish_is_refused() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(
+                    method(FIRST_CARD),
+                    Map.of(
+                        "expand[0]", List.of("payment_method"), "expand[1]", List.of("customer"))),
+                FIRST_CARD);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .isEqualTo(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
+                + " expanded (payment_method).\"}}");
+  }
+
+  @Test
   void a_retrieve_whose_expansion_list_is_empty_answers_the_customer_by_its_id() {
     anAccountHoldingTwoCardsOfOneCustomer();
 
@@ -703,6 +723,8 @@ class StripePaymentMethodTest {
         new CreateRefund(intents, refunds, charges, ids, noScenarios),
         customers,
         paymentMethods,
+        intents,
+        charges,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(
             setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));

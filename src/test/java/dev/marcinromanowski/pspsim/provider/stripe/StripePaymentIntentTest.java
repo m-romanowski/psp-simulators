@@ -1188,6 +1188,8 @@ class StripePaymentIntentTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
+        intents,
+        charges,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(
             setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));

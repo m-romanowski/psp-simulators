@@ -291,6 +291,33 @@ final class StripeErrors {
         param);
   }
 
+  static StripeError notExpandable(String reached) {
+    return invalidRequest(
+        BAD_REQUEST, null, "This property cannot be expanded (" + reached + ").", null);
+  }
+
+  static StripeError notExpandableOnAList(String reached, String suggested) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "This property cannot be expanded ("
+            + reached
+            + "). You may want to try expanding '"
+            + suggested
+            + "' instead.",
+        null);
+  }
+
+  static StripeError expandedTooDeep(String path) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "This property cannot be expanded ("
+            + path
+            + "). Expansions have a maximum depth of four levels.",
+        null);
+  }
+
   static StripeError unreadableEncoding(@Nullable String param, String why) {
     return invalidRequest(
         BAD_REQUEST,

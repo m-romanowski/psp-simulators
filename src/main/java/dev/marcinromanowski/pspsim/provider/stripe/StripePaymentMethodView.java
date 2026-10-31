@@ -3,7 +3,6 @@ package dev.marcinromanowski.pspsim.provider.stripe;
 import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import java.util.ArrayList;
 import java.util.List;
-import org.jspecify.annotations.Nullable;
 
 final class StripePaymentMethodView {
 
@@ -14,12 +13,6 @@ final class StripePaymentMethodView {
   private StripePaymentMethodView() {}
 
   static StripeJson of(StripePaymentMethod method) {
-    return of(method, null);
-  }
-
-  static StripeJson of(StripePaymentMethod method, @Nullable StripeJson expandedCustomer) {
-    StripeJson customer =
-        expandedCustomer == null ? StripeJson.textOrNull(method.customerId()) : expandedCustomer;
     StripeJson instrument =
         method.type().describesACard() ? cardOf(theCardItCarries(method)) : paypal();
     return StripeJson.object(
@@ -30,7 +23,7 @@ final class StripePaymentMethodView {
         "type",
         StripeJson.text(method.type().wireValue()),
         "customer",
-        customer,
+        StripeJson.textOrNull(method.customerId()),
         "created",
         StripeJson.number(Long.toString(method.createdAt().getEpochSecond())),
         "billing_details",

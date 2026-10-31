@@ -169,6 +169,8 @@ public class StripeModule {
         createRefund,
         customers,
         paymentMethods,
+        intents,
+        charges,
         createSetupIntent,
         confirmSetupIntent);
   }

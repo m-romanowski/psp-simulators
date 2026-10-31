@@ -2,55 +2,25 @@ package dev.marcinromanowski.pspsim.provider.stripe;
 
 import dev.marcinromanowski.pspsim.kernel.RefusalSubject;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
-import java.util.List;
-import java.util.Optional;
-import org.jspecify.annotations.Nullable;
 
 final class RetrievePaymentMethod {
 
-  static final String EXPAND = "expand";
-
   private final StripePaymentMethods methods;
-  private final StripeCustomers customers;
 
-  RetrievePaymentMethod(StripePaymentMethods methods, StripeCustomers customers) {
+  RetrievePaymentMethod(StripePaymentMethods methods) {
     this.methods = methods;
-    this.customers = customers;
   }
 
-  StripeOperationResult handle(
-      StripeForm query, TestRunId testRunId, StripeAccount account, String paymentMethodId) {
-    List<String> expansions = query.listOf(EXPAND);
-    if (expansions == null) {
-      return StripeOperationResult.refusedBeforeExecuting(
-          StripeRefusals.theRequestWasRefused(),
-          StripeErrors.unreadableParameter(EXPAND, StripeForm.theListShapesOf(EXPAND)));
-    }
-    Optional<StripePaymentMethod> addressed =
-        StripePaymentMethodLookup.of(methods, testRunId, account, paymentMethodId);
-    if (addressed.isEmpty()) {
-      return StripeOperationResult.refusedBeforeExecuting(
-          RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_METHOD),
-          StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD));
-    }
-    StripePaymentMethod method = addressed.get();
-    return StripeOperationResult.answered(
-        method.paymentMethodId(),
-        StripePaymentMethodView.of(
-            method, expandedCustomerOf(expansions, testRunId, account, method)));
-  }
-
-  private @Nullable StripeJson expandedCustomerOf(
-      List<String> expansions,
-      TestRunId testRunId,
-      StripeAccount account,
-      StripePaymentMethod method) {
-    String customerId = method.customerId();
-    if (customerId == null || !expansions.contains(StripeFields.CUSTOMER)) {
-      return null;
-    }
-    return StripeCustomerLookup.of(customers, testRunId, account, customerId)
-        .map(StripeCustomerView::of)
-        .orElse(null);
+  StripeOperationResult handle(TestRunId testRunId, StripeAccount account, String paymentMethodId) {
+    return StripePaymentMethodLookup.of(methods, testRunId, account, paymentMethodId)
+        .map(
+            method ->
+                StripeOperationResult.answered(
+                    method.paymentMethodId(), StripePaymentMethodView.of(method)))
+        .orElseGet(
+            () ->
+                StripeOperationResult.refusedBeforeExecuting(
+                    RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_METHOD),
+                    StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD)));
   }
 }

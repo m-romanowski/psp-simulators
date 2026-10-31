@@ -1143,6 +1143,8 @@ class StripeWebhookTest {
         new CreateRefund(intents, refunds, charges, ids, new ScenarioEngine(scenarioRules)),
         customers,
         paymentMethods,
+        intents,
+        charges,
         new CreateSetupIntent(setupIntents, ids),
         new ConfirmSetupIntent(
             setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));

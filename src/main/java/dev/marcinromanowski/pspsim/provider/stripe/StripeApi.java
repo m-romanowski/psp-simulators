@@ -74,6 +74,7 @@ public final class StripeApi {
   private final CreateSetupIntent createSetupIntent;
   private final ConfirmSetupIntent confirmSetupIntent;
   private final CreateEphemeralKey createEphemeralKey;
+  private final StripeRelatedObjects related;
 
   StripeApi(
       StripeAccounts accounts,
@@ -93,6 +94,8 @@ public final class StripeApi {
       CreateRefund createRefund,
       StripeCustomers customers,
       StripePaymentMethods paymentMethods,
+      StripePaymentIntents intents,
+      StripeCharges charges,
       CreateSetupIntent createSetupIntent,
       ConfirmSetupIntent confirmSetupIntent) {
     this.accounts = accounts;
@@ -115,11 +118,12 @@ public final class StripeApi {
     this.updateCustomer = new UpdateCustomer(customers);
     this.deleteCustomer = new DeleteCustomer(customers, paymentMethods);
     this.listPaymentMethods = new ListPaymentMethods(paymentMethods, customers);
-    this.retrievePaymentMethod = new RetrievePaymentMethod(paymentMethods, customers);
+    this.retrievePaymentMethod = new RetrievePaymentMethod(paymentMethods);
     this.detachPaymentMethod = new DetachPaymentMethod(paymentMethods);
     this.createSetupIntent = createSetupIntent;
     this.confirmSetupIntent = confirmSetupIntent;
     this.createEphemeralKey = new CreateEphemeralKey(ephemeralKeys, customers, ids);
+    this.related = new StripeRelatedObjects(intents, charges, customers, paymentMethods);
   }
 
   @FunctionalInterface
@@ -136,68 +140,93 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.CREATE,
-        (request, headers, testRunId, account, now) ->
-            createPaymentIntent.handle(
-                request, headers, testRunId, account, now, ObjectOrigin.PROVIDER_API));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
+            (request, headers, testRunId, account, now) ->
+                createPaymentIntent.handle(
+                    request, headers, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
 
   public StripeApiResponse confirmPaymentIntent(StripeApiCall call, String intentId) {
     return answer(
         call,
         StripeOperations.CONFIRM,
-        (request, headers, testRunId, account, now) ->
-            confirmPaymentIntent.handle(request, headers, testRunId, account, intentId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
+            (request, headers, testRunId, account, now) ->
+                confirmPaymentIntent.handle(request, headers, testRunId, account, intentId, now)));
   }
 
   public StripeApiResponse capturePaymentIntent(StripeApiCall call, String intentId) {
     return answer(
         call,
         StripeOperations.CAPTURE,
-        (request, headers, testRunId, account, now) ->
-            capturePaymentIntent.handle(
-                request.form(), headers, testRunId, account, intentId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
+            (request, headers, testRunId, account, now) ->
+                capturePaymentIntent.handle(
+                    request.form(), headers, testRunId, account, intentId, now)));
   }
 
   public StripeApiResponse cancelPaymentIntent(StripeApiCall call, String intentId) {
     return answer(
         call,
         StripeOperations.CANCEL,
-        (request, headers, testRunId, account, now) ->
-            cancelPaymentIntent.handle(request.form(), headers, testRunId, account, intentId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
+            (request, headers, testRunId, account, now) ->
+                cancelPaymentIntent.handle(
+                    request.form(), headers, testRunId, account, intentId, now)));
   }
 
   public StripeApiResponse retrievePaymentIntent(StripeApiCall call, String intentId) {
     return answer(
         call,
         StripeOperations.RETRIEVE,
-        (request, headers, testRunId, account, now) ->
-            retrievePaymentIntent.handle(testRunId, account, intentId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_INTENT),
+            (request, headers, testRunId, account, now) ->
+                retrievePaymentIntent.handle(testRunId, account, intentId, now)));
   }
 
   public StripeApiResponse retrieveCharge(StripeApiCall call, String chargeId) {
     return answer(
         call,
         StripeOperations.RETRIEVE_CHARGE,
-        (request, headers, testRunId, account, now) ->
-            retrieveCharge.handle(testRunId, account, chargeId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.CHARGE),
+            (request, headers, testRunId, account, now) ->
+                retrieveCharge.handle(testRunId, account, chargeId, now)));
   }
 
   public StripeApiResponse createRefund(StripeApiCall call) {
     return answer(
         call,
         StripeOperations.REFUND,
-        (request, headers, testRunId, account, now) ->
-            createRefund.handle(
-                request.form(), headers, testRunId, account, now, ObjectOrigin.PROVIDER_API));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.REFUND),
+            (request, headers, testRunId, account, now) ->
+                createRefund.handle(
+                    request.form(), headers, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
 
   public StripeApiResponse createCustomer(StripeApiCall call) {
     return answer(
         call,
         StripeOperations.CREATE_CUSTOMER,
-        (request, headers, testRunId, account, now) ->
-            createCustomer.handle(
-                request.form(), testRunId, account, now, ObjectOrigin.PROVIDER_API));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
+            (request, headers, testRunId, account, now) ->
+                createCustomer.handle(
+                    request.form(), testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
 
   public StripeApiResponse retrieveCustomer(StripeApiCall call, String customerId) {
@@ -205,16 +234,22 @@ public final class StripeApi {
         call,
         StripeOperations.RETRIEVE_CUSTOMER,
         new StripeShortLivedAccess.TheCustomerTheCallNames(customerId),
-        (request, headers, testRunId, account, now) ->
-            retrieveCustomer.handle(testRunId, account, customerId));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
+            (request, headers, testRunId, account, now) ->
+                retrieveCustomer.handle(testRunId, account, customerId)));
   }
 
   public StripeApiResponse updateCustomer(StripeApiCall call, String customerId) {
     return answer(
         call,
         StripeOperations.UPDATE_CUSTOMER,
-        (request, headers, testRunId, account, now) ->
-            updateCustomer.handle(request.form(), testRunId, account, customerId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.CUSTOMER),
+            (request, headers, testRunId, account, now) ->
+                updateCustomer.handle(request.form(), testRunId, account, customerId, now)));
   }
 
   public StripeApiResponse deleteCustomer(StripeApiCall call, String customerId) {
@@ -230,8 +265,11 @@ public final class StripeApi {
     return answer(
         call,
         StripeOperations.LIST_PAYMENT_METHODS,
-        (request, headers, testRunId, account, now) ->
-            listPaymentMethods.everyMethod(query, testRunId, account));
+        expanding(
+            call,
+            StripeExpansion.ofAList(StripeExpandable.PAYMENT_METHOD),
+            (request, headers, testRunId, account, now) ->
+                listPaymentMethods.everyMethod(query, testRunId, account)));
   }
 
   public StripeApiResponse listCustomerPaymentMethods(StripeApiCall call, String customerId) {
@@ -240,41 +278,57 @@ public final class StripeApi {
         call,
         StripeOperations.LIST_CUSTOMER_PAYMENT_METHODS,
         new StripeShortLivedAccess.TheCustomerTheCallNames(customerId),
-        (request, headers, testRunId, account, now) ->
-            listPaymentMethods.theMethodsOf(query, testRunId, account, customerId));
+        expanding(
+            call,
+            StripeExpansion.ofAList(StripeExpandable.PAYMENT_METHOD),
+            (request, headers, testRunId, account, now) ->
+                listPaymentMethods.theMethodsOf(query, testRunId, account, customerId)));
   }
 
   public StripeApiResponse retrievePaymentMethod(StripeApiCall call, String paymentMethodId) {
-    StripeForm query = StripeForm.of(call.query());
     return answer(
         call,
         StripeOperations.RETRIEVE_PAYMENT_METHOD,
-        (request, headers, testRunId, account, now) ->
-            retrievePaymentMethod.handle(query, testRunId, account, paymentMethodId));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_METHOD),
+            (request, headers, testRunId, account, now) ->
+                retrievePaymentMethod.handle(testRunId, account, paymentMethodId)));
   }
 
   public StripeApiResponse detachPaymentMethod(StripeApiCall call, String paymentMethodId) {
     return answer(
         call,
         StripeOperations.DETACH_PAYMENT_METHOD,
-        (request, headers, testRunId, account, now) ->
-            detachPaymentMethod.handle(testRunId, account, paymentMethodId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_METHOD),
+            (request, headers, testRunId, account, now) ->
+                detachPaymentMethod.handle(testRunId, account, paymentMethodId, now)));
   }
 
   public StripeApiResponse createSetupIntent(StripeApiCall call) {
     return answer(
         call,
         StripeOperations.CREATE_SETUP_INTENT,
-        (request, headers, testRunId, account, now) ->
-            createSetupIntent.handle(request, testRunId, account, now, ObjectOrigin.PROVIDER_API));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.SETUP_INTENT),
+            (request, headers, testRunId, account, now) ->
+                createSetupIntent.handle(
+                    request, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
 
   public StripeApiResponse confirmSetupIntent(StripeApiCall call, String setupIntentId) {
     return answer(
         call,
         StripeOperations.CONFIRM_SETUP_INTENT,
-        (request, headers, testRunId, account, now) ->
-            confirmSetupIntent.handle(request, headers, testRunId, account, setupIntentId, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.SETUP_INTENT),
+            (request, headers, testRunId, account, now) ->
+                confirmSetupIntent.handle(
+                    request, headers, testRunId, account, setupIntentId, now)));
   }
 
   public StripeApiResponse createEphemeralKey(StripeApiCall call) {
@@ -283,8 +337,21 @@ public final class StripeApi {
         StripeOperations.CREATE_EPHEMERAL_KEY,
         new StripeShortLivedAccess.NoShortLivedKeyReachesThisRoute(),
         StripeVersionsAdmitted.ALSO_THOSE_THE_MOBILE_SDKS_PIN,
-        (request, headers, testRunId, account, now) ->
-            createEphemeralKey.handle(request.form(), testRunId, account, now));
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.EPHEMERAL_KEY),
+            (request, headers, testRunId, account, now) ->
+                createEphemeralKey.handle(request.form(), testRunId, account, now)));
+  }
+
+  private StripeOperation expanding(
+      StripeApiCall call, StripeExpansion expansion, StripeOperation operation) {
+    StripeForm carrying = StripeForm.of(POST.equals(call.method()) ? call.form() : call.query());
+    return (request, headers, testRunId, account, now) ->
+        expansion.answered(
+            carrying,
+            related.reachedBy(testRunId, account, now),
+            () -> operation.handle(request, headers, testRunId, account, now));
   }
 
   private StripeApiResponse answer(
