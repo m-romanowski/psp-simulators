@@ -160,6 +160,10 @@ plan is valid. Delays run on the run's clock, not the wall clock.
 
 Callbacks never follow redirects.
 
+A query string may carry `[` and `]` unescaped on every route (`server.tomcat.relaxed-query-chars`), because a provider
+client sends bracketed parameter names that way (`doc/stripe.md`, "Authentication and Transport") and the servlet
+container refuses them by default.
+
 ## Pointing it at a database it does not own
 
 The simulator does not have to own its database. Three variables aim it at any reachable PostgreSQL, which is how it

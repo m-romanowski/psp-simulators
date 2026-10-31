@@ -220,11 +220,7 @@ class StripePaymentMethodTest {
     StripeApiResponse indexed =
         api(NOW)
             .retrievePaymentMethod(
-                querying(
-                    method(FIRST_CARD),
-                    Map.of(
-                        "expand[0]", List.of("payment_method"), "expand[1]", List.of("customer"))),
-                FIRST_CARD);
+                querying(method(FIRST_CARD), Map.of("expand[0]", List.of("customer"))), FIRST_CARD);
 
     assertThat(bodyOf(appended)).contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"");
     assertThat(indexed.httpStatus()).isEqualTo(200);
@@ -261,10 +257,28 @@ class StripePaymentMethodTest {
           .as(notAList.toString())
           .contains("\"type\":\"invalid_request_error\"")
           .contains("\"param\":\"expand\"")
-          .contains(StripeForm.theListShapesOf("expand"))
+          .contains(
+              "It accepts a list, sent as expand[]=... once per element or as expand[0]=...,"
+                  + " expand[1]=... numbered from 0 without a gap, and an empty expand= as a list of"
+                  + " no elements.")
           .doesNotContain("\"code\"")
           .doesNotContain(FIRST_CARD);
     }
+  }
+
+  @Test
+  void
+      a_retrieve_of_a_method_this_run_holds_none_of_is_refused_on_its_expansions_before_the_lookup() {
+    accounts.with(stripeAccount(ACCOUNT, SECRET_KEY));
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(NO_METHOD_OF_THIS_RUN), Map.of("expand", List.of("customer"))),
+                NO_METHOD_OF_THIS_RUN);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"param\":\"expand\"").doesNotContain("resource_missing");
   }
 
   @Test
