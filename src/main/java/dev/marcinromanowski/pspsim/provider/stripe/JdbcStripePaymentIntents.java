@@ -261,7 +261,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
           if (moved != 1) {
             return moved;
           }
-          stored(minted);
+          StripePaymentMethodMinting.storedIn(methods, minted);
           insert(charge);
           return insert(intent, operation);
         },
@@ -294,11 +294,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
                   .param(intent.intentId())
                   .param(intent.status().wireValue())
                   .update();
-          if (moved != 1) {
-            return moved;
-          }
-          stored(minted);
-          return insert(charge);
+          return moved == 1 ? insertedWith(charge, minted) : moved;
         },
         at);
   }
@@ -330,21 +326,14 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
                   .param(intent.intentId())
                   .param(intent.status().wireValue())
                   .update();
-          if (moved == 1) {
-            stored(minted);
-          }
-          return moved;
+          return StripePaymentMethodMinting.storedAfterAMove(moved, methods, minted);
         },
         at);
   }
 
-  private void stored(@Nullable StripePaymentMethod minted) {
-    if (minted != null && !methods.insertIfAbsent(minted)) {
-      throw new IllegalStateException(
-          "the Stripe PaymentMethod id "
-              + minted.paymentMethodId()
-              + " this confirmation minted was taken by another request before it could be stored");
-    }
+  private int insertedWith(StripeCharge charge, @Nullable StripePaymentMethod minted) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
+    return insert(charge);
   }
 
   @Override

@@ -6,8 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
-import java.sql.Array;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,11 +68,10 @@ class StripePaymentMethodShapeMigrationIntegrationTest extends PostgresBackedTes
   }
 
   @Test
-  void a_card_seeded_before_keeps_its_brand_as_its_only_network_and_carries_nothing_else_new()
-      throws SQLException {
+  void a_card_seeded_before_keeps_its_brand_as_its_only_network_and_carries_nothing_else_new() {
     Map<String, Object> card = theMethod("pm_seeded_card");
 
-    assertThat(textsOf(card.get("card_networks"))).containsExactly("unpublished");
+    assertThat(String.valueOf(card.get("card_networks"))).isEqualTo("[\"unpublished\"]");
     assertThat(card.get("card_country")).isNull();
     assertThat(card.get("card_display_brand")).isNull();
     assertThat(card.get("card_regulated_status")).isNull();
@@ -212,10 +209,6 @@ class StripePaymentMethodShapeMigrationIntegrationTest extends PostgresBackedTes
             + ".stripe_payment_method where test_run_id = ? and payment_method_id = ?",
         RUN,
         paymentMethodId);
-  }
-
-  private static List<String> textsOf(Object stored) throws SQLException {
-    return List.of((String[]) ((Array) stored).getArray());
   }
 
   private Flyway flyway(MigrationVersion target) {

@@ -1,7 +1,7 @@
 alter table stripe_payment_method
     add column card_country                  varchar(2),
     add column card_display_brand            varchar(32),
-    add column card_networks                 text[],
+    add column card_networks                 json,
     add column card_regulated_status         varchar(16),
     add column card_three_d_secure_supported boolean,
     add column billing_address_city          varchar(5000),
@@ -19,7 +19,7 @@ alter table stripe_payment_method
     add column copied_from                   varchar(128);
 
 update stripe_payment_method
-set card_networks = array[card_brand]::text[]
+set card_networks = json_build_array(card_brand)
 where method_type = 'CARD';
 
 alter table stripe_payment_method

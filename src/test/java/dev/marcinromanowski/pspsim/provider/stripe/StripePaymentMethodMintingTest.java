@@ -111,6 +111,26 @@ class StripePaymentMethodMintingTest {
     assertThat(copy.customerId()).isNull();
   }
 
+  @Test
+  void a_minted_method_is_stored_only_after_its_intent_moved_and_nothing_is_stored_for_none() {
+    StripePaymentMethod minted = aCopy();
+
+    assertThat(StripePaymentMethodMinting.storedAfterAMove(0, world.paymentMethods, minted))
+        .isZero();
+    assertThat(world.theMethodsStored()).isEmpty();
+    assertThat(StripePaymentMethodMinting.storedAfterAMove(1, world.paymentMethods, null))
+        .isEqualTo(1);
+    assertThat(world.theMethodsStored()).isEmpty();
+    assertThat(StripePaymentMethodMinting.storedAfterAMove(1, world.paymentMethods, minted))
+        .isEqualTo(1);
+    assertThat(world.theMethodsStored()).containsExactly(minted);
+    assertThatThrownBy(() -> StripePaymentMethodMinting.storedIn(world.paymentMethods, minted))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "the Stripe PaymentMethod id pm_sim_00000000000000000001 this request minted was taken"
+                + " by another request before it could be stored");
+  }
+
   private StripePaymentMethod aCopy() {
     return minting.clonedFrom(
         "pm_card_us",

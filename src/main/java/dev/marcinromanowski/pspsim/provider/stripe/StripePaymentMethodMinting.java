@@ -5,6 +5,7 @@ import dev.marcinromanowski.pspsim.kernel.ids.IdGenerator;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import java.time.Instant;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 final class StripePaymentMethodMinting {
 
@@ -78,12 +79,24 @@ final class StripePaymentMethodMinting {
   }
 
   void stored(StripePaymentMethod minted) {
-    if (!methods.insertIfAbsent(minted)) {
+    storedIn(methods, minted);
+  }
+
+  static void storedIn(StripePaymentMethods methods, @Nullable StripePaymentMethod minted) {
+    if (minted != null && !methods.insertIfAbsent(minted)) {
       throw new IllegalStateException(
           "the Stripe PaymentMethod id "
               + minted.paymentMethodId()
               + " this request minted was taken by another request before it could be stored");
     }
+  }
+
+  static int storedAfterAMove(
+      int moved, StripePaymentMethods methods, @Nullable StripePaymentMethod minted) {
+    if (moved == 1) {
+      storedIn(methods, minted);
+    }
+    return moved;
   }
 
   private String anUnheldId(TestRunId testRunId) {

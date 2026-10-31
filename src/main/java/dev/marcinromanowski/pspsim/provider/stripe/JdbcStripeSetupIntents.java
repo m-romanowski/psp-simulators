@@ -124,9 +124,7 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       @Nullable String customerId,
       @Nullable StripePaymentMethod minted,
       Instant at) {
-    if (minted != null) {
-      methods.insertIfAbsent(minted);
-    }
+    StripePaymentMethodMinting.storedIn(methods, minted);
     if (customerId != null && attach(intent, paymentMethodId, customerId, at) != 1) {
       status.setRollbackOnly();
       return Setup.THE_METHOD_IS_NO_LONGER_ATTACHABLE;
@@ -165,24 +163,27 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       Instant at) {
     return Objects.requireNonNull(
         transactions.execute(
-            status -> {
-              int moved =
-                  moveTo(
-                      intent,
-                      StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
-                      paymentMethodId,
-                      decline.scenarioCode(),
-                      at);
-              if (moved != 1) {
-                status.setRollbackOnly();
-                return whyNothingMoved(intent);
-              }
-              if (minted != null) {
-                methods.insertIfAbsent(minted);
-              }
-              return Setup.APPLIED;
-            }),
+            status ->
+                moveTo(
+                            intent,
+                            StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
+                            paymentMethodId,
+                            decline.scenarioCode(),
+                            at)
+                        == 1
+                    ? appliedWith(minted)
+                    : rolledBack(status, intent)),
         "the unit of work answered nothing where its callback answers a Setup on every path");
+  }
+
+  private Setup appliedWith(@Nullable StripePaymentMethod minted) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
+    return Setup.APPLIED;
+  }
+
+  private Setup rolledBack(TransactionStatus status, StripeSetupIntent intent) {
+    status.setRollbackOnly();
+    return whyNothingMoved(intent);
   }
 
   private int moveTo(
