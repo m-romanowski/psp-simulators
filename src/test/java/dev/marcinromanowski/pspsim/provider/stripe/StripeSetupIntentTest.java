@@ -236,10 +236,13 @@ class StripeSetupIntentTest {
     StripeApiResponse refused =
         confirm(setup, Map.of(StripeFields.PAYMENT_METHOD, NO_METHOD_OF_THIS_RUN));
 
-    assertThat(refused.httpStatus()).isEqualTo(404);
+    assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused))
         .contains("\"code\":\"resource_missing\"")
-        .contains("\"param\":\"payment_method\"");
+        .contains("\"param\":\"payment_method\"")
+        .contains(
+            "\"message\":\"No such PaymentMethod: '" + NO_METHOD_OF_THIS_RUN + "'; It's possible")
+        .contains("\"setup_intent\":{\"id\":\"" + setup + "\"");
     assertThat(theStoredSetup(setup).status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD);
   }
 

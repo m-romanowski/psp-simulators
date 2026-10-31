@@ -109,6 +109,18 @@ final class StripeErrors {
         StripeSetupLookup.SETUP_INTENT_PARAMETER);
   }
 
+  static StripeError noSuchPaymentMethod(String paymentMethodId) {
+    return invalidRequest(
+        BAD_REQUEST,
+        RESOURCE_MISSING,
+        "No such PaymentMethod: '"
+            + paymentMethodId
+            + "'; It's possible this PaymentMethod exists on one of your connected accounts, in"
+            + " which case you should retry this request on that connected account. Learn more at"
+            + " https://stripe.com/docs/connect/authentication",
+        StripeFields.PAYMENT_METHOD);
+  }
+
   static StripeError resourceMissing(String param) {
     return invalidRequest(
         NOT_FOUND,

@@ -70,6 +70,9 @@ final class ConfirmSetupIntent {
           RefusalSubject.theObject(intent.setupIntentId()),
           StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
     }
+    if (StripePaymentMethodLookup.of(paymentMethods, testRunId, account, paymentMethod).isEmpty()) {
+      return refusedAbout(stored, StripeErrors.noSuchPaymentMethod(paymentMethod));
+    }
     StripeError refusal =
         whatTheAttachmentThisSetupWouldMintEarns(testRunId, account, intent, paymentMethod);
     if (refusal != null) {
@@ -105,19 +108,19 @@ final class ConfirmSetupIntent {
 
   private @Nullable StripeError whatTheAttachmentThisSetupWouldMintEarns(
       TestRunId testRunId, StripeAccount account, StripeSetupIntent intent, String paymentMethod) {
-    Optional<StripePaymentMethod> named =
-        StripePaymentMethodLookup.of(paymentMethods, testRunId, account, paymentMethod);
-    if (named.isEmpty()) {
-      return StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD);
-    }
-    StripePaymentMethod method = named.get();
+    StripePaymentMethod method =
+        StripePaymentMethodLookup.of(paymentMethods, testRunId, account, paymentMethod)
+            .orElseThrow();
     if (method.detached()) {
       return StripeErrors.paymentMethodRefused(
           StripePaymentMethodLookup.A_DETACHED_METHOD_IS_REFUSED_RATHER_THAN_IGNORED);
     }
     String customerId = intent.customerId();
     if (customerId == null) {
-      return null;
+      return method.attached()
+          ? StripeErrors.paymentMethodRefused(
+              StripeSetupLookup.A_METHOD_OF_A_CUSTOMER_SETS_UP_NO_INTENT_WITHOUT_ONE)
+          : null;
     }
     Optional<StripeCustomer> owner =
         StripeCustomerLookup.of(customers, testRunId, account, customerId);

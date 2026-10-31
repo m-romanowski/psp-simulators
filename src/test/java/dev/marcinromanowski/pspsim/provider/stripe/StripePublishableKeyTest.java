@@ -54,6 +54,8 @@ class StripePublishableKeyTest {
 
   private static final String THE_CUSTOMER = "cus_the_one_paying_in_the_app";
   private static final String THE_CARD = "pm_the_card_the_app_confirms";
+  private static final String ANOTHER_CUSTOMER = "cus_the_one_whose_card_it_is";
+  private static final String ANOTHER_CUSTOMERS_CARD = "pm_the_card_another_customer_holds";
 
   private static final List<String> WHAT_A_PUBLISHABLE_KEY_SEES_OF_A_PAYMENT =
       List.of(
@@ -645,6 +647,205 @@ class StripePublishableKeyTest {
 
     assertThat(refused.httpStatus()).isEqualTo(401);
     assertThat(bodyOf(refused)).doesNotContain("\"code\"");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PUBLISHABLE_KEY, SECRET_KEY})
+  void a_card_another_customer_holds_pays_for_no_intent_and_is_never_shown(String key) {
+    theAccounts();
+    aCardOfAnotherCustomer();
+    Created payment = aPayment();
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("client_secret", payment.clientSecret());
+    form.put("payment_method", ANOTHER_CUSTOMERS_CARD);
+    form.put("return_url", A_RETURN_URL);
+    form.put("expand[0]", "payment_method");
+
+    StripeApiResponse refused = confirmPayment(key, payment.id(), form, Map.of());
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .isEqualTo(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Payment methods"
+                + " attached to other Customers cannot be used with this PaymentIntent. This"
+                + " PaymentMethod is attached to a Customer other than the one this PaymentIntent"
+                + " names, and provider stripe publishes that a PaymentMethod attached to a"
+                + " Customer must match the customer set on the PaymentIntent.\","
+                + "\"param\":\"payment_method\"}}");
+    StripePaymentIntent kept = intents.find(RUN, payment.id()).orElseThrow();
+    assertThat(kept.status()).isEqualTo(StripeIntentStatus.REQUIRES_PAYMENT_METHOD);
+    assertThat(kept.latestCharge()).isNull();
+  }
+
+  @Test
+  void a_card_some_customer_holds_pays_for_no_intent_that_names_no_customer() {
+    theAccounts();
+    Created payment =
+        createdBy(
+            api(NOW)
+                .createPaymentIntent(
+                    post(
+                        bearer(SECRET_KEY),
+                        PAYMENT_INTENTS,
+                        Map.of("amount", "1099", "currency", "pln"))));
+
+    StripeApiResponse refused =
+        confirmPayment(PUBLISHABLE_KEY, payment.id(), confirming(payment), Map.of());
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("This PaymentMethod is attached to a Customer and this PaymentIntent names none")
+        .contains("\"param\":\"payment_method\"");
+    assertThat(intents.find(RUN, payment.id()).orElseThrow().latestCharge()).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {PUBLISHABLE_KEY, SECRET_KEY})
+  void a_method_the_account_holds_none_of_is_refused_the_way_the_recording_answers(String key) {
+    theAccounts();
+    Created payment = aPayment();
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("client_secret", payment.clientSecret());
+    form.put("payment_method", "pm_123");
+    form.put("return_url", A_RETURN_URL);
+
+    StripeApiResponse refused = confirmPayment(key, payment.id(), form, Map.of());
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .startsWith(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\","
+                + "\"doc_url\":\"https://docs.stripe.com/error-codes#resource-missing\","
+                + "\"message\":\"No such PaymentMethod: 'pm_123'; It's possible this"
+                + " PaymentMethod exists on one of your connected accounts, in which case you"
+                + " should retry this request on that connected account. Learn more at"
+                + " https://stripe.com/docs/connect/authentication\",\"param\":\"payment_method\","
+                + "\"payment_intent\":{\"id\":\""
+                + payment.id()
+                + "\"");
+    assertThat(intents.find(RUN, payment.id()).orElseThrow().latestCharge()).isNull();
+  }
+
+  @Test
+  void the_intent_an_unknown_method_refusal_embeds_is_reduced_for_a_publishable_key() {
+    theAccounts();
+    Created payment = aPayment();
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("client_secret", payment.clientSecret());
+    form.put("payment_method", "pm_123");
+    form.put("return_url", A_RETURN_URL);
+
+    StripeApiResponse publishable = confirmPayment(PUBLISHABLE_KEY, payment.id(), form, Map.of());
+    StripeApiResponse secret = confirmPayment(SECRET_KEY, payment.id(), form, Map.of());
+
+    assertThat(bodyOf(publishable)).doesNotContain(THE_CUSTOMER);
+    assertThat(bodyOf(secret)).contains("\"customer\":\"" + THE_CUSTOMER + "\"");
+  }
+
+  @Test
+  void a_published_test_method_the_account_holds_none_of_still_pays() {
+    theAccounts();
+    Created payment = aPayment();
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("client_secret", payment.clientSecret());
+    form.put("payment_method", "pm_card_visa");
+    form.put("return_url", A_RETURN_URL);
+
+    StripeApiResponse confirmed = confirmPayment(PUBLISHABLE_KEY, payment.id(), form, Map.of());
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed)).contains("\"payment_method\":\"pm_card_visa\"");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "pm_card_visa",
+        "pm_card_chargeDeclinedExpiredCard",
+        "pm_usBankAccount_success",
+        "pm_sepaDebit_success_at"
+      })
+  void the_published_test_methods_are_those_of_the_published_stems(String published) {
+    assertThat(StripePaymentMethodLookup.aPublishedTestMethod(published)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "pm_123",
+        "pm_card",
+        "card_visa",
+        "pm_sepa_debit_at",
+        "pm_usbankaccount_x",
+        "pm_x_pm_card_visa"
+      })
+  void an_id_outside_the_published_stems_is_no_published_test_method(String named) {
+    assertThat(StripePaymentMethodLookup.aPublishedTestMethod(named)).isFalse();
+  }
+
+  @Test
+  void a_setup_that_names_no_customer_attaches_no_card_another_customer_holds() {
+    theAccounts();
+    Created setup =
+        createdBy(api(NOW).createSetupIntent(post(bearer(SECRET_KEY), SETUP_INTENTS, Map.of())));
+
+    StripeApiResponse refused =
+        confirmSetup(PUBLISHABLE_KEY, setup.id(), confirming(setup), Map.of());
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains(
+            "Payment methods attached to other Customers cannot be used with this SetupIntent."
+                + " This PaymentMethod is attached to a Customer and this SetupIntent names none")
+        .contains("\"param\":\"payment_method\"");
+    assertThat(setupIntents.find(RUN, setup.id()).orElseThrow().status())
+        .isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD);
+  }
+
+  @Test
+  void a_setup_that_names_no_customer_attaches_a_card_nobody_holds() {
+    theAccounts();
+    paymentMethods.insertIfAbsent(
+        new StripePaymentMethod(
+            RUN,
+            "pm_saved_to_nobody_yet",
+            ACCOUNT,
+            null,
+            StripePaymentMethodType.CARD,
+            new FixtureCard("visa", "4242", 12, 2030, "credit"),
+            null,
+            ObjectOrigin.CONTROL_API,
+            NOW,
+            NOW));
+    Created setup =
+        createdBy(api(NOW).createSetupIntent(post(bearer(SECRET_KEY), SETUP_INTENTS, Map.of())));
+    Map<String, String> form = new LinkedHashMap<>();
+    form.put("client_secret", setup.clientSecret());
+    form.put("payment_method", "pm_saved_to_nobody_yet");
+    form.put("return_url", A_RETURN_URL);
+
+    StripeApiResponse confirmed = confirmSetup(PUBLISHABLE_KEY, setup.id(), form, Map.of());
+
+    assertThat(confirmed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(confirmed)).contains("\"status\":\"succeeded\"");
+  }
+
+  private void aCardOfAnotherCustomer() {
+    customers.insertIfAbsent(
+        new StripeCustomer(
+            RUN, ANOTHER_CUSTOMER, ACCOUNT, null, null, ObjectOrigin.CONTROL_API, NOW, NOW));
+    paymentMethods.insertIfAbsent(
+        new StripePaymentMethod(
+            RUN,
+            ANOTHER_CUSTOMERS_CARD,
+            ACCOUNT,
+            ANOTHER_CUSTOMER,
+            StripePaymentMethodType.CARD,
+            new FixtureCard("visa", "1111", 12, 2030, "credit"),
+            null,
+            ObjectOrigin.CONTROL_API,
+            NOW,
+            NOW));
   }
 
   private void theAccounts() {

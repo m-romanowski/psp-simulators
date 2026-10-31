@@ -79,11 +79,26 @@ final class ConfirmPaymentIntent {
           RefusalSubject.theObject(intent.intentId()),
           StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
     }
+    StripeError heldByNoOne =
+        StripePaymentMethodLookup.theRefusalAMethodNoOneHoldsEarns(
+            paymentMethods, testRunId, account, paymentMethod);
+    if (heldByNoOne != null) {
+      return StripeOperationResult.refused(
+          RefusalSubject.theObject(intent.intentId()),
+          heldByNoOne.about(StripeIntentView.of(stored, now)));
+    }
     StripeError detached =
         StripePaymentMethodLookup.theRefusalADetachedMethodEarns(
             paymentMethods, testRunId, account, paymentMethod);
     if (detached != null) {
       return StripeOperationResult.refused(RefusalSubject.theObject(intent.intentId()), detached);
+    }
+    StripeError ofAnotherCustomer =
+        StripePaymentMethodLookup.theRefusalAMethodOfAnotherCustomerEarns(
+            paymentMethods, testRunId, account, paymentMethod, intent.customer());
+    if (ofAnotherCustomer != null) {
+      return StripeOperationResult.refused(
+          RefusalSubject.theObject(intent.intentId()), ofAnotherCustomer);
     }
     Optional<StripePaymentMethodType> notOffered =
         StripePaymentMethodLookup.theTypeOf(paymentMethods, testRunId, account, paymentMethod)

@@ -13,6 +13,12 @@ final class StripeSetupLookup {
           + " PaymentMethod is attached to a Customer other than the one this SetupIntent names,"
           + " and provider stripe publishes that attachment as the reason it cannot be used here.";
 
+  static final String A_METHOD_OF_A_CUSTOMER_SETS_UP_NO_INTENT_WITHOUT_ONE =
+      "Payment methods attached to other Customers cannot be used with this SetupIntent. This"
+          + " PaymentMethod is attached to a Customer and this SetupIntent names none, and provider"
+          + " stripe publishes that a PaymentMethod attached to a Customer must match the customer"
+          + " set on the intent.";
+
   static final String THE_METHOD_IS_NO_LONGER_ATTACHABLE =
       "The payment method this SetupIntent would attach stopped being attachable while the setup"
           + " was running: provider stripe publishes that detachment is permanent and irreversible"
