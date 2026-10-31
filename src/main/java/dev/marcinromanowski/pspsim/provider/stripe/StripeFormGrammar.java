@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SequencedMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 final class StripeFormGrammar {
@@ -32,6 +34,11 @@ final class StripeFormGrammar {
   private static final char CLOSES = ']';
 
   private static final String APPENDS = "";
+
+  private static final Pattern A_NAME_AND_ITS_KEYS =
+      Pattern.compile("([^\\[\\]]+)((?:\\[[^\\[\\]]*\\])*)");
+
+  private static final Pattern ONE_BRACKETED_KEY = Pattern.compile("\\[([^\\[\\]]*)\\]");
 
   private StripeFormGrammar() {}
 
@@ -105,25 +112,15 @@ final class StripeFormGrammar {
   }
 
   private static @Nullable List<String> stepsOf(String key) {
-    int opens = key.indexOf(OPENS);
-    String name = opens < 0 ? key : key.substring(0, opens);
-    if (name.isEmpty() || name.indexOf(CLOSES) >= 0) {
+    Matcher named = A_NAME_AND_ITS_KEYS.matcher(key);
+    if (!named.matches()) {
       return null;
     }
     List<String> steps = new ArrayList<>();
-    steps.add(name);
-    int at = opens < 0 ? key.length() : opens;
-    while (at < key.length()) {
-      int closes = key.indexOf(CLOSES, at);
-      if (key.charAt(at) != OPENS || closes < 0) {
-        return null;
-      }
-      String segment = key.substring(at + 1, closes);
-      if (segment.indexOf(OPENS) >= 0) {
-        return null;
-      }
-      steps.add(segment);
-      at = closes + 1;
+    steps.add(named.group(1));
+    Matcher keys = ONE_BRACKETED_KEY.matcher(named.group(2));
+    while (keys.find()) {
+      steps.add(keys.group(1));
     }
     return steps;
   }

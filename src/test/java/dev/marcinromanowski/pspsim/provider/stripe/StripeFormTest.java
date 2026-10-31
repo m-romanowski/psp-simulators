@@ -159,7 +159,12 @@ class StripeFormTest {
         "amount[[x]]",
         "amount[x]]",
         "[amount]",
-        "[]"
+        "[]",
+        "]amount",
+        "]",
+        "amount[[x]",
+        "amount[x[y]",
+        "amount[x]]y[z]"
       })
   void refuses_a_name_that_is_not_a_word_followed_by_bracketed_keys(String name) {
     StripeError unreadable = formOf(pair(name, "1")).unreadable();
