@@ -31,7 +31,8 @@ final class StripeVersionChanges {
               StripeOperations.CANCEL,
               StripeOperations.RETRIEVE,
               StripeOperations.RETRIEVE_CHARGE,
-              StripeOperations.REFUND),
+              StripeOperations.REFUND,
+              "webhook"),
           StripeVersionChanges::anExpiredAuthorizationWasCancelledAutomatically);
 
   static final List<StripeVersionChange> DECLARED =
@@ -42,6 +43,8 @@ final class StripeVersionChanges {
   static final String EXPIRED = "expired";
 
   static final String AUTOMATIC = "automatic";
+
+  static final String WEBHOOK = "webhook";
 
   private StripeVersionChanges() {}
 

@@ -11,11 +11,6 @@ final class StripeRefundView {
           + " confirmation put the funds on; the published nullable charge is answered as null"
           + " only for a refund taken before this build minted charges at all";
 
-  static final String NO_NEXT_ACTION_IS_PUBLISHED =
-      "stripe.md, \"Refunds\" records that next_action exists and records no type it ever carries,"
-          + " so a refund this simulator puts in requires_action answers next_action as null"
-          + " rather than with a type no merchant handler could match";
-
   private StripeRefundView() {}
 
   static StripeJson of(StripeRefund refund) {
@@ -32,8 +27,6 @@ final class StripeRefundView {
         StripeJson.number(Long.toString(refund.createdAt().getEpochSecond())),
         "currency",
         StripeJson.text(refund.currency()),
-        "next_action",
-        StripeJson.nothing(),
         "payment_intent",
         StripeJson.text(refund.intentId()),
         "reason",

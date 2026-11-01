@@ -113,7 +113,8 @@ class StripeVersionChangesTest {
             "POST /v1/payment_intents/{id}/cancel",
             "GET /v1/payment_intents/{id}",
             "GET /v1/charges/{id}",
-            "POST /v1/refunds");
+            "POST /v1/refunds",
+            "webhook");
     StripeForm sent = StripeForm.of(Map.of("payment_method_types[]", List.of("card")));
     StripeCoreRequest untouched = basil.upgrade().apply(StripeCoreRequest.asSent(sent));
     assertThat(untouched.form()).isSameAs(sent);

@@ -36,6 +36,9 @@ final class StripeEvent {
         "request",
         StripeJson.object("id", StripeJson.nothing(), "idempotency_key", StripeJson.nothing()),
         "data",
-        StripeJson.object("object", dataObject));
+        StripeJson.object(
+            "object",
+            StripeVersionChanges.asAnsweredAt(
+                dataObject, renderedAt, StripeVersionChanges.WEBHOOK)));
   }
 }

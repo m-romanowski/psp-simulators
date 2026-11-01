@@ -1,0 +1,29 @@
+{
+  "fields": [
+    {
+      "scope": "all",
+      "schema": "ephemeral_key",
+      "field": "associated_objects",
+      "evidence": "example",
+      "source": "https://docs.stripe.com/api/ephemeral_keys/object",
+      "reason": "Stripe publishes this array in its object example but omits it from OpenAPI properties.",
+      "shape": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "customer"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}
