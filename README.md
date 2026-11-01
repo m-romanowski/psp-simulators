@@ -57,7 +57,7 @@ A first payment is [`doc/quickstart.md`](doc/quickstart.md). To work on the simu
 |------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
 | Grow / Meshulam  | the hosted payment process and its payer page, the stored-card charge, settlement, refund, the callback handshake and resend, and three reconciliation lookups            | [`doc/grow.md`](doc/grow.md)           |
 | Azericard        | the gateway form post: authorization, pre-authorization, sales completion, both reversals, the status inquiry and card storage, signed both ways                          | [`doc/azericard.md`](doc/azericard.md) |
-| Stripe           | Save-then-charge and manual capture, publishable/secret/ephemeral keys, expansion, API versions, idempotency and signed webhooks                                          | [`doc/stripe.md`](doc/stripe.md)       |
+| Stripe           | [Supported variants](doc/stripe.md#supported-variants), [generic flow](doc/stripe.md#generic-flow)                                                                             | [`doc/stripe.md`](doc/stripe.md)       |
 | Autra            | the OAuth token, the acquiring session, the pre-authorization with capture and void, Pix checkout, and the hosted card session with the direct sale                       | [`doc/autra.md`](doc/autra.md)         |
 | Worldline Direct | hosted tokenization, the pre-authorization hold with capture and cancel, the charge of a stored token, and HMAC signing                                                   | [`doc/worldline.md`](doc/worldline.md) |
 | Tranzila         | the card transaction API (debit, J2/J5 verification, force, reversal, credit, cancel, 3-D Secure), Handshake V2, the DirectNG payment page, Hosted Fields and two lookups | [`doc/tranzila.md`](doc/tranzila.md)   |
@@ -65,17 +65,12 @@ A first payment is [`doc/quickstart.md`](doc/quickstart.md). To work on the simu
 [`doc/README.md`](doc/README.md) is the contract: each provider's surface, the whole control API and the shared rules.
 Each provider file records what the vendor publishes, what it does not, and where the simulator departs from it.
 
-Stripe's [supported variants](doc/stripe.md#supported-variants) state the key and version boundaries, its
-[generic flow](doc/stripe.md#generic-flow) gives the HTTP save-then-charge and manual-capture calls. The acceptance
-journeys exercise raw HTTP and `stripe-java 33.4.2`, the client-route suite also replays Stripe's recorded iOS traffic.
-
 ## What it does for a test
 
 - **Outcomes are chosen.** A scenario rule matches on account, order, instrument, amount, currency, operation or a
   request header such as `X-Simulator-Scenario`, and answers with a success, a decline in the provider's vocabulary, a
-  transport fault before or after the operation, a processing state that settles later, or a lost response. Stripe's
-  published
-  test cards supply their documented outcomes when no scenario rule matches.
+  transport fault before or after the operation, a processing state that settles later, or a lost response.
+  Stripe: [test-card outcomes](doc/stripe.md#test-data).
 - **Every run is isolated.** State, fixtures, rules, clock and audit belong to a `testRunId`. A provider request is
   assigned to one by header, by route alias, by account credential, or by an object it names.
 - **Time is moved, not waited on.** A run pins its clock and advances it. Every deadline is computed from that clock
