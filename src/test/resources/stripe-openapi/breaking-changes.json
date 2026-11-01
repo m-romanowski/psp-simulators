@@ -1,0 +1,10 @@
+[
+  {
+    "version": "2025-03-31.basil",
+    "field": "payment_intent.cancellation_reason",
+    "kind": "enum_replacement",
+    "old_value": "automatic",
+    "new_value": "expired",
+    "url": "https://docs.stripe.com/changelog/basil/2025-03-31/remove-refund-from-partial-capture-and-payment-cancellation-flow"
+  }
+]

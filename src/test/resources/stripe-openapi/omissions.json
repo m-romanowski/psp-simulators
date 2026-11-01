@@ -125,7 +125,6 @@
       "affirm": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "afterpay_clearpay": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "alipay": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
-      "allow_redisplay": "Redisplay consent is not stored by this PaymentMethod model; S6 owns this object.",
       "alma": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "amazon_pay": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "au_becs_debit": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
@@ -152,9 +151,7 @@
       "konbini": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "kr_card": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "link": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
-      "livemode": "This PaymentMethod view does not yet emit the test-mode marker; S6 owns this object.",
       "mb_way": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
-      "metadata": "Arbitrary merchant metadata is not stored or echoed by this contract.",
       "mobilepay": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "multibanco": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
       "naver_pay": "The simulator offers card and PayPal; this instrument is outside the payment-method contract.",
@@ -206,28 +203,25 @@
     "payment_method_config_biz_payment_method_configuration_details": {},
     "customer_tax": {},
     "payment_method_card": {
-      "display_brand": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model.",
-      "fingerprint": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model.",
-      "generated_from": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model.",
-      "regulated_status": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model.",
-      "three_d_secure_usage": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model.",
-      "wallet": "This card attribute is not stored in FixtureCard; S6 owns the PaymentMethod model."
+      "fingerprint": "StripeCard does not store a fingerprint."
     },
-    "billing_details": {
-      "tax_id": "Tax identifiers are not stored in this PaymentMethod billing model; S6 owns this object."
-    },
+    "billing_details": {},
     "networks": {},
     "payment_method_paypal": {},
     "notification_event_data": {
       "previous_attributes": "The simulator schedules event snapshots without an update diff."
     },
-    "notification_event_request": {}
+    "notification_event_request": {},
+    "address": {},
+    "payment_method_card_checks": {},
+    "three_d_secure_usage": {}
   },
   "mobile": {
     "payment_intent": {
       "amount_capturable": "Publishable-key reduction withholds server-side amounts and customer relations.",
       "amount_received": "Publishable-key reduction withholds server-side amounts and customer relations.",
-      "customer": "Publishable-key reduction withholds server-side amounts and customer relations."
+      "customer": "Publishable-key reduction withholds server-side amounts and customer relations.",
+      "latest_charge": "Publishable-key reduction withholds the server-side charge relation."
     },
     "setup_intent": {
       "customer": "Publishable-key reduction withholds the customer relation."
@@ -251,6 +245,9 @@
     "networks": {},
     "payment_method_paypal": {},
     "notification_event_data": {},
-    "notification_event_request": {}
+    "notification_event_request": {},
+    "address": {},
+    "payment_method_card_checks": {},
+    "three_d_secure_usage": {}
   }
 }

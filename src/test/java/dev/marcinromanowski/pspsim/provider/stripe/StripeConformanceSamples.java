@@ -31,6 +31,7 @@ final class StripeConformanceSamples {
           StripeOperations.RETRIEVE_CUSTOMER,
           StripeOperations.UPDATE_CUSTOMER,
           StripeOperations.DELETE_CUSTOMER,
+          StripeOperations.CREATE_PAYMENT_METHOD,
           StripeOperations.LIST_PAYMENT_METHODS,
           StripeOperations.LIST_CUSTOMER_PAYMENT_METHODS,
           StripeOperations.RETRIEVE_PAYMENT_METHOD,
@@ -244,6 +245,61 @@ final class StripeConformanceSamples {
                 StripePaymentMethodView.listOf(List.of(method), "/v1/payment_methods")));
       }
     }
+    StripePaymentMethod populated =
+        new StripePaymentMethod(
+            RUN,
+            "pm_sim_populated",
+            "merchant",
+            null,
+            StripePaymentMethodType.CARD,
+            new StripeCard(
+                "visa",
+                "4242",
+                12,
+                2030,
+                "credit",
+                "US",
+                "visa",
+                List.of("visa"),
+                "unregulated",
+                true),
+            new StripeBillingDetails(
+                "Boston",
+                "US",
+                "101 Example St",
+                "Unit A",
+                "02101",
+                "MA",
+                "buyer@example.com",
+                "Example Buyer",
+                "+15555550123",
+                "tax_example"),
+            Map.of("order", "example"),
+            "always",
+            null,
+            null,
+            ObjectOrigin.PROVIDER_API,
+            NOW,
+            NOW);
+    samples.add(
+        new Sample("payment_method", "populated-card", StripePaymentMethodView.of(populated)));
+    StripePaymentMethod sparse =
+        new StripePaymentMethod(
+            RUN,
+            "pm_sim_sparse",
+            "merchant",
+            null,
+            StripePaymentMethodType.CARD,
+            new StripeCard("visa", "4242", 12, 2030, "credit", null, null, null, null, false),
+            StripeBillingDetails.NONE,
+            Map.of(),
+            "limited",
+            null,
+            null,
+            ObjectOrigin.PROVIDER_API,
+            NOW,
+            NOW);
+    samples.add(new Sample("payment_method", "sparse-card", StripePaymentMethodView.of(sparse)));
     samples.add(
         new Sample(
             "payment_method_list",

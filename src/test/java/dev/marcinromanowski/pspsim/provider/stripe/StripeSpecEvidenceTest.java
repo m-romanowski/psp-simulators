@@ -12,29 +12,89 @@ import org.junit.jupiter.api.Test;
 class StripeSpecEvidenceTest {
 
   @Test
-  void every_mobile_override_is_present_in_the_cited_stripe_recording() throws IOException {
-    StripeJson evidence = StripeResponseConformanceTest.resource("evidence-overrides.json");
-    for (StripeJson patch : ((StripeJson.JsonArray) member(evidence, "fields")).elements()) {
-      String source = ((StripeJson.JsonText) member(patch, "source")).value();
-      assertThat(((StripeJson.JsonText) member(patch, "reason")).value()).isNotBlank();
-      if (!source.startsWith("stripe-ios-recorded-traffic/")) {
-        continue;
-      }
-      try (InputStream input =
-          Objects.requireNonNull(getClass().getResourceAsStream("/" + source))) {
-        String recording = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        assertThat(recording).contains("stripe-version: 2020-08-27");
-        StripeJson response =
-            StripeJsonReader.read(recording.substring(recording.indexOf("\n{") + 1));
-        String field = ((StripeJson.JsonText) member(patch, "field")).value();
-        assertThat(member(response, field))
-            .as(source + " " + field)
-            .isEqualTo(
-                field.equals("capture_method")
-                    ? StripeJson.text("automatic_async")
-                    : StripeJson.nothing());
-      }
+  void a_full_recorded_mobile_payment_method_validates_without_drift_exclusions()
+      throws IOException {
+    StripeJson response =
+        recorded(
+            "/stripe-ios-recorded-traffic/STPPaymentMethodFunctionalTest/testCreateCardPaymentMethod/0000_post_v1_payment_methods.tail");
+    assertThat(member(response, "object")).isEqualTo(StripeJson.text("payment_method"));
+    assertThat(
+            new StripeResponseSchema(StripeSpecEvidence.schemasAt("2020-08-27"))
+                .problems("payment_method", response))
+        .isEmpty();
+  }
+
+  @Test
+  void recorded_mobile_additions_validate_on_the_surface_the_simulator_renders()
+      throws IOException {
+    StripeJson response =
+        recorded(
+            "/stripe-ios-recorded-traffic/PaymentSheetLPMConfirmFlowTests/testLinkCardConfirmFlows/0002_get_v1_payment_intents_pi_3UVdlcGoesj9fw9Q1dp9Xowy.tail");
+    java.util.Map<String, StripeJson> rendered = new java.util.LinkedHashMap<>();
+    for (String field :
+        java.util.List.of(
+            "id",
+            "object",
+            "allowed_payment_method_types",
+            "automatic_payment_methods",
+            "excluded_payment_method_types",
+            "payment_method_configuration_details",
+            "capture_method",
+            "status")) {
+      rendered.put(field, member(response, field));
     }
+    assertThat(member(response, "allowed_payment_method_types")).isEqualTo(StripeJson.nothing());
+    assertThat(
+            new StripeResponseSchema(StripeSpecEvidence.schemasAt("2020-08-27"))
+                .problems("payment_intent", new StripeJson.JsonObject(rendered)))
+        .isEmpty();
+  }
+
+  private StripeJson recorded(String source) throws IOException {
+    try (InputStream input = Objects.requireNonNull(getClass().getResourceAsStream(source))) {
+      String recording = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+      assertThat(recording).contains("stripe-version: 2020-08-27");
+      return StripeJsonReader.read(recording.substring(recording.indexOf("\n{") + 1));
+    }
+  }
+
+  @Test
+  void allowed_payment_method_types_validates_additively_at_old_releases() throws IOException {
+    for (String version : java.util.List.of("2026-04-22.dahlia", "2020-08-27")) {
+      StripeResponseSchema schema = new StripeResponseSchema(StripeSpecEvidence.schemasAt(version));
+      assertThat(
+              schema.problems(
+                  "payment_intent",
+                  StripeJsonReader.read(
+                      """
+          {"object":"payment_intent","allowed_payment_method_types":["card"]}
+          """)))
+          .isEmpty();
+    }
+  }
+
+  @Test
+  void a_breaking_enum_replacement_is_not_backported_as_an_additive_value() throws IOException {
+    StripeResponseSchema schema =
+        new StripeResponseSchema(StripeSpecEvidence.schemasAt("2020-08-27"));
+    assertThat(
+            schema.problems(
+                "payment_intent",
+                StripeJsonReader.read(
+                    """
+        {"cancellation_reason":"expired"}
+        """)))
+        .containsExactly(
+            new StripeResponseSchema.Problem(
+                "payment_intent.cancellation_reason", "breaking-enum"));
+    assertThat(
+            schema.problems(
+                "payment_intent",
+                StripeJsonReader.read(
+                    """
+        {"cancellation_reason":"automatic"}
+        """)))
+        .isEmpty();
   }
 
   @Test
@@ -65,7 +125,7 @@ class StripeSpecEvidenceTest {
   }
 
   @Test
-  void mobile_backport_overrides_check_types_and_do_not_permit_unrelated_fields()
+  void additive_fields_keep_their_earliest_published_types_and_refuse_unknown_fields()
       throws IOException {
     StripeResponseSchema schema =
         new StripeResponseSchema(StripeSpecEvidence.schemasAt("2020-08-27"));

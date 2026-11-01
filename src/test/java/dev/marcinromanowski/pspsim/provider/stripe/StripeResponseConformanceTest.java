@@ -45,9 +45,7 @@ class StripeResponseConformanceTest {
               schema.problems(((StripeJson.JsonText) member(data, "object")).value(), data));
         }
         for (StripeResponseSchema.Problem problem : problems) {
-          if (!guardedPaymentMethodDrift(version, problem)) {
-            failures.add(sample.schema() + " " + problem.path() + " " + problem.rule());
-          }
+          failures.add(sample.schema() + " " + problem.path() + " " + problem.rule());
         }
       }
     }
@@ -116,7 +114,7 @@ class StripeResponseConformanceTest {
     Map<String, Set<String>> published = new HashMap<>();
     Map<String, Set<String>> mobilePublished = new HashMap<>();
     for (String version : versions().toList()) {
-      StripeJson schemas = member(resource(version + ".json"), "schemas");
+      StripeJson schemas = StripeSpecEvidence.schemasAt(version);
       collectPublished(schemas, member(omissions, "always"), published);
       if (version.startsWith("2020-")) {
         collectPublished(schemas, member(omissions, "mobile"), mobilePublished);
@@ -148,14 +146,6 @@ class StripeResponseConformanceTest {
                     .addAll(object(member(schema, "properties")).members().keySet());
               }
             });
-  }
-
-  private static boolean guardedPaymentMethodDrift(
-      String version, StripeResponseSchema.Problem problem) throws IOException {
-    StripeJson known = object(resource("payment-method-drift.json")).members().get(version);
-    return known instanceof StripeJson.JsonObject paths
-        && problem.rule().equals("unpublished")
-        && paths.members().containsKey(problem.path());
   }
 
   static StripeJson resource(String filename) throws IOException {

@@ -29,6 +29,10 @@ final class StripeResponseSchema {
 
   private List<Problem> problems(StripeJson shape, StripeJson answer, String path) {
     Map<String, StripeJson> schema = object(shape).members();
+    if (schema.get("x-responseBreakingEnumValues") instanceof StripeJson.JsonArray forbidden
+        && forbidden.elements().contains(answer)) {
+      return List.of(new Problem(path, "breaking-enum"));
+    }
     if (answer instanceof StripeJson.JsonNull
         && StripeJson.bool(true).equals(schema.get("nullable"))) {
       return List.of();

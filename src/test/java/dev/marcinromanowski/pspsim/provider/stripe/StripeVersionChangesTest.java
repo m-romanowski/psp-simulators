@@ -74,11 +74,6 @@ class StripeVersionChangesTest {
                 new StripeApiVersion(pinned), StripeVersionChanges.DECLARED))
         .containsExactly(
             StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE,
-            StripeVersionChanges.ALLOWED_PAYMENT_METHOD_TYPES_WAS_ADDED,
-            StripeVersionChanges.SETUP_INTENT_EXCLUDED_TYPES_WAS_ADDED,
-            StripeVersionChanges.CUSTOMER_TAX_PROVIDER_WAS_ADDED,
-            StripeVersionChanges.PAYMENT_INTENT_EXCLUDED_TYPES_WAS_ADDED,
-            StripeVersionChanges.CUSTOMER_BALANCES_AND_TAX_POSTDATE_THE_MOBILE_PINS,
             StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED);
   }
 
@@ -98,15 +93,10 @@ class StripeVersionChangesTest {
   }
 
   @Test
-  void the_changes_declare_the_response_additions_the_expiry_reason_and_the_endive_removal() {
+  void the_changes_this_simulator_models_are_the_basil_expiry_reason_and_the_endive_removal() {
     assertThat(StripeVersionChanges.DECLARED)
         .containsExactly(
-            StripeVersionChanges.CUSTOMER_BALANCES_AND_TAX_POSTDATE_THE_MOBILE_PINS,
             StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED,
-            StripeVersionChanges.PAYMENT_INTENT_EXCLUDED_TYPES_WAS_ADDED,
-            StripeVersionChanges.SETUP_INTENT_EXCLUDED_TYPES_WAS_ADDED,
-            StripeVersionChanges.CUSTOMER_TAX_PROVIDER_WAS_ADDED,
-            StripeVersionChanges.ALLOWED_PAYMENT_METHOD_TYPES_WAS_ADDED,
             StripeVersionChanges.PAYMENT_METHOD_TYPES_IS_NO_LONGER_WRITABLE);
     StripeVersionChange basil =
         StripeVersionChanges.AN_EXPIRED_AUTHORIZATION_IS_CANCELLED_AS_EXPIRED;
@@ -123,7 +113,8 @@ class StripeVersionChangesTest {
             "POST /v1/payment_intents/{id}/cancel",
             "GET /v1/payment_intents/{id}",
             "GET /v1/charges/{id}",
-            "POST /v1/refunds");
+            "POST /v1/refunds",
+            "webhook");
     StripeForm sent = StripeForm.of(Map.of("payment_method_types[]", List.of("card")));
     StripeCoreRequest untouched = basil.upgrade().apply(StripeCoreRequest.asSent(sent));
     assertThat(untouched.form()).isSameAs(sent);
