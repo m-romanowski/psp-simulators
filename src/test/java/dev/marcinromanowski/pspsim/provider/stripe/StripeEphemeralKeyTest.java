@@ -23,6 +23,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderFixtureRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderPaymentMethodFields;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -647,6 +648,7 @@ class StripeEphemeralKeyTest {
   private StripeApi api(Instant now) {
     ScenarioEngine noScenarios = new ScenarioEngine(new InMemoryScenarioRules());
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,

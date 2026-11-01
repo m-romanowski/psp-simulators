@@ -131,6 +131,16 @@ final class CreatePaymentIntent {
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
+    StripeError unstoreable =
+        StripeStoredParameters.refusalOf(
+            form,
+            StripeFields.CUSTOMER,
+            StripeFields.PAYMENT_METHOD,
+            StripeFields.CURRENCY,
+            StripeFields.RECEIPT_EMAIL);
+    if (unstoreable != null) {
+      return unstoreable;
+    }
     if (!form.has(StripeFields.AMOUNT)) {
       return StripeErrors.missingRequiredParam(StripeFields.AMOUNT);
     }

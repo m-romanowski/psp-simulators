@@ -157,7 +157,8 @@ Rules take precedence over published test-card behaviour, then the normal succes
 
 ### Authorize, capture or release
 
-Create a new PaymentIntent for each alternative below. Set `INTENT`, `PAYMENT_SECRET` and `CHARGE` from its responses.
+Create a new PaymentIntent for each alternative below. Set `INTENT` and `PAYMENT_SECRET` from the create response.
+Set `CHARGE` from the merchant server's secret-key retrieve shown below.
 The saved method belongs to the Customer, so the PaymentIntent must name that same customer (rule).
 
 ```sh
@@ -165,9 +166,12 @@ curl "$BASE/v1/payment_intents" -u "$SK:" -d amount=1000 -d currency=usd \
   -d customer="$CUSTOMER" -d capture_method=manual -d 'allowed_payment_method_types[]=card'
 curl "$BASE/v1/payment_intents/$INTENT/confirm" -u "$PK:" \
   -d client_secret="$PAYMENT_SECRET" -d payment_method="$METHOD"
+curl "$BASE/v1/payment_intents/$INTENT" -u "$SK:"
 ```
 
-Confirmation returns `requires_capture`, `amount_capturable=1000`, `amount_received=0` and `latest_charge`.
+The publishable-key confirmation returns `requires_capture` and omits `amount_capturable`, `amount_received` and
+`latest_charge`. The merchant server's secret-key retrieve returns `requires_capture`, `amount_capturable=1000`,
+`amount_received=0` and `latest_charge`; set `CHARGE` to that id.
 A server can instead send `confirm=true` and `payment_method` with its secret-key create, or confirm with its secret
 key. Capture and cancel are server calls:
 
@@ -620,6 +624,7 @@ The fields served (`StripeExpandable`):
 | Under a publishable key a path is judged the same way, and only a PaymentMethod is reached: a customer or a charge on the path is answered as its id, and the intent is then reduced (see "Publishable Key") | probe and decision, as that section states |
 | An expanded object carries what the object itself carries, `client_secret` included. The trail and the keyed-exchange log withhold `client_secret` and `secret` at any depth | decision: `StripeFields.withholding` matches the last segment of a path                                               |
 | An idempotent replay answers the expanded body the first request stored. A repeat with another `expand` is refused as a reuse with other parameters                         | rule: `expand` is a parameter like any other under the key                                                            |
+| Every publishable answer, including a replay of a secret-key answer, runs through the same recursive reduction. Expanded Customer, Charge and Refund objects become ids at any depth; PaymentMethods lose metadata and their nested relations are reduced too. The rule also covers lists, included members, embedded errors and event envelopes | decision: a replay must reveal nothing a fresh publishable read would not; Stripe's key restrictions and the recorded reduced responses |
 | `expand` on an object answered by the control surface (origination, object actions) is not read                                                                            | decision: those requests are built by this simulator and carry no `expand`                                            |
 
 ## Publishable Key
@@ -742,7 +747,18 @@ The route (`CreatePaymentMethod`, `StripeNewPaymentMethod`):
 | A card is judged in this order: `token`, the three required members, the number, the month and year as integers, the month, the year, the month against the clock, `cvc`; then `billing_details`, `metadata`, `allow_redisplay` | decision: Stripe publishes no order                                                                                    |
 | A refusal stores nothing and keeps nothing under an `Idempotency-Key`; a created method is answered and stored once, and an `Idempotency-Key` replays it | rule: a validation failure is not cached ("Idempotency")                                                              |
 | `card[networks]`, `customer`, `payment_method` and the other parameters of the page are accepted and have no effect                                                         | decision: the same as any parameter this simulator does not read                                                      |
-| The number and the cvc of the card details are kept nowhere: only `last4` is stored, and no answer, screen or control route carries more. The trail and the keyed exchanges hold a floor besides: in both directions of the trail and in a keyed exchange's answer, every name whose keys hold `card` and later `number` or `cvc` (`card[number]`, `payment_method_data[card][cvc]`, any spelling) is withheld, and so is every run of digits, inside any name or value, that reads as a card number (12 to 19 digits, spaces and dashes aside, passing the Luhn check), even an order number that happens to read as one (`StripeFields.withholdingTheCard`). A keyed exchange keeps a keyed fingerprint of the parameters, never the parameters. A refusal's `message` and `param` never carry such a run (`StripeError`). A `payment_method` or `customer` that reads as a card number is refused on PaymentIntent and SetupIntent create (`resource_missing` on the parameter, without repeating it), so no id this simulator keeps or shows on its control routes reads as one. Free text that reads as a card number (`metadata`, `billing_details`) is stored and answered on the API as sent, as any free text is | rule: "When providing a card number, you must meet the requirements for PCI compliance"; decision for the floor, and for not refusing free text: a real order number can read as a card number, and Stripe publishes no refusal of one |
+| Card details `number` and `cvc` are discarded after validation; only card facts such as `last4` are stored. Free text (`metadata`, `billing_details`) is stored for API reads and answered as sent, including text that happens to pass Luhn. Every observational surface the simulator records or displays withholds sensitive card members and any run of 12 to 19 digits, spaces and dashes aside, passing Luhn, inside a name or value: request/response trail, keyed-exchange answers, webhook history and attempts, control reads, screens and reproduction evidence. Run bundles contain configuration and fixtures, not API-created methods. Keyed exchanges store a keyed parameter fingerprint. A webhook follows the withholding floor: its JSON is withheld before bytes are stored or signed, and retries sign those same stored bytes afresh. The history additionally withholds `client_secret` in its flattened view; that view is not the signed body. API answers and API replays retain their free-text echo (`StripeFields.withholdingTheCard`, `StripeWebhookRendering`) | rule for discarding card details: PCI requirements; decision for free-text echo and the observational/delivery floor, because an order number can pass Luhn and Stripe publishes no refusal of it |
+
+Persisted parameters (decision): `customer` and `payment_method` identifiers accepted by this simulator are at most
+128 characters, matching its fixture identifiers and storage. This is narrower than the generic 5000-character
+string bound in Stripe's pinned OpenAPI schema. A longer value earns `400 invalid_request_error`, no `code`, `param`
+the supplied parameter, before minting a method, claiming an idempotency result or moving a scenario story. The
+published `billing_details` limit is 5000 and `payment_method_configuration` is 100, within their column widths.
+Persisted SQL text cannot contain NUL: such a value earns the same 400 before execution. Ignored parameters are not
+stored. A state-changing operation, its minted method, ledger/charge, scenario step and scheduled event commit as
+one unit; a failed write discards that unit. A scenario preempt keeps its story transition so a then-success
+preset advances, while creating no method, monetary effect or idempotent answer. An explicitly discarded unit
+rolls its story transition back too. Delivery happens after commit.
 
 The card hash (`StripeTestCards`), for a number and for a test token or test id:
 

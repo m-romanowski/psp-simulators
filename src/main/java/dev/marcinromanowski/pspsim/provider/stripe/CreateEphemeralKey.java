@@ -28,6 +28,11 @@ final class CreateEphemeralKey {
 
   StripeOperationResult handle(
       StripeForm form, TestRunId testRunId, StripeAccount account, Instant now) {
+    StripeError unstoreable = StripeStoredParameters.refusalOf(form, StripeFields.CUSTOMER);
+    if (unstoreable != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), unstoreable);
+    }
     String customerId = form.first(StripeFields.CUSTOMER);
     if (customerId == null) {
       return StripeOperationResult.refusedBeforeExecuting(

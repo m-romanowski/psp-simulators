@@ -22,6 +22,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ObjectActions;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -304,6 +305,7 @@ class StripeObjectActionTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,

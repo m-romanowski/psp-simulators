@@ -113,6 +113,38 @@ final class StripeFields {
     return Collections.unmodifiableMap(withheld);
   }
 
+  static StripeJson withholdingTheCard(StripeJson fields) {
+    return withholdingTheCard(fields, "");
+  }
+
+  private static StripeJson withholdingTheCard(StripeJson field, String path) {
+    return switch (field) {
+      case StripeJson.JsonObject object -> {
+        Map<String, StripeJson> kept = new LinkedHashMap<>();
+        object
+            .members()
+            .forEach(
+                (name, value) ->
+                    kept.put(
+                        withholdingCardNumbersIn(name),
+                        withholdingTheCard(
+                            value, path.isEmpty() ? name : path + "[" + name + "]")));
+        yield new StripeJson.JsonObject(kept);
+      }
+      case StripeJson.JsonArray array ->
+          StripeJson.array(
+              array.elements().stream().map(value -> withholdingTheCard(value, path)).toList());
+      case StripeJson.JsonText text ->
+          StripeJson.text(
+              namesASensitiveCardMember(path) ? WITHHELD : withholdingCardNumbersIn(text.value()));
+      case StripeJson.JsonRawNumber number ->
+          namesASensitiveCardMember(path) || readsAsACardNumber(number.lexicalForm())
+              ? StripeJson.text(WITHHELD)
+              : number;
+      case StripeJson.JsonBoolean _, StripeJson.JsonNull _ -> field;
+    };
+  }
+
   static String withholdingCardNumbersIn(String text) {
     boolean[] withheld = new boolean[text.length()];
     Matcher runs = A_RUN_OF_DIGITS.matcher(text);

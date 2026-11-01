@@ -24,6 +24,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.UnknownProviderObjectException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookScheduleRequest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import dev.marcinromanowski.pspsim.kernel.webhook.AttemptWithheldException;
 import dev.marcinromanowski.pspsim.kernel.webhook.DeliveryState;
 import dev.marcinromanowski.pspsim.kernel.webhook.InMemoryWebhookDeliveries;
@@ -371,7 +372,11 @@ class StripeWebhookTest {
             sameAccount ? "merchant-1" : "merchant-elsewhere",
             null,
             StripePaymentMethodType.CARD,
-            new FixtureCard("visa", "1881", 12, 2030, "debit"),
+            StripeCard.ofAFixture(new FixtureCard("visa", "1881", 12, 2030, "debit")),
+            StripeBillingDetails.of(Map.of("name", "4000000000009995")),
+            Map.of("order", "4242424242424242"),
+            "unspecified",
+            null,
             null,
             ObjectOrigin.CONTROL_API,
             NOW,
@@ -408,6 +413,12 @@ class StripeWebhookTest {
     assertThat(fields.get("data.object.last_payment_error.payment_method.object"))
         .containsExactly("payment_method");
     if (sameAccount) {
+      assertThat(fields.get("data.object.last_payment_error.payment_method.billing_details.name"))
+          .containsExactly("[redacted]");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.metadata.order"))
+          .containsExactly("[redacted]");
+      assertThat(onlyCallback().body()).doesNotContain("4000000000009995", "4242424242424242");
+
       assertThat(fields.get("data.object.last_payment_error.payment_method.card.brand"))
           .containsExactly("visa");
       assertThat(fields.get("data.object.last_payment_error.payment_method.card.last4"))
@@ -1191,6 +1202,7 @@ class StripeWebhookTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,

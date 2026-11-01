@@ -63,21 +63,10 @@ final class StripePublishableView {
   static final Set<String> WHAT_A_PAYMENT_METHOD_NEVER_SHOWS =
       Set.of(StripePaymentMethodView.METADATA);
 
-  private static final String ERROR = "error";
-
   private StripePublishableView() {}
 
   static StripeJson of(StripeJson answered) {
-    if (!(answered instanceof StripeJson.JsonObject object)) {
-      return answered;
-    }
-    StripeJson error = object.members().get(ERROR);
-    if (error instanceof StripeJson.JsonObject refusal) {
-      Map<String, StripeJson> members = new LinkedHashMap<>(refusal.members());
-      members.replaceAll((name, member) -> reduced(member));
-      return StripeJson.object(ERROR, new StripeJson.JsonObject(members));
-    }
-    return reduced(object);
+    return reduced(answered);
   }
 
   private static StripeJson reduced(StripeJson member) {
@@ -98,12 +87,17 @@ final class StripePublishableView {
     if (StripeJson.text(StripePaymentMethodView.OBJECT).equals(kind)) {
       Map<String, StripeJson> kept = new LinkedHashMap<>(object.members());
       kept.keySet().removeAll(WHAT_A_PAYMENT_METHOD_NEVER_SHOWS);
+      kept.replaceAll((name, value) -> reduced(value));
       return new StripeJson.JsonObject(kept);
+    }
+    if (StripeJson.text(StripeCustomerView.OBJECT).equals(kind)
+        || StripeJson.text(StripeChargeView.OBJECT).equals(kind)
+        || StripeJson.text(StripeRefundView.OBJECT).equals(kind)) {
+      return object.members().getOrDefault("id", StripeJson.nothing());
     }
     Map<String, StripeJson> nested = new LinkedHashMap<>(object.members());
     nested.replaceAll((name, value) -> reduced(value));
-    StripeJson.JsonObject reduced = new StripeJson.JsonObject(nested);
-    return reduced.equals(object) ? object : reduced;
+    return new StripeJson.JsonObject(nested);
   }
 
   private static StripeJson keeping(StripeJson.JsonObject object, Set<String> shown) {

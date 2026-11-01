@@ -24,6 +24,8 @@ import com.google.gson.JsonParser;
 import dev.marcinromanowski.pspsim.PostgresBackedTest;
 import dev.marcinromanowski.pspsim.journey.StripeJourneyClient.Reply;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.HexFormat;
 import java.util.List;
@@ -76,6 +78,25 @@ class StripeAcceptanceJourneyIntegrationTest extends PostgresBackedTest {
       assertThat(app.ok("GET", SETUPS + "/" + saved.setup(), SECRET, Map.of()).at("status"))
           .isEqualTo("succeeded");
     }
+  }
+
+  @RepeatedTest(2)
+  void the_documented_manual_flow_reads_the_charge_on_the_merchants_server() throws Exception {
+    String section =
+        Files.readString(Path.of("doc/stripe.md"))
+            .split("### Authorize, capture or release", 2)[1]
+            .split("### Reconcile", 2)[0];
+    assertThat(section)
+        .containsSubsequence(
+            "curl \"$BASE/v1/payment_intents\" -u \"$SK:\"",
+            "curl \"$BASE/v1/payment_intents/$INTENT/confirm\" -u \"$PK:\"",
+            "curl \"$BASE/v1/payment_intents/$INTENT\" -u \"$SK:\"");
+    Reply held = hold("1000");
+    assertPayment(held, "requires_capture", "0", "1000");
+    Reply charged = charge(held);
+    assertThat(charged.at("payment_intent")).isEqualTo(held.at("id"));
+    assertThat(charged.at("amount")).isEqualTo("1000");
+    assertThat(charged.at("captured")).isEqualTo("false");
   }
 
   @RepeatedTest(2)
@@ -584,18 +605,23 @@ class StripeAcceptanceJourneyIntegrationTest extends PostgresBackedTest {
   }
 
   private Reply hold(String amount) {
-    return app.ok(
-        "POST",
-        PAYMENTS,
-        SECRET,
-        with(
-            payment(amount),
-            "capture_method",
-            "manual",
-            "confirm",
-            "true",
-            "payment_method",
-            "pm_card_visa"));
+    Saved saved = save("published");
+    Reply created =
+        app.ok(
+            "POST",
+            PAYMENTS,
+            SECRET,
+            with(payment(amount), "customer", saved.customer(), "capture_method", "manual"));
+    Reply confirmed =
+        app.ok(
+            "POST",
+            PAYMENTS + "/" + created.at("id") + "/confirm",
+            PUBLIC,
+            Map.of("client_secret", created.at("client_secret"), "payment_method", saved.method()));
+    assertThat(confirmed.at("status")).isEqualTo("requires_capture");
+    assertThat(confirmed.json().keySet())
+        .doesNotContain("amount_capturable", "amount_received", "latest_charge");
+    return app.ok("GET", PAYMENTS + "/" + created.at("id"), SECRET, Map.of());
   }
 
   private Reply charge(Reply intent) {

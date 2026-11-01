@@ -97,6 +97,11 @@ final class CreateSetupIntent {
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
+    StripeError unstoreable =
+        StripeStoredParameters.refusalOf(form, StripeFields.CUSTOMER, StripeFields.PAYMENT_METHOD);
+    if (unstoreable != null) {
+      return unstoreable;
+    }
     if (usageOf(form) == null) {
       return StripeErrors.unreadableParameter(
           StripeFields.USAGE, StripeSetupUsage.theUsagesTheVendorPublishes());

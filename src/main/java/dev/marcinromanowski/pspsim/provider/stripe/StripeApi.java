@@ -27,6 +27,7 @@ import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunResolution;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunResolutionRule;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
+import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public final class StripeApi {
 
   private static final int REQUEST_ID_LENGTH = 24;
 
+  private final UnitOfWork units;
   private final StripeAccounts accounts;
   private final StripeIdempotencyKeys keys;
   private final StripeEphemeralKeys ephemeralKeys;
@@ -81,6 +83,7 @@ public final class StripeApi {
   private final StripeRelatedObjects related;
 
   StripeApi(
+      UnitOfWork units,
       StripeAccounts accounts,
       StripeIdempotencyKeys keys,
       StripeEphemeralKeys ephemeralKeys,
@@ -103,6 +106,7 @@ public final class StripeApi {
       StripeRefunds refunds,
       CreateSetupIntent createSetupIntent,
       ConfirmSetupIntent confirmSetupIntent) {
+    this.units = units;
     this.accounts = accounts;
     this.keys = keys;
     this.ephemeralKeys = ephemeralKeys;
@@ -677,7 +681,7 @@ public final class StripeApi {
     };
   }
 
-  private static StripeOperationResult handledAt(
+  private StripeOperationResult handledAt(
       StripeOperation operation,
       StripeForm form,
       StripeApiVersion version,
@@ -688,13 +692,16 @@ public final class StripeApi {
       Instant now,
       StripeKeyKind presented) {
     StripeOperationResult result =
-        operation.handle(
-            StripeVersionChanges.atTheCore(form, version, operationName),
-            headers,
-            testRunId,
-            account,
-            now,
-            presented);
+        units.keepingOnly(
+            done -> done.stateChanged() || done.insteadOfTheOperation() != null,
+            () ->
+                operation.handle(
+                    StripeVersionChanges.atTheCore(form, version, operationName),
+                    headers,
+                    testRunId,
+                    account,
+                    now,
+                    presented));
     StripeJson shown =
         StripeVersionChanges.asAnsweredAt(
             presented.asShownTo(result.body()), version, operationName);

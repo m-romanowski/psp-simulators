@@ -13,6 +13,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import dev.marcinromanowski.pspsim.kernel.transaction.ClaimConstraints;
+import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
 import dev.marcinromanowski.pspsim.kernel.webhook.AcknowledgementPolicy;
 import dev.marcinromanowski.pspsim.kernel.webhook.AttemptRendering;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
@@ -145,6 +146,7 @@ public class StripeModule {
 
   @Bean
   StripeApi stripeApi(
+      UnitOfWork units,
       StripeAccounts accounts,
       StripeIdempotencyKeys keys,
       StripeEphemeralKeys ephemeralKeys,
@@ -167,6 +169,7 @@ public class StripeModule {
       ConfirmSetupIntent confirmSetupIntent,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new StripeApi(
+        units,
         accounts,
         keys,
         ephemeralKeys,

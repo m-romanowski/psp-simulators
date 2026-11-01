@@ -339,7 +339,8 @@ final class StripeNewPaymentMethod {
         continue;
       }
       if (!(value instanceof StripeParameter.Scalar scalar)
-          || scalar.value().length() > StripeBillingDetails.LONGEST_VALUE) {
+          || scalar.value().length() > StripeBillingDetails.LONGEST_VALUE
+          || scalar.value().indexOf(0) >= 0) {
         return StripeErrors.unreadableParameter(
             param + "[" + member + "]", THE_SHAPE_OF_BILLING_DETAILS);
       }

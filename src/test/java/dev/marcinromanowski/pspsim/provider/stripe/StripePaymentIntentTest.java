@@ -20,6 +20,7 @@ import dev.marcinromanowski.pspsim.kernel.smoke.CheckJson;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSample;
 import dev.marcinromanowski.pspsim.kernel.smoke.VendorSamples;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -1180,6 +1181,7 @@ class StripePaymentIntentTest {
 
   private StripeApi api(Instant now) {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,

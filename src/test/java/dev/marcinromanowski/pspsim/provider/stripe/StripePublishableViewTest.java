@@ -105,10 +105,120 @@ class StripePublishableViewTest {
     StripeJson aList = StripeJson.array(List.of(StripeJson.text("x")));
     StripeJson anErrorThatIsNoObject = StripeJson.object("error", StripeJson.text("x"));
 
-    assertThat(StripePublishableView.of(aMethod)).isSameAs(aMethod);
-    assertThat(StripePublishableView.of(aList)).isSameAs(aList);
+    assertThat(StripePublishableView.of(aMethod)).isEqualTo(StripeJson.text("cus_sim_1"));
+    assertThat(StripePublishableView.of(aList)).isEqualTo(aList);
     assertThat(StripeJsonWriter.toText(StripePublishableView.of(anErrorThatIsNoObject)))
         .isEqualTo("{\"error\":\"x\"}");
+  }
+
+  @Test
+  void every_envelope_reduces_nested_relations_to_the_same_publishable_shape() {
+    StripeJson customer =
+        StripeJson.object(
+            "id",
+            StripeJson.text("cus_1"),
+            "object",
+            StripeJson.text("customer"),
+            "email",
+            StripeJson.text("private@example.com"),
+            "sources",
+            StripeJson.object(
+                "data", StripeJson.array(List.of(StripeJson.text("private-source")))));
+    StripeJson method =
+        StripeJson.object(
+            "id",
+            StripeJson.text("pm_1"),
+            "object",
+            StripeJson.text("payment_method"),
+            "customer",
+            customer,
+            "metadata",
+            StripeJson.object("private", StripeJson.text("merchant-only")));
+    StripeJson payment =
+        StripeJson.object(
+            "id",
+            StripeJson.text("pi_1"),
+            "object",
+            StripeJson.text("payment_intent"),
+            "payment_method",
+            method,
+            "customer",
+            customer,
+            "amount_capturable",
+            StripeJson.number("1000"),
+            "last_payment_error",
+            StripeJson.object("payment_method", method));
+    StripeJson setup =
+        StripeJson.object(
+            "id",
+            StripeJson.text("seti_1"),
+            "object",
+            StripeJson.text("setup_intent"),
+            "payment_method",
+            method,
+            "customer",
+            customer,
+            "last_setup_error",
+            StripeJson.object("payment_method", method));
+    for (StripeJson envelope :
+        List.of(
+            payment,
+            setup,
+            StripeJson.object(
+                "error", StripeJson.object("payment_intent", payment, "payment_method", method)),
+            StripeJson.object(
+                "error", StripeJson.object("setup_intent", setup, "payment_method", method)),
+            StripeJson.object(
+                "object", StripeJson.text("event"), "data", StripeJson.object("object", payment)),
+            StripeJson.object(
+                "object",
+                StripeJson.text("list"),
+                "data",
+                StripeJson.array(List.of(payment, setup))),
+            StripeJson.array(
+                List.of(StripeJson.object("nested", StripeJson.array(List.of(method))))))) {
+      StripeJson reduced = StripePublishableView.of(envelope);
+      assertThat(StripeJsonWriter.toText(reduced))
+          .contains("\"customer\":\"cus_1\"")
+          .doesNotContain(
+              "private@example.com",
+              "private-source",
+              "merchant-only",
+              "metadata",
+              "amount_capturable",
+              "\"object\":\"customer\"");
+      assertThat(StripePublishableView.of(reduced)).isEqualTo(reduced);
+    }
+  }
+
+  @Test
+  void server_only_objects_are_ids_at_any_depth_and_a_customer_without_an_id_reveals_nothing() {
+    StripeJson whole =
+        StripeJson.object(
+            "nested",
+            StripeJson.array(
+                List.of(
+                    StripeJson.object(
+                        "id",
+                        StripeJson.text("ch_1"),
+                        "object",
+                        StripeJson.text("charge"),
+                        "amount",
+                        StripeJson.number("1000")),
+                    StripeJson.object(
+                        "id",
+                        StripeJson.text("re_1"),
+                        "object",
+                        StripeJson.text("refund"),
+                        "amount",
+                        StripeJson.number("1000")),
+                    StripeJson.object(
+                        "object",
+                        StripeJson.text("customer"),
+                        "email",
+                        StripeJson.text("private@example.com")))));
+    assertThat(StripeJsonWriter.toText(StripePublishableView.of(whole)))
+        .isEqualTo("{\"nested\":[\"ch_1\",\"re_1\",null]}");
   }
 
   @Test

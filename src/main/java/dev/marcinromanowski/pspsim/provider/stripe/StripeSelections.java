@@ -219,7 +219,9 @@ final class StripeSelections {
       return null;
     }
     String configuration = form.first(StripeFields.PAYMENT_METHOD_CONFIGURATION);
-    if (configuration == null || configuration.length() > LONGEST_CONFIGURATION_ID) {
+    if (configuration == null
+        || configuration.length() > LONGEST_CONFIGURATION_ID
+        || configuration.indexOf(0) >= 0) {
       return StripeErrors.unreadableParameter(
           StripeFields.PAYMENT_METHOD_CONFIGURATION, THE_SHAPE_OF_A_CONFIGURATION);
     }

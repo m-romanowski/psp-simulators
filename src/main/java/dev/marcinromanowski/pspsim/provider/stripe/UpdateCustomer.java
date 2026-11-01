@@ -27,6 +27,11 @@ final class UpdateCustomer {
     if (customer.deleted()) {
       return StripeCustomerLookup.refusedBecauseItIsDeleted(customer);
     }
+    StripeError unstoreable = StripeStoredParameters.refusalOf(form, StripeFields.EMAIL);
+    if (unstoreable != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), unstoreable);
+    }
     String email = emailAfter(form, customer);
     return StripeCustomerLookup.answeredFor(
         customers.updated(customer, email, now),

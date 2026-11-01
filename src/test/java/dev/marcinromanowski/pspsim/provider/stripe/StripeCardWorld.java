@@ -14,6 +14,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +48,7 @@ final class StripeCardWorld {
   static final String THE_FIRST_MINTED_METHOD = "pm_sim_00000000000000000001";
   static final String THE_SECOND_MINTED_METHOD = "pm_sim_00000000000000000002";
 
+  final RecordedUnitsOfWork units = new RecordedUnitsOfWork();
   final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
   final ScenarioEngine scenarioEngine = new ScenarioEngine(scenarioRules);
   final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
@@ -85,6 +87,7 @@ final class StripeCardWorld {
 
   StripeApi api() {
     return new StripeApi(
+        units,
         accounts,
         keys,
         ephemeralKeys,

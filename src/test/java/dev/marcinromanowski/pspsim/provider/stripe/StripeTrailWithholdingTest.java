@@ -12,6 +12,42 @@ class StripeTrailWithholdingTest {
   private static final String A_SECRET = "ek_sim_00000000000000000000000000000001";
 
   @Test
+  void the_structured_delivery_floor_preserves_json_shape_and_safe_values() {
+    StripeJson event =
+        StripeJson.object(
+            "data",
+            StripeJson.object(
+                "object",
+                StripeJson.object(
+                    "card",
+                        StripeJson.object(
+                            "number",
+                            StripeJson.text("not-even-a-number"),
+                            "cvc",
+                            StripeJson.number("123"),
+                            "last4",
+                            StripeJson.text("4242")),
+                    "metadata",
+                        StripeJson.object(
+                            "order_4242424242424242", StripeJson.text("4000-0000-0000-9995")),
+                    "list",
+                        StripeJson.array(
+                            List.of(
+                                StripeJson.text("4242 4242 4242 4242"),
+                                StripeJson.number("4242424242424242"),
+                                StripeJson.number("1000"),
+                                StripeJson.bool(false),
+                                StripeJson.nothing())))));
+    StripeJson withheld = StripeFields.withholdingTheCard(event);
+    assertThat(StripeJsonWriter.toText(withheld))
+        .isEqualTo(
+            "{\"data\":{\"object\":{\"card\":{\"number\":\"[redacted]\",\"cvc\":\"[redacted]\",\"last4\":\"4242\"},"
+                + "\"metadata\":{\"order_[redacted]\":\"[redacted]\"},\"list\":[\"[redacted]\",\"[redacted]\",1000,false,null]}}}");
+    assertThat(StripeFields.withholdingTheCard(withheld)).isEqualTo(withheld);
+    assertThat(StripeJsonWriter.toText(event)).contains("not-even-a-number", "4242424242424242");
+  }
+
+  @Test
   void withholds_a_secret_that_sits_inside_an_array_rather_than_at_the_top_of_the_object() {
     StripeJson answer =
         StripeJson.object(

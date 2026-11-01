@@ -202,7 +202,8 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
       StripeJson dataObject,
       Instant at,
       StripeApiVersion renderedAt) {
-    StripeJson event = StripeEvent.of(eventId, type, dataObject, at, renderedAt);
+    StripeJson event =
+        StripeFields.withholdingTheCard(StripeEvent.of(eventId, type, dataObject, at, renderedAt));
     return new WebhookPayload(
         StripeEvent.CONTENT_TYPE,
         Map.of(),

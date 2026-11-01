@@ -31,6 +31,11 @@ final class CreateCustomer {
       StripeAccount account,
       Instant now,
       ObjectOrigin askedBy) {
+    StripeError unstoreable = StripeStoredParameters.refusalOf(form, StripeFields.EMAIL);
+    if (unstoreable != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), unstoreable);
+    }
     for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
       StripeCustomer customer =
           new StripeCustomer(

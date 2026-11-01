@@ -130,6 +130,11 @@ sealed interface StripeNamedPaymentMethod {
       };
     }
     String sent = form.first(StripeFields.PAYMENT_METHOD);
+    StripeError unstoreable =
+        sent == null ? null : StripeStoredParameters.refusalOf(StripeFields.PAYMENT_METHOD, sent);
+    if (unstoreable != null) {
+      return new Outcome.Refused(unstoreable);
+    }
     return new Outcome.Named(
         theOneNamed(sent == null ? alreadyNamed : sent, minting, testRunId, account, askedBy, now));
   }
