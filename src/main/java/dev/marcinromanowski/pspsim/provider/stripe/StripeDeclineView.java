@@ -9,10 +9,6 @@ final class StripeDeclineView {
 
   private StripeDeclineView() {}
 
-  static StripeJson of(@Nullable StripeDecline decline) {
-    return of(decline, null);
-  }
-
   static StripeJson of(@Nullable StripeDecline decline, @Nullable String paymentMethod) {
     return of(decline, paymentMethod, null);
   }

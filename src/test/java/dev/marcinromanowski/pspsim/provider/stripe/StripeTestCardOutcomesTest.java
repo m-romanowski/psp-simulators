@@ -406,6 +406,127 @@ class StripeTestCardOutcomesTest {
         .containsExactly(THE_FIRST_MINTED_METHOD);
   }
 
+  @ParameterizedTest
+  @CsvSource({"4000000000000127,0127", "4000000000009995,9995"})
+  void omitting_cvc_keeps_the_published_card_instead_of_falling_back_to_an_unknown_card(
+      String number, String last4) {
+    StripeApiResponse created =
+        world.createMethod(
+            SECRET_KEY, with(with(aVisa(), "card[number]", number), "card[cvc]", null));
+    assertThat(created.httpStatus()).as(bodyOf(created)).isEqualTo(200);
+    assertThat(theValueAt(created, "card.brand")).isEqualTo("visa");
+    assertThat(theValueAt(created, "card.display_brand")).isEqualTo("visa");
+    assertThat(theValueAt(created, "card.last4")).isEqualTo(last4);
+    assertThat(theValueAt(created, "card.exp_month")).isEqualTo("10");
+    assertThat(theValueAt(created, "card.exp_year")).isEqualTo("2028");
+    assertThat(flat(created).get("card.networks.available")).containsExactly("visa");
+    String method = theIdOf(created);
+    StripeApiResponse charged =
+        world.createPayment(
+            SECRET_KEY,
+            with(with(aPaymentOf("1050"), "confirm", "true"), "payment_method", method));
+    if (number.equals("4000000000000127")) {
+      assertThat(theValueAt(charged, "status")).isEqualTo("succeeded");
+    } else {
+      assertThat(charged.httpStatus()).isEqualTo(402);
+      assertThat(theValueAt(charged, "error.decline_code")).isEqualTo("insufficient_funds");
+    }
+  }
+
+  @Test
+  void a_confirming_creation_keeps_the_decline_reason_on_its_charge() {
+    StripeApiResponse declined =
+        world.createPayment(
+            SECRET_KEY,
+            with(
+                with(aPaymentOf("1050"), "confirm", "true"),
+                "payment_method",
+                "pm_card_chargeDeclinedInsufficientFunds"));
+    assertThat(declined.httpStatus()).isEqualTo(402);
+    String charge = theValueAt(declined, "error.charge");
+    StripeApiResponse retrieved =
+        world
+            .api()
+            .retrieveCharge(
+                new StripeApiCall(
+                    "GET", "/v1/charges/" + charge, bearer(SECRET_KEY), Map.of(), Map.of()),
+                charge);
+    assertThat(theValueAt(retrieved, "status")).isEqualTo("failed");
+    assertThat(theValueAt(retrieved, "outcome.reason")).isEqualTo("insufficient_funds");
+    assertThat(theValueAt(retrieved, "outcome.seller_message"))
+        .isEqualTo("Your card has insufficient funds.");
+    assertThat(world.charges.find(RUN, charge).orElseThrow().failure())
+        .isEqualTo(StripeDecline.INSUFFICIENT_FUNDS);
+  }
+
+  @Test
+  void a_declined_confirmation_renders_the_new_method_in_both_error_positions() {
+    String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
+    StripeApiResponse declined =
+        world.confirmPayment(
+            SECRET_KEY,
+            payment,
+            Map.of(
+                "payment_method_data[type]", "card",
+                "payment_method_data[card][number]", "4000000000009995",
+                "payment_method_data[card][exp_month]", "12",
+                "payment_method_data[card][exp_year]", "2034",
+                "payment_method_data[billing_details][name]", "Buyer of the declined order",
+                "payment_method_data[metadata][order]", "declined-order"));
+    assertThat(declined.httpStatus()).isEqualTo(402);
+    for (String prefix :
+        List.of("error.payment_method", "error.payment_intent.last_payment_error.payment_method")) {
+      assertThat(theValueAt(declined, prefix + ".id")).isEqualTo("pm_sim_00000000000000000001");
+      assertThat(theValueAt(declined, prefix + ".card.brand")).isEqualTo("visa");
+      assertThat(theValueAt(declined, prefix + ".card.last4")).isEqualTo("9995");
+      assertThat(theValueAt(declined, prefix + ".card.exp_month")).isEqualTo("12");
+      assertThat(theValueAt(declined, prefix + ".card.exp_year")).isEqualTo("2034");
+      assertThat(theValueAt(declined, prefix + ".billing_details.name"))
+          .isEqualTo("Buyer of the declined order");
+      assertThat(theValueAt(declined, prefix + ".metadata.order")).isEqualTo("declined-order");
+    }
+  }
+
+  @Test
+  void a_parameter_refusal_after_a_failed_setup_keeps_the_failed_method_only_in_the_last_error() {
+    String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
+    assertThat(
+            world
+                .confirmSetup(
+                    SECRET_KEY,
+                    setup,
+                    Map.of("payment_method", "pm_card_chargeDeclinedInsufficientFunds"))
+                .httpStatus())
+        .isEqualTo(402);
+    StripeApiResponse refused =
+        world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method_data[type]", "card"));
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(theValueAt(refused, "error.param")).isEqualTo("payment_method_data[card]");
+    assertThat(theValueAt(refused, "error.setup_intent.status"))
+        .isEqualTo("requires_payment_method");
+    assertThat(flat(refused).get("error.setup_intent.payment_method")).isEmpty();
+    assertThat(theValueAt(refused, "error.setup_intent.last_setup_error.payment_method.id"))
+        .isEqualTo("pm_sim_00000000000000000001");
+    assertThat(theValueAt(refused, "error.setup_intent.last_setup_error.payment_method.card.last4"))
+        .isEqualTo("9995");
+    assertThat(flat(refused)).doesNotContainKey("error.setup_intent.client_secret");
+  }
+
+  @Test
+  void a_parameter_refusal_before_setup_keeps_the_method_the_intent_has_not_tried() {
+    String setup =
+        theIdOf(
+            world.createSetup(
+                SECRET_KEY,
+                with(aSetupThatConfirmsWithoutARedirect(), "payment_method", "pm_card_visa")));
+    StripeApiResponse refused =
+        world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method_data[type]", "card"));
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(theValueAt(refused, "error.setup_intent.payment_method"))
+        .isEqualTo("pm_sim_00000000000000000001");
+    assertThat(flat(refused).get("error.setup_intent.last_setup_error")).isEmpty();
+  }
+
   private static void assertDecline(
       StripeApiResponse answer, String code, @Nullable String decline, String intent, String last) {
     assertThat(answer.httpStatus()).as(bodyOf(answer)).isEqualTo(402);

@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
+import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -47,6 +48,8 @@ import javax.crypto.spec.SecretKeySpec;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class StripeWebhookTest {
 
@@ -354,6 +357,74 @@ class StripeWebhookTest {
     assertThat(onlyCallback().body())
         .contains("\"type\":\"payment_intent.canceled\"")
         .contains("\"status\":\"canceled\"");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"false,true", "false,false", "true,true", "true,false"})
+  void a_delivered_decline_renders_only_the_method_of_the_account_it_reports(
+      boolean scheduledOutcome, boolean sameAccount) {
+    anAccountSigningWith(SIGNING_SECRET);
+    paymentMethods.insertIfAbsent(
+        new StripePaymentMethod(
+            E2E_RUN,
+            "pm_card_uncatalogued",
+            sameAccount ? "merchant-1" : "merchant-elsewhere",
+            null,
+            StripePaymentMethodType.CARD,
+            new FixtureCard("visa", "1881", 12, 2030, "debit"),
+            null,
+            ObjectOrigin.CONTROL_API,
+            NOW,
+            NOW));
+    WebhookDispatcher dispatcher = dispatcher();
+    if (scheduledOutcome) {
+      inFlight(StripeDecline.INSUFFICIENT_FUNDS);
+      anAsynchronousChargeThrough(dispatcher);
+      clock.moveTo(NOW.plusSeconds(5));
+      assertThat(dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN)).isEqualTo(1);
+    } else {
+      scenarioRules.add(
+          new NewScenarioRule(
+              StripeApi.STRIPE,
+              E2E_RUN,
+              0,
+              ScenarioMatch.anyRequest().naming(StripeOperations.CREATE),
+              new ScenarioAction.TerminalFailure("insufficient_funds"),
+              null));
+      aHeldPaymentIntent();
+      send(dispatcher, null);
+    }
+    Map<String, List<String>> fields = StripeJsonReader.read(onlyCallback().body()).flatten();
+    assertThat(fields.get("type")).containsExactly("payment_intent.payment_failed");
+    assertThat(fields.get("data.object.status")).containsExactly("requires_payment_method");
+    assertThat(fields.get("data.object.last_payment_error.code")).containsExactly("card_declined");
+    assertThat(fields.get("data.object.last_payment_error.decline_code"))
+        .containsExactly("insufficient_funds");
+    assertThat(fields.get("data.object.last_payment_error.message"))
+        .containsExactly("Your card has insufficient funds.");
+    assertThat(fields.get("data.object.payment_method")).isEmpty();
+    assertThat(fields.get("data.object.last_payment_error.payment_method.id"))
+        .containsExactly("pm_card_uncatalogued");
+    assertThat(fields.get("data.object.last_payment_error.payment_method.object"))
+        .containsExactly("payment_method");
+    if (sameAccount) {
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.brand"))
+          .containsExactly("visa");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.last4"))
+          .containsExactly("1881");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.exp_month"))
+          .containsExactly("12");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.exp_year"))
+          .containsExactly("2030");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.funding"))
+          .containsExactly("debit");
+    } else {
+      assertThat(fields)
+          .doesNotContainKeys(
+              "data.object.last_payment_error.payment_method.card.last4",
+              "data.object.last_payment_error.payment_method.customer",
+              "data.object.last_payment_error.payment_method.billing_details.name");
+    }
   }
 
   @Test
