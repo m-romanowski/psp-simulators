@@ -49,18 +49,18 @@ class StripePaymentIntentTest {
   private static final CheckJson JSON = new CheckJson();
   private static final String FIRST_INTENT = "pi_sim_0000000000000001";
 
-  private static final String CARD = "pm_card_visa";
+  private static final String CARD = "pm_card_uncatalogued";
 
   private final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
   private final ScenarioEngine scenarioEngine = new ScenarioEngine(scenarioRules);
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -1211,9 +1211,9 @@ class StripePaymentIntentTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   static Map<String, String> manualHoldOf(String amount) {

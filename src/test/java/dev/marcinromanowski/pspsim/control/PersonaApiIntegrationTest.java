@@ -94,31 +94,32 @@ class PersonaApiIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void a_preview_foresees_the_refusal_the_published_payment_method_id_makes_for_the_second() {
+  void a_second_stripe_persona_seeds_beside_the_first_because_each_mints_its_own_payment_method() {
     seed(RUN, PERSONA);
 
     ResponseEntity<Map<String, Object>> previewed =
         exchange(HttpMethod.POST, STRIPE_PERSONAS + "/preview", seeding(RUN, ANOTHER_PERSONA));
 
     assertThat(previewed.getStatusCode().value()).isEqualTo(200);
-    assertThat(previewed.getBody()).containsEntry("theRunAlreadyHoldsIt", true);
-    assertThat(previewed.getBody().get("theRefusalThisPlanCannotForesee")).isNull();
+    assertThat(previewed.getBody()).containsEntry("theRunAlreadyHoldsIt", false);
+    assertThat(String.valueOf(previewed.getBody().get("theRefusalThisPlanCannotForesee")))
+        .contains("The ids compared that way are providerIds.paymentMethodId.");
 
     ResponseEntity<Map<String, Object>> created = seed(RUN, ANOTHER_PERSONA);
 
-    assertThat(created.getStatusCode().value()).isEqualTo(409);
-    assertThat(String.valueOf(created.getBody().get("message")))
-        .contains("providerIds.paymentMethodId pm_card_visa");
-    assertThat(list("/__simulator/stripe/fixtures/payment-methods?testRunId=" + RUN)).hasSize(1);
+    assertThat(created.getStatusCode().value()).isEqualTo(201);
+    assertThat(list("/__simulator/stripe/fixtures/payment-methods?testRunId=" + RUN)).hasSize(2);
   }
 
   @Test
-  void a_preview_of_a_stripe_persona_states_no_refusal_it_cannot_foresee() {
+  void a_preview_of_a_stripe_persona_states_the_refusal_its_minted_payment_method_cannot_foresee() {
     ResponseEntity<Map<String, Object>> previewed =
         exchange(HttpMethod.POST, STRIPE_PERSONAS + "/preview", seeding(RUN, PERSONA));
 
     assertThat(previewed.getBody()).containsEntry("theRunAlreadyHoldsIt", false);
-    assertThat(previewed.getBody().get("theRefusalThisPlanCannotForesee")).isNull();
+    assertThat(String.valueOf(previewed.getBody().get("theRefusalThisPlanCannotForesee")))
+        .contains("this plan mints none of the provider-native ids it names")
+        .contains("The ids compared that way are providerIds.paymentMethodId.");
     assertThat(seed(RUN, PERSONA).getStatusCode().value()).isEqualTo(201);
   }
 
@@ -141,7 +142,7 @@ class PersonaApiIntegrationTest extends PostgresBackedTest {
               assertThat(fixture).containsEntry("merchantId", MERCHANT);
               assertThat(fixture.get("defaultScenario")).isEqualTo(rules.get(0).get("scenarioId"));
               Map<?, ?> ids = (Map<?, ?>) fixture.get("providerObjects");
-              assertThat(String.valueOf(ids.get("paymentMethodId"))).isEqualTo("pm_card_visa");
+              assertThat(String.valueOf(ids.get("paymentMethodId"))).matches("pm_sim_[0-9a-f]{20}");
               assertThat(String.valueOf(ids.get("customerId"))).matches("cus_sim_[0-9a-f]{16}");
             });
   }

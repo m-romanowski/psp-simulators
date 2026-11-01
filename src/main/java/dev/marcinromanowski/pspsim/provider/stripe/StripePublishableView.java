@@ -60,6 +60,9 @@ final class StripePublishableView {
           "status",
           "usage");
 
+  static final Set<String> WHAT_A_PAYMENT_METHOD_NEVER_SHOWS =
+      Set.of(StripePaymentMethodView.METADATA);
+
   private static final String ERROR = "error";
 
   private StripePublishableView() {}
@@ -88,6 +91,11 @@ final class StripePublishableView {
     if (StripeJson.text(StripeSetupIntentView.OBJECT).equals(kind)) {
       return keeping(object, WHAT_A_SETUP_INTENT_SHOWS);
     }
+    if (StripeJson.text(StripePaymentMethodView.OBJECT).equals(kind)) {
+      Map<String, StripeJson> kept = new LinkedHashMap<>(object.members());
+      kept.keySet().removeAll(WHAT_A_PAYMENT_METHOD_NEVER_SHOWS);
+      return new StripeJson.JsonObject(kept);
+    }
     return object;
   }
 
@@ -98,7 +106,7 @@ final class StripePublishableView {
         .forEach(
             (name, member) -> {
               if (shown.contains(name)) {
-                kept.put(name, member);
+                kept.put(name, StripeFields.PAYMENT_METHOD.equals(name) ? reduced(member) : member);
               }
             });
     return new StripeJson.JsonObject(kept);

@@ -63,33 +63,45 @@ class StripePublishableViewTest {
   }
 
   @Test
-  void an_expanded_payment_method_inside_a_payment_is_kept_whole() {
+  void an_expanded_payment_method_inside_a_payment_is_kept_but_for_its_metadata() {
     StripeJson method =
         StripeJson.object(
             "id", StripeJson.text("pm_1"),
             "object", StripeJson.text("payment_method"),
-            "customer", StripeJson.text("cus_sim_1"));
+            "customer", StripeJson.text("cus_sim_1"),
+            "metadata", StripeJson.object("order", StripeJson.text("o-1")));
     StripeJson whole =
         StripeJson.object(
             "id", StripeJson.text("pi_sim_1"),
             "object", StripeJson.text("payment_intent"),
             "payment_method", method);
 
-    assertThat(StripePublishableView.of(whole))
+    assertThat(StripeJsonWriter.toText(StripePublishableView.of(whole)))
         .isEqualTo(
-            StripeJson.object(
-                "id", StripeJson.text("pi_sim_1"),
-                "object", StripeJson.text("payment_intent"),
-                "payment_method", method));
+            "{\"id\":\"pi_sim_1\",\"object\":\"payment_intent\",\"payment_method\":"
+                + "{\"id\":\"pm_1\",\"object\":\"payment_method\",\"customer\":\"cus_sim_1\"}}");
+  }
+
+  @Test
+  void a_payment_method_answered_to_a_publishable_key_carries_no_metadata() {
+    StripeJson method =
+        StripeJson.object(
+            "id", StripeJson.text("pm_1"),
+            "object", StripeJson.text("payment_method"),
+            "metadata", StripeJson.object("order", StripeJson.text("o-1")),
+            "type", StripeJson.text("card"));
+
+    assertThat(StripeJsonWriter.toText(StripePublishableView.of(method)))
+        .isEqualTo("{\"id\":\"pm_1\",\"object\":\"payment_method\",\"type\":\"card\"}");
   }
 
   @Test
   void an_answer_that_is_no_intent_is_handed_on_unchanged() {
     StripeJson aMethod =
         StripeJson.object(
-            "id", StripeJson.text("pm_1"),
-            "object", StripeJson.text("payment_method"),
-            "customer", StripeJson.text("cus_sim_1"));
+            "id", StripeJson.text("cus_sim_1"),
+            "object", StripeJson.text("customer"),
+            "email", StripeJson.text("payer@example.com"));
     StripeJson aList = StripeJson.array(List.of(StripeJson.text("x")));
     StripeJson anErrorThatIsNoObject = StripeJson.object("error", StripeJson.text("x"));
 

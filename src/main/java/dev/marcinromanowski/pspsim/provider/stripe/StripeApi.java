@@ -69,6 +69,7 @@ public final class StripeApi {
   private final RetrieveCustomer retrieveCustomer;
   private final UpdateCustomer updateCustomer;
   private final DeleteCustomer deleteCustomer;
+  private final CreatePaymentMethod createPaymentMethod;
   private final ListPaymentMethods listPaymentMethods;
   private final RetrievePaymentMethod retrievePaymentMethod;
   private final DetachPaymentMethod detachPaymentMethod;
@@ -121,6 +122,7 @@ public final class StripeApi {
     this.retrieveCustomer = new RetrieveCustomer(customers);
     this.updateCustomer = new UpdateCustomer(customers);
     this.deleteCustomer = new DeleteCustomer(customers, paymentMethods);
+    this.createPaymentMethod = new CreatePaymentMethod(paymentMethods, ids);
     this.listPaymentMethods = new ListPaymentMethods(paymentMethods, customers);
     this.retrievePaymentMethod = new RetrievePaymentMethod(paymentMethods);
     this.detachPaymentMethod = new DetachPaymentMethod(paymentMethods);
@@ -267,6 +269,19 @@ public final class StripeApi {
         StripeOperations.DELETE_CUSTOMER,
         (request, headers, testRunId, account, now, _) ->
             deleteCustomer.handle(testRunId, account, customerId, now));
+  }
+
+  public StripeApiResponse createPaymentMethod(StripeApiCall call) {
+    return answer(
+        call,
+        StripeOperations.CREATE_PAYMENT_METHOD,
+        new StripePublishableAccess.ItsOwnAccountWithoutAClientSecret(),
+        expanding(
+            call,
+            StripeExpansion.ofAnObject(StripeExpandable.PAYMENT_METHOD),
+            (request, headers, testRunId, account, now, _) ->
+                createPaymentMethod.handle(
+                    request, testRunId, account, now, ObjectOrigin.PROVIDER_API)));
   }
 
   public StripeApiResponse listPaymentMethods(StripeApiCall call) {
@@ -1092,8 +1107,9 @@ public final class StripeApi {
             1,
             now,
             Redaction.redact(call.headers(), StripeFields.SENSITIVE_HEADERS),
-            Redaction.redact(
-                theParametersItCarried(call, form), StripeFields.SENSITIVE_REQUEST_FIELDS),
+            StripeFields.withholdingTheCard(
+                Redaction.redact(
+                    theParametersItCarried(call, form), StripeFields.SENSITIVE_REQUEST_FIELDS)),
             null));
   }
 
@@ -1123,8 +1139,9 @@ public final class StripeApi {
             1,
             now,
             DeliveredHeaders.of(delivery, answered.headers()),
-            StripeFields.withholding(
-                answered.bodyForAudit(), StripeFields.SENSITIVE_RESPONSE_FIELDS),
+            StripeFields.withholdingTheCard(
+                StripeFields.withholding(
+                    answered.bodyForAudit(), StripeFields.SENSITIVE_RESPONSE_FIELDS)),
             new DeliveredResponse(
                 delivery.fault(),
                 delivery.declaredContentLength(),

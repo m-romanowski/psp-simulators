@@ -33,7 +33,7 @@ class StripeChargeTest {
   private static final String OTHER_ACCOUNT = "merchant-2";
   private static final String OTHER_SECRET_KEY = "sk_test_51Another";
   private static final String THREE_DAYS = "P3D";
-  private static final String CARD = "pm_card_visa";
+  private static final String CARD = "pm_card_uncatalogued";
 
   private static final String CREATE_PATH = "/v1/payment_intents";
   private static final String REFUNDS_PATH = "/v1/refunds";
@@ -44,11 +44,11 @@ class StripeChargeTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -520,8 +520,8 @@ class StripeChargeTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

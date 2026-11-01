@@ -31,6 +31,16 @@ final class StripeErrors {
   static final String PAYMENT_INTENT_INCOMPATIBLE_PAYMENT_METHOD =
       "payment_intent_incompatible_payment_method";
   static final String SECRET_KEY_REQUIRED = "secret_key_required";
+  static final String INCORRECT_NUMBER = "incorrect_number";
+  static final String INVALID_NUMBER = "invalid_number";
+  static final String INVALID_EXPIRY_MONTH = "invalid_expiry_month";
+  static final String INVALID_EXPIRY_YEAR = "invalid_expiry_year";
+  static final String INVALID_CVC = "invalid_cvc";
+  static final String PARAMETER_INVALID_INTEGER = "parameter_invalid_integer";
+  static final String NUMBER = "number";
+  static final String EXP_MONTH = "exp_month";
+  static final String EXP_YEAR = "exp_year";
+  static final String CVC = "cvc";
 
   static StripeError noApiKey() {
     return new StripeError(
@@ -545,6 +555,57 @@ final class StripeErrors {
         null,
         null,
         null);
+  }
+
+  static StripeError cardNumberIncorrect() {
+    return cardError(INCORRECT_NUMBER, "Your card number is incorrect.", NUMBER);
+  }
+
+  static StripeError cardNumberInvalid() {
+    return cardError(INVALID_NUMBER, "Your card number is invalid.", NUMBER);
+  }
+
+  static StripeError expiryMonthInvalid() {
+    return cardError(INVALID_EXPIRY_MONTH, "Your card's expiration month is invalid.", EXP_MONTH);
+  }
+
+  static StripeError expiryYearInvalid() {
+    return cardError(INVALID_EXPIRY_YEAR, "Your card's expiration year is invalid.", EXP_YEAR);
+  }
+
+  static StripeError securityCodeInvalid() {
+    return cardError(INVALID_CVC, "Your card's security code is invalid.", CVC);
+  }
+
+  static StripeError missingRequiredParam(String param) {
+    return invalidRequest(
+        BAD_REQUEST, PARAMETER_MISSING, "Missing required param: " + param + ".", param);
+  }
+
+  static StripeError invalidInteger(String param, String sent) {
+    return invalidRequest(
+        BAD_REQUEST, PARAMETER_INVALID_INTEGER, "Invalid integer: " + sent, param);
+  }
+
+  static StripeError noSuchToken(String param, String token) {
+    return invalidRequest(NOT_FOUND, RESOURCE_MISSING, "No such token: '" + token + "'", param);
+  }
+
+  static StripeError paymentMethodTypeNotCreated(String param, String type) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "This simulator creates a PaymentMethod of type "
+            + StripePaymentMethodType.CARD.wireValue()
+            + " only, and this request asks for one of type `"
+            + type
+            + "`. A PaymentMethod of another type exists here only where a fixture seeded it.",
+        param);
+  }
+
+  private static StripeError cardError(String code, String message, String param) {
+    return new StripeError(
+        REQUEST_FAILED, StripeErrorType.CARD_ERROR, code, null, message, param, null, null);
   }
 
   static StripeError declined(StripeDecline decline) {

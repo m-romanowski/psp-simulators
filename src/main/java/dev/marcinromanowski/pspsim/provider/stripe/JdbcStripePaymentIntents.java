@@ -31,9 +31,11 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final JdbcStripePaymentMethods methods;
 
   JdbcStripePaymentIntents(JdbcClient jdbc, TransactionTemplate transactions) {
     this.jdbc = jdbc;
+    this.methods = new JdbcStripePaymentMethods(jdbc);
     this.transactions = transactions;
   }
 
@@ -237,6 +239,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       String paymentMethod,
       MonetaryOperation operation,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
@@ -258,6 +261,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
           if (moved != 1) {
             return moved;
           }
+          StripePaymentMethodMinting.storedIn(methods, minted);
           insert(charge);
           return insert(intent, operation);
         },
@@ -270,6 +274,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       StripeDecline decline,
       @Nullable String paymentMethod,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
@@ -289,7 +294,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
                   .param(intent.intentId())
                   .param(intent.status().wireValue())
                   .update();
-          return moved == 1 ? insert(charge) : moved;
+          return moved == 1 ? insertedWith(charge, minted) : moved;
         },
         at);
   }
@@ -300,26 +305,35 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       String paymentMethod,
       Instant settlesAt,
       @Nullable StripeDecline settlesWith,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
-        () ->
-            StripeSelectionColumns.bound(
-                    jdbc.sql(
-                            "update stripe_payment_intent set status = ?, payment_method = ?,"
-                                + " last_payment_error = null, settles_at = ?, settles_with = ?, "
-                                + StripeSelectionColumns.ASSIGNMENTS
-                                + " where test_run_id = ? and intent_id = ? and status = ?")
-                        .param(StripeIntentStatus.PROCESSING.wireValue())
-                        .param(paymentMethod)
-                        .param(settlesAt.atOffset(ZoneOffset.UTC))
-                        .param(scenarioCodeOf(settlesWith)),
-                    intent.selection())
-                .param(intent.testRunId().value())
-                .param(intent.intentId())
-                .param(intent.status().wireValue())
-                .update(),
+        () -> {
+          int moved =
+              StripeSelectionColumns.bound(
+                      jdbc.sql(
+                              "update stripe_payment_intent set status = ?, payment_method = ?,"
+                                  + " last_payment_error = null, settles_at = ?, settles_with = ?, "
+                                  + StripeSelectionColumns.ASSIGNMENTS
+                                  + " where test_run_id = ? and intent_id = ? and status = ?")
+                          .param(StripeIntentStatus.PROCESSING.wireValue())
+                          .param(paymentMethod)
+                          .param(settlesAt.atOffset(ZoneOffset.UTC))
+                          .param(scenarioCodeOf(settlesWith)),
+                      intent.selection())
+                  .param(intent.testRunId().value())
+                  .param(intent.intentId())
+                  .param(intent.status().wireValue())
+                  .update();
+          return StripePaymentMethodMinting.storedAfterAMove(moved, methods, minted);
+        },
         at);
+  }
+
+  private int insertedWith(StripeCharge charge, @Nullable StripePaymentMethod minted) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
+    return insert(charge);
   }
 
   @Override

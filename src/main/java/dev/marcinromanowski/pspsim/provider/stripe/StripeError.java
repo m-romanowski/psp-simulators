@@ -22,8 +22,8 @@ record StripeError(
     put(error, "code", code);
     put(error, "decline_code", declineCode);
     put(error, "doc_url", theEntryItsCodeHas());
-    put(error, "message", message);
-    put(error, "param", param);
+    put(error, "message", message == null ? null : StripeFields.withholdingCardNumbersIn(message));
+    put(error, "param", param == null ? null : StripeFields.withholdingCardNumbersIn(param));
     StripeJson intent = paymentIntent;
     if (intent != null) {
       error.put("payment_intent", intent);

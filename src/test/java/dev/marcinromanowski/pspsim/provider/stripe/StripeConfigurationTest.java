@@ -42,11 +42,11 @@ class StripeConfigurationTest {
   private static final String SIGNING_SECRET = "whsec_theEndpointSecret";
 
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -876,8 +876,13 @@ class StripeConfigurationTest {
             new StripeDoubles.CountingIds(),
             scenarioEngine(),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, new StripeDoubles.CountingIds()),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine()));
+        new CreateSetupIntent(setupIntents, paymentMethods, new StripeDoubles.CountingIds()),
+        new ConfirmSetupIntent(
+            setupIntents,
+            paymentMethods,
+            customers,
+            new StripeDoubles.CountingIds(),
+            scenarioEngine()));
   }
 
   private static ScenarioEngine scenarioEngine() {

@@ -1,7 +1,6 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
 import dev.marcinromanowski.pspsim.kernel.ObjectOrigin;
-import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.spi.ArrivalOf;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
@@ -26,30 +25,13 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
 
   @Override
   public boolean insertIfAbsent(StripePaymentMethod method) {
-    FixtureCard card = method.card();
     return jdbc.sql(
-                """
-            insert into stripe_payment_method
-                (test_run_id, payment_method_id, account_id, customer_id, method_type,
-                 card_brand, card_last4, card_exp_month, card_exp_year, card_funding,
-                 detached_at, origin, created_at, updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict (test_run_id, payment_method_id) do nothing
-            """)
-            .param(method.testRunId().value())
-            .param(method.paymentMethodId())
-            .param(method.accountId())
-            .param(method.customerId())
-            .param(method.type().name())
-            .param(card == null ? null : card.brand())
-            .param(card == null ? null : card.last4())
-            .param(card == null ? null : card.expMonth())
-            .param(card == null ? null : card.expYear())
-            .param(card == null ? null : card.funding())
-            .param(at(method.detachedAt()))
-            .param(method.origin().name())
-            .param(method.createdAt().atOffset(ZoneOffset.UTC))
-            .param(method.updatedAt().atOffset(ZoneOffset.UTC))
+                "insert into stripe_payment_method ("
+                    + StripePaymentMethodColumns.NAMES
+                    + ") values ("
+                    + StripePaymentMethodColumns.PLACEHOLDERS
+                    + ") on conflict (test_run_id, payment_method_id) do nothing")
+            .params(StripePaymentMethodColumns.theValuesOf(method))
             .update()
         == 1;
   }
@@ -198,31 +180,36 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
         rs.getString("account_id"),
         rs.getString("customer_id"),
         type,
-        cardOf(rs, type),
-        instantOf(rs.getObject("detached_at", OffsetDateTime.class)),
+        StripePaymentMethodColumns.theCardOf(
+            type,
+            new StripePaymentMethodColumns.StoredCard(
+                rs.getString("card_brand"),
+                rs.getString("card_last4"),
+                rs.getInt("card_exp_month"),
+                rs.getInt("card_exp_year"),
+                rs.getString("card_funding"),
+                rs.getString("card_country"),
+                rs.getString("card_display_brand"),
+                rs.getString("card_networks"),
+                rs.getString("card_regulated_status"),
+                rs.getObject("card_three_d_secure_supported", Boolean.class))),
+        new StripeBillingDetails(
+            rs.getString("billing_address_city"),
+            rs.getString("billing_address_country"),
+            rs.getString("billing_address_line1"),
+            rs.getString("billing_address_line2"),
+            rs.getString("billing_address_postal_code"),
+            rs.getString("billing_address_state"),
+            rs.getString("billing_email"),
+            rs.getString("billing_name"),
+            rs.getString("billing_phone"),
+            rs.getString("billing_tax_id")),
+        StripePaymentMethodColumns.metadataOf(rs.getString("metadata")),
+        rs.getString("allow_redisplay"),
+        rs.getString("copied_from"),
+        StripePaymentMethodColumns.instantOf(rs.getObject("detached_at", OffsetDateTime.class)),
         ObjectOrigin.valueOf(rs.getString("origin")),
         rs.getObject("created_at", OffsetDateTime.class).toInstant(),
         rs.getObject("updated_at", OffsetDateTime.class).toInstant());
-  }
-
-  private static @Nullable FixtureCard cardOf(ResultSet rs, StripePaymentMethodType type)
-      throws SQLException {
-    if (!type.describesACard()) {
-      return null;
-    }
-    return new FixtureCard(
-        rs.getString("card_brand"),
-        rs.getString("card_last4"),
-        rs.getInt("card_exp_month"),
-        rs.getInt("card_exp_year"),
-        rs.getString("card_funding"));
-  }
-
-  private static @Nullable Instant instantOf(@Nullable OffsetDateTime stored) {
-    return stored == null ? null : stored.toInstant();
-  }
-
-  private static @Nullable OffsetDateTime at(@Nullable Instant instant) {
-    return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
   }
 }

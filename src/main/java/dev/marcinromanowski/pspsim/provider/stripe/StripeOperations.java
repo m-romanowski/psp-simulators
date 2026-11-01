@@ -36,6 +36,8 @@ final class StripeOperations {
 
   static final String DELETE_CUSTOMER = "DELETE /v1/customers/{id}";
 
+  static final String CREATE_PAYMENT_METHOD = "POST /v1/payment_methods";
+
   static final String LIST_PAYMENT_METHODS = "GET /v1/payment_methods";
 
   static final String LIST_CUSTOMER_PAYMENT_METHODS = "GET /v1/customers/{id}/payment_methods";

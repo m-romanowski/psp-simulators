@@ -42,11 +42,11 @@ class StripeOriginationTest {
   private final ScenarioEngine scenarioEngine = new ScenarioEngine(scenarioRules);
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -91,8 +91,8 @@ class StripeOriginationTest {
               ids,
               scenarioEngine,
               StripeDoubles.NO_SCHEDULED_OUTCOMES),
-          new CreateSetupIntent(setupIntents, ids),
-          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+          new CreateSetupIntent(setupIntents, paymentMethods, ids),
+          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
 
   @Test
   void stripe_offers_a_hold_a_charge_and_two_ways_of_setting_a_card_up_for_a_later_charge() {

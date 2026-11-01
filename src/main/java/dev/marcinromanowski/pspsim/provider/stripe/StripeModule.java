@@ -81,8 +81,9 @@ public class StripeModule {
   }
 
   @Bean
-  CreateSetupIntent stripeCreateSetupIntent(StripeSetupIntents setupIntents, IdGenerator ids) {
-    return new CreateSetupIntent(setupIntents, ids);
+  CreateSetupIntent stripeCreateSetupIntent(
+      StripeSetupIntents setupIntents, StripePaymentMethods paymentMethods, IdGenerator ids) {
+    return new CreateSetupIntent(setupIntents, paymentMethods, ids);
   }
 
   @Bean
@@ -90,8 +91,9 @@ public class StripeModule {
       StripeSetupIntents setupIntents,
       StripePaymentMethods paymentMethods,
       StripeCustomers customers,
+      IdGenerator ids,
       ScenarioEngine scenarios) {
-    return new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarios);
+    return new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarios);
   }
 
   @Bean

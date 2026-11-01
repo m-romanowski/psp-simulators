@@ -100,11 +100,11 @@ class StripePublishableKeyTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -760,7 +760,7 @@ class StripePublishableKeyTest {
   }
 
   @Test
-  void a_published_test_method_the_account_holds_none_of_still_pays() {
+  void a_published_test_method_the_account_holds_none_of_pays_with_a_copy_of_its_card() {
     theAccounts();
     Created payment = aPayment();
     Map<String, String> form = new LinkedHashMap<>();
@@ -771,7 +771,8 @@ class StripePublishableKeyTest {
     StripeApiResponse confirmed = confirmPayment(PUBLISHABLE_KEY, payment.id(), form, Map.of());
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
-    assertThat(bodyOf(confirmed)).contains("\"payment_method\":\"pm_card_visa\"");
+    assertThat(bodyOf(confirmed)).contains("\"payment_method\":\"pm_sim_00000000000000000001\"");
+    assertThat(paymentMethods.find(RUN, "pm_sim_00000000000000000001")).isPresent();
   }
 
   @ParameterizedTest
@@ -1050,8 +1051,8 @@ class StripePublishableKeyTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private record Created(String id, String clientSecret) {}

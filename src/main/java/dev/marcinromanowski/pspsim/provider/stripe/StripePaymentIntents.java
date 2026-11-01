@@ -31,6 +31,7 @@ interface StripePaymentIntents {
       String paymentMethod,
       MonetaryOperation operation,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at);
 
   LedgerClaim declined(
@@ -38,6 +39,7 @@ interface StripePaymentIntents {
       StripeDecline decline,
       @Nullable String paymentMethod,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at);
 
   LedgerClaim pending(
@@ -45,6 +47,7 @@ interface StripePaymentIntents {
       String paymentMethod,
       Instant settlesAt,
       @Nullable StripeDecline settlesWith,
+      @Nullable StripePaymentMethod minted,
       Instant at);
 
   LedgerClaim captured(

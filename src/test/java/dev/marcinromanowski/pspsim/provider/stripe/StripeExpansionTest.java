@@ -39,7 +39,7 @@ class StripeExpansionTest {
   private static final String A_CARD_OF_NOBODY = "pm_the_card_saved_to_nobody";
   private static final String ANOTHER_ACCOUNTS_CUSTOMER = "cus_held_by_another_account";
   private static final String ANOTHER_RUNS_CUSTOMER = "cus_held_in_another_run";
-  private static final String A_PUBLISHED_TEST_CARD = "pm_card_visa";
+  private static final String A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER = "pm_card_uncatalogued";
 
   private static final String FIRST_INTENT = "pi_sim_0000000000000001";
   private static final String FIRST_CHARGE = "ch_sim_0000000000000002";
@@ -58,11 +58,11 @@ class StripeExpansionTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -563,7 +563,7 @@ class StripeExpansionTest {
                     "customer",
                     THE_CUSTOMER,
                     "payment_method",
-                    A_PUBLISHED_TEST_CARD,
+                    A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER,
                     "return_url",
                     StripePaymentIntentTest.A_RETURN_URL,
                     "confirm",
@@ -573,7 +573,7 @@ class StripeExpansionTest {
         fieldsOf(retrieve(FIRST_INTENT, Map.of("expand[]", List.of("payment_method", "customer"))));
 
     assertThat(answered)
-        .containsEntry("payment_method", List.of(A_PUBLISHED_TEST_CARD))
+        .containsEntry("payment_method", List.of(A_METHOD_THIS_RUN_HOLDS_NOTHING_UNDER))
         .containsEntry("customer.id", List.of(THE_CUSTOMER))
         .doesNotContainKey("payment_method.id");
   }
@@ -1310,7 +1310,7 @@ class StripeExpansionTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 }

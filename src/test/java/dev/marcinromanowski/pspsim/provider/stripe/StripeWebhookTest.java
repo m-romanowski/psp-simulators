@@ -72,11 +72,11 @@ class StripeWebhookTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -523,9 +523,9 @@ class StripeWebhookTest {
             ids,
             new ScenarioEngine(scenarioRules),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, new ScenarioEngine(scenarioRules)));
+            setupIntents, paymentMethods, customers, ids, new ScenarioEngine(scenarioRules)));
   }
 
   @Test
@@ -1108,7 +1108,7 @@ class StripeWebhookTest {
     Map<String, List<String>> fields = new LinkedHashMap<>();
     fields.put("amount", List.of("1099"));
     fields.put("currency", List.of("pln"));
-    fields.put("payment_method", List.of("pm_card_visa"));
+    fields.put("payment_method", List.of("pm_card_uncatalogued"));
     fields.put("confirm", List.of("true"));
     fields.put("return_url", List.of("https://shop.example/checkout/return"));
     return fields;
@@ -1152,9 +1152,9 @@ class StripeWebhookTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static StripeApiCall call(String path, Map<String, List<String>> fields) {
@@ -1167,7 +1167,7 @@ class StripeWebhookTest {
     fields.put("amount", List.of("1099"));
     fields.put("currency", List.of("pln"));
     fields.put("capture_method", List.of("manual"));
-    fields.put("payment_method", List.of("pm_card_visa"));
+    fields.put("payment_method", List.of("pm_card_uncatalogued"));
     fields.put("customer", List.of("cus_sim_1"));
     fields.put("confirm", List.of("true"));
     fields.put("return_url", List.of("https://shop.example/checkout/return"));

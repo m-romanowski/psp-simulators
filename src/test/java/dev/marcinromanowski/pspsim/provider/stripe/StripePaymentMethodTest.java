@@ -47,11 +47,11 @@ class StripePaymentMethodTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -173,13 +173,25 @@ class StripePaymentMethodTest {
         .contains("\"type\":\"card\"")
         .contains("\"customer\":\"" + A_CUSTOMER + "\"")
         .contains(
-            "\"billing_details\":{\"address\":null,\"email\":null,\"name\":null,\"phone\":null}")
+            "\"billing_details\":{\"address\":{\"city\":null,\"country\":null,\"line1\":null,"
+                + "\"line2\":null,\"postal_code\":null,\"state\":null},\"email\":null,"
+                + "\"name\":null,\"phone\":null,\"tax_id\":null}")
+        .contains("\"livemode\":false")
+        .contains("\"metadata\":{}")
+        .contains("\"allow_redisplay\":\"unspecified\"")
         .contains("\"brand\":\"visa\"")
         .contains("\"last4\":\"4242\"")
         .contains("\"exp_month\":12")
         .contains("\"exp_year\":2030")
         .contains("\"country\":null")
-        .contains("\"checks\":null");
+        .contains("\"display_brand\":null")
+        .contains("\"networks\":{\"available\":[\"visa\"],\"preferred\":null}")
+        .contains(
+            "\"checks\":{\"address_line1_check\":null,\"address_postal_code_check\":null,"
+                + "\"cvc_check\":null}")
+        .contains("\"regulated_status\":null")
+        .contains("\"three_d_secure_usage\":null")
+        .doesNotContain("fingerprint");
   }
 
   @Test
@@ -742,8 +754,8 @@ class StripePaymentMethodTest {
         intents,
         charges,
         refunds,
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

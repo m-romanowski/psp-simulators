@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -99,7 +100,6 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
             anAccount(MERCHANT, SECRET_KEY, PUBLISHABLE_KEY),
             anAccount(ANOTHER_MERCHANT, ANOTHER_SECRET_KEY, ANOTHER_PUBLISHABLE_KEY)));
     seed(THE_SAVED_CARD);
-    seed(THE_PUBLISHED_TEST_CARD);
   }
 
   @AfterEach
@@ -147,7 +147,7 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void a_payment_sheet_confirm_by_a_saved_card_is_answered_with_the_members_it_recorded() {
+  void a_payment_sheet_confirm_by_a_published_test_id_is_answered_with_a_new_copy_of_it() {
     Recording recorded =
         Recording.of(
             "PaymentSheetAPITest/testPaymentSheetLoadAndConfirmWithPaymentIntentAttachedPaymentMethod/"
@@ -170,9 +170,140 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
                 A_RECORDING_OF_2025_PREDATES));
     assertThat(recorded.body()).contains("\"object\" : \"payment_method\"");
     assertThat(bodyOf(replayed))
-        .contains("\"payment_method\":{\"id\":\"" + THE_PUBLISHED_TEST_CARD + "\"")
         .contains("\"object\":\"payment_method\"")
-        .contains("\"status\":\"succeeded\"");
+        .contains("\"status\":\"succeeded\"")
+        .doesNotContain("\"id\":\"" + THE_PUBLISHED_TEST_CARD + "\"");
+    StripeJson.JsonObject copied = objectAt(bodyOf(replayed), "payment_method");
+    StripeJson.JsonObject recordedCopy = objectAt(recorded.body(), "payment_method");
+    assertThat(textOf(copied, "id")).matches("pm_sim_[0-9a-f]{20}");
+    assertThat(textOf(recordedCopy, "id")).startsWith("pm_1");
+    assertThat(new TreeSet<>(copied.members().keySet()))
+        .isEqualTo(new TreeSet<>(recordedCopy.members().keySet()));
+    assertThat(cardOf(copied)).isEqualTo(theRecordedCardFacts(recordedCopy, "6", "2026"));
+  }
+
+  @Test
+  void a_payment_method_created_with_card_details_is_answered_with_the_members_it_recorded() {
+    Recording recorded =
+        Recording.of(
+            "STPPaymentMethodFunctionalTest/testCreateCardPaymentMethod/"
+                + "0000_post_v1_payment_methods.tail");
+
+    HttpResponse<byte[]> replayed = replayWithoutAnIntent(recorded);
+
+    assertThat(recorded.form())
+        .contains("card[number]=4242424242424242")
+        .contains("metadata[test_key]=test_value");
+    assertThat(replayed.statusCode()).as(bodyOf(replayed)).isEqualTo(recorded.status());
+    assertThat(membersOf(bodyOf(replayed))).containsExactlyElementsOf(membersOf(recorded.body()));
+    StripeJson.JsonObject created = (StripeJson.JsonObject) StripeJsonReader.read(bodyOf(replayed));
+    StripeJson.JsonObject answered = (StripeJson.JsonObject) StripeJsonReader.read(recorded.body());
+    assertThat(textOf(created, "id")).matches("pm_sim_[0-9a-f]{20}");
+    assertThat(created.members().get("billing_details"))
+        .isEqualTo(answered.members().get("billing_details"));
+    assertThat(cardOf(created)).isEqualTo(cardOf(answered));
+    for (String member : List.of("allow_redisplay", "customer", "livemode", "object", "type")) {
+      assertThat(created.members().get(member))
+          .as(member)
+          .isEqualTo(answered.members().get(member));
+    }
+    assertThat(bodyOf(replayed)).doesNotContain("4242424242424242").doesNotContain("test_value");
+  }
+
+  @Test
+  void a_payment_method_created_with_a_two_digit_year_is_answered_with_the_year_it_recorded() {
+    Recording recorded =
+        Recording.of(
+            "StripeAPIBridgeNetworkTests/testCreatePaymentMethod/0000_post_v1_payment_methods.tail");
+
+    HttpResponse<byte[]> replayed = replayWithoutAnIntent(recorded);
+
+    assertThat(recorded.form()).contains("card[exp_year]=42");
+    assertThat(replayed.statusCode()).as(bodyOf(replayed)).isEqualTo(recorded.status());
+    assertThat(cardOf((StripeJson.JsonObject) StripeJsonReader.read(bodyOf(replayed))))
+        .isEqualTo(cardOf((StripeJson.JsonObject) StripeJsonReader.read(recorded.body())));
+  }
+
+  @Test
+  void a_payment_confirmed_with_payment_method_data_is_answered_with_the_members_it_recorded() {
+    Recording recorded =
+        Recording.of(
+            "STPPaymentIntentFunctionalTest/testConfirmCardWithoutNetworkParam/"
+                + "0001_post_v1_payment_intents_pi_3SHqvTFY0qyl6XeW1L2WGE3T_confirm.tail");
+    Created payment = aPayment(SECRET_KEY);
+
+    HttpResponse<byte[]> replayed = replay(recorded, payment, Map.of());
+
+    assertThat(recorded.form()).contains("payment_method_data[card][number]=4242424242424242");
+    assertThat(replayed.statusCode()).as(bodyOf(replayed)).isEqualTo(recorded.status());
+    assertThat(membersOf(bodyOf(replayed)))
+        .containsExactlyElementsOf(
+            recorded.members(
+                union(
+                    A_PAYMENT_CARRIES_AND_THIS_SIMULATOR_DOES_NOT_MODEL,
+                    A_CHECKOUT_TOTAL_THIS_SIMULATOR_DOES_NOT_MODEL),
+                Set.of("allowed_payment_method_types")));
+    StripeJson.JsonObject confirmed =
+        (StripeJson.JsonObject) StripeJsonReader.read(bodyOf(replayed));
+    assertThat(textOf(confirmed, "status")).isEqualTo("succeeded");
+    assertThat(textOf(confirmed, "payment_method")).matches("pm_sim_[0-9a-f]{20}");
+    assertThat(
+            textOf(
+                (StripeJson.JsonObject) StripeJsonReader.read(recorded.body()), "payment_method"))
+        .startsWith("pm_1");
+  }
+
+  @Test
+  void a_setup_confirmed_with_payment_method_data_is_answered_with_the_members_it_recorded() {
+    Recording recorded =
+        Recording.of(
+            "StripeAPIBridgeNetworkTests/testConfirmSetupIntent/"
+                + "0001_post_v1_setup_intents_seti_1RxtukFY0qyl6XeWvxRtOLup_confirm.tail");
+    Created setup = aSetup();
+
+    HttpResponse<byte[]> replayed = replay(recorded, setup, Map.of());
+
+    assertThat(recorded.form()).contains("payment_method_data[card][exp_year]=42");
+    assertThat(replayed.statusCode()).as(bodyOf(replayed)).isEqualTo(recorded.status());
+    assertThat(membersOf(bodyOf(replayed)))
+        .containsExactlyElementsOf(
+            recorded.members(
+                A_SETUP_CARRIES_AND_THIS_SIMULATOR_DOES_NOT_MODEL, A_RECORDING_OF_2025_PREDATES));
+    String created =
+        textOf((StripeJson.JsonObject) StripeJsonReader.read(bodyOf(replayed)), "payment_method");
+    assertThat(created).matches("pm_sim_[0-9a-f]{20}");
+    HttpResponse<byte[]> saved =
+        get(SECRET_KEY, "/v1/customers/" + A_CUSTOMER + "/payment_methods");
+    assertThat(bodyOf(saved)).contains("\"id\":\"" + created + "\"").contains("\"exp_year\":2042");
+  }
+
+  @Test
+  void payment_method_data_without_its_card_is_refused_the_way_it_was_recorded() {
+    Recording recorded =
+        Recording.of(
+            "STPPaymentHandlerFunctionalTests/testconfirmsetupintentsendsanalytic/"
+                + "0000_post_v1_setup_intents_seti_1P1xLBFY0qyl6XeWc7c2LrMK_confirm.tail");
+    Created setup = aSetup();
+    Map<String, String> confirming = new LinkedHashMap<>();
+    confirming.put("payment_method", THE_SAVED_CARD);
+    assertThat(
+            post(SECRET_KEY, "/v1/setup_intents/" + setup.id() + "/confirm", confirming)
+                .statusCode())
+        .isEqualTo(200);
+
+    HttpResponse<byte[]> replayed =
+        replay(
+            recorded,
+            setup,
+            Map.of(
+                recorded.clientSecret().replace(recorded.intentId(), setup.id()),
+                setup.clientSecret()));
+
+    assertThat(recorded.body()).contains("\"status\" : \"succeeded\"");
+    assertThat(replayed.statusCode()).isEqualTo(recorded.status());
+    assertTheSameRefusal(recorded, replayed, setup);
+    assertThat(textOf(objectAt(bodyOf(replayed), "error"), "param"))
+        .isEqualTo("payment_method_data[card]");
   }
 
   @Test
@@ -327,6 +458,47 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
 
   private static String textOf(StripeJson.JsonObject object, String member) {
     return ((StripeJson.JsonText) Objects.requireNonNull(object.members().get(member))).value();
+  }
+
+  private HttpResponse<byte[]> replayWithoutAnIntent(Recording recorded) {
+    return sent(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + recorded.path()))
+            .header("Authorization", "Bearer " + PUBLISHABLE_KEY)
+            .header("Stripe-Version", recorded.header("stripe-version"))
+            .header("Idempotency-Key", recorded.header("idempotency-key"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .timeout(Duration.ofSeconds(20))
+            .POST(HttpRequest.BodyPublishers.ofString(recorded.form()))
+            .build());
+  }
+
+  private HttpResponse<byte[]> get(String key, String path) {
+    return sent(
+        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+            .header("Authorization", "Bearer " + key)
+            .timeout(Duration.ofSeconds(20))
+            .GET()
+            .build());
+  }
+
+  private static StripeJson.JsonObject objectAt(String body, String member) {
+    StripeJson.JsonObject whole = (StripeJson.JsonObject) StripeJsonReader.read(body);
+    return (StripeJson.JsonObject) Objects.requireNonNull(whole.members().get(member), member);
+  }
+
+  private static Map<String, StripeJson> cardOf(StripeJson.JsonObject method) {
+    return new TreeMap<>(
+        ((StripeJson.JsonObject) Objects.requireNonNull(method.members().get("card"))).members());
+  }
+
+  private static Map<String, StripeJson> theRecordedCardFacts(
+      StripeJson.JsonObject method, String month, String year) {
+    Map<String, StripeJson> facts = cardOf(method);
+    assertThat(facts.get("exp_month")).isEqualTo(StripeJson.number(month));
+    assertThat(facts.get("exp_year")).isEqualTo(StripeJson.number(year));
+    facts.put("exp_month", StripeJson.number("10"));
+    facts.put("exp_year", StripeJson.number("2027"));
+    return facts;
   }
 
   private static List<String> membersOf(String body) {
