@@ -19,7 +19,199 @@ Evidence classes, per `README.md`, "Evidence Classes":
 
 All pages were fetched on 2026-09-11, except those "Sources" dates otherwise.
 
-### Routes
+## Supported Variants
+
+This is the simulator's supported subset, a **decision** where narrower than Stripe. The route details below keep
+**rule**, **example**, **probe**, **decision** and **inference** separate.
+
+| Key kind | Routes answered | Boundary |
+|---|---|---|
+| Test secret key, `sk_test_` | Every route in "Routes" | The account and test run must own the addressed object; an intent's `client_secret` is not required |
+| Test publishable key, `pk_test_` | `POST /v1/payment_methods`; PaymentIntent and SetupIntent `GET .../{id}` and `POST .../{id}/confirm` | Intent calls require that intent's `client_secret`. Server create, capture, cancel, refund, customer and saved-method reads earn `403 secret_key_required` |
+| Ephemeral key | `GET /v1/customers/{id}` and `GET /v1/customers/{id}/payment_methods` for its own customer | Short-lived, minted with a secret key. Another resource or operation is refused `401` |
+
+Authentication, publishable responses and ephemeral scope are detailed in "Authentication and Transport",
+"Publishable Key" and "Ephemeral Keys". Unsupported keys and live-mode keys are refused.
+
+| Version choice | Supported behaviour | Evidence |
+|---|---|---|
+| No `Stripe-Version` | The account's `apiVersion`; an omitted account setting means `2026-10-28.endive` | rule for account-default resolution; decision for the simulator default |
+| Explicit server version | Published releases from `2025-03-31.basil` through `2026-10-28.endive` | decision: the supported range; the per-release rules are in "API Versions" |
+| Server releases before `2026-09-30.endive` | `payment_method_types` is writable on intent create and PaymentIntent confirm | rule: the pinned specification for that release |
+| Endive, from `2026-09-30.endive` | Those writes earn `payment_method_types_no_longer_supported`; use `allowed_payment_method_types`, or dynamic selection and exclusions | rule: the endive breaking change, "Payment Method Selection" |
+| Mobile pins `2020-03-02`, `2020-08-27` | Also accepted with publishable and ephemeral keys, and on secret-key ephemeral-key creation | probe and decision: "API Versions". Other secret-key routes keep the server range |
+
+Expiry answers `cancellation_reason=expired` in the server range, and `automatic` at the mobile pins (rule: the basil
+breaking change). Other object fields are not removed merely because an older example omitted them; response
+conformance uses the specification pinned for the requested release (decision: "API Versions").
+
+| Client kind | Proven path |
+|---|---|
+| Raw HTTP, with form and query parameters | Save, authorize, capture, cancel, off-session success/decline, reconciliation, expansion, keys, versions, signed delivery and isolation: `StripeAcceptanceJourneyIntegrationTest` |
+| `stripe-java 33.4.2`, pinning `2026-08-26.dahlia` | The same paths through typed services and models, including expanded relations, structured errors, a lost response and signature verification: `StripeJavaAcceptanceJourneyIntegrationTest` |
+| Stripe's recorded iOS API traffic at `2020-08-27` | Request replays and recorded response shapes for the client routes, raw card creation and declines: `StripeRecordedClientTrafficIntegrationTest`; probe, not a complete mobile UI |
+
+The journey tests repeat in one JVM with a fresh application context for each invocation. These are proofs of the
+simulator contract; Stripe facts come from the vendor sources and recordings, not from the simulator's tests.
+
+Out of scope (**decision**): 3-D Secure challenges and `next_action` completion; a complete Stripe.js or PaymentSheet
+session (`/v1/elements/sessions`); `/v1/tokens`; non-card payment collection and non-card payment rails; server API
+versions before basil, apart from the ephemeral-key exception above; live payments. A `paypal` fixture participates
+in selection and generic intent operations, but supplies no PayPal payer flow. The `card` collection and published
+test-card subset are described in "PaymentMethod Creation" and "Test Data".
+
+## Generic Flow
+
+The application uses `/v1`; the tester uses `/__simulator/stripe` to configure the account, fixtures, clock and rules.
+The calls below are an executable form of the supported **decision**. Their Stripe behaviour is sourced in
+"SetupIntents", "PaymentIntents", "Payment Method Selection", "Expansion" and "Idempotency".
+
+### Configure the run
+
+Set `BASE=http://localhost:8080`, `SK=sk_test_StripeFlow` and `PK=pk_test_StripeFlow`. Configure matching credentials
+and a capture window. Requests resolve the run from these credentials; the application needs no simulator header.
+
+```sh
+curl -X PUT "$BASE/__simulator/stripe/config" -H 'Content-Type: application/json' -d '{
+  "testRunId":"stripe-flow",
+  "clock":{"fixedNow":"2026-11-01T09:00:00Z"},
+  "accounts":[{"accountId":"merchant-1","configuration":{
+    "secretKey":"sk_test_StripeFlow","publishableKey":"pk_test_StripeFlow",
+    "captureWindow":"PT2H","apiVersion":"2026-10-28.endive"}}]
+}'
+```
+
+### Save a card, then charge it
+
+1. Create a Customer with the server's secret key. Set `CUSTOMER` to the returned `id`.
+
+   ```sh
+   curl "$BASE/v1/customers" -u "$SK:" -d email=payer@example.com
+   ```
+
+2. Create a SetupIntent for that customer. A card-only selection does not require `return_url`. Set `SETUP` and
+   `CLIENT_SECRET` to its `id` and `client_secret`.
+
+   ```sh
+   curl "$BASE/v1/setup_intents" -u "$SK:" -d customer="$CUSTOMER" \
+     -d usage=off_session -d 'allowed_payment_method_types[]=card'
+   ```
+
+3. Confirm from the client with the publishable key and the exact secret. A published test id is copied into a saved
+   method; set `METHOD` to the returned `payment_method`, rather than reusing `pm_card_visa`.
+
+   ```sh
+   curl "$BASE/v1/setup_intents/$SETUP/confirm" -u "$PK:" \
+     -d client_secret="$CLIENT_SECRET" -d payment_method=pm_card_visa
+   ```
+
+   Alternatively send `payment_method_data[type]=card` and `payment_method_data[card][number]`, `[exp_month]`,
+   `[exp_year]`, `[cvc]` in that confirm, without `payment_method`. A fixture is another alternative: the tester posts
+   the following control request, and the client confirms with `payment_method=pm_flow_fixture`.
+
+   ```sh
+   curl "$BASE/__simulator/stripe/fixtures/payment-methods" -H 'Content-Type: application/json' -d '{
+     "testRunId":"stripe-flow","merchantId":"merchant-1","ownerId":"payer","type":"card",
+     "alias":"saved-card","card":{"brand":"visa","last4":"4242","expMonth":12,"expYear":2030,"funding":"credit"},
+     "providerIds":{"paymentMethodId":"pm_flow_fixture"}
+   }'
+   ```
+
+4. Read the attached method with the secret key. The retrieved method carries `customer=$CUSTOMER`, and the list
+   contains it. A publishable key does not read these server routes.
+
+   ```sh
+   curl "$BASE/v1/payment_methods/$METHOD" -u "$SK:"
+   curl -G "$BASE/v1/customers/$CUSTOMER/payment_methods" -u "$SK:" -d type=card
+   ```
+
+5. Charge the saved method later. `off_session` requires `confirm=true`; true waives the dynamic `return_url`
+   requirement. A successful charge returns `succeeded`, `amount_received=1000` and a `latest_charge` id.
+
+   ```sh
+   curl "$BASE/v1/payment_intents" -u "$SK:" -d amount=1000 -d currency=usd \
+     -d customer="$CUSTOMER" -d payment_method="$METHOD" -d confirm=true -d off_session=true
+   ```
+
+The tester can steer setup and charge independently. This setup rule selects success on SetupIntent confirm; this
+charge rule selects an insufficient-funds decline for a later amount of 1200. Repeat step 5 with that amount to see
+`402 card_declined`, `decline_code=insufficient_funds` and a retrievable `requires_payment_method` PaymentIntent.
+The successful SetupIntent and attached method remain saved.
+
+```sh
+curl "$BASE/__simulator/stripe/scenarios" -H 'Content-Type: application/json' -d '{
+  "testRunId":"stripe-flow","priority":100,
+  "match":{"operation":"POST /v1/setup_intents/{id}/confirm"},
+  "action":{"type":"FIXED_SUCCESS"}
+}'
+curl "$BASE/__simulator/stripe/scenarios" -H 'Content-Type: application/json' -d '{
+  "testRunId":"stripe-flow","priority":100,
+  "match":{"operation":"POST /v1/payment_intents","amount":"1200"},
+  "action":{"type":"TERMINAL_FAILURE","providerCode":"insufficient_funds"}
+}'
+```
+
+Rules take precedence over published test-card behaviour, then the normal success default applies (decision:
+"Test Data"). Without a matching rule, `pm_card_chargeCustomerFail` succeeds at setup and declines its later charge
+(rule: Stripe's test-card table). Saving the card and charging it are separate operations and separate rule matches.
+
+### Authorize, capture or release
+
+Create a new PaymentIntent for each alternative below. Set `INTENT`, `PAYMENT_SECRET` and `CHARGE` from its responses.
+The saved method belongs to the Customer, so the PaymentIntent must name that same customer (rule).
+
+```sh
+curl "$BASE/v1/payment_intents" -u "$SK:" -d amount=1000 -d currency=usd \
+  -d customer="$CUSTOMER" -d capture_method=manual -d 'allowed_payment_method_types[]=card'
+curl "$BASE/v1/payment_intents/$INTENT/confirm" -u "$PK:" \
+  -d client_secret="$PAYMENT_SECRET" -d payment_method="$METHOD"
+```
+
+Confirmation returns `requires_capture`, `amount_capturable=1000`, `amount_received=0` and `latest_charge`.
+A server can instead send `confirm=true` and `payment_method` with its secret-key create, or confirm with its secret
+key. Capture and cancel are server calls:
+
+- Full capture: `POST /v1/payment_intents/$INTENT/capture`, with no amount, returns `succeeded`, received 1000,
+  capturable 0. The Charge has `amount_captured=1000`, `captured=true` (rule).
+- Partial capture: send `amount_to_capture=300&final_capture=false` to keep a capturable remainder of 700; send
+  `amount_to_capture=250&final_capture=true` next to close it. The intent has received 550, capturable 0; its Charge
+  has amount 1000 and captured 550. The remainder is released (rule: "Multicapture").
+- Cancel a separate authorization: `POST /v1/payment_intents/$INTENT/cancel` returns `canceled`, received 0,
+  capturable 0. No funds were captured (rule).
+- Expire a separate authorization: the tester calls `POST /__simulator/stripe/clock/advance` with
+  `{"testRunId":"stripe-flow","advanceBy":"PT2H"}`. A retrieve at the configured deadline returns `canceled`,
+  `cancellation_reason=expired`, capturable 0; capture is refused `charge_expired_for_capture`. The account's
+  `captureWindow`, rather than Stripe's published default, controls the boundary (decision).
+
+```sh
+curl -X POST "$BASE/v1/payment_intents/$INTENT/capture" -u "$SK:"
+curl "$BASE/v1/charges/$CHARGE" -u "$SK:"
+```
+
+### Reconcile a lost response and expand a read
+
+For a separate authorized intent, the tester selects the response-loss preset. This damages delivery after capture;
+it does not replace the capture operation (decision: the fault's meaning).
+
+```sh
+curl "$BASE/__simulator/stripe/scenarios/presets" -H 'Content-Type: application/json' \
+  -d '{"testRunId":"stripe-flow","preset":"capture-accepted-response-lost"}'
+curl -X POST "$BASE/v1/payment_intents/$INTENT/capture" -u "$SK:" -H 'Idempotency-Key: flow-capture'
+curl "$BASE/v1/payment_intents/$INTENT" -u "$SK:"
+curl -X POST "$BASE/v1/payment_intents/$INTENT/capture" -u "$SK:" -H 'Idempotency-Key: flow-capture'
+```
+
+The first capture loses its response. The retrieve shows `succeeded` and the captured amount. The identical retry
+returns the stored successful answer with `Idempotent-Replayed: true`, the same charge and no repeated monetary
+operation (rule for idempotent replay; decision for that response header). To expand a read, request only the
+relations needed on that call; another read without `expand` returns ids:
+
+```sh
+curl -G "$BASE/v1/payment_intents/$INTENT" -u "$SK:" \
+  -d 'expand[]=customer' -d 'expand[]=payment_method' -d 'expand[]=latest_charge'
+```
+
+## Routes
 
 | Route                                                  | What the simulator does                                                          | Key deviations and choices                                                                                     |
 |--------------------------------------------------------|----------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
@@ -51,7 +243,7 @@ Account settings: the `sk_test_` secret key (required), the `pk_test_` publishab
 `refundStatus` (default `succeeded`), `apiVersion` (the account's default API version, see "API Versions"),
 `webhookSecret` (`whsec_`), `webhookSignature` (`VALID` or `CORRUPTED`) and `webhookTimestampAge` (ISO-8601).
 
-### Sources
+## Sources
 
 | Page                                                  | URL                                                                   | Sections used                                                                                   |
 |-------------------------------------------------------|-----------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
@@ -610,26 +802,13 @@ Published test ids (the cloning rule):
 | A fixture cannot be declared under an id this run already holds a PaymentMethod under: `422` on `providerIds.paymentMethodId`                                               | decision: two objects under one id would answer two different methods                                                 |
 | A scenario rule's `paymentMethodId` is compared with the id the client can name: the published test id a copy was made from, on the request that copies it and on every later operation of the intent that carries the copy (the copy keeps it, `copied_from`); otherwise the method's own id, a fixture's or a created method's | decision: a copy's id is drawn when the request runs, so a rule written before it could never name it |
 
-The generic flow a tester follows to save a card and charge it later, against the standard API only:
-
-1. `POST /v1/customers` with the secret key.
-2. Name a method: declare a fixture on the Payment methods screen or `POST /__simulator/stripe/fixtures/payment-methods`;
-   or `POST /v1/payment_methods` with `type=card` and card details, under either key; or use a published test id
-   such as `pm_card_visa`, or `payment_method_data`, on the confirm itself.
-3. `POST /v1/setup_intents` with the `customer` and `automatic_payment_methods[enabled]=true` and
-   `automatic_payment_methods[allow_redirects]=never` (or a `return_url` on the confirm).
-4. `POST /v1/setup_intents/{id}/confirm` with the `payment_method` (secret key, or publishable key and `client_secret`).
-5. `GET /v1/customers/{id}/payment_methods`, or `GET /v1/payment_methods/{id}` with the secret key: the method carries
-   the `customer`.
-6. Charge later: `POST /v1/payment_intents` with that `customer`, `payment_method`, `confirm=true`, and
-   `off_session=true` or the redirect settings above.
-
-The setup outcome follows the rule/card/default precedence of "Test Data" on `POST /v1/setup_intents/{id}/confirm`,
-and the same precedence controls the later charge on `POST /v1/payment_intents` or
-`POST /v1/payment_intents/{id}/confirm`. Each rule is matched to its own operation
-and story, so the two outcomes are steered independently.
+The save-then-charge and authorization steps, including outcome rules, are in "Generic Flow".
 
 ## Idempotency
+
+A publishable-key intent lookup is validated before an `Idempotency-Key` is consulted. An intent this account/run
+does not hold earns `resource_missing` even if the key already stores an answer for another request, and that stored
+answer remains replayable (decision: resource validation precedes execution and key conflict resolution).
 
 | Rule (published)                                                                                                                                                  | Simulator                                                   |
 |------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------|
