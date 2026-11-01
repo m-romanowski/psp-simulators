@@ -22,11 +22,11 @@ final class StripePaymentMethodColumns {
           + " billing_address_line2, billing_address_postal_code, billing_address_state,"
           + " billing_email, billing_name, billing_phone, billing_tax_id,"
           + " metadata, allow_redisplay, copied_from,"
-          + " detached_at, origin, created_at, updated_at";
+          + " detached_at, origin, created_at, updated_at, card_test_behavior";
 
   static final String PLACEHOLDERS =
       "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::json, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
-          + " ?::json, ?, ?, ?, ?, ?, ?";
+          + " ?::json, ?, ?, ?, ?, ?, ?, ?";
 
   record StoredCard(
       @Nullable String brand,
@@ -82,10 +82,16 @@ final class StripePaymentMethodColumns {
     values.add(method.origin().name());
     values.add(atUtc(method.createdAt()));
     values.add(atUtc(method.updatedAt()));
+    values.add(card == null || card.testBehavior() == null ? null : card.testBehavior().name());
     return values;
   }
 
   static @Nullable StripeCard theCardOf(StripePaymentMethodType type, StoredCard stored) {
+    return theCardOf(type, stored, null);
+  }
+
+  static @Nullable StripeCard theCardOf(
+      StripePaymentMethodType type, StoredCard stored, @Nullable StripeTestCardBehavior behavior) {
     if (!type.describesACard()) {
       return null;
     }
@@ -99,7 +105,8 @@ final class StripePaymentMethodColumns {
         stored.displayBrand(),
         networksOf(stored.networks()),
         stored.regulatedStatus(),
-        stored.threeDSecureSupported());
+        stored.threeDSecureSupported(),
+        behavior);
   }
 
   static @Nullable String networksAsWritten(@Nullable List<String> networks) {

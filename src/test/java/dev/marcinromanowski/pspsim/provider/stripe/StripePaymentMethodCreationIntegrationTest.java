@@ -12,6 +12,8 @@ import com.stripe.model.SetupIntent;
 import com.stripe.model.StripeCollection;
 import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.CustomerPaymentMethodListParams;
+import com.stripe.param.PaymentIntentConfirmParams;
+import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentMethodCreateParams;
 import com.stripe.param.SetupIntentConfirmParams;
 import com.stripe.param.SetupIntentCreateParams;
@@ -32,6 +34,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -153,6 +157,191 @@ class StripePaymentMethodCreationIntegrationTest extends PostgresBackedTest {
               assertThat(listed.getId()).isEqualTo(card.getId());
               assertThat(listed.getCustomer()).isEqualTo(customer.getId());
             });
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "4000000000000002,card_declined,generic_decline",
+    "4000000000009995,card_declined,insufficient_funds",
+    "4000000000009987,card_declined,lost_card",
+    "4000000000009979,card_declined,stolen_card",
+    "4000000000000069,expired_card,",
+    "4000000000000127,incorrect_cvc,",
+    "4000000000000119,processing_error,",
+    "4000000000006975,card_declined,card_velocity_exceeded",
+    "4000000000000341,card_declined,generic_decline"
+  })
+  void a_raw_card_keeps_its_behavior_across_storage_setup_and_a_charge(
+      String number, String code, @org.jspecify.annotations.Nullable String decline)
+      throws StripeException {
+    StripeClient client =
+        StripeClient.builder()
+            .setApiKey(SECRET_KEY)
+            .setApiBase("http://localhost:" + port)
+            .setMaxNetworkRetries(0)
+            .build();
+    Customer customer = client.v1().customers().create(CustomerCreateParams.builder().build());
+    PaymentMethod method =
+        client
+            .v1()
+            .paymentMethods()
+            .create(
+                PaymentMethodCreateParams.builder()
+                    .setType(PaymentMethodCreateParams.Type.CARD)
+                    .setCard(
+                        PaymentMethodCreateParams.CardDetails.builder()
+                            .setNumber(number)
+                            .setExpMonth(12L)
+                            .setExpYear(2034L)
+                            .setCvc("737")
+                            .build())
+                    .build());
+    SetupIntent setup =
+        client
+            .v1()
+            .setupIntents()
+            .create(
+                SetupIntentCreateParams.builder()
+                    .setCustomer(customer.getId())
+                    .addPaymentMethodType("card")
+                    .build());
+    if (number.equals("4000000000000341")) {
+      assertThat(
+              client
+                  .v1()
+                  .setupIntents()
+                  .confirm(
+                      setup.getId(),
+                      SetupIntentConfirmParams.builder().setPaymentMethod(method.getId()).build())
+                  .getStatus())
+          .isEqualTo("succeeded");
+      assertThat(client.v1().paymentMethods().retrieve(method.getId()).getCustomer())
+          .isEqualTo(customer.getId());
+    } else {
+      CardException setupFailure =
+          org.assertj.core.api.Assertions.catchThrowableOfType(
+              CardException.class,
+              () ->
+                  client
+                      .v1()
+                      .setupIntents()
+                      .confirm(
+                          setup.getId(),
+                          SetupIntentConfirmParams.builder()
+                              .setPaymentMethod(method.getId())
+                              .build()));
+      assertThat(setupFailure.getCode()).isEqualTo(code);
+      assertThat(setupFailure.getDeclineCode()).isEqualTo(decline);
+      assertThat(client.v1().paymentMethods().retrieve(method.getId()).getCustomer()).isNull();
+    }
+    CardException chargeFailure =
+        org.assertj.core.api.Assertions.catchThrowableOfType(
+            CardException.class,
+            () ->
+                client
+                    .v1()
+                    .paymentIntents()
+                    .create(
+                        PaymentIntentCreateParams.builder()
+                            .setAmount(1050L)
+                            .setCurrency("usd")
+                            .setCustomer(customer.getId())
+                            .addPaymentMethodType("card")
+                            .setPaymentMethod(method.getId())
+                            .setConfirm(true)
+                            .build()));
+    assertThat(chargeFailure.getCode()).isEqualTo(code);
+    assertThat(chargeFailure.getDeclineCode()).isEqualTo(decline);
+    String charge =
+        client
+            .v1()
+            .paymentIntents()
+            .retrieve(chargeFailure.getStripeError().getPaymentIntent().getId())
+            .getLatestCharge();
+    assertThat(client.v1().charges().retrieve(charge).getStatus()).isEqualTo("failed");
+    assertThat(client.v1().paymentMethods().retrieve(method.getId()).getId())
+        .isEqualTo(method.getId());
+  }
+
+  @Test
+  void the_official_java_client_sets_up_charge_customer_fail_then_gets_its_off_session_decline()
+      throws StripeException {
+    StripeClient client =
+        StripeClient.builder()
+            .setApiKey(SECRET_KEY)
+            .setApiBase("http://localhost:" + port)
+            .setMaxNetworkRetries(0)
+            .build();
+    Customer customer = client.v1().customers().create(CustomerCreateParams.builder().build());
+    SetupIntent setup =
+        client
+            .v1()
+            .setupIntents()
+            .create(
+                SetupIntentCreateParams.builder()
+                    .setCustomer(customer.getId())
+                    .addPaymentMethodType("card")
+                    .build());
+    SetupIntent confirmed =
+        client
+            .v1()
+            .setupIntents()
+            .confirm(
+                setup.getId(),
+                SetupIntentConfirmParams.builder()
+                    .setPaymentMethod("pm_card_chargeCustomerFail")
+                    .build());
+    assertThat(confirmed.getStatus()).isEqualTo("succeeded");
+    PaymentMethod saved = client.v1().paymentMethods().retrieve(confirmed.getPaymentMethod());
+    assertThat(saved.getCustomer()).isEqualTo(customer.getId());
+    CardException declined =
+        org.assertj.core.api.Assertions.catchThrowableOfType(
+            CardException.class,
+            () ->
+                client
+                    .v1()
+                    .paymentIntents()
+                    .create(
+                        PaymentIntentCreateParams.builder()
+                            .setAmount(1050L)
+                            .setCurrency("usd")
+                            .setCustomer(customer.getId())
+                            .addPaymentMethodType("card")
+                            .setPaymentMethod(saved.getId())
+                            .setOffSession(true)
+                            .setConfirm(true)
+                            .build()));
+    assertThat(declined.getStatusCode()).isEqualTo(402);
+    assertThat(declined.getCode()).isEqualTo("card_declined");
+    assertThat(declined.getDeclineCode()).isEqualTo("generic_decline");
+    String failedCharge =
+        client
+            .v1()
+            .paymentIntents()
+            .retrieve(declined.getStripeError().getPaymentIntent().getId())
+            .getLatestCharge();
+    assertThat(client.v1().charges().retrieve(failedCharge).getOutcome().getReason())
+        .isEqualTo("generic_decline");
+    client
+        .v1()
+        .paymentIntents()
+        .confirm(
+            declined.getStripeError().getPaymentIntent().getId(),
+            PaymentIntentConfirmParams.builder().setPaymentMethod("pm_card_visa").build());
+    assertThat(client.v1().charges().retrieve(failedCharge).getOutcome().getReason())
+        .isEqualTo("generic_decline");
+
+    assertThat(declined.getStripeError().getPaymentMethod().getId()).isEqualTo(saved.getId());
+    assertThat(
+            declined
+                .getStripeError()
+                .getPaymentIntent()
+                .getLastPaymentError()
+                .getPaymentMethod()
+                .getId())
+        .isEqualTo(saved.getId());
+    assertThat(client.v1().paymentMethods().retrieve(saved.getId()).getCustomer())
+        .isEqualTo(customer.getId());
   }
 
   @Test

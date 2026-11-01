@@ -192,7 +192,8 @@ final class JdbcStripePaymentMethods implements StripePaymentMethods {
                 rs.getString("card_display_brand"),
                 rs.getString("card_networks"),
                 rs.getString("card_regulated_status"),
-                rs.getObject("card_three_d_secure_supported", Boolean.class))),
+                rs.getObject("card_three_d_secure_supported", Boolean.class)),
+            StripeTestCardBehavior.storedAs(rs.getString("card_test_behavior"))),
         new StripeBillingDetails(
             rs.getString("billing_address_city"),
             rs.getString("billing_address_country"),

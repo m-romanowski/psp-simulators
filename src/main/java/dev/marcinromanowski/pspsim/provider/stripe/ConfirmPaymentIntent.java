@@ -57,7 +57,7 @@ final class ConfirmPaymentIntent {
     StripeNamedPaymentMethod named;
     switch (StripeNamedPaymentMethod.of(
         request.form(),
-        stored.paymentMethod(),
+        stored.lastPaymentErrorAt(now) == null ? stored.paymentMethod() : null,
         minting,
         testRunId,
         account,
@@ -115,8 +115,10 @@ final class ConfirmPaymentIntent {
           notAllowed(notOffered.get(), stored.selection(), selection)
               .about(StripeIntentView.of(stored, now)));
     }
-    return StripeOperationResult.decidedBy(
+    return StripeCardOutcomes.decidedBy(
         scenarios.decide(requestOf(headers, testRunId, account, intent, named.theIdARuleNames())),
+        named.method(),
+        StripeOperations.CONFIRM,
         () -> confirm(intent, paymentMethod, named.minted(), now),
         decline -> decline(intent, paymentMethod, named.minted(), decline, now),
         pending -> pend(intent, paymentMethod, named.minted(), pending, now));
@@ -207,7 +209,8 @@ final class ConfirmPaymentIntent {
       StripeDecline decline,
       Instant now) {
     StripeCharge charge =
-        theChargeThisAttemptMints(intent, paymentMethod, StripeChargeStatus.FAILED, now);
+        theChargeThisAttemptMints(intent, paymentMethod, StripeChargeStatus.FAILED, now)
+            .declinedWith(decline);
     LedgerClaim applied = intents.declined(intent, decline, paymentMethod, charge, minted, now);
     return StripeLookup.answeredFor(
         applied,

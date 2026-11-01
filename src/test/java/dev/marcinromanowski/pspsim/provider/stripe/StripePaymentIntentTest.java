@@ -543,8 +543,7 @@ class StripePaymentIntentTest {
         .contains("\"object\":\"payment_intent\"")
         .contains("\"amount\":1099")
         .contains(
-            "\"last_payment_error\":{\"code\":\"card_declined\","
-                + "\"decline_code\":\"insufficient_funds\",\"type\":\"card_error\"}");
+            "\"last_payment_error\":{\"type\":\"card_error\",\"code\":\"card_declined\",\"decline_code\":\"insufficient_funds\"");
   }
 
   @Test
@@ -564,7 +563,7 @@ class StripePaymentIntentTest {
     assertThat(response.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(response))
         .contains("\"status\":\"requires_payment_method\"")
-        .contains("\"last_payment_error\":{\"code\":\"expired_card\",\"type\":\"card_error\"}");
+        .contains("\"last_payment_error\":{\"type\":\"card_error\",\"code\":\"expired_card\"");
   }
 
   @Test

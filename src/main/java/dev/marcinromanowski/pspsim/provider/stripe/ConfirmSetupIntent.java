@@ -54,7 +54,7 @@ final class ConfirmSetupIntent {
     StripeNamedPaymentMethod named;
     switch (StripeNamedPaymentMethod.of(
         request.form(),
-        stored.paymentMethodId(),
+        stored.lastSetupError() == null ? stored.paymentMethodId() : null,
         minting,
         testRunId,
         account,
@@ -102,8 +102,10 @@ final class ConfirmSetupIntent {
     if (notOffered.isPresent()) {
       return refusedAbout(stored, notAllowed(notOffered.get(), stored.selection(), selection));
     }
-    return StripeOperationResult.decidedBy(
+    return StripeCardOutcomes.decidedBy(
         scenarios.decide(requestOf(headers, testRunId, account, intent, named.theIdARuleNames())),
+        named.method(),
+        StripeOperations.CONFIRM_SETUP_INTENT,
         () -> setUp(intent, paymentMethod, named.minted(), now),
         decline -> fail(intent, paymentMethod, named.minted(), decline, now));
   }
@@ -211,8 +213,7 @@ final class ConfirmSetupIntent {
                 RefusalSubject.theObject(intent.setupIntentId()),
                 StripeErrors.declined(decline)
                     .aboutTheSetup(
-                        StripeSetupIntentView.theTruncatedFormAnErrorCarries(
-                            intent.failedWith(decline, paymentMethod, now)))));
+                        StripeSetupIntentView.of(intent.failedWith(decline, paymentMethod, now)))));
   }
 
   private static StripeOperationResult answeredFor(

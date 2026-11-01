@@ -81,6 +81,10 @@ final class StripePublishableView {
   }
 
   private static StripeJson reduced(StripeJson member) {
+    if (member instanceof StripeJson.JsonArray array) {
+      return StripeJson.array(
+          array.elements().stream().map(StripePublishableView::reduced).toList());
+    }
     if (!(member instanceof StripeJson.JsonObject object)) {
       return member;
     }
@@ -96,7 +100,10 @@ final class StripePublishableView {
       kept.keySet().removeAll(WHAT_A_PAYMENT_METHOD_NEVER_SHOWS);
       return new StripeJson.JsonObject(kept);
     }
-    return object;
+    Map<String, StripeJson> nested = new LinkedHashMap<>(object.members());
+    nested.replaceAll((name, value) -> reduced(value));
+    StripeJson.JsonObject reduced = new StripeJson.JsonObject(nested);
+    return reduced.equals(object) ? object : reduced;
   }
 
   private static StripeJson keeping(StripeJson.JsonObject object, Set<String> shown) {
@@ -106,7 +113,7 @@ final class StripePublishableView {
         .forEach(
             (name, member) -> {
               if (shown.contains(name)) {
-                kept.put(name, StripeFields.PAYMENT_METHOD.equals(name) ? reduced(member) : member);
+                kept.put(name, reduced(member));
               }
             });
     return new StripeJson.JsonObject(kept);

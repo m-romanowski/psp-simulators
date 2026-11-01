@@ -129,8 +129,7 @@ class StripeObjectActionTest {
     assertThat(refused)
         .isEqualTo(
             new ObjectActionOutcome.RefusedByTheProvider(
-                "card_declined insufficient_funds The card has insufficient funds to complete the"
-                    + " purchase.",
+                "card_declined insufficient_funds Your card has insufficient funds.",
                 declining.scenarioId()));
     assertThat(((ObjectActionOutcome.RefusedByTheProvider) refused).inItsOwnWords())
         .doesNotContain(theIntent(FIRST_INTENT).clientSecret());

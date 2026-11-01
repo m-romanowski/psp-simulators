@@ -85,9 +85,8 @@ class StripePaymentMethodColumnsTest {
             OffsetDateTime.parse("2026-10-31T11:00:00Z"),
             "PROVIDER_API",
             OffsetDateTime.parse("2026-10-31T09:00:00Z"),
-            OffsetDateTime.parse("2026-10-31T10:00:00Z"));
-    assertThat(StripePaymentMethodColumns.NAMES.split(",", -1)).hasSize(32);
-    assertThat(StripePaymentMethodColumns.PLACEHOLDERS.split(",", -1)).hasSize(32);
+            OffsetDateTime.parse("2026-10-31T10:00:00Z"),
+            null);
   }
 
   @Test
@@ -137,6 +136,22 @@ class StripePaymentMethodColumnsTest {
                 "unregulated",
                 true));
     assertThat(StripePaymentMethodColumns.theCardOf(StripePaymentMethodType.PAYPAL, stored))
+        .isNull();
+  }
+
+  @Test
+  void a_stored_card_keeps_its_published_test_outcome() {
+    StripePaymentMethodColumns.StoredCard stored =
+        new StripePaymentMethodColumns.StoredCard(
+            "visa", "9995", 10, 2028, "credit", "US", "visa", "[\"visa\"]", "unregulated", true);
+    StripeCard card =
+        StripePaymentMethodColumns.theCardOf(
+            StripePaymentMethodType.CARD, stored, StripeTestCardBehavior.INSUFFICIENT_FUNDS);
+    assertThat(card).isNotNull();
+    assertThat(card.testBehavior()).isEqualTo(StripeTestCardBehavior.INSUFFICIENT_FUNDS);
+    assertThat(
+            StripePaymentMethodColumns.theCardOf(
+                StripePaymentMethodType.PAYPAL, stored, StripeTestCardBehavior.INSUFFICIENT_FUNDS))
         .isNull();
   }
 

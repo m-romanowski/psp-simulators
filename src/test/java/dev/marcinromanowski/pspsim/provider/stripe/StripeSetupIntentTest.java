@@ -445,7 +445,7 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void a_declined_setup_shows_the_state_it_returned_to_and_carries_no_client_secret_at_all() {
+  void a_declined_setup_shows_the_recorded_intent_fields_and_the_state_it_returned_to() {
     anAccountHoldingAnUnattachedCardOfNobody();
     declining(StripeDecline.GENERIC_DECLINE);
     String setup = theSetupIdIn(aSetupIntentFor(THE_CUSTOMER, THE_CARD));
@@ -455,7 +455,8 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(declined))
         .contains("\"setup_intent\":")
         .contains("\"status\":\"requires_payment_method\"")
-        .doesNotContain(StripeFields.CLIENT_SECRET);
+        .contains("\"client_secret\":")
+        .contains("\"usage\":\"off_session\"");
   }
 
   @Test

@@ -15,7 +15,8 @@ record StripeCard(
     @Nullable String displayBrand,
     @Nullable List<String> networks,
     @Nullable String regulatedStatus,
-    @Nullable Boolean threeDSecureSupported) {
+    @Nullable Boolean threeDSecureSupported,
+    @Nullable StripeTestCardBehavior testBehavior) {
 
   static final Set<String> THE_PUBLISHED_REGULATED_STATUSES = Set.of("regulated", "unregulated");
 
@@ -31,6 +32,46 @@ record StripeCard(
     if (regulatedStatus != null && !THE_PUBLISHED_REGULATED_STATUSES.contains(regulatedStatus)) {
       throw new IllegalArgumentException(A_REGULATED_STATUS_IS_ONE_STRIPE_PUBLISHES);
     }
+  }
+
+  StripeCard(
+      String brand,
+      String last4,
+      int expMonth,
+      int expYear,
+      String funding,
+      @Nullable String country,
+      @Nullable String displayBrand,
+      @Nullable List<String> networks,
+      @Nullable String regulatedStatus,
+      @Nullable Boolean threeDSecureSupported) {
+    this(
+        brand,
+        last4,
+        expMonth,
+        expYear,
+        funding,
+        country,
+        displayBrand,
+        networks,
+        regulatedStatus,
+        threeDSecureSupported,
+        null);
+  }
+
+  StripeCard withoutTheCvcCheck() {
+    return new StripeCard(
+        brand,
+        last4,
+        expMonth,
+        expYear,
+        funding,
+        country,
+        displayBrand,
+        networks,
+        regulatedStatus,
+        threeDSecureSupported,
+        testBehavior == StripeTestCardBehavior.INCORRECT_CVC ? null : testBehavior);
   }
 
   static StripeCard ofAFixture(FixtureCard card) {

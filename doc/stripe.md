@@ -491,7 +491,7 @@ The route (`CreatePaymentMethod`, `StripeNewPaymentMethod`):
 | `card` sent as a value rather than a hash, a `billing_details` value that is not a string or longer than 5000 characters, a metadata entry outside the limits above: `400`, `invalid_request_error`, no `code`, `param` the path (`StripeErrors.unreadableParameter`) | rule for the limits; decision for the answer                                                                          |
 | `allow_redisplay` outside the three values: `400`, "Invalid allow_redisplay: must be one of always, limited, or unspecified"                                                | probe for the shape (as in "Payment Method Selection")                                                                |
 | `card[token]` beside any of `number`, `exp_month`, `exp_year`, `cvc`: `400`, `parameters_exclusive`, `param` `card[token]`                                                  | rule that the hash is one form or the other; decision for the answer                                                  |
-| `card[token]` names a published test token (`tok_visa`, `tok_us`, ... of "Simulate a payment by card brand", "by country", and the two declines below): the card it stands for. Any other: `404`, `resource_missing`, "No such token: '{token}'", `param` `card[token]`; a value that does not read as a token id is not repeated | decision: no Tokens API is served, so only the published tokens exist; the `404` follows this simulator's other `resource_missing` answers |
+| `card[token]` names a published test token (`tok_visa`, `tok_us`, ... of "Simulate a payment by card brand", "by country", and the issuer-decline cards in "Test Data"): the card it stands for. Any other: `404`, `resource_missing`, "No such token: '{token}'", `param` `card[token]`; a value that does not read as a token id is not repeated | decision: no Tokens API is served, so only the published tokens exist; the `404` follows this simulator's other `resource_missing` answers |
 | The number may carry spaces. After removing them: not 12 to 19 digits: `402`, `card_error`, `invalid_number`, "Your card number is invalid.", `param` `number`. Failing the Luhn check: `402`, `card_error`, `incorrect_number`, "Your card number is incorrect.", `param` `number` | probe for `incorrect_number` and the spaces; rule for `invalid_number`; decision for its sentence and the length bounds |
 | `exp_month` or `exp_year` that is not an integer: `400`, `invalid_request_error`, `parameter_invalid_integer`, "Invalid integer: {value}", `param` the path. A month outside 1 to 12: `402`, `invalid_expiry_month`, "Your card's expiration month is invalid.", `param` `exp_month` | rule for the codes; decision for the sentences, written as the recorded ones are                                       |
 | A year of two digits is read as the year of that number nearest the run's clock, no more than 49 years ahead or 50 behind; a year of four digits as written; any other length, or a year before the run's clock: `402`, `invalid_expiry_year`, `param` `exp_year`. A month before the run's month in the run's year: `402`, `invalid_expiry_month` | probe and rule for the years; decision for the window and for naming the month when only the month has passed       |
@@ -518,8 +518,7 @@ The card hash (`StripeTestCards`), for a number and for a test token or test id:
 | `fingerprint`          | absent                                                                                                                                                           | probe for the publishable key; decision for the secret key: it is derived from the full number, which this simulator never keeps |
 
 - The catalogue holds the success cards of "Simulate a payment by card brand" and "Simulate a payment by country",
-  except BCcard and DinaCard and Carnet, which publish no `brand` value, and the two declines the recordings answered
-  (`4000000000000002`, `4000000000009995`). The co-branded Cartes Bancaires and eftpos cards are not catalogued: the
+  except BCcard and DinaCard and Carnet, which publish no `brand` value, and the issuer-decline cards of "Test Data". The co-branded Cartes Bancaires and eftpos cards are not catalogued: the
   page names two brands and the API answers one, which no source shows.
 - `pm_card_jcb` and `tok_jcb` are listed under both tables; they stand for the JCB of Japan, `3530111333300000`, the
   row that publishes a country (decision). `pm_card_amex`, `pm_card_discover` and `pm_card_diners` stand for the first
@@ -527,8 +526,8 @@ The card hash (`StripeTestCards`), for a number and for a test token or test id:
 - A number the catalogue does not hold is created with only what the number itself says (decision: inventing a brand,
   a country or a funding would answer a fact Stripe never published).
 - The published decline cards and test ids (`4000000000000002`, `pm_card_visa_chargeDeclined`, ...) are created
-  and copied like any other card, and a confirmation with one is answered as a scenario rule decides, without the
-  decline the testing page publishes for it ("Test Data").
+  and copied like any other card; their published failure controls a confirmation unless a scenario rule matches
+  that operation ("Test Data").
 
 The object (`StripePaymentMethodView`): `id`, `object`, `allow_redisplay`, `billing_details` (`address` with `city`,
 `country`, `line1`, `line2`, `postal_code`, `state`, then `email`, `name`, `phone`, `tax_id`), `created`, `customer`,
@@ -574,8 +573,9 @@ The generic flow a tester follows to save a card and charge it later, against th
 6. Charge later: `POST /v1/payment_intents` with that `customer`, `payment_method`, `confirm=true`, and
    `off_session=true` or the redirect settings above.
 
-The setup outcome is steered by operation rules on `POST /v1/setup_intents/{id}/confirm`, and the later charge by rules
-on `POST /v1/payment_intents` or `POST /v1/payment_intents/{id}/confirm`. Each rule is matched to its own operation
+The setup outcome follows the rule/card/default precedence of "Test Data" on `POST /v1/setup_intents/{id}/confirm`,
+and the same precedence controls the later charge on `POST /v1/payment_intents` or
+`POST /v1/payment_intents/{id}/confirm`. Each rule is matched to its own operation
 and story, so the two outcomes are steered independently.
 
 ## Idempotency
@@ -707,13 +707,13 @@ card.
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Created with a `payment_method`: `requires_confirmation`. Created without: `requires_payment_method`. `requires_action`, `processing` and `canceled` are never reached |
 | Confirm writes the attachment and `succeeded` atomically. It is the only way a method gains a customer outside fixtures. A method `payment_method_data` or a published test id creates is stored in that same unit of work, so a confirm that loses a race keeps none |
-| Confirm refuses before writing: `payment_method_data` as "PaymentMethod Creation" states, an unknown method (`400` `resource_missing` on `payment_method`, the recorded "No such PaymentMethod: '{id}'; …" sentence, with the truncated SetupIntent: probe, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsavedpmsendsanalytic`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a method attached to a Customer when the SetupIntent names none, a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`). A published test id the catalogue holds is copied into a method and set up ("PaymentMethod Creation"); one it does not hold is refused like any other unknown method, as there is nothing to attach |
+| Confirm refuses before writing: `payment_method_data` as "PaymentMethod Creation" states, an unknown method (`400` `resource_missing` on `payment_method`, the recorded "No such PaymentMethod: '{id}'; …" sentence, with the truncated SetupIntent: probe, `STPPaymentHandlerFunctionalTests/testconfirmsetupintentsavedpmsendsanalytic`), a detached method ("Detachment is permanent and irreversible"), another customer's method (the published sentence above), a method attached to a Customer when the SetupIntent names none, a deleted customer ("prevents any further operations to be performed"), and an unknown `customer` (`resource_missing` on `customer`). A published test id the catalogue holds is copied into a method and confirmed with the outcome in "Test Data"; one it does not hold is refused like any other unknown method, as there is nothing to attach |
 | A method attached to a Customer cannot be set up by a SetupIntent that names no customer: `400`, no `code`, `param` `payment_method`, "Payment methods attached to other Customers cannot be used with this SetupIntent. …" | inference: the SetupIntent's `customer` publishes "Payment methods attached to other Customers cannot be used with this SetupIntent" without saying whether an absent customer is another one; the PaymentIntent's create publishes that a method attached to a Customer requires that Customer to be named, and this reads the SetupIntent the same way |
 | Create accepts any `customer`                                                                                                                                       |
 | The selection parameters are read as "Payment Method Selection" states. With none, `payment_method_types` is `["card", "paypal"]` |
 | `client_secret` appears on the wire only. It is withheld from audit and screens. A publishable key reads and confirms the SetupIntent beside it ("Publishable Key") |
 | Object: `id`, `object`, `allowed_payment_method_types`, `automatic_payment_methods`, `client_secret`, `created`, `customer`, `excluded_payment_method_types`, `last_setup_error`, `livemode`, `payment_method`, `payment_method_configuration_details`, `payment_method_types`, `status`, `usage` |
-| An error embeds a truncated `setup_intent`: `id`, `object`, `customer`, `last_setup_error`, `payment_method`, `status`                                                |
+| A parameter/state refusal embeds a truncated `setup_intent`: `id`, `object`, `customer`, `last_setup_error`, `payment_method`, `status`. A decline embeds the full simulator object (probe: the insufficient-funds SI recording in "Test Data")                                                |
 | Only confirm takes scenario decisions (the `CARD_ADD_SUCCESS` and `CARD_ADD_FAILED` presets)                                                                        |
 | No `setup_intent.*` events. Scheduling one is refused by name                                                                                                       |
 | The PayPal payer fields stay null, because a SetupIntent neither authorizes nor settles                                                                             |
@@ -923,7 +923,7 @@ processing." `pending_reason` is one of `processing`, `insufficient_funds`, `cha
 
 | Simulator decision                                                                                                                                  |
 |-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| Fields: `id`, `object`, `amount`, `amount_captured`, `amount_refunded`, `captured`, `currency`, `customer` (its PaymentIntent's), `paid`, `payment_intent`, `payment_method`, `refunded`, `status` |
+| Fields: `id`, `object`, `amount`, `amount_captured`, `amount_refunded`, `captured`, `currency`, `customer` (its PaymentIntent's), `outcome`, `paid`, `payment_intent`, `payment_method`, `refunded`, `status` |
 | One charge per confirmation attempt, inline or `/confirm`, successful or declined. Never on create without confirm, capture or cancel. `latest_charge` is the newest |
 | `status` is fixed when the charge is minted: `succeeded` or `failed`. `pending` is never reached                                                    |
 | `paid` is true exactly when the status is `succeeded`, including an uncaptured or released hold                                                      |
@@ -1102,8 +1102,8 @@ The body is `{"error": {...}}`. Attributes (rule): `advice_code`, `charge`, `cod
 - Only `type` is non-nullable. `message` is nullable ("For card errors, these messages can be shown to your users").
 - `type` is one of `api_error`, `card_error`, `idempotency_error`, `invalid_request_error`.
 - `error.payment_intent` and `error.setup_intent` are full objects: "The PaymentIntent object for errors returned on a
-  request involving a PaymentIntent". The simulator embeds the full PaymentIntent it returns elsewhere, and a truncated
-  SetupIntent (see "SetupIntents").
+  request involving a PaymentIntent". The simulator embeds the full PaymentIntent it returns elsewhere; a declined
+  setup embeds the full SetupIntent, and a parameter/state refusal a truncated one (see "SetupIntents").
 - `code` appears only "For some errors that could be handled programmatically". "When an API error has a `code` value,
   its `doc_url` attribute contains a link to that error code's entry in the table." The link is
   `https://docs.stripe.com/error-codes#` plus the code with `_` replaced by `-`, which holds for all 180 anchors on the
@@ -1129,8 +1129,8 @@ Published decline sample ("Declines"):
 }
 ```
 
-A decline of this simulator carries no `param`, so `incorrect_cvc` is sent without the sample's `"param": "cvc"`
-(`StripeErrors.declined`). `param` is sent on an `invalid_request_error`, which names the field it refused
+A decline carries `param=cvc` for `incorrect_cvc` (example above); the recorded generic and insufficient-funds
+declines omit `param` (probe). `param` is sent on an `invalid_request_error`, which names the field it refused
 (`StripeErrors.invalidRequest`), and on a card detail refused as "PaymentMethod Creation" states, named as the sample
 names it (`number`, `exp_month`, `exp_year`, `cvc`).
 
@@ -1163,8 +1163,8 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 |----------------------------------------------------------------------------------------|-------------------------|------|------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
 | `card_declined`                                                                        | `card_error`            | 402  | rule ("Setup Intents API")                                       | "The card has been declined. When a card is declined, the error returned also includes the `decline_code` attribute with the reason why the card was declined." |
 | `authentication_required`                                                              | `card_error`            | 402  | rule, and the type from the example                              | "The payment requires authentication to proceed. If your customer is off session, notify your customer to return to your application and complete the payment." |
-| `expired_card`                                                                         | `card_error`            | 402  | rule                                                             | "The card has expired. Check the expiration date or use a different card."                                                 |
-| `incorrect_cvc`, `processing_error`                                                    | `card_error`            | 402  | rule                                                             | the simulator sends no message                                                                                              |
+| `expired_card`                                                                         | `card_error`            | 402  | rule for type/status; decision for message                        | "Your card has expired."                                                 |
+| `incorrect_cvc`, `processing_error`                                                    | `card_error`            | 402  | rule                                                             | see "Test Data" for the simulator's message                                                                                              |
 | `incorrect_number`, `invalid_number`, `invalid_expiry_month`, `invalid_expiry_year`, `invalid_cvc` | `card_error`  | 402  | probe on `POST /v1/tokens` for three of them; decision for the others and for the routes | see "PaymentMethod Creation"                                                                              |
 | `payment_intent_unexpected_state`                                                      | `invalid_request_error` | 400  | inference from "400 Bad Request — The request was unacceptable" | "The PaymentIntent's state was incompatible with the operation you were trying to perform."                                |
 | `setup_intent_unexpected_state`                                                        | `invalid_request_error` | 400  | inference                                                        | "The SetupIntent's state was incompatible with the operation you were trying to perform."                                  |
@@ -1192,8 +1192,8 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
   specified currency"), and `payment_method_currency_mismatch` is the error code for a currency that disagrees with the
   method.
 
-- The decline scenarios are the six of `StripeDecline`: `generic_decline`, `insufficient_funds`, `expired_card`,
-  `incorrect_cvc`, `processing_error` and `authentication_required`. Neither `currency_not_supported` nor
+- The decline scenarios are `generic_decline`, `insufficient_funds`, `lost_card`, `stolen_card`,
+  `card_velocity_exceeded`, `expired_card`, `incorrect_cvc`, `processing_error` and `authentication_required`. Neither `currency_not_supported` nor
   `payment_method_currency_mismatch` is among them, so no scenario refuses a currency.
 - No maximum amount is published for `amount_too_large`.
 - The decline table's "Next steps" column separates retryable reasons from final ones (`issuer_not_available` "Attempt
@@ -1201,27 +1201,84 @@ Stripe's worked failure (example, "Make a payment [Server-side]"):
 
 ## Test Data
 
-Declines (rule, "Simulate a declined payment"). The simulator produces each by the scenario code shown:
+The outcomes below follow [Testing, declined payments](https://docs.stripe.com/testing.md#declined-payments)
+and [decline codes](https://docs.stripe.com/declines/codes) (rule; verified 2026-11-01). Each number, its named
+PaymentMethod and its `tok_` counterpart carry the same behavior. `POST /v1/payment_methods` creates the method;
+creating an intent without confirming does not attempt a payment.
 
-| Number             | Error code         | Decline code         | Scenario code        |
-|--------------------|--------------------|----------------------|----------------------|
-| `4000000000000002` | `card_declined`    | `generic_decline`    | `generic_decline`    |
-| `4000000000009995` | `card_declined`    | `insufficient_funds` | `insufficient_funds` |
-| `4000000000000069` | `expired_card`     | n/a                  | `expired_card`       |
-| `4000000000000127` | `incorrect_cvc`    | n/a                  | `incorrect_cvc`      |
-| `4000000000000119` | `processing_error` | n/a                  | `processing_error`   |
+| Card number | PaymentMethod suffixes after `pm_card_` | Error code | Decline code | Failed operation |
+|---|---|---|---|---|
+| `4000000000000002` | `visa_chargeDeclined`, `chargeDeclined` | `card_declined` | `generic_decline` | payment confirmation and setup |
+| `4000000000009995` | `visa_chargeDeclinedInsufficientFunds`, `chargeDeclinedInsufficientFunds` | `card_declined` | `insufficient_funds` | payment confirmation and setup |
+| `4000000000009987` | `visa_chargeDeclinedLostCard`, `chargeDeclinedLostCard` | `card_declined` | `lost_card` | payment confirmation and setup |
+| `4000000000009979` | `visa_chargeDeclinedStolenCard`, `chargeDeclinedStolenCard` | `card_declined` | `stolen_card` | payment confirmation and setup |
+| `4000000000000069` | `chargeDeclinedExpiredCard`, `visa_chargeDeclinedExpiredCard` | `expired_card` | absent | payment confirmation and setup |
+| `4000000000000127` | `chargeDeclinedIncorrectCvc`, `visa_chargeDeclinedIncorrectCvc` | `incorrect_cvc` | absent | payment confirmation and setup, when CVC was supplied |
+| `4000000000000119` | `chargeDeclinedProcessingError`, `visa_chargeDeclinedProcessingError` | `processing_error` | absent | payment confirmation and setup |
+| `4000000000006975` | `visa_chargeDeclinedVelocityLimitExceeded`, `chargeDeclinedVelocityLimitExceeded` | `card_declined` | `card_velocity_exceeded` | payment confirmation and setup |
+| `4000000000000341` | `chargeCustomerFail`, `visa_chargeCustomerFail` | `card_declined` | `generic_decline` | payment confirmation; setup succeeds and attaches |
+| `4242424242424241` | none | `incorrect_number` | absent | card creation; no method is created |
 
-- `4000002500003155`: "This card requires authentication for off-session payments unless you set it up for future
-  payments. After you set it up, off-session payments no longer require authentication. However, on-session payments
-  with this card always require authentication." The simulator's `authentication_required` scenario imitates this card.
-- `4000000000003220`: "3D Secure authentication must be completed for the payment to be successful."
-- `4242424242424242` succeeds. `4000002500001001` supports multicapture, and `4000008400000076` does not.
-- `pm_card_*` ids (for example `pm_card_visa`) can stand in for a card number. The catalogued ones are copied on use
-  ("PaymentMethod Creation").
-- A decline card or test id of "Simulate a declined payment" (`4000000000000002`, `pm_card_visa_chargeDeclined`,
-  `tok_visa_chargeDeclined`, ...), and the fraud, dispute, refund, 3D Secure and authentication cards, make a
-  PaymentMethod like any other card. Their published outcome is not answered: the outcome is the one a scenario rule
-  gives the operation, and a rule may name the test id (`match.paymentMethodId`).
+- Precedence: a matching explicit scenario decides, else the card decides, else the operation succeeds
+  (decision: the rule is the tester's explicit control, the card Stripe's implicit control). `StripeCardOutcomes`
+  applies this to PI create, PI confirm, PI capture and SI confirm. A rule for another operation does not override
+  a card. Rules can name the published id a copy came from or a created method's id.
+- The `visa_` issuer-decline names above, and the names without that prefix for expired, CVC, processing error and
+  `chargeCustomerFail`, are published in the testing table (rule). The additional spellings are compatibility aliases
+  (decision: integrations also use the short names, including the short forms accepted here). Their `tok_`
+  spellings are accepted by the same catalogue; no Tokens API is served.
+- A payment confirmation means either `confirm=true` on create or `/confirm`, automatic or manual capture, on- or
+  off-session. The testing table publishes no separate capture failure for these cards: the authorization already
+  declines. A successful authorization allowed by an explicit rule can be captured (decision: no second issuer-decline
+  is invented at capture). No direct attach route is served; SI confirmation is the attachment surface.
+- An issuer-decline card fails setup and remains unattached (rule: these cards cannot be attached; probe for
+  insufficient funds on SI confirm). `chargeCustomerFail` succeeds at setup, remains attached after its charge is
+  declined, and declines on- and off-session (rule for attachment and charge; decision for successful setup, which is
+  this simulator's way of attaching, and `generic_decline`, since the table supplies no more specific code).
+- CVC omission skips the incorrect-CVC behavior (rule). Named test methods and tokens imply the check is supplied
+  (decision: no CVC can accompany a named method). Only the behavior name is stored, never a PAN or CVC.
+- A decline returns `402`, `card_error`, `code`, optional `decline_code`, `doc_url`, message and `param=cvc` only for
+  incorrect CVC. The method is created and retrievable, also in `error.payment_method` and
+  `last_payment_error.payment_method` or `last_setup_error.payment_method`; the intent's `payment_method` is null and
+  its status is `requires_payment_method` (probe: recordings below). A retry must name a method again, since the
+  failed one is carried only by the error (decision). An already attached method stays attached.
+  A changed intent and its declined answer are retained for idempotency replay, like other executed confirmations.
+- Generic decline uses "Your card was declined." and insufficient funds "Your card has insufficient funds."
+  (probe). Expired, CVC and processing messages are decisions following the published error descriptions; no recording
+  supplies their exact wording. Lost, stolen and velocity use the generic sentence (decision: reveal no more issuer
+  detail than the generic declined card). The charge is `failed`, `paid=false`, with an issuer-declined `outcome`;
+  the reason is kept on each charge so a retry does not rewrite its failure (decision). Network status, risk level and
+  seller message are representative values, since no charge-retrieve recording establishes their exact values.
+- `V96__stripe_cards_keep_their_test_behavior.sql` preserves old methods; known copies recover their behavior
+  from `copied_from`. A PAN-free older raw card or fixture under an ordinary id carries no implicit test behavior because last4 cannot
+  identify a card (decision). A held method named by a published decline id retains that id's implicit outcome
+  (decision: holding the method changes whether it is copied, not what its test id means). The latest old failed charge recovers its reason from its intent; older failures with no
+  recoverable reason keep null (decision).
+
+Probe evidence, copied under `src/test/resources/stripe-ios-recorded-traffic/`:
+
+- `PaymentSheetAPITest/testDeferredConfirmsavedinsufficientfundscard/0002_post_v1_payment_intents_pi_3RW1OTFY0qyl6XeW1v2ixP94_confirm.tail`
+- `PaymentSheetAPITest/testDeferredConfirmsavedinsufficientfundscard/0006_post_v1_setup_intents_seti_1RW1OVFY0qyl6XeWTBEXiXIe_confirm.tail`
+- `CheckoutConfirmationFunctionalTests/testconfirmwithdeclinedcardallowsretrywithvalidcard/0004_post_v1_checkout_client_cs_test_a16zwjB2W92T7K1rsfTdZFaTuVGUvRcAogIlG1J7DdFWdtj51dqYfmml1X_confirm.tail`
+
+The first pair is replayed on PI/SI confirm, comparing error and embedded-intent members. The Checkout recording's
+card-creation path is exercised on PI create with `payment_method_data` and `confirm=true`; the simulator serves no
+Checkout Session API (decision: compare the shared card error and card hash, not a Checkout response).
+
+Published special behavior outside this contract, answered without that behavior (rule for the cards; decision for
+this simulator's boundary):
+
+| Published group | Cards and ids | Simulator behavior |
+|---|---|---|
+| Authentication and setup | `4000002500003155`, `4000002760003184`, `4000003800000446`, `4000008260003178`; `authenticationRequiredOnSetup`, `authenticationRequired`, `authenticationRequiredSetupForOffSession`, `authenticationRequiredChargeDeclinedInsufficientFunds` | no 3DS or off-session-dependent behavior; scenario controls outcome |
+| 3DS support and mobile challenges | all cards of Testing's 3DS support and mobile challenge tables, including `4000000000003220` and `pm_card_threeDSecure2Required` | no authentication/challenge step; scenario controls outcome |
+| Radar, fraud review, captcha and disputes | all cards of Testing's fraud prevention, captcha and dispute tables, including `4100000000000019`, `4000000000004954`, `4000000000009235`, `4000000000000259` | no risk engine, review, captcha or dispute lifecycle |
+| Refund timing and balance availability | `4000000000007726`, `4000000000005126`, `pm_card_pendingRefund`, `pm_card_refundFail`, `pm_card_bypassPending`, `pm_card_bypassPendingInternational` and the corresponding testing-table cards | no card-driven refund or balance behavior |
+| Terminal and non-card methods | Testing's PIN/Terminal cards and non-card test values | no Terminal or non-card test-value outcomes |
+
+The out-of-scope named ids retain the existing permissive `pm_card_*` handling; numbers create ordinary card methods.
+`4242424242424242` succeeds. The published authentication-required scenario is an explicit decline control and does
+not implement a 3DS card flow. The non-3DS decline cards above have no published off-session distinction.
 
 ## Minimum Test Fixtures
 
@@ -1272,7 +1329,7 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
   `secret_key_required` in one third-party trace. The other statuses are inferences.
 - A publishable key is served on the two intent reads, the two intent confirms and `POST /v1/payment_methods`.
   `POST /v1/tokens`, which the SDKs also send with it, is not served, and only the published test tokens can be named
-  in `card[token]`. Only `type=card` is created, and the decline cards are not honoured ("Test Data").
+  in `card[token]`. Only `type=card` is created; issuer-decline cards and `chargeCustomerFail` follow "Test Data".
   `confirmation_method`,
   `next_action`, `shipping`, `description`, `canceled_at`, `processing`, `setup_future_usage`, `source` and the other
   members the recordings carry beyond this simulator's object are absent from its answers.
@@ -1282,8 +1339,7 @@ One persona per intent, each seeding one customer with one saved card (`StripePe
   are decisions: no source shows them.
 - The card errors of `POST /v1/payment_methods` and `payment_method_data` are the shapes recorded on
   `POST /v1/tokens`; `invalid_number`, `invalid_expiry_month` and `parameter_invalid_integer` were never observed,
-  and their sentences are decisions. A decline does not carry the created `payment_method` in its error body, nor
-  `last_payment_error.payment_method`, as the recordings show Stripe's does.
+  and their sentences are decisions. Declines include their created method as recorded ("Test Data").
 - The `return_url` refusal's sentence comes from third-party reports; its status, `code` and `param`, and the
   SetupIntent wording, are decisions.
 - A parameter this simulator does not read is accepted and has no effect, on every route and at every release. Stripe

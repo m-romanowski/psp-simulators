@@ -567,7 +567,7 @@ class StripePublishableKeyTest {
     assertThat(bodyOf(declined))
         .contains("\"decline_code\":\"insufficient_funds\"")
         .contains("\"payment_intent\":{\"id\":\"" + payment.id() + "\"")
-        .doesNotContain(THE_CUSTOMER)
+        .doesNotContain("metadata")
         .doesNotContain("latest_charge")
         .doesNotContain("amount_received");
   }

@@ -32,6 +32,8 @@ final class StripeChargeView {
         StripeJson.text(charge.currency()),
         "customer",
         StripeJson.textOrNull(intent.customer()),
+        "outcome",
+        outcomeOf(charge),
         "paid",
         StripeJson.bool(charge.paid()),
         "payment_intent",
@@ -42,6 +44,37 @@ final class StripeChargeView {
         StripeJson.bool(charge.refunded(intent, now)),
         "status",
         StripeJson.text(charge.status().wireValue()));
+  }
+
+  private static StripeJson outcomeOf(StripeCharge charge) {
+    if (charge.paid()) {
+      return StripeJson.object(
+          "network_status",
+          StripeJson.text("approved_by_network"),
+          "reason",
+          StripeJson.nothing(),
+          "risk_level",
+          StripeJson.text("normal"),
+          "seller_message",
+          StripeJson.text("Payment complete."),
+          "type",
+          StripeJson.text("authorized"));
+    }
+    StripeDecline failure = charge.failure();
+    return StripeJson.object(
+        "network_status",
+        StripeJson.text("declined_by_network"),
+        "reason",
+        StripeJson.textOrNull(
+            failure == null
+                ? null
+                : failure.declineCode() == null ? failure.errorCode() : failure.declineCode()),
+        "risk_level",
+        StripeJson.text("normal"),
+        "seller_message",
+        StripeJson.textOrNull(failure == null ? null : failure.publishedMessage()),
+        "type",
+        StripeJson.text("issuer_declined"));
   }
 
   private static String minorUnitsOf(BigDecimal amount) {

@@ -81,8 +81,7 @@ class StripePaymentMethodUseTest {
     "pm_card_mastercard,mastercard,4444",
     "pm_card_amex,amex,0005",
     "pm_card_jcb,jcb,0000",
-    "pm_card_gb_debit,visa,0005",
-    "pm_card_visa_chargeDeclinedInsufficientFunds,visa,9995"
+    "pm_card_gb_debit,visa,0005"
   })
   void a_payment_created_and_confirmed_with_a_test_id_copies_the_card_the_id_names(
       String testId, String brand, String last4) {
@@ -141,12 +140,10 @@ class StripePaymentMethodUseTest {
     String payment = theIdOf(world.createPayment(SECRET_KEY, aPaymentOf("1050")));
 
     StripeApiResponse confirmed =
-        world.confirmPayment(
-            SECRET_KEY, payment, Map.of("payment_method", "pm_card_visa_chargeDeclinedLostCard"));
+        world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "pm_card_unpublished"));
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
-    assertThat(theValueAt(confirmed, "payment_method"))
-        .isEqualTo("pm_card_visa_chargeDeclinedLostCard");
+    assertThat(theValueAt(confirmed, "payment_method")).isEqualTo("pm_card_unpublished");
     assertThat(world.theMethodsStored()).isEmpty();
   }
 

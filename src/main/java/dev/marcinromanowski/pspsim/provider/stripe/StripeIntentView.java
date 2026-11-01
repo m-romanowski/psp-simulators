@@ -43,13 +43,15 @@ final class StripeIntentView {
         StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES,
         StripeSelectionView.excluded(intent.selection()),
         "last_payment_error",
-        StripeDeclineView.of(intent.lastPaymentErrorAt(now)),
+        StripeDeclineView.of(
+            intent.lastPaymentErrorAt(now), intent.paymentMethod(), intent.latestCharge()),
         "latest_charge",
         StripeJson.textOrNull(intent.latestCharge()),
         "livemode",
         StripeJson.bool(false),
         "payment_method",
-        StripeJson.textOrNull(intent.paymentMethod()),
+        StripeJson.textOrNull(
+            intent.lastPaymentErrorAt(now) == null ? intent.paymentMethod() : null),
         StripeFields.PAYMENT_METHOD_CONFIGURATION_DETAILS,
         StripeSelectionView.configurationDetails(intent.selection()),
         StripeFields.PAYMENT_METHOD_TYPES,

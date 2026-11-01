@@ -15,7 +15,45 @@ record StripeCharge(
     String currency,
     @Nullable String paymentMethod,
     StripeChargeStatus status,
-    Instant createdAt) {
+    Instant createdAt,
+    @Nullable StripeDecline failure) {
+
+  StripeCharge(
+      TestRunId testRunId,
+      String chargeId,
+      String intentId,
+      String accountId,
+      Amount amount,
+      String currency,
+      @Nullable String paymentMethod,
+      StripeChargeStatus status,
+      Instant createdAt) {
+    this(
+        testRunId,
+        chargeId,
+        intentId,
+        accountId,
+        amount,
+        currency,
+        paymentMethod,
+        status,
+        createdAt,
+        null);
+  }
+
+  StripeCharge declinedWith(StripeDecline decline) {
+    return new StripeCharge(
+        testRunId,
+        chargeId,
+        intentId,
+        accountId,
+        amount,
+        currency,
+        paymentMethod,
+        status,
+        createdAt,
+        decline);
+  }
 
   boolean paid() {
     return status.paid();

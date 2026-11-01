@@ -155,7 +155,13 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
             payloadOf(
                 eventIdOf(null),
                 reporting,
-                StripeIntentView.of(settling, landing),
+                StripeDeclineRendering.of(
+                    StripeIntentView.of(settling, landing),
+                    id ->
+                        paymentMethods
+                            .find(settling.testRunId(), id)
+                            .filter(method -> method.accountId().equals(settling.accountId()))
+                            .map(StripePaymentMethodView::of)),
                 landing,
                 destination.get().version()),
             null,
@@ -212,13 +218,19 @@ final class StripeWebhooks implements StripeScheduledOutcomes {
     return jobs;
   }
 
-  private static Reported ofIntent(
+  private Reported ofIntent(
       WebhookScheduleRequest request, StripePaymentIntent intent, Instant now) {
     return new Reported(
         typeOf(request.eventType(), intent, now),
         intent.accountId(),
         intent.intentId(),
-        StripeIntentView.of(intent, now));
+        StripeDeclineRendering.of(
+            StripeIntentView.of(intent, now),
+            id ->
+                paymentMethods
+                    .find(intent.testRunId(), id)
+                    .filter(method -> method.accountId().equals(intent.accountId()))
+                    .map(StripePaymentMethodView::of)));
   }
 
   private static Reported ofRefund(WebhookScheduleRequest request, StripeRefund refund) {

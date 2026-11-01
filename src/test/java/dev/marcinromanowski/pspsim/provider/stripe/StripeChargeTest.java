@@ -243,7 +243,7 @@ class StripeChargeTest {
     api.confirmPaymentIntent(
         post(
             intentPath(FIRST_INTENT) + "/confirm",
-            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL)),
+            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL, "payment_method", CARD)),
         FIRST_INTENT);
     api.capturePaymentIntent(
         post(capturePath(FIRST_INTENT), Map.of("amount_to_capture", "1000")), FIRST_INTENT);

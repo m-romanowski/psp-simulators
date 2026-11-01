@@ -137,8 +137,63 @@ final class StripeTestCards {
         published("4000001580000008", VISA, UNKNOWN, "TW", "tw"),
         published("4000007640000003", VISA, CREDIT, "TH", "th_credit"),
         published("4000057640000008", VISA, DEBIT, "TH", "th_debit"),
-        recorded("4000000000000002", VISA, CREDIT, "US", "visa_chargeDeclined"),
-        recorded("4000000000009995", VISA, CREDIT, "US", "visa_chargeDeclinedInsufficientFunds"));
+        recorded("4000000000000002", VISA, CREDIT, "US", "visa_chargeDeclined", "chargeDeclined"),
+        recorded(
+            "4000000000009995",
+            VISA,
+            CREDIT,
+            "US",
+            "visa_chargeDeclinedInsufficientFunds",
+            "chargeDeclinedInsufficientFunds"),
+        published(
+            "4000000000009987",
+            VISA,
+            UNKNOWN,
+            null,
+            "visa_chargeDeclinedLostCard",
+            "chargeDeclinedLostCard"),
+        published(
+            "4000000000009979",
+            VISA,
+            UNKNOWN,
+            null,
+            "visa_chargeDeclinedStolenCard",
+            "chargeDeclinedStolenCard"),
+        published(
+            "4000000000000069",
+            VISA,
+            UNKNOWN,
+            null,
+            "chargeDeclinedExpiredCard",
+            "visa_chargeDeclinedExpiredCard"),
+        published(
+            "4000000000000127",
+            VISA,
+            UNKNOWN,
+            null,
+            "chargeDeclinedIncorrectCvc",
+            "visa_chargeDeclinedIncorrectCvc"),
+        published(
+            "4000000000000119",
+            VISA,
+            UNKNOWN,
+            null,
+            "chargeDeclinedProcessingError",
+            "visa_chargeDeclinedProcessingError"),
+        published(
+            "4000000000006975",
+            VISA,
+            UNKNOWN,
+            null,
+            "visa_chargeDeclinedVelocityLimitExceeded",
+            "chargeDeclinedVelocityLimitExceeded"),
+        published(
+            "4000000000000341",
+            VISA,
+            UNKNOWN,
+            null,
+            "chargeCustomerFail",
+            "visa_chargeCustomerFail"));
   }
 
   private static TestCard published(
@@ -182,7 +237,8 @@ final class StripeTestCards {
         theDisplayBrandOf(card.brand()),
         List.of(card.brand()),
         card.recordedByStripe() ? UNREGULATED : null,
-        card.recordedByStripe() ? Boolean.TRUE : null);
+        card.recordedByStripe() ? Boolean.TRUE : null,
+        StripeTestCardBehavior.ofNumber(card.number()));
   }
 
   static StripeCard theCardOfANumberStripePublishesNothingFor(

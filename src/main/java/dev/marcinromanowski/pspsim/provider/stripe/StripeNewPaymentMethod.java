@@ -233,7 +233,11 @@ final class StripeNewPaymentMethod {
     Optional<StripeTestCards.TestCard> published = StripeTestCards.byNumber(digits);
     return new CardRead(
         published
-            .map(known -> StripeTestCards.theCardOf(known, expMonth, expYear))
+            .map(
+                known ->
+                    cvc == null
+                        ? StripeTestCards.theCardOf(known, expMonth, expYear).withoutTheCvcCheck()
+                        : StripeTestCards.theCardOf(known, expMonth, expYear))
             .orElseGet(
                 () ->
                     StripeTestCards.theCardOfANumberStripePublishesNothingFor(

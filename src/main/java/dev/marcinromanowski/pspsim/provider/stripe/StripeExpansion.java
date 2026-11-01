@@ -58,6 +58,10 @@ final class StripeExpansion {
       }
     }
     StripeOperationResult result = operation.get();
+    result =
+        result.answeringWith(
+            StripeDeclineRendering.of(
+                result.body(), id -> reach.find(StripeRelation.A_PAYMENT_METHOD, id)));
     if (result.outcome() != ProviderOutcome.SUCCESS) {
       return result;
     }

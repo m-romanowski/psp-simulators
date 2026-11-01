@@ -61,6 +61,7 @@ final class JdbcStripeCharges implements StripeCharges {
         rs.getString("currency"),
         rs.getString("payment_method"),
         StripeChargeStatus.of(rs.getString("status")).orElseThrow(),
-        rs.getObject("created_at", OffsetDateTime.class).toInstant());
+        rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+        StripeDecline.of(rs.getString("failure_code")).orElse(null));
   }
 }

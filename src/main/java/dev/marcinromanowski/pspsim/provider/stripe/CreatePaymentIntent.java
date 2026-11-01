@@ -117,8 +117,10 @@ final class CreatePaymentIntent {
       }
     }
     String intentId = anIntentIdClaimedForThisDecision(testRunId);
-    return StripeOperationResult.decidedBy(
+    return StripeCardOutcomes.decidedBy(
         scenarios.decide(requestOf(form, headers, testRunId, account, intentId, named)),
+        confirms(form) ? named.method() : null,
+        StripeOperations.CREATE,
         () -> create(form, selection, testRunId, account, now, intentId, askedBy, named),
         decline ->
             createDeclined(
@@ -351,6 +353,9 @@ final class CreatePaymentIntent {
             ? null
             : StripeChargeMinting.of(
                 charges, ids, unconfirmed, unconfirmed.paymentMethod(), chargeStatus, now);
+    if (charge != null && decline != null) {
+      charge = charge.declinedWith(decline);
+    }
     StripePaymentIntent intent =
         charge == null ? unconfirmed : unconfirmed.chargedBy(charge.chargeId());
     named.storedBy(minting);

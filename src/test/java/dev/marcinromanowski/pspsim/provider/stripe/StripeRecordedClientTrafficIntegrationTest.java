@@ -372,6 +372,120 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
     assertTheSameRefusal(recorded, replayed, theirs);
   }
 
+  @Test
+  void a_declined_payment_confirm_replays_the_recorded_error_and_embedded_intent() {
+    Recording recorded =
+        Recording.of(
+            "PaymentSheetAPITest/testDeferredConfirmsavedinsufficientfundscard/"
+                + "0002_post_v1_payment_intents_pi_3RW1OTFY0qyl6XeW1v2ixP94_confirm.tail");
+    Created payment = aPayment(SECRET_KEY);
+    HttpResponse<byte[]> replayed =
+        replay(recorded, payment, Map.of(recorded.clientSecret(), payment.clientSecret()));
+    assertRecordedDecline(recorded, replayed, "payment_intent", "last_payment_error");
+  }
+
+  @Test
+  void a_declined_setup_confirm_replays_the_recorded_error_and_embedded_intent() {
+    Recording recorded =
+        Recording.of(
+            "PaymentSheetAPITest/testDeferredConfirmsavedinsufficientfundscard/"
+                + "0006_post_v1_setup_intents_seti_1RW1OVFY0qyl6XeWTBEXiXIe_confirm.tail");
+    Created setup = aSetup();
+    HttpResponse<byte[]> replayed =
+        replay(recorded, setup, Map.of(recorded.clientSecret(), setup.clientSecret()));
+    assertRecordedDecline(recorded, replayed, "setup_intent", "last_setup_error");
+  }
+
+  @Test
+  void the_declined_checkout_creation_body_matches_the_card_error_from_a_confirming_creation() {
+    Recording recorded =
+        Recording.of(
+            "CheckoutConfirmationFunctionalTests/testconfirmwithdeclinedcardallowsretrywithvalidcard/"
+                + "0004_post_v1_checkout_client_cs_test_a16zwjB2W92T7K1rsfTdZFaTuVGUvRcAogIlG1J7DdFWdtj51dqYfmml1X_confirm.tail");
+    Map<String, String> card = new LinkedHashMap<>();
+    card.put("amount", "1050");
+    card.put("currency", "usd");
+    card.put("payment_method_types[0]", "card");
+    card.put("confirm", "true");
+    card.put("payment_method_data[type]", "card");
+    card.put("payment_method_data[card][number]", "4000000000000002");
+    card.put("payment_method_data[card][exp_month]", "12");
+    card.put("payment_method_data[card][exp_year]", "2040");
+    HttpResponse<byte[]> replayed = post(SECRET_KEY, "/v1/payment_intents", card);
+    assertThat(replayed.statusCode()).isEqualTo(recorded.status());
+    StripeJson.JsonObject expected = errorIn(recorded.body());
+    StripeJson.JsonObject actual = errorIn(bodyOf(replayed));
+    Set<String> expectedMembers = new TreeSet<>(expected.members().keySet());
+    expectedMembers.remove("request_log_url");
+    expectedMembers.remove("extra_fields");
+    if (actual.members().containsKey("payment_intent")
+        && !expected.members().containsKey("payment_intent")) {
+      expectedMembers.add("payment_intent");
+    }
+    assertThat(actual.members().keySet()).containsExactlyInAnyOrderElementsOf(expectedMembers);
+    for (String member : List.of("type", "code", "decline_code", "message", "param")) {
+      assertThat(actual.members().get(member)).as(member).isEqualTo(expected.members().get(member));
+    }
+    assertThat(cardOf(objectAt(StripeJsonWriter.toText(actual), "payment_method")))
+        .isEqualTo(cardOf(objectAt(StripeJsonWriter.toText(expected), "payment_method")));
+    assertThat(objectAt(StripeJsonWriter.toText(actual), "payment_intent").members().get("status"))
+        .isEqualTo(StripeJson.text("requires_payment_method"));
+  }
+
+  private static void assertRecordedDecline(
+      Recording recorded, HttpResponse<byte[]> replayed, String intent, String lastError) {
+    assertThat(replayed.statusCode()).as(bodyOf(replayed)).isEqualTo(recorded.status());
+    StripeJson.JsonObject expected = errorIn(recorded.body());
+    StripeJson.JsonObject actual = errorIn(bodyOf(replayed));
+    Set<String> expectedMembers = new TreeSet<>(expected.members().keySet());
+    expectedMembers.remove("request_log_url");
+    expectedMembers.remove("extra_fields");
+    if (actual.members().containsKey("payment_intent")
+        && !expected.members().containsKey("payment_intent")) {
+      expectedMembers.add("payment_intent");
+    }
+    assertThat(actual.members().keySet()).containsExactlyInAnyOrderElementsOf(expectedMembers);
+    for (String member : List.of("type", "code", "decline_code", "message", "param")) {
+      assertThat(actual.members().get(member)).as(member).isEqualTo(expected.members().get(member));
+    }
+    StripeJson.JsonObject expectedIntent = objectAt(StripeJsonWriter.toText(expected), intent);
+    StripeJson.JsonObject actualIntent = objectAt(StripeJsonWriter.toText(actual), intent);
+    Set<String> embeddedMembers = new TreeSet<>(expectedIntent.members().keySet());
+    embeddedMembers.removeAll(
+        "setup_intent".equals(intent)
+            ? A_SETUP_CARRIES_AND_THIS_SIMULATOR_DOES_NOT_MODEL
+            : union(
+                A_PAYMENT_CARRIES_AND_THIS_SIMULATOR_DOES_NOT_MODEL,
+                A_CHECKOUT_TOTAL_THIS_SIMULATOR_DOES_NOT_MODEL));
+    embeddedMembers.addAll(A_RECORDING_OF_2025_PREDATES);
+    assertThat(actualIntent.members().keySet())
+        .containsExactlyInAnyOrderElementsOf(embeddedMembers);
+
+    for (String member : List.of("status", "payment_method")) {
+      assertThat(actualIntent.members().get(member))
+          .as(member)
+          .isEqualTo(expectedIntent.members().get(member));
+    }
+    StripeJson.JsonObject expectedLast =
+        objectAt(StripeJsonWriter.toText(expectedIntent), lastError);
+    StripeJson.JsonObject actualLast = objectAt(StripeJsonWriter.toText(actualIntent), lastError);
+    assertThat(actualLast.members().keySet())
+        .containsExactlyInAnyOrderElementsOf(expectedLast.members().keySet());
+    for (String member : List.of("type", "code", "decline_code", "message", "param")) {
+      assertThat(actualLast.members().get(member))
+          .as(member)
+          .isEqualTo(expectedLast.members().get(member));
+    }
+    assertThat(actual.members().get("payment_method"))
+        .isEqualTo(actualLast.members().get("payment_method"));
+    Map<String, StripeJson> card =
+        cardOf(objectAt(StripeJsonWriter.toText(actual), "payment_method"));
+    card.put("exp_month", StripeJson.number("6"));
+    card.put("exp_year", StripeJson.number("2026"));
+    assertThat(card)
+        .isEqualTo(cardOf(objectAt(StripeJsonWriter.toText(expected), "payment_method")));
+  }
+
   private static void assertTheSameRefusal(
       Recording recorded, HttpResponse<byte[]> replayed, Created intent) {
     StripeJson.JsonObject answered = errorIn(bodyOf(replayed));
@@ -395,7 +509,7 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
   private HttpResponse<byte[]> replay(
       Recording recorded, Created intent, Map<String, String> alsoSubstituting) {
     Map<String, String> substituted = new LinkedHashMap<>();
-    if (recorded.status() == 200) {
+    if (recorded.status() == 200 || recorded.status() == 402) {
       substituted.put(recorded.clientSecret(), intent.clientSecret());
     }
     substituted.put(recorded.intentId(), intent.id());

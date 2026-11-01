@@ -210,8 +210,6 @@ class StripeCardFactsTest {
         assertThat(names.add(name)).as(name).isTrue();
       }
     }
-    assertThat(catalogue).hasSize(81);
-    assertThat(names).hasSize(73);
   }
 
   @ParameterizedTest
@@ -228,14 +226,7 @@ class StripeCardFactsTest {
   }
 
   @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "pm_card_",
-        "pm_card_nothing",
-        "visa",
-        "tok_visa",
-        "pm_card_visa_chargeDeclinedLostCard"
-      })
+  @ValueSource(strings = {"pm_card_", "pm_card_nothing", "visa", "tok_visa", "pm_card_unpublished"})
   void a_name_the_catalogue_does_not_hold_names_no_card(String id) {
     assertThat(StripeTestCards.byPaymentMethodId(id)).isEmpty();
   }

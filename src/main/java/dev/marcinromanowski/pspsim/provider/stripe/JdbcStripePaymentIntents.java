@@ -111,8 +111,8 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
             """
             insert into stripe_charge
                 (test_run_id, charge_id, intent_id, account_id, amount, currency, payment_method,
-                 status, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, created_at, failure_code)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)
         .param(charge.testRunId().value())
         .param(charge.chargeId())
@@ -123,6 +123,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
         .param(charge.paymentMethod())
         .param(charge.status().wireValue())
         .param(charge.createdAt().atOffset(ZoneOffset.UTC))
+        .param(scenarioCodeOf(charge.failure()))
         .update();
   }
 

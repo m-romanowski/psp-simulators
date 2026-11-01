@@ -6,20 +6,26 @@ import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
 enum StripeDecline {
-  GENERIC_DECLINE(
-      "generic_decline", "card_declined", "generic_decline", "The card has been declined."),
+  GENERIC_DECLINE("generic_decline", "card_declined", "generic_decline", "Your card was declined."),
   INSUFFICIENT_FUNDS(
       "insufficient_funds",
       "card_declined",
       "insufficient_funds",
-      "The card has insufficient funds to complete the purchase."),
-  EXPIRED_CARD(
-      "expired_card",
-      "expired_card",
+      "Your card has insufficient funds."),
+  LOST_CARD("lost_card", "card_declined", "lost_card", "Your card was declined."),
+  STOLEN_CARD("stolen_card", "card_declined", "stolen_card", "Your card was declined."),
+  CARD_VELOCITY_EXCEEDED(
+      "card_velocity_exceeded",
+      "card_declined",
+      "card_velocity_exceeded",
+      "Your card was declined."),
+  EXPIRED_CARD("expired_card", "expired_card", null, "Your card has expired."),
+  INCORRECT_CVC("incorrect_cvc", "incorrect_cvc", null, "Your card's security code is incorrect."),
+  PROCESSING_ERROR(
+      "processing_error",
+      "processing_error",
       null,
-      "The card has expired. Check the expiration date or use a different card."),
-  INCORRECT_CVC("incorrect_cvc", "incorrect_cvc", null, null),
-  PROCESSING_ERROR("processing_error", "processing_error", null, null),
+      "An error occurred while processing your card. Try again in a little bit."),
   AUTHENTICATION_REQUIRED(
       "authentication_required",
       "authentication_required",
@@ -57,6 +63,10 @@ enum StripeDecline {
 
   @Nullable String publishedMessage() {
     return publishedMessage;
+  }
+
+  @Nullable String param() {
+    return this == INCORRECT_CVC ? "cvc" : null;
   }
 
   static Optional<StripeDecline> of(String scenarioCode) {

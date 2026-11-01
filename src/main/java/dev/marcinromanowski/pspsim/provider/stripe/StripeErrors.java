@@ -615,7 +615,7 @@ final class StripeErrors {
         decline.errorCode(),
         decline.declineCode(),
         decline.publishedMessage(),
-        null,
+        decline.param(),
         null,
         null);
   }
