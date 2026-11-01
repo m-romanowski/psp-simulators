@@ -419,6 +419,7 @@ class StripeRefundTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"param\":\"payment_intent\"");
+    assertThat(bodyOf(refused)).contains("No such payment_intent: 'pi_sim_0000000000000001'");
   }
 
   private void decliningARefundOf(String amount) {

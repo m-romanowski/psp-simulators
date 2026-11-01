@@ -78,11 +78,7 @@ final class StripeErrors {
   }
 
   static StripeError clientSecretMissing() {
-    return invalidRequest(
-        BAD_REQUEST,
-        PARAMETER_MISSING,
-        "Missing required param: " + StripeFields.CLIENT_SECRET + ".",
-        StripeFields.CLIENT_SECRET);
+    return missingRequiredParam(StripeFields.CLIENT_SECRET);
   }
 
   static StripeError clientSecretDoesNotMatchThePayment() {
@@ -123,34 +119,60 @@ final class StripeErrors {
     return invalidRequest(
         BAD_REQUEST,
         RESOURCE_MISSING,
-        "No such PaymentMethod: '"
-            + paymentMethodId
-            + "'; It's possible this PaymentMethod exists on one of your connected accounts, in"
-            + " which case you should retry this request on that connected account. Learn more at"
-            + " https://stripe.com/docs/connect/authentication",
+        noSuchPaymentMethodMessage(paymentMethodId),
         StripeFields.PAYMENT_METHOD);
   }
 
-  static StripeError resourceMissing(String param) {
+  private static String noSuchPaymentMethodMessage(String paymentMethodId) {
+    return "No such PaymentMethod: '"
+        + paymentMethodId
+        + "'; It's possible this PaymentMethod exists on one of your connected accounts, in"
+        + " which case you should retry this request on that connected account. Learn more at"
+        + " https://stripe.com/docs/connect/authentication";
+  }
+
+  static StripeError noSuchCustomer(String customerId) {
     return invalidRequest(
         NOT_FOUND,
         RESOURCE_MISSING,
-        "The ID provided isn't valid. Either the resource doesn't exist, or an ID for a different"
-            + " resource has been provided.",
+        "No such customer: '" + customerId + "'",
+        StripeFields.CUSTOMER);
+  }
+
+  static StripeError noSuchCharge(String chargeId) {
+    return invalidRequest(
+        NOT_FOUND, RESOURCE_MISSING, "No such charge: '" + chargeId + "'", StripeFields.CHARGE);
+  }
+
+  static StripeError noSuchPaymentIntentForRefund(String intentId) {
+    return invalidRequest(
+        NOT_FOUND,
+        RESOURCE_MISSING,
+        "No such payment_intent: '" + intentId + "'",
+        StripeFields.PAYMENT_INTENT);
+  }
+
+  static StripeError paymentMethodNotFound(String paymentMethodId) {
+    return invalidRequest(
+        NOT_FOUND,
+        RESOURCE_MISSING,
+        noSuchPaymentMethodMessage(paymentMethodId),
+        StripeFields.PAYMENT_METHOD);
+  }
+
+  static StripeError onlyWithConfirmTrue(String param) {
+    return invalidRequest(
+        BAD_REQUEST,
+        null,
+        "The parameter `" + param + "` can only be used with `confirm=true`.",
         param);
   }
 
-  static StripeError noResourceToMintAKeyFor() {
-    return invalidRequest(
-        BAD_REQUEST,
-        PARAMETER_MISSING,
-        "A required parameter is missing. Provider stripe creates a short-lived API key for a"
-            + " given resource, and "
-            + StripeFields.CUSTOMER
-            + " is the only one of the four published resource parameters this simulator serves:"
-            + " issuing_card, nonce and verification_session name objects no route of this build"
-            + " answers, so a key naming one of them would reach nothing.",
-        StripeFields.CUSTOMER);
+  static StripeError paymentMethodMissingOnConfirmation() {
+    return unexpectedState(
+        "You cannot confirm this PaymentIntent because it's missing a payment method. You can"
+            + " either update the PaymentIntent with a payment method and then confirm it again,"
+            + " or confirm it again directly with a payment method or ConfirmationToken.");
   }
 
   static StripeError theShortLivedKeyHasExpired() {
@@ -218,18 +240,6 @@ final class StripeErrors {
             + StripeFields.PAYMENT_INTENT
             + ". Send one of them.",
         StripeFields.CHARGE);
-  }
-
-  static StripeError noRefundTarget() {
-    return invalidRequest(
-        BAD_REQUEST,
-        PARAMETER_MISSING,
-        "A required parameter is missing. A refund must name either "
-            + StripeFields.PAYMENT_INTENT
-            + " or "
-            + StripeFields.CHARGE
-            + " as the object to create it on.",
-        StripeFields.PAYMENT_INTENT);
   }
 
   static StripeError setupUnexpectedState(String message) {
@@ -408,11 +418,6 @@ final class StripeErrors {
 
   static StripeError chargeAlreadyRefunded(String message) {
     return invalidRequest(BAD_REQUEST, CHARGE_ALREADY_REFUNDED, message, null);
-  }
-
-  static StripeError parameterMissing(String param) {
-    return invalidRequest(
-        BAD_REQUEST, PARAMETER_MISSING, "A required parameter is missing.", param);
   }
 
   static StripeError unreadableParameter(String param, String accepted) {

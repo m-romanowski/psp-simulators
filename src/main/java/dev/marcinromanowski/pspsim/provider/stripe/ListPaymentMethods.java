@@ -32,7 +32,7 @@ final class ListPaymentMethods {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CUSTOMER),
-          StripeErrors.resourceMissing(StripeFields.CUSTOMER));
+          StripeErrors.noSuchCustomer(customerId));
     }
     return listed(
         query,

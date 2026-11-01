@@ -189,7 +189,7 @@ final class StripeSelections {
     String enabledName = StripeFields.AUTOMATIC_PAYMENT_METHODS + "[" + ENABLED + "]";
     StripeParameter enabled = hashed.entries().get(ENABLED);
     if (enabled == null) {
-      return StripeErrors.parameterMissing(enabledName);
+      return StripeErrors.missingRequiredParam(enabledName);
     }
     Boolean flag =
         enabled instanceof StripeParameter.Scalar scalar ? StripeFlag.of(scalar.value()) : null;

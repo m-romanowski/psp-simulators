@@ -187,8 +187,9 @@ class StripePaymentIntentTest {
     assertThat(response.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(response))
         .contains("\"type\":\"invalid_request_error\"")
-        .contains("\"code\":\"parameter_missing\"")
-        .contains("\"param\":\"payment_method\"");
+        .contains("\"code\":\"payment_intent_unexpected_state\"")
+        .contains("missing a payment method")
+        .doesNotContain("\"param\"");
   }
 
   @Test
@@ -625,6 +626,7 @@ class StripePaymentIntentTest {
 
     assertThat(response.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(response)).contains("\"code\":\"resource_missing\"");
+    assertThat(bodyOf(response)).contains("No such payment_intent: 'pi_sim_0000000000000001'");
   }
 
   @Test

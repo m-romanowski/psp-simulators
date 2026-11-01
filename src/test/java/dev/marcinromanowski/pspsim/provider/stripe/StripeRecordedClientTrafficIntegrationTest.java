@@ -292,12 +292,7 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
         .isEqualTo(200);
 
     HttpResponse<byte[]> replayed =
-        replay(
-            recorded,
-            setup,
-            Map.of(
-                recorded.clientSecret().replace(recorded.intentId(), setup.id()),
-                setup.clientSecret()));
+        replay(recorded, setup, Map.of(recorded.clientSecret(), setup.clientSecret()));
 
     assertThat(recorded.body()).contains("\"status\" : \"succeeded\"");
     assertThat(replayed.statusCode()).isEqualTo(recorded.status());
@@ -370,6 +365,28 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
 
     assertThat(replayed.statusCode()).isEqualTo(recorded.status());
     assertTheSameRefusal(recorded, replayed, theirs);
+  }
+
+  @Test
+  void a_confirm_without_a_payment_method_replays_the_recorded_unexpected_state() {
+    Recording recorded =
+        Recording.of(
+            "STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsendsanalytic/"
+                + "0000_post_v1_payment_intents_pi_3P20wFFY0qyl6XeW0dSOQ6W7_confirm.tail");
+    Created payment = aPayment(SECRET_KEY);
+    HttpResponse<byte[]> replayed =
+        replay(recorded, payment, Map.of(recorded.clientSecret(), payment.clientSecret()));
+    assertThat(replayed.statusCode()).isEqualTo(400);
+    assertTheSameRefusal(recorded, replayed, payment);
+    StripeJson.JsonObject answered =
+        objectAt(StripeJsonWriter.toText(errorIn(bodyOf(replayed))), "payment_intent");
+    StripeJson.JsonObject expected =
+        objectAt(StripeJsonWriter.toText(errorIn(recorded.body())), "payment_intent");
+    for (String member : List.of("object", "status", "payment_method", "last_payment_error")) {
+      assertThat(answered.members().get(member))
+          .as(member)
+          .isEqualTo(expected.members().get(member));
+    }
   }
 
   @Test
@@ -508,12 +525,11 @@ class StripeRecordedClientTrafficIntegrationTest extends PostgresBackedTest {
 
   private HttpResponse<byte[]> replay(
       Recording recorded, Created intent, Map<String, String> alsoSubstituting) {
-    Map<String, String> substituted = new LinkedHashMap<>();
+    Map<String, String> substituted = new LinkedHashMap<>(alsoSubstituting);
     if (recorded.status() == 200 || recorded.status() == 402) {
       substituted.put(recorded.clientSecret(), intent.clientSecret());
     }
     substituted.put(recorded.intentId(), intent.id());
-    substituted.putAll(alsoSubstituting);
     HttpRequest.Builder request =
         HttpRequest.newBuilder(
                 URI.create(

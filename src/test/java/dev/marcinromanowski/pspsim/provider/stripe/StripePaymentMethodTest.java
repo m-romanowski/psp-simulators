@@ -449,6 +449,7 @@ class StripePaymentMethodTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"code\":\"resource_missing\"");
+    assertThat(bodyOf(refused)).contains("No such PaymentMethod: 'pm_the_first_card';");
   }
 
   @Test

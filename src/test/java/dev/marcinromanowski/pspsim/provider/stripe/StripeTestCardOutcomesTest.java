@@ -313,7 +313,7 @@ class StripeTestCardOutcomesTest {
     world.confirmPayment(SECRET_KEY, payment, Map.of("payment_method", "pm_card_chargeDeclined"));
     StripeApiResponse retry = world.confirmPayment(SECRET_KEY, payment, Map.of());
     assertThat(retry.httpStatus()).isEqualTo(400);
-    assertThat(theValueAt(retry, "error.code")).isEqualTo("parameter_missing");
+    assertThat(theValueAt(retry, "error.code")).isEqualTo("payment_intent_unexpected_state");
     String setup = theIdOf(world.createSetup(SECRET_KEY, aSetupThatConfirmsWithoutARedirect()));
     world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method", "pm_card_chargeDeclined"));
     StripeApiResponse setupRetry = world.confirmSetup(SECRET_KEY, setup, Map.of());

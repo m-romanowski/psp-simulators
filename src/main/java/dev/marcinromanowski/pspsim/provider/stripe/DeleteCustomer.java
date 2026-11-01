@@ -30,7 +30,7 @@ final class DeleteCustomer {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CUSTOMER),
-          StripeErrors.resourceMissing(StripeFields.CUSTOMER));
+          StripeErrors.noSuchCustomer(customerId));
     }
     StripeCustomer customer = addressed.get();
     if (customer.deleted()) {

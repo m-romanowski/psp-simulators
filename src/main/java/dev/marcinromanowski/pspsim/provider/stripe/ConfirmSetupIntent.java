@@ -48,7 +48,7 @@ final class ConfirmSetupIntent {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeSetupLookup.SETUP_INTENT_PARAMETER),
-          StripeErrors.resourceMissing(StripeSetupLookup.SETUP_INTENT_PARAMETER));
+          StripeErrors.noSuchSetupIntent(setupIntentId));
     }
     StripeSetupIntent stored = addressed.get();
     StripeNamedPaymentMethod named;
@@ -85,7 +85,7 @@ final class ConfirmSetupIntent {
     if (paymentMethod == null) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.theObject(intent.setupIntentId()),
-          StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
+          StripeErrors.missingRequiredParam(StripeFields.PAYMENT_METHOD));
     }
     StripePaymentMethod method = named.method();
     if (method == null) {
@@ -151,7 +151,7 @@ final class ConfirmSetupIntent {
     Optional<StripeCustomer> owner =
         StripeCustomerLookup.of(customers, testRunId, account, customerId);
     if (owner.isEmpty()) {
-      return StripeErrors.resourceMissing(StripeFields.CUSTOMER);
+      return StripeErrors.noSuchCustomer(customerId);
     }
     if (owner.get().deleted()) {
       return StripeErrors.furtherOperationRefused(
@@ -232,7 +232,7 @@ final class ConfirmSetupIntent {
       case OBJECT_GONE ->
           StripeOperationResult.refused(
               RefusalSubject.noObjectAnsweredTo(StripeSetupLookup.SETUP_INTENT_PARAMETER),
-              StripeErrors.resourceMissing(StripeSetupLookup.SETUP_INTENT_PARAMETER));
+              StripeErrors.noSuchSetupIntent(intent.setupIntentId()));
     };
   }
 }

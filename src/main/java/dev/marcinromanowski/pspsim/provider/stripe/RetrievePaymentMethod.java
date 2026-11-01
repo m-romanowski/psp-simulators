@@ -21,6 +21,6 @@ final class RetrievePaymentMethod {
             () ->
                 StripeOperationResult.refusedBeforeExecuting(
                     RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_METHOD),
-                    StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD)));
+                    StripeErrors.paymentMethodNotFound(paymentMethodId)));
   }
 }

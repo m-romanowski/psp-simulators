@@ -43,7 +43,7 @@ final class CapturePaymentIntent {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeLookup.INTENT_PARAMETER),
-          StripeErrors.resourceMissing(StripeLookup.INTENT_PARAMETER));
+          StripeErrors.noSuchPaymentIntent(intentId));
     }
     StripePaymentIntent intent = addressed.get();
     if (intent.theAuthorizationHasExpired(now)) {

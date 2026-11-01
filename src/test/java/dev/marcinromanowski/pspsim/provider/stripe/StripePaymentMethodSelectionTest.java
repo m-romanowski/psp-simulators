@@ -935,7 +935,7 @@ class StripePaymentMethodSelectionTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"false", "", "sometimes"})
+  @ValueSource(strings = "false")
   void an_off_session_that_does_not_say_the_customer_is_away_still_needs_a_return_url(
       String offSession) {
     anAccountHoldingACardAndAWallet();

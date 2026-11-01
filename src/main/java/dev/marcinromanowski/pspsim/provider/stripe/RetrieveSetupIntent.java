@@ -21,6 +21,6 @@ final class RetrieveSetupIntent {
             () ->
                 StripeOperationResult.refusedBeforeExecuting(
                     RefusalSubject.noObjectAnsweredTo(StripeSetupLookup.SETUP_INTENT_PARAMETER),
-                    StripeErrors.resourceMissing(StripeSetupLookup.SETUP_INTENT_PARAMETER)));
+                    StripeErrors.noSuchSetupIntent(setupIntentId)));
   }
 }

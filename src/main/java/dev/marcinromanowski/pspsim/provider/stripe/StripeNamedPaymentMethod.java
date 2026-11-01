@@ -69,7 +69,7 @@ sealed interface StripeNamedPaymentMethod {
   static @Nullable StripeError theRefusalOfACustomerThatReadsAsACardNumber(StripeForm form) {
     String customer = form.first(StripeFields.CUSTOMER);
     return customer != null && StripeFields.readsAsACardNumber(customer)
-        ? StripeErrors.resourceMissing(StripeFields.CUSTOMER)
+        ? StripeErrors.noSuchCustomer(customer)
         : null;
   }
 

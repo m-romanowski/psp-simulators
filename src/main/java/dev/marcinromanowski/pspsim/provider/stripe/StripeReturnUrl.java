@@ -12,8 +12,14 @@ final class StripeReturnUrl {
   static @Nullable StripeError theRefusalAPaymentConfirmationEarns(
       StripeForm form, StripeSelection selection) {
     String offSession = form.first(StripeFields.OFF_SESSION);
-    if (offSession != null && THE_OFF_SESSION_VALUES.contains(offSession)) {
-      return null;
+    if (form.carries(StripeFields.OFF_SESSION)) {
+      if (offSession != null && THE_OFF_SESSION_VALUES.contains(offSession)) {
+        return null;
+      }
+      if (!StripeFlag.FALSE.equals(offSession)) {
+        return StripeErrors.invalidValue(
+            StripeFields.OFF_SESSION, "true, false, one_off, recurring");
+      }
     }
     return mayRedirectWithNowhereToReturn(form, selection)
         ? StripeErrors.returnUrlRequiredForThePayment()

@@ -21,7 +21,7 @@ final class RetrieveCharge {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CHARGE),
-          StripeErrors.resourceMissing(StripeFields.CHARGE));
+          StripeErrors.noSuchCharge(chargeId));
     }
     StripeCharge charge = addressed.get();
     StripePaymentIntent payment = StripeChargeLookup.thePaymentOf(intents, charge);

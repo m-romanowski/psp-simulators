@@ -44,7 +44,7 @@ final class StripeLookup {
       case OBJECT_GONE ->
           StripeOperationResult.refused(
               RefusalSubject.noObjectAnsweredTo(INTENT_PARAMETER),
-              StripeErrors.resourceMissing(INTENT_PARAMETER));
+              StripeErrors.noSuchPaymentIntent(intent.intentId()));
     };
   }
 }

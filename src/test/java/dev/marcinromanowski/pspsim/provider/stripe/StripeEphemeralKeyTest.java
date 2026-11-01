@@ -164,7 +164,7 @@ class StripeEphemeralKeyTest {
     assertThat(bodyOf(response))
         .contains("\"code\":\"resource_missing\"")
         .contains("\"param\":\"customer\"")
-        .doesNotContain(NO_CUSTOMER_OF_THIS_RUN);
+        .contains("No such customer: '" + NO_CUSTOMER_OF_THIS_RUN + "'");
     assertThat(ephemeralKeys.all()).isEmpty();
   }
 
@@ -202,7 +202,7 @@ class StripeEphemeralKeyTest {
     assertThat(bodyOf(response))
         .contains("\"code\":\"parameter_missing\"")
         .contains("\"param\":\"customer\"")
-        .contains("issuing_card, nonce and verification_session");
+        .contains("Missing required param: customer.");
     assertThat(ephemeralKeys.all()).isEmpty();
   }
 

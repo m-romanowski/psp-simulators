@@ -51,7 +51,7 @@ final class ConfirmPaymentIntent {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeLookup.INTENT_PARAMETER),
-          StripeErrors.resourceMissing(StripeLookup.INTENT_PARAMETER));
+          StripeErrors.noSuchPaymentIntent(intentId));
     }
     StripePaymentIntent stored = addressed.get();
     StripeNamedPaymentMethod named;
@@ -94,7 +94,8 @@ final class ConfirmPaymentIntent {
     if (paymentMethod == null) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.theObject(intent.intentId()),
-          StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD));
+          StripeErrors.paymentMethodMissingOnConfirmation()
+              .about(StripeIntentView.of(stored, now)));
     }
     StripeError heldByNoOne = named.theRefusalOfAMethodNoOneHolds();
     if (heldByNoOne != null) {

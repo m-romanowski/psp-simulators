@@ -481,7 +481,7 @@ status; decision for the type, which every other refusal of a key carries, and f
 | an intent the key's account does not hold in this run: unknown, another account's, another run's | `404`, `resource_missing`, `param` `intent`, "No such payment_intent: '{id}'" or "No such setupintent: '{id}'"                   | probe for another account; decision that an unknown intent and another run's are the same answer             |
 | any value that is not the intent's own: malformed, another intent's, another account's, another run's | `400`, `payment_intent_invalid_parameter`, `param` `client_secret`, the recorded sentence; for a SetupIntent `setup_intent_invalid_parameter` and "… associated with the SetupIntent." | probe for a PaymentIntent; decision for a malformed value, which the server answer compares rather than parses, and for the SetupIntent wording |
 
-A secret key's `client_secret` is not read: it is a parameter like any other that this simulator does not read
+A secret key's `client_secret` follows the unread-parameter decision in "What Still Cannot Be Trusted Here": it is not read
 (inference: the pages require it only "if using a publishable key").
 
 What a publishable key is answered (`StripePublishableView`):
@@ -670,8 +670,7 @@ in the same account's space (see "Publishable Key").
 Published:
 
 - `POST /v1/customers` accepts `email` and returns `id`, `object=customer`, `email`.
-- An unknown id is `resource_missing`, "The ID provided isn't valid. Either the resource doesn't exist, or an ID for a
-  different resource has been provided."
+- An unknown id is `resource_missing`, with the per-object message in "Required Error Shape".
 - `DELETE` returns `{"id": ..., "object": "customer", "deleted": true}` (example). "If the customer ID does not exist,
   this call raises an error." "Permanently deletes a customer. It cannot be undone." "Also immediately cancels any
   active subscriptions on the customer" (subscriptions are out of scope).
@@ -845,6 +844,29 @@ an unknown id. A publishable key reads it beside its `client_secret` ("Publishab
   operation you were trying to perform.") for a terminal intent, a method of another customer,
   `authentication_required`, and an issuer decline. A missing `return_url` is refused as "Payment Method Selection"
   states.
+
+Confirmation validation:
+
+- On create, `off_session` and `return_url` can only be used with `confirm=true` (rule:
+  https://docs.stripe.com/api/payment_intents/create.md). Even `off_session=false` names the parameter.
+  An absent or false `confirm` earns `400`, `invalid_request_error`, no `code`, `param` the parameter,
+  "The parameter `{name}` can only be used with `confirm=true`." (decision: no recording or published error).
+- On create-and-confirm and confirm, `off_session` accepts `true`, `false`, `one_off`, `recurring` (rule:
+  https://docs.stripe.com/api/payment_intents/confirm). An invalid value earns `400`, no `code`,
+  `param` `off_session`, "Invalid off_session: must be one of true, false, one_off, recurring" (decision:
+  Stripe publishes the accepted values but no refusal). True waives `return_url` (rule:
+  https://docs.stripe.com/changelog/2023-08-16/automatic-payment-methods); `one_off` and `recurring` do too
+  (inference: both name an off-session payment). False and absence retain the redirect rule.
+- Confirm without a method earns `400`, `invalid_request_error`, `payment_intent_unexpected_state`, no `param`,
+  "You cannot confirm this PaymentIntent because it's missing a payment method. You can either update the
+  PaymentIntent with a payment method and then confirm it again, or confirm it again directly with a payment
+  method or ConfirmationToken." It embeds the unchanged PaymentIntent (probe:
+  `STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsendsanalytic`). Create-and-confirm retains
+  `parameter_missing` on `payment_method` (decision: no existing intent to embed). A SetupIntent confirm
+  retains that missing-parameter decision too: the recordings contain no corresponding missing-method refusal,
+  and its confirm page publishes no error body.
+- These validation refusals keep no state and claim no idempotency key (rule for validation failures;
+  decision for the missing-method unexpected-state refusal, because correcting the method starts execution).
 
 `POST /v1/payment_intents/{id}/capture` (rule):
 
@@ -1145,6 +1167,23 @@ Scenarios (decision): duplicate delivery with the same event id, delayed deliver
 and webhook state that eventually agrees with `GET` unless a scenario says otherwise.
 
 ## Required Error Shape
+
+Every `parameter_missing` answer uses "Missing required param: {name}." with `param` the name (probe:
+`STPPaymentHandlerFunctionalTests/testconfirmsetupintentsendsanalytic`, recorded for `payment_method_data[card]`;
+inference for the other missing parameters). This includes refund targets and ephemeral-key resources.
+
+Every key kind uses the same per-object `resource_missing` message on the routes it can reach:
+
+| Object | Message | `param` | Evidence |
+|---|---|---|---|
+| PaymentIntent | `No such payment_intent: '{id}'` | `intent`; `payment_intent` on refund | probe: `STPPaymentIntentFunctionalTest/testRetrieveMismatchedPublishableKey`; decision for the refund parameter |
+| SetupIntent | `No such setupintent: '{id}'` | `intent` | probe: `STPApplePayContextFunctionalTest/testBadSetupIntentClientSecretErrors` |
+| PaymentMethod | `No such PaymentMethod: '{id}'; It's possible this PaymentMethod exists on one of your connected accounts, in which case you should retry this request on that connected account. Learn more at https://stripe.com/docs/connect/authentication` | `payment_method` | probe: `STPPaymentHandlerFunctionalTests/testconfirmpaymentintentsavedpmsendsanalytic`; inference for lookup/detach |
+| Customer | `No such customer: '{id}'` | `customer` | probe: https://github.com/stripe/stripe-go/issues/1338; inference for the other customer routes |
+| Charge | `No such charge: '{id}'` | `charge` | decision: the same per-object sentence, with no charge-error recording |
+
+Lookup errors keep `404`; a confirm's unknown PaymentMethod keeps the recorded `400` (probe for intent lookups and
+method confirmation; decision for the other routes). Card numbers are withheld from echoed ids.
 
 The body is `{"error": {...}}`. Attributes (rule): `advice_code`, `charge`, `code`, `decline_code`, `doc_url`,
 `message`, `network_advice_code`, `network_decline_code`, `param`, `payment_intent`, `payment_method`,

@@ -262,6 +262,7 @@ class StripeCustomerTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"code\":\"resource_missing\"");
+    assertThat(bodyOf(refused)).contains("No such customer: 'cus_sim_0000000000000001'");
   }
 
   @Test

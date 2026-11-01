@@ -569,8 +569,8 @@ class StripePaymentMethodUseTest {
         world.confirmSetup(SECRET_KEY, setup, Map.of("payment_method_data", ""));
 
     assertThat(flat(payingWithNothing))
-        .containsEntry("error.code", List.of("parameter_missing"))
-        .containsEntry("error.param", List.of("payment_method"));
+        .containsEntry("error.code", List.of("payment_intent_unexpected_state"))
+        .doesNotContainKey("error.param");
     assertThat(flat(settingUpNothing))
         .containsEntry("error.code", List.of("parameter_missing"))
         .containsEntry("error.param", List.of("payment_method"));

@@ -424,6 +424,7 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(refused))
         .contains("\"code\":\"resource_missing\"")
         .contains("\"param\":\"intent\"");
+    assertThat(bodyOf(refused)).contains("No such setupintent: 'seti_sim_0000000000000001'");
   }
 
   @Test

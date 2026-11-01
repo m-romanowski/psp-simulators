@@ -132,7 +132,7 @@ final class CreatePaymentIntent {
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
     if (!form.has(StripeFields.AMOUNT)) {
-      return StripeErrors.parameterMissing(StripeFields.AMOUNT);
+      return StripeErrors.missingRequiredParam(StripeFields.AMOUNT);
     }
     String amount = form.required(StripeFields.AMOUNT);
     if (StripeAmounts.isTooLongForAJsonReader(amount)) {
@@ -142,7 +142,7 @@ final class CreatePaymentIntent {
       return StripeErrors.invalidChargeAmount(StripeFields.AMOUNT);
     }
     if (!form.has(StripeFields.CURRENCY)) {
-      return StripeErrors.parameterMissing(StripeFields.CURRENCY);
+      return StripeErrors.missingRequiredParam(StripeFields.CURRENCY);
     }
     if (captureMethodOf(form) == null) {
       return StripeErrors.unreadableParameter(
@@ -153,10 +153,17 @@ final class CreatePaymentIntent {
       return StripeErrors.unreadableParameter(
           StripeFields.CONFIRM, StripeFlag.THE_VALUES_IT_ACCEPTS);
     }
+    if (!confirming) {
+      for (String param : List.of(StripeFields.OFF_SESSION, StripeFields.RETURN_URL)) {
+        if (form.carries(param)) {
+          return StripeErrors.onlyWithConfirmTrue(param);
+        }
+      }
+    }
     if (confirming
         && !form.has(StripeFields.PAYMENT_METHOD)
         && StripeNewPaymentMethod.thePaymentMethodDataIn(form) == null) {
-      return StripeErrors.parameterMissing(StripeFields.PAYMENT_METHOD);
+      return StripeErrors.missingRequiredParam(StripeFields.PAYMENT_METHOD);
     }
     return null;
   }
