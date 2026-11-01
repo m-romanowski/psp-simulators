@@ -1,5 +1,6 @@
 package dev.marcinromanowski.pspsim.provider;
 
+import static dev.marcinromanowski.pspsim.documentation.TrailWithholdingConvention.assertEverySurfaceWithholds;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -53,14 +54,15 @@ class EveryKeyedExchangeIsWithheldTest {
         (module, withheld) -> {
           for (Object name : withheld) {
             String field = String.valueOf(name);
-            assertThat(
+            assertEverySurfaceWithholds(
+                Map.of(
+                    module + " keyed exchange " + field,
                     mechanisms
                         .get(module)
                         .withholding()
                         .withheld(Map.of(field, List.of(A_VALUE_NO_EXCHANGE_MAY_KEEP)))
-                        .values())
-                .as("provider %s keeps %s in a keyed exchange as its trail does", module, field)
-                .noneMatch(values -> values.contains(A_VALUE_NO_EXCHANGE_MAY_KEEP));
+                        .toString()),
+                A_VALUE_NO_EXCHANGE_MAY_KEEP);
           }
         });
   }

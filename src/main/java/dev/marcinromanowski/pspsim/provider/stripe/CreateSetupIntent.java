@@ -14,41 +14,52 @@ final class CreateSetupIntent {
 
   static final int ID_LENGTH = 16;
 
-  static final String THE_SELECTION_PARAMETERS_IT_ACCEPTS =
-      StripeFields.AUTOMATIC_PAYMENT_METHODS
-          + ", "
-          + StripeFields.ALLOWED_PAYMENT_METHOD_TYPES
-          + ", "
-          + StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES
-          + " and "
-          + StripeFields.PAYMENT_METHOD_CONFIGURATION
-          + " as the payment-method selection parameters provider stripe publishes for this"
-          + " endpoint. "
-          + StripeFields.PAYMENT_METHOD_TYPES
-          + " is published on the SetupIntent object and on no parameter list of this endpoint, so"
-          + " this simulator answers it rather than reading it";
-
   private final StripeSetupIntents intents;
   private final IdGenerator ids;
+  private final StripePaymentMethodMinting minting;
 
-  CreateSetupIntent(StripeSetupIntents intents, IdGenerator ids) {
+  CreateSetupIntent(
+      StripeSetupIntents intents, StripePaymentMethods paymentMethods, IdGenerator ids) {
     this.intents = intents;
     this.ids = ids;
+    this.minting = new StripePaymentMethodMinting(paymentMethods, ids);
   }
 
   StripeOperationResult handle(
-      StripeForm form,
+      StripeCoreRequest request,
       TestRunId testRunId,
       StripeAccount account,
       Instant now,
       ObjectOrigin askedBy) {
+    StripeForm form = request.form();
     StripeError unreadable = whatThisRequestDoesNotCarry(form);
     if (unreadable != null) {
-      return StripeOperationResult.refusedBeforeExecuting(
-          StripeRefusals.theRequestWasRefused(), unreadable);
+      return refused(unreadable);
+    }
+    StripeSelection selection;
+    switch (StripeSelections.onCreatingASetup(request)) {
+      case StripeSelections.Outcome.Refused refused -> {
+        return refused(refused.error());
+      }
+      case StripeSelections.Outcome.Selected selected -> selection = selected.selection();
     }
     StripeSetupUsage usage = requireUsage(form);
-    String paymentMethod = form.first(StripeFields.PAYMENT_METHOD);
+    StripeNamedPaymentMethod named;
+    switch (StripeNamedPaymentMethod.of(form, null, minting, testRunId, account, askedBy, now)) {
+      case StripeNamedPaymentMethod.Outcome.Refused refused -> {
+        return refused(refused.error());
+      }
+      case StripeNamedPaymentMethod.Outcome.Named theOne -> named = theOne.method();
+    }
+    StripeError notAnId = named.theRefusalOfAnIdThatReadsAsACardNumber();
+    if (notAnId == null) {
+      notAnId = StripeNamedPaymentMethod.theRefusalOfACustomerThatReadsAsACardNumber(form);
+    }
+    if (notAnId != null) {
+      return refused(notAnId);
+    }
+    String paymentMethod = named.id();
+    named.storedBy(minting);
     for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
       String setupIntentId = ID_PREFIX + ids.hex(ID_LENGTH);
       StripeSetupIntent intent =
@@ -59,6 +70,7 @@ final class CreateSetupIntent {
               form.first(StripeFields.CUSTOMER),
               paymentMethod,
               usage,
+              selection,
               statusOf(paymentMethod),
               StripeClientSecret.of(setupIntentId, ids),
               null,
@@ -73,6 +85,11 @@ final class CreateSetupIntent {
         "no Stripe SetupIntent id could be claimed in " + ID_ATTEMPTS + " attempts");
   }
 
+  private static StripeOperationResult refused(StripeError error) {
+    return StripeOperationResult.refusedBeforeExecuting(
+        StripeRefusals.theRequestWasRefused(), error);
+  }
+
   private static StripeSetupStatus statusOf(@Nullable String paymentMethod) {
     return paymentMethod == null
         ? StripeSetupStatus.REQUIRES_PAYMENT_METHOD
@@ -80,9 +97,10 @@ final class CreateSetupIntent {
   }
 
   private static @Nullable StripeError whatThisRequestDoesNotCarry(StripeForm form) {
-    if (form.carriesAnyFormOf(StripeFields.PAYMENT_METHOD_TYPES)) {
-      return StripeErrors.parameterUnknown(
-          StripeFields.PAYMENT_METHOD_TYPES, THE_SELECTION_PARAMETERS_IT_ACCEPTS);
+    StripeError unstoreable =
+        StripeStoredParameters.refusalOf(form, StripeFields.CUSTOMER, StripeFields.PAYMENT_METHOD);
+    if (unstoreable != null) {
+      return unstoreable;
     }
     if (usageOf(form) == null) {
       return StripeErrors.unreadableParameter(

@@ -16,6 +16,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -49,11 +50,11 @@ class StripeIdempotencyTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -104,7 +105,7 @@ class StripeIdempotencyTest {
         .as(
             "a client cannot tell this simulator from the provider by a difference that moves,"
                 + " and a header order drawn from an unordered copy varies per process")
-        .containsExactly("Idempotent-Replayed", "Request-Id", "Content-Type");
+        .containsExactly("Idempotent-Replayed", "Stripe-Version", "Request-Id", "Content-Type");
   }
 
   @Test
@@ -368,6 +369,79 @@ class StripeIdempotencyTest {
   }
 
   @Test
+  void replays_a_list_reused_under_a_key_whichever_encoding_carried_it_each_time() {
+    accounts.with(account(SECRET_KEY, ACCOUNT));
+    StripeApi api = api(NOW);
+    Map<String, List<String>> appended = fields(hold("1099"));
+    appended.put("allowed_payment_method_types[]", List.of("card", "paypal"));
+    Map<String, List<String>> indexed = fields(hold("1099"));
+    indexed.put("allowed_payment_method_types[1]", List.of("paypal"));
+    indexed.put("allowed_payment_method_types[0]", List.of("card"));
+    StripeApiResponse first = api.createPaymentIntent(sending(appended, KEY));
+
+    StripeApiResponse replay = api.createPaymentIntent(sending(indexed, KEY));
+
+    assertThat(replay.headers().get("Idempotent-Replayed")).containsExactly("true");
+    assertThat(bodyOf(replay)).isEqualTo(bodyOf(first));
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
+  void answers_a_list_reused_under_a_key_in_another_order_as_other_parameters() {
+    accounts.with(account(SECRET_KEY, ACCOUNT));
+    StripeApi api = api(NOW);
+    Map<String, List<String>> inOneOrder = fields(hold("1099"));
+    inOneOrder.put("allowed_payment_method_types[]", List.of("card", "paypal"));
+    Map<String, List<String>> inTheOther = fields(hold("1099"));
+    inTheOther.put("allowed_payment_method_types[0]", List.of("paypal"));
+    inTheOther.put("allowed_payment_method_types[1]", List.of("card"));
+    api.createPaymentIntent(sending(inOneOrder, KEY));
+
+    StripeApiResponse reused = api.createPaymentIntent(sending(inTheOther, KEY));
+
+    assertThat(reused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(reused)).contains("\"type\":\"idempotency_error\"");
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
+  void a_body_that_cannot_be_decoded_is_refused_and_keeps_no_answer_under_the_key_it_carries() {
+    accounts.with(account(SECRET_KEY, ACCOUNT));
+    StripeApi api = api(NOW);
+    Map<String, List<String>> unreadable = fields(hold("1099"));
+    unreadable.put("amount[value]", List.of("1099"));
+
+    StripeApiResponse refused = api.createPaymentIntent(sending(unreadable, KEY));
+    StripeApiResponse corrected = api.createPaymentIntent(create(hold("1099"), KEY));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"type\":\"invalid_request_error\"")
+        .contains("\"param\":\"amount\"")
+        .contains(StripeFormGrammar.ONE_PARAMETER_IN_TWO_SHAPES);
+    assertThat(corrected.httpStatus()).isEqualTo(200);
+    assertThat(corrected.headers())
+        .doesNotHave(aHeaderOfThisNameUnderAnySpelling("Idempotent-Replayed"));
+    assertThat(intents.all()).hasSize(1);
+  }
+
+  @Test
+  void a_body_that_cannot_be_decoded_is_refused_on_its_encoding_rather_than_as_a_reused_key() {
+    accounts.with(account(SECRET_KEY, ACCOUNT));
+    StripeApi api = api(NOW);
+    api.createPaymentIntent(create(hold("1099"), KEY));
+    Map<String, List<String>> unreadable = fields(hold("1099"));
+    unreadable.put("amount[value]", List.of("1099"));
+
+    StripeApiResponse refused = api.createPaymentIntent(sending(unreadable, KEY));
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"type\":\"invalid_request_error\"")
+        .contains("\"param\":\"amount\"");
+  }
+
+  @Test
   void frees_the_key_of_a_call_the_simulator_could_not_answer_at_all() {
     accounts.with(account(SECRET_KEY, ACCOUNT));
     StripeApi api = api(NOW);
@@ -457,6 +531,7 @@ class StripeIdempotencyTest {
 
   private StripeApi api(Instant now) {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -486,9 +561,12 @@ class StripeIdempotencyTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static Map<String, String> hold(String amount) {
@@ -498,11 +576,16 @@ class StripeIdempotencyTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 
   private static StripeApiCall create(Map<String, String> form, String key) {
     return new StripeApiCall("POST", CREATE_PATH, headers(SECRET_KEY, key), fields(form));
+  }
+
+  private static StripeApiCall sending(Map<String, List<String>> form, String key) {
+    return new StripeApiCall("POST", CREATE_PATH, headers(SECRET_KEY, key), form);
   }
 
   private static Map<String, List<String>> headers(String secretKey, String key) {

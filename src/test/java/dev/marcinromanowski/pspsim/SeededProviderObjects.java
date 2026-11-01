@@ -122,9 +122,10 @@ public final class SeededProviderObjects {
                 (test_run_id, intent_id, account_id, amount, currency, capture_method, status,
                  payment_method, customer, receipt_email, client_secret, last_payment_error,
                  cancellation_reason, capture_expires_at, settles_at, settles_with, origin,
-                 created_at, updated_at)
+                 created_at, updated_at, automatic_payment_methods_enabled, payment_method_types)
             values (?, ?, 'acct_one_query', ?, 'usd', 'manual', 'requires_capture', null, null,
-                    null, ?, null, null, ?, null, null, 'PROVIDER_API', ?, ?)
+                    null, ?, null, null, ?, null, null, 'PROVIDER_API', ?, ?, true,
+                    '{card,paypal}')
             """)
         .param(run.value())
         .param(intentId)

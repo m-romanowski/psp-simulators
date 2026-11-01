@@ -110,6 +110,13 @@ final class StripeShop implements Shop {
                       .setCustomer(customerId)
                       .setPaymentMethod(savedCard)
                       .setUsage(SetupIntentCreateParams.Usage.OFF_SESSION)
+                      .setAutomaticPaymentMethods(
+                          SetupIntentCreateParams.AutomaticPaymentMethods.builder()
+                              .setEnabled(true)
+                              .setAllowRedirects(
+                                  SetupIntentCreateParams.AutomaticPaymentMethods.AllowRedirects
+                                      .NEVER)
+                              .build())
                       .build());
       client.v1().setupIntents().confirm(setup.getId());
       PaymentIntent hold =

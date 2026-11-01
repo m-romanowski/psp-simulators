@@ -79,10 +79,12 @@ final class StripeOrigination {
           StripeFields.PAYMENT_METHOD,
           "the payment method to charge",
           false,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " Stripe requires one on a call that confirms, and refuses that call by name"
               + " without it.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn CUSTOMER =
       AFieldATesterFillsIn.typed(
@@ -114,21 +116,25 @@ final class StripeOrigination {
           StripeFields.PAYMENT_METHOD,
           "the payment method to set up",
           true,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " This is the method the confirmation attaches to the customer, and stripe"
               + " publishes that a method already attached to another Customer cannot be used"
               + " here.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn THE_METHOD_TO_SET_UP_LATER =
       AFieldATesterFillsIn.typed(
           StripeFields.PAYMENT_METHOD,
           "the payment method to set up, if you already know it",
           false,
-          "The provider-native payment-method id of a card seeded on the Payment methods screen."
+          "The provider-native id of a payment method this account holds, seeded on the Payment"
+              + " methods screen or created by POST /v1/payment_methods, or a published test id"
+              + " such as pm_card_visa, which stripe copies into a new PaymentMethod on use."
               + " Stripe does not require one to create a SetupIntent, and a confirmation may name"
               + " one instead.",
-          StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID);
+          StripeTestCards.PM_CARD_VISA);
 
   private static final AFieldATesterFillsIn THE_CUSTOMER_THE_CARD_IS_SAVED_TO =
       AFieldATesterFillsIn.typed(
@@ -209,12 +215,20 @@ final class StripeOrigination {
             + " and the way of starting the payment you picked above is that choice. A SetupIntent"
             + " carries no capture_method, because it moves no money at all.");
     filled.put(
+        StripeFields.AUTOMATIC_PAYMENT_METHODS,
+        "stripe requires a return_url to confirm an intent that accepts the payment methods"
+            + " enabled in the Dashboard, because some of them redirect the payer. A confirmation"
+            + " this wizard runs has no payer to return, so the call that confirms sends"
+            + " automatic_payment_methods[enabled]=true with allow_redirects=never, the way Stripe"
+            + " publishes to confirm without one. An intent this wizard only creates is left as"
+            + " Stripe defaults it.");
+    filled.put(
         StripeFields.CLIENT_SECRET,
-        "stripe publishes client_secret as the value a browser or a mobile application uses to"
-            + " finish an intent with a publishable key. This simulator serves no publishable-key"
-            + " surface, so it never puts a client_secret on a screen and never asks for one: the"
-            + " confirmation this wizard runs is the published server-side confirm, authorised by"
-            + " the secret key of the account you picked above.");
+        "stripe publishes client_secret as the value a browser or a mobile application sends"
+            + " beside the publishable key of the account to read and confirm an intent. This wizard is"
+            + " neither, so it never puts a client_secret on a screen and never asks for one: the"
+            + " confirmation it runs is the published server-side confirm, authorised by the secret"
+            + " key of the account you picked above.");
     return filled;
   }
 
@@ -236,7 +250,22 @@ final class StripeOrigination {
     if (!setsACardUp(request.startedAs())) {
       fields.put(StripeFields.CAPTURE_METHOD, List.of(theMethodThatCarries(request).wireValue()));
     }
+    if (confirmsInTheCallThatCreates(request)) {
+      fields.put(
+          StripeFields.AUTOMATIC_PAYMENT_METHODS + "[" + StripeSelections.ENABLED + "]",
+          List.of(StripeFlag.TRUE));
+      fields.put(
+          StripeFields.AUTOMATIC_PAYMENT_METHODS + "[" + StripeSelections.ALLOW_REDIRECTS + "]",
+          List.of(StripeRedirects.NEVER.wireValue()));
+    }
     return StripeForm.of(fields);
+  }
+
+  private static boolean confirmsInTheCallThatCreates(OriginationRequest request) {
+    if (setsACardUp(request.startedAs())) {
+      return confirmsTheSetupItself(request.startedAs());
+    }
+    return StripeFlag.TRUE.equals(request.values().get(StripeFields.CONFIRM));
   }
 
   static StripeForm theConfirmationOf(String paymentMethod) {

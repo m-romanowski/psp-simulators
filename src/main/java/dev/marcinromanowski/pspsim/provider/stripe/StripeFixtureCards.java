@@ -33,6 +33,15 @@ final class StripeFixtureCards {
   static final String A_CUSTOMER_ID_MINTED_THE_WAY_THIS_SIMULATOR_MINTS_ONE =
       CreateCustomer.ID_PREFIX + "0123456789abcdef";
 
+  static final String A_PAYMENT_METHOD_ID_MINTED_THE_WAY_THIS_SIMULATOR_MINTS_ONE =
+      StripePaymentMethodMinting.ID_PREFIX + "0123456789abcdef0123";
+
+  static final String A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS =
+      PAYMENT_METHOD_PROPERTY
+          + " names a PaymentMethod this test run already holds, created through the API or"
+          + " seeded before, and a fixture under that id would describe a method other than the"
+          + " one every route answers with";
+
   static final String A_CUSTOMER_ID_IS_NOT_A_MINTED_OBJECT_ID =
       CUSTOMER_PROPERTY
           + " must not begin with "
@@ -45,8 +54,11 @@ final class StripeFixtureCards {
           + StripeChargeMinting.ID_PREFIX
           + " or "
           + CreateEphemeralKey.ID_PREFIX
+          + " or "
+          + StripePaymentMethodMinting.ID_PREFIX
           + ", which are the prefixes this simulator mints PaymentIntent, Refund, SetupIntent,"
-          + " Charge and EphemeralKey ids under; a customer seeded under one of them would make"
+          + " Charge, EphemeralKey and PaymentMethod ids under; a customer seeded under one of"
+          + " them would make"
           + " one providerObjectId resolve to two objects on the read surface";
 
   static final String A_CUSTOMER_IS_SERVED_THROUGH_AN_ACCOUNTS_OWN_KEY =
@@ -130,7 +142,7 @@ final class StripeFixtureCards {
                   true,
                   false,
                   List.of(),
-                  StripePersonas.THE_PUBLISHED_PAYMENT_METHOD_ID),
+                  A_PAYMENT_METHOD_ID_MINTED_THE_WAY_THIS_SIMULATOR_MINTS_ONE),
               new ConfigurableField(
                   ProviderPaymentMethodFields.CUSTOMER_ID,
                   "customer",
@@ -214,7 +226,8 @@ final class StripeFixtureCards {
         || customerId.startsWith(CreateRefund.ID_PREFIX)
         || customerId.startsWith(CreateSetupIntent.ID_PREFIX)
         || customerId.startsWith(StripeChargeMinting.ID_PREFIX)
-        || customerId.startsWith(CreateEphemeralKey.ID_PREFIX)) {
+        || customerId.startsWith(CreateEphemeralKey.ID_PREFIX)
+        || customerId.startsWith(StripePaymentMethodMinting.ID_PREFIX)) {
       throw new ProviderFixtureRejectedException(
           CUSTOMER_PROPERTY, A_CUSTOMER_ID_IS_NOT_A_MINTED_OBJECT_ID);
     }

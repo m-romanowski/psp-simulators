@@ -20,7 +20,7 @@ final class DetachPaymentMethod {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_METHOD),
-          StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD));
+          StripeErrors.paymentMethodNotFound(paymentMethodId));
     }
     StripePaymentMethod method = addressed.get();
     if (method.detached()) {
@@ -40,7 +40,7 @@ final class DetachPaymentMethod {
       case OBJECT_GONE ->
           StripeOperationResult.refused(
               RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_METHOD),
-              StripeErrors.resourceMissing(StripeFields.PAYMENT_METHOD));
+              StripeErrors.paymentMethodNotFound(paymentMethodId));
     };
   }
 

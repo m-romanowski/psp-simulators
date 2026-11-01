@@ -8,21 +8,23 @@ final class StripeEvent {
 
   static final String CONTENT_TYPE = "application/json";
 
-  static final String API_VERSION = "2026-01-01";
-
   static final String PENDING_WEBHOOKS = "0";
 
   private StripeEvent() {}
 
   static StripeJson of(
-      String eventId, StripeEventType type, StripeJson dataObject, Instant createdAt) {
+      String eventId,
+      StripeEventType type,
+      StripeJson dataObject,
+      Instant createdAt,
+      StripeApiVersion renderedAt) {
     return StripeJson.object(
         "id",
         StripeJson.text(eventId),
         "object",
         StripeJson.text(OBJECT),
         "api_version",
-        StripeJson.text(API_VERSION),
+        StripeJson.text(renderedAt.wireValue()),
         "type",
         StripeJson.text(type.wireValue()),
         "created",
@@ -34,6 +36,9 @@ final class StripeEvent {
         "request",
         StripeJson.object("id", StripeJson.nothing(), "idempotency_key", StripeJson.nothing()),
         "data",
-        StripeJson.object("object", dataObject));
+        StripeJson.object(
+            "object",
+            StripeVersionChanges.asAnsweredAt(
+                dataObject, renderedAt, StripeVersionChanges.WEBHOOK)));
   }
 }

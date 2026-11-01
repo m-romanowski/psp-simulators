@@ -11,6 +11,7 @@ import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -47,11 +48,11 @@ class StripePaymentMethodTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -173,13 +174,25 @@ class StripePaymentMethodTest {
         .contains("\"type\":\"card\"")
         .contains("\"customer\":\"" + A_CUSTOMER + "\"")
         .contains(
-            "\"billing_details\":{\"address\":null,\"email\":null,\"name\":null,\"phone\":null}")
+            "\"billing_details\":{\"address\":{\"city\":null,\"country\":null,\"line1\":null,"
+                + "\"line2\":null,\"postal_code\":null,\"state\":null},\"email\":null,"
+                + "\"name\":null,\"phone\":null,\"tax_id\":null}")
+        .contains("\"livemode\":false")
+        .contains("\"metadata\":{}")
+        .contains("\"allow_redisplay\":\"unspecified\"")
         .contains("\"brand\":\"visa\"")
         .contains("\"last4\":\"4242\"")
         .contains("\"exp_month\":12")
         .contains("\"exp_year\":2030")
         .contains("\"country\":null")
-        .contains("\"checks\":null");
+        .contains("\"display_brand\":null")
+        .contains("\"networks\":{\"available\":[\"visa\"],\"preferred\":null}")
+        .contains(
+            "\"checks\":{\"address_line1_check\":null,\"address_postal_code_check\":null,"
+                + "\"cvc_check\":null}")
+        .contains("\"regulated_status\":null")
+        .contains("\"three_d_secure_usage\":null")
+        .doesNotContain("fingerprint");
   }
 
   @Test
@@ -201,12 +214,123 @@ class StripePaymentMethodTest {
     StripeApiResponse retrieved =
         api(NOW)
             .retrievePaymentMethod(
-                get(method(FIRST_CARD), Map.of(RetrievePaymentMethod.EXPAND, "customer")),
-                FIRST_CARD);
+                get(method(FIRST_CARD), Map.of("expand[]", "customer")), FIRST_CARD);
 
     assertThat(bodyOf(retrieved))
         .contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"")
         .contains("\"object\":\"customer\"");
+  }
+
+  @Test
+  void
+      a_retrieve_that_numbers_its_expansions_by_index_is_answered_exactly_as_one_that_appends_them() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse appended =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(FIRST_CARD), Map.of("expand[]", List.of("customer"))), FIRST_CARD);
+    StripeApiResponse indexed =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(FIRST_CARD), Map.of("expand[0]", List.of("customer"))), FIRST_CARD);
+
+    assertThat(bodyOf(appended)).contains("\"customer\":{\"id\":\"" + A_CUSTOMER + "\"");
+    assertThat(indexed.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(indexed)).isEqualTo(bodyOf(appended));
+  }
+
+  @Test
+  void a_retrieve_that_also_asks_for_a_property_a_payment_method_does_not_have_is_refused() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(
+                    method(FIRST_CARD),
+                    Map.of(
+                        "expand[0]", List.of("payment_method"), "expand[1]", List.of("customer"))),
+                FIRST_CARD);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .isEqualTo(
+            "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"This property cannot be"
+                + " expanded because it doesn't exist: payment_method\"}}");
+  }
+
+  @Test
+  void a_retrieve_whose_expansion_list_is_empty_answers_the_customer_by_its_id() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse retrieved =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(FIRST_CARD), Map.of("expand", List.of(""))), FIRST_CARD);
+
+    assertThat(retrieved.httpStatus()).isEqualTo(200);
+    assertThat(bodyOf(retrieved)).contains("\"customer\":\"" + A_CUSTOMER + "\"");
+  }
+
+  @Test
+  void a_retrieve_whose_expansions_are_not_a_list_is_refused_naming_the_parameter() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    for (Map<String, List<String>> notAList :
+        List.of(
+            Map.of("expand", List.of("customer")),
+            Map.of("expand[0]", List.of("customer"), "expand[2]", List.of("payment_method")),
+            Map.of("expand[customer]", List.of("true")))) {
+      StripeApiResponse refused =
+          api(NOW).retrievePaymentMethod(querying(method(FIRST_CARD), notAList), FIRST_CARD);
+
+      assertThat(refused.httpStatus()).as(notAList.toString()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .as(notAList.toString())
+          .contains("\"type\":\"invalid_request_error\"")
+          .contains("\"param\":\"expand\"")
+          .contains(
+              "It accepts a list, sent as expand[]=... once per element or as expand[0]=...,"
+                  + " expand[1]=... numbered from 0 without a gap, and an empty expand= as a list of"
+                  + " no elements.")
+          .doesNotContain("\"code\"")
+          .doesNotContain(FIRST_CARD);
+    }
+  }
+
+  @Test
+  void
+      a_retrieve_of_a_method_this_run_holds_none_of_is_refused_on_its_expansions_before_the_lookup() {
+    accounts.with(stripeAccount(ACCOUNT, SECRET_KEY));
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(method(NO_METHOD_OF_THIS_RUN), Map.of("expand", List.of("customer"))),
+                NO_METHOD_OF_THIS_RUN);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"param\":\"expand\"").doesNotContain("resource_missing");
+  }
+
+  @Test
+  void a_retrieve_whose_query_sends_one_list_in_both_encodings_is_refused_before_it_is_read() {
+    anAccountHoldingTwoCardsOfOneCustomer();
+
+    StripeApiResponse refused =
+        api(NOW)
+            .retrievePaymentMethod(
+                querying(
+                    method(FIRST_CARD),
+                    Map.of("expand[]", List.of("customer"), "expand[0]", List.of("customer"))),
+                FIRST_CARD);
+
+    assertThat(refused.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(refused))
+        .contains("\"param\":\"expand\"")
+        .contains(StripeFormGrammar.ONE_PARAMETER_IN_TWO_SHAPES)
+        .doesNotContain(FIRST_CARD);
   }
 
   @Test
@@ -326,6 +450,7 @@ class StripePaymentMethodTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"code\":\"resource_missing\"");
+    assertThat(bodyOf(refused)).contains("No such PaymentMethod: 'pm_the_first_card';");
   }
 
   @Test
@@ -343,7 +468,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, FIRST_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        FIRST_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(refused.httpStatus()).isEqualTo(400);
@@ -367,6 +496,8 @@ class StripePaymentMethodTest {
                         "usd",
                         StripeFields.CONFIRM,
                         "true",
+                        StripeFields.RETURN_URL,
+                        "https://shop.example/checkout/return",
                         StripeFields.PAYMENT_METHOD,
                         FIRST_CARD)));
 
@@ -381,7 +512,9 @@ class StripePaymentMethodTest {
     String intentId =
         api(NOW)
             .createPaymentIntent(
-                post("/v1/payment_intents", Map.of("amount", "1000", "currency", "usd")))
+                post(
+                    "/v1/payment_intents",
+                    Map.of("amount", "1000", "currency", "usd", "customer", A_CUSTOMER)))
             .providerObjectId();
 
     StripeApiResponse confirmed =
@@ -389,7 +522,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, FIRST_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        FIRST_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(confirmed.httpStatus()).isEqualTo(200);
@@ -437,7 +574,11 @@ class StripePaymentMethodTest {
             .confirmPaymentIntent(
                 post(
                     "/v1/payment_intents/" + intentId + "/confirm",
-                    Map.of(StripeFields.PAYMENT_METHOD, SECOND_CARD)),
+                    Map.of(
+                        StripeFields.PAYMENT_METHOD,
+                        SECOND_CARD,
+                        StripeFields.RETURN_URL,
+                        StripePaymentIntentTest.A_RETURN_URL)),
                 intentId);
 
     assertThat(refused.httpStatus()).isEqualTo(400);
@@ -560,6 +701,10 @@ class StripePaymentMethodTest {
     return new StripeApiCall("GET", path, bearer(SECRET_KEY), Map.of(), fieldsOf(query));
   }
 
+  private static StripeApiCall querying(String path, Map<String, List<String>> query) {
+    return new StripeApiCall("GET", path, bearer(SECRET_KEY), Map.of(), query);
+  }
+
   private static StripeApiCall post(String path) {
     return new StripeApiCall("POST", path, bearer(SECRET_KEY), Map.of());
   }
@@ -579,6 +724,7 @@ class StripePaymentMethodTest {
   private StripeApi api(Instant now) {
     ScenarioEngine noScenarios = new ScenarioEngine(new InMemoryScenarioRules());
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -608,8 +754,11 @@ class StripePaymentMethodTest {
         new CreateRefund(intents, refunds, charges, ids, noScenarios),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

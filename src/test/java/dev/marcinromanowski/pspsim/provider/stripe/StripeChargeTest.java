@@ -16,6 +16,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -33,7 +34,7 @@ class StripeChargeTest {
   private static final String OTHER_ACCOUNT = "merchant-2";
   private static final String OTHER_SECRET_KEY = "sk_test_51Another";
   private static final String THREE_DAYS = "P3D";
-  private static final String CARD = "pm_card_visa";
+  private static final String CARD = "pm_card_uncatalogued";
 
   private static final String CREATE_PATH = "/v1/payment_intents";
   private static final String REFUNDS_PATH = "/v1/refunds";
@@ -44,11 +45,11 @@ class StripeChargeTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -233,10 +234,18 @@ class StripeChargeTest {
     StripeApi api = anAccount();
     declining(StripeOperations.CONFIRM, StripeDecline.GENERIC_DECLINE);
     api.createPaymentIntent(post(CREATE_PATH, unconfirmedHoldOf("1000")));
-    api.confirmPaymentIntent(post(intentPath(FIRST_INTENT) + "/confirm", Map.of()), FIRST_INTENT);
+    api.confirmPaymentIntent(
+        post(
+            intentPath(FIRST_INTENT) + "/confirm",
+            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL)),
+        FIRST_INTENT);
     String failed = theChargeOf(FIRST_INTENT);
     scenarioRules.clear(StripeApi.STRIPE, E2E_RUN);
-    api.confirmPaymentIntent(post(intentPath(FIRST_INTENT) + "/confirm", Map.of()), FIRST_INTENT);
+    api.confirmPaymentIntent(
+        post(
+            intentPath(FIRST_INTENT) + "/confirm",
+            Map.of("return_url", StripePaymentIntentTest.A_RETURN_URL, "payment_method", CARD)),
+        FIRST_INTENT);
     api.capturePaymentIntent(
         post(capturePath(FIRST_INTENT), Map.of("amount_to_capture", "1000")), FIRST_INTENT);
     api.createRefund(post(REFUNDS_PATH, Map.of("payment_intent", FIRST_INTENT, "amount", "400")));
@@ -480,6 +489,7 @@ class StripeChargeTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -509,8 +519,11 @@ class StripeChargeTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

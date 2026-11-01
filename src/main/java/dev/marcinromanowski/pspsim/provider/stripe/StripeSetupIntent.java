@@ -13,6 +13,7 @@ record StripeSetupIntent(
     @Nullable String customerId,
     @Nullable String paymentMethodId,
     StripeSetupUsage usage,
+    StripeSelection selection,
     StripeSetupStatus status,
     String clientSecret,
     @Nullable StripeDecline lastSetupError,
@@ -47,6 +48,23 @@ record StripeSetupIntent(
     return status.normalized();
   }
 
+  StripeSetupIntent selecting(StripeSelection reached) {
+    return new StripeSetupIntent(
+        testRunId,
+        setupIntentId,
+        accountId,
+        customerId,
+        paymentMethodId,
+        usage,
+        reached,
+        status,
+        clientSecret,
+        lastSetupError,
+        origin,
+        createdAt,
+        updatedAt);
+  }
+
   StripeSetupIntent succeededWith(String paymentMethod, Instant at) {
     return new StripeSetupIntent(
         testRunId,
@@ -55,6 +73,7 @@ record StripeSetupIntent(
         customerId,
         paymentMethod,
         usage,
+        selection,
         StripeSetupStatus.SUCCEEDED,
         clientSecret,
         null,
@@ -71,6 +90,7 @@ record StripeSetupIntent(
         customerId,
         paymentMethod,
         usage,
+        selection,
         StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
         clientSecret,
         decline,

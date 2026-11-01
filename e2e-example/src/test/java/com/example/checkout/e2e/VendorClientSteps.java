@@ -52,6 +52,13 @@ public final class VendorClientSteps {
                     .setCustomer(customer.getId())
                     .setPaymentMethod(shop.theCardTheShopperSaved())
                     .setUsage(SetupIntentCreateParams.Usage.OFF_SESSION)
+                    .setAutomaticPaymentMethods(
+                        SetupIntentCreateParams.AutomaticPaymentMethods.builder()
+                            .setEnabled(true)
+                            .setAllowRedirects(
+                                SetupIntentCreateParams.AutomaticPaymentMethods.AllowRedirects
+                                    .NEVER)
+                            .build())
                     .build());
     assertThat(created.getStatus()).isEqualTo("requires_confirmation");
     setup = shop.vendorClient().v1().setupIntents().confirm(created.getId());

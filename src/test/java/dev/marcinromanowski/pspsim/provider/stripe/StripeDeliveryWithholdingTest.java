@@ -51,7 +51,13 @@ class StripeDeliveryWithholdingTest {
     for (StripeJson dataObject : dataObjects) {
       for (StripeEventType reporting : StripeEventType.values()) {
         Map<String, List<String>> flattened =
-            StripeEvent.of("evt_sim_0000000000000001", reporting, dataObject, NOW).flatten();
+            StripeEvent.of(
+                    "evt_sim_0000000000000001",
+                    reporting,
+                    dataObject,
+                    NOW,
+                    StripeApiVersions.newest())
+                .flatten();
         Map<String, List<String>> theRowATesterReads =
             Redaction.redact(flattened, StripeFields.SENSITIVE_DELIVERY_FIELDS);
         bodiesRead++;
@@ -209,6 +215,7 @@ class StripeDeliveryWithholdingTest {
         filled ? "pm_card_visa" : null,
         filled ? "cus_sim_1" : null,
         filled ? "payer@example.test" : null,
+        StripeDoubles.DYNAMIC_SELECTION,
         THE_CLIENT_SECRET,
         filled ? "ch_sim_0000000000000001" : null,
         lastPaymentError,

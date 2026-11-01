@@ -23,6 +23,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ProviderFixtureRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderPaymentMethodFields;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -68,11 +69,11 @@ class StripeEphemeralKeyTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -164,7 +165,7 @@ class StripeEphemeralKeyTest {
     assertThat(bodyOf(response))
         .contains("\"code\":\"resource_missing\"")
         .contains("\"param\":\"customer\"")
-        .doesNotContain(NO_CUSTOMER_OF_THIS_RUN);
+        .contains("No such customer: '" + NO_CUSTOMER_OF_THIS_RUN + "'");
     assertThat(ephemeralKeys.all()).isEmpty();
   }
 
@@ -202,7 +203,7 @@ class StripeEphemeralKeyTest {
     assertThat(bodyOf(response))
         .contains("\"code\":\"parameter_missing\"")
         .contains("\"param\":\"customer\"")
-        .contains("issuing_card, nonce and verification_session");
+        .contains("Missing required param: customer.");
     assertThat(ephemeralKeys.all()).isEmpty();
   }
 
@@ -294,6 +295,31 @@ class StripeEphemeralKeyTest {
 
     assertThat(response.httpStatus()).isEqualTo(200);
     assertThat(bodyOf(response)).contains("\"object\":\"list\"");
+  }
+
+  @Test
+  void a_short_lived_key_reading_with_a_query_that_cannot_be_decoded_is_refused_by_its_encoding() {
+    accounts.with(stripeAccount(ACCOUNT, SECRET_KEY));
+    api(NOW).createCustomer(post(CUSTOMERS_PATH, withEmail(AN_EMAIL)));
+    api(NOW).createEphemeralKey(mintFor(FIRST_CUSTOMER));
+    StripeApiCall reading = readingAs(theOnlyKey().secret(), FIRST_CUSTOMER);
+
+    StripeApiResponse response =
+        api(A_MINUTE_BEFORE_THE_HOUR)
+            .retrieveCustomer(
+                new StripeApiCall(
+                    reading.method(),
+                    reading.path(),
+                    reading.headers(),
+                    Map.of(),
+                    Map.of("expand[]", List.of("a"), "expand[0]", List.of("b"))),
+                FIRST_CUSTOMER);
+
+    assertThat(response.httpStatus()).isEqualTo(400);
+    assertThat(bodyOf(response))
+        .contains("\"param\":\"expand\"")
+        .contains(StripeFormGrammar.ONE_PARAMETER_IN_TWO_SHAPES)
+        .doesNotContain(AN_EMAIL);
   }
 
   @Test
@@ -601,6 +627,7 @@ class StripeEphemeralKeyTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOW),
             ids),
@@ -614,13 +641,14 @@ class StripeEphemeralKeyTest {
             ids,
             scenarioEngine,
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private StripeApi api(Instant now) {
     ScenarioEngine noScenarios = new ScenarioEngine(new InMemoryScenarioRules());
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -650,7 +678,10 @@ class StripeEphemeralKeyTest {
         new CreateRefund(intents, refunds, charges, ids, noScenarios),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, noScenarios));
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, noScenarios));
   }
 }

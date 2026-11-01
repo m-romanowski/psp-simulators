@@ -21,11 +21,16 @@ final class UpdateCustomer {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CUSTOMER),
-          StripeErrors.resourceMissing(StripeFields.CUSTOMER));
+          StripeErrors.noSuchCustomer(customerId));
     }
     StripeCustomer customer = addressed.get();
     if (customer.deleted()) {
       return StripeCustomerLookup.refusedBecauseItIsDeleted(customer);
+    }
+    StripeError unstoreable = StripeStoredParameters.refusalOf(form, StripeFields.EMAIL);
+    if (unstoreable != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), unstoreable);
     }
     String email = emailAfter(form, customer);
     return StripeCustomerLookup.answeredFor(

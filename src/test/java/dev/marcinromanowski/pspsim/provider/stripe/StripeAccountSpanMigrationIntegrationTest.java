@@ -33,6 +33,9 @@ class StripeAccountSpanMigrationIntegrationTest extends PostgresBackedTest {
   private static final MigrationVersion BEFORE_THE_COLUMNS_AGREED =
       MigrationVersion.fromVersion("78");
 
+  private static final MigrationVersion WHEN_A_WINDOW_WAS_ONE_A_HOLD_CAN_OUTLIVE =
+      MigrationVersion.fromVersion("80");
+
   private static final String THE_VENDORS_PUBLISHED_WEEK = "PT168H";
 
   private static final String NO_AGE_AT_ALL = "PT0S";
@@ -47,7 +50,7 @@ class StripeAccountSpanMigrationIntegrationTest extends PostgresBackedTest {
     jdbc.execute("drop schema if exists " + SCHEMA + " cascade");
     flyway(BEFORE_THE_COLUMNS_AGREED).migrate();
     everyShapeTheOldColumnsCouldHold().forEach((account, span) -> insert(account, span, span));
-    flyway(MigrationVersion.LATEST).migrate();
+    flyway(WHEN_A_WINDOW_WAS_ONE_A_HOLD_CAN_OUTLIVE).migrate();
   }
 
   private static Map<String, String> everyShapeTheOldColumnsCouldHold() {

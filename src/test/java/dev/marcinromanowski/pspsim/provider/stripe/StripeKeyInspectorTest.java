@@ -20,6 +20,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.spi.KeyClaim;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -59,11 +60,11 @@ class StripeKeyInspectorTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -447,6 +448,7 @@ class StripeKeyInspectorTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOON),
             ids),
@@ -460,8 +462,8 @@ class StripeKeyInspectorTest {
             ids,
             scenarioEngine,
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private static StripeAccount anAccount() {
@@ -470,6 +472,7 @@ class StripeKeyInspectorTest {
 
   private StripeApi api(Instant now) {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -499,8 +502,11 @@ class StripeKeyInspectorTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private static Map<String, String> hold(String amount) {
@@ -510,6 +516,7 @@ class StripeKeyInspectorTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 
@@ -542,7 +549,12 @@ class StripeKeyInspectorTest {
         "POST",
         CREATE_PATH + "/" + FIRST_INTENT + "/confirm",
         headers(key),
-        fields(Map.of(StripeFields.PAYMENT_METHOD, CARD)));
+        fields(
+            Map.of(
+                StripeFields.PAYMENT_METHOD,
+                CARD,
+                StripeFields.RETURN_URL,
+                StripePaymentIntentTest.A_RETURN_URL)));
   }
 
   private static StripeApiCall aSetupIntentCall() {
@@ -555,7 +567,10 @@ class StripeKeyInspectorTest {
 
   private static StripeApiCall setupConfirmation(String key) {
     return new StripeApiCall(
-        "POST", SETUP_PATH + "/" + FIRST_SETUP + "/confirm", headers(key), Map.of());
+        "POST",
+        SETUP_PATH + "/" + FIRST_SETUP + "/confirm",
+        headers(key),
+        fields(Map.of(StripeFields.RETURN_URL, StripePaymentIntentTest.A_RETURN_URL)));
   }
 
   private static StripeCustomer aCustomer() {

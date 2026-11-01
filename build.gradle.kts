@@ -59,6 +59,22 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation(libs.archunit.junit5)
+    testImplementation(libs.stripe.java)
+    testCompileOnly("com.google.code.gson:gson")
 
     pitest(libs.pitest.junit5)
+}
+
+tasks.register<JavaExec>("stripeSpecSnapshot") {
+    group = "verification"
+    description = "Trims a pinned Stripe OpenAPI response spec into deterministic test data."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "dev.marcinromanowski.pspsim.provider.stripe.StripeSpecSnapshot"
+    args(
+        providers.gradleProperty("stripeSpecInput").getOrElse(""),
+        providers.gradleProperty("stripeSpecOutput").getOrElse(""),
+        providers.gradleProperty("stripeSpecVersion").getOrElse(""),
+        providers.gradleProperty("stripeSpecCommit").getOrElse(""),
+        providers.gradleProperty("stripeSpecSource").getOrElse(""),
+    )
 }

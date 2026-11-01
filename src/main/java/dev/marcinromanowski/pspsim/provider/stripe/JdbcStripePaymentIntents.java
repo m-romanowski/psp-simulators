@@ -31,9 +31,11 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final JdbcStripePaymentMethods methods;
 
   JdbcStripePaymentIntents(JdbcClient jdbc, TransactionTemplate transactions) {
     this.jdbc = jdbc;
+    this.methods = new JdbcStripePaymentMethods(jdbc);
     this.transactions = transactions;
   }
 
@@ -59,35 +61,37 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
   private boolean insertInOneTransaction(
       StripePaymentIntent intent, @Nullable StripeCharge charge) {
     int inserted =
-        jdbc.sql(
-                """
-                insert into stripe_payment_intent
-                    (test_run_id, intent_id, account_id, amount, currency, capture_method, status,
-                     payment_method, customer, receipt_email, client_secret, last_payment_error,
-                     cancellation_reason, capture_expires_at, settles_at, settles_with, origin,
-                     created_at, updated_at)
-                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                on conflict (test_run_id, intent_id) do nothing
-                """)
-            .param(intent.testRunId().value())
-            .param(intent.intentId())
-            .param(intent.accountId())
-            .param(intent.amount().value())
-            .param(intent.currency())
-            .param(intent.captureMethod().wireValue())
-            .param(intent.status().wireValue())
-            .param(intent.paymentMethod())
-            .param(intent.customer())
-            .param(intent.receiptEmail())
-            .param(intent.clientSecret())
-            .param(scenarioCodeOf(intent.lastPaymentError()))
-            .param(wireValueOf(intent.cancellationReason()))
-            .param(intent.captureExpiresAt().atOffset(ZoneOffset.UTC))
-            .param(atUtc(intent.settlesAt()))
-            .param(scenarioCodeOf(intent.settlesWith()))
-            .param(intent.origin().name())
-            .param(intent.createdAt().atOffset(ZoneOffset.UTC))
-            .param(intent.updatedAt().atOffset(ZoneOffset.UTC))
+        StripeSelectionColumns.bound(
+                jdbc.sql(
+                        "insert into stripe_payment_intent (test_run_id, intent_id, account_id,"
+                            + " amount, currency, capture_method, status, payment_method,"
+                            + " customer, receipt_email, client_secret, last_payment_error,"
+                            + " cancellation_reason, capture_expires_at, settles_at,"
+                            + " settles_with, origin, created_at, updated_at, "
+                            + StripeSelectionColumns.NAMES
+                            + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                            + StripeSelectionColumns.PLACEHOLDERS
+                            + ") on conflict (test_run_id, intent_id) do nothing")
+                    .param(intent.testRunId().value())
+                    .param(intent.intentId())
+                    .param(intent.accountId())
+                    .param(intent.amount().value())
+                    .param(intent.currency())
+                    .param(intent.captureMethod().wireValue())
+                    .param(intent.status().wireValue())
+                    .param(intent.paymentMethod())
+                    .param(intent.customer())
+                    .param(intent.receiptEmail())
+                    .param(intent.clientSecret())
+                    .param(scenarioCodeOf(intent.lastPaymentError()))
+                    .param(wireValueOf(intent.cancellationReason()))
+                    .param(intent.captureExpiresAt().atOffset(ZoneOffset.UTC))
+                    .param(atUtc(intent.settlesAt()))
+                    .param(scenarioCodeOf(intent.settlesWith()))
+                    .param(intent.origin().name())
+                    .param(intent.createdAt().atOffset(ZoneOffset.UTC))
+                    .param(intent.updatedAt().atOffset(ZoneOffset.UTC)),
+                intent.selection())
             .update();
     if (inserted != 1) {
       return false;
@@ -107,8 +111,8 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
             """
             insert into stripe_charge
                 (test_run_id, charge_id, intent_id, account_id, amount, currency, payment_method,
-                 status, created_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 status, created_at, failure_code)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """)
         .param(charge.testRunId().value())
         .param(charge.chargeId())
@@ -119,6 +123,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
         .param(charge.paymentMethod())
         .param(charge.status().wireValue())
         .param(charge.createdAt().atOffset(ZoneOffset.UTC))
+        .param(scenarioCodeOf(charge.failure()))
         .update();
   }
 
@@ -235,27 +240,29 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       String paymentMethod,
       MonetaryOperation operation,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
         () -> {
           int moved =
-              jdbc.sql(
-                      """
-                      update stripe_payment_intent
-                      set status = ?, payment_method = ?, last_payment_error = null
-                      where test_run_id = ? and intent_id = ? and status = ?
-                      """)
-                  .params(
-                      reached.wireValue(),
-                      paymentMethod,
-                      intent.testRunId().value(),
-                      intent.intentId(),
-                      intent.status().wireValue())
+              StripeSelectionColumns.bound(
+                      jdbc.sql(
+                              "update stripe_payment_intent set status = ?, payment_method = ?,"
+                                  + " last_payment_error = null, "
+                                  + StripeSelectionColumns.ASSIGNMENTS
+                                  + " where test_run_id = ? and intent_id = ? and status = ?")
+                          .param(reached.wireValue())
+                          .param(paymentMethod),
+                      intent.selection())
+                  .param(intent.testRunId().value())
+                  .param(intent.intentId())
+                  .param(intent.status().wireValue())
                   .update();
           if (moved != 1) {
             return moved;
           }
+          StripePaymentMethodMinting.storedIn(methods, minted);
           insert(charge);
           return insert(intent, operation);
         },
@@ -268,25 +275,27 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       StripeDecline decline,
       @Nullable String paymentMethod,
       StripeCharge charge,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
         () -> {
           int moved =
-              jdbc.sql(
-                      """
-                      update stripe_payment_intent
-                      set status = ?, payment_method = ?, last_payment_error = ?
-                      where test_run_id = ? and intent_id = ? and status = ?
-                      """)
-                  .param(StripeIntentStatus.REQUIRES_PAYMENT_METHOD.wireValue())
-                  .param(paymentMethod)
-                  .param(decline.scenarioCode())
+              StripeSelectionColumns.bound(
+                      jdbc.sql(
+                              "update stripe_payment_intent set status = ?, payment_method = ?,"
+                                  + " last_payment_error = ?, "
+                                  + StripeSelectionColumns.ASSIGNMENTS
+                                  + " where test_run_id = ? and intent_id = ? and status = ?")
+                          .param(StripeIntentStatus.REQUIRES_PAYMENT_METHOD.wireValue())
+                          .param(paymentMethod)
+                          .param(decline.scenarioCode()),
+                      intent.selection())
                   .param(intent.testRunId().value())
                   .param(intent.intentId())
                   .param(intent.status().wireValue())
                   .update();
-          return moved == 1 ? insert(charge) : moved;
+          return moved == 1 ? insertedWith(charge, minted) : moved;
         },
         at);
   }
@@ -297,26 +306,35 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
       String paymentMethod,
       Instant settlesAt,
       @Nullable StripeDecline settlesWith,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
     return claim(
         intent,
-        () ->
-            jdbc.sql(
-                    """
-                    update stripe_payment_intent
-                    set status = ?, payment_method = ?, last_payment_error = null,
-                        settles_at = ?, settles_with = ?
-                    where test_run_id = ? and intent_id = ? and status = ?
-                    """)
-                .param(StripeIntentStatus.PROCESSING.wireValue())
-                .param(paymentMethod)
-                .param(settlesAt.atOffset(ZoneOffset.UTC))
-                .param(scenarioCodeOf(settlesWith))
-                .param(intent.testRunId().value())
-                .param(intent.intentId())
-                .param(intent.status().wireValue())
-                .update(),
+        () -> {
+          int moved =
+              StripeSelectionColumns.bound(
+                      jdbc.sql(
+                              "update stripe_payment_intent set status = ?, payment_method = ?,"
+                                  + " last_payment_error = null, settles_at = ?, settles_with = ?, "
+                                  + StripeSelectionColumns.ASSIGNMENTS
+                                  + " where test_run_id = ? and intent_id = ? and status = ?")
+                          .param(StripeIntentStatus.PROCESSING.wireValue())
+                          .param(paymentMethod)
+                          .param(settlesAt.atOffset(ZoneOffset.UTC))
+                          .param(scenarioCodeOf(settlesWith)),
+                      intent.selection())
+                  .param(intent.testRunId().value())
+                  .param(intent.intentId())
+                  .param(intent.status().wireValue())
+                  .update();
+          return StripePaymentMethodMinting.storedAfterAMove(moved, methods, minted);
+        },
         at);
+  }
+
+  private int insertedWith(StripeCharge charge, @Nullable StripePaymentMethod minted) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
+    return insert(charge);
   }
 
   @Override
@@ -475,6 +493,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
         intent.paymentMethod(),
         intent.customer(),
         intent.receiptEmail(),
+        intent.selection(),
         intent.clientSecret(),
         latestCharge,
         intent.lastPaymentError(),
@@ -500,6 +519,7 @@ final class JdbcStripePaymentIntents implements StripePaymentIntents {
         rs.getString("payment_method"),
         rs.getString("customer"),
         rs.getString("receipt_email"),
+        StripeSelectionColumns.read(rs),
         rs.getString("client_secret"),
         null,
         declineOf(rs.getString("last_payment_error")),

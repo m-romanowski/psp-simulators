@@ -23,8 +23,10 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.web.client.RestClient;
 
 class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
@@ -37,6 +39,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
   private static final String THREE_DAYS = "P3D";
 
   private static final String SETUP_INTENTS = "/v1/setup_intents";
+
+  private static final String A_RETURN_URL = "https://shop.example/checkout/return";
   private static final String PAYMENT_INTENTS = "/v1/payment_intents";
   private static final String PAYMENT_METHODS = "/v1/payment_methods";
   private static final String CUSTOMERS = "/v1/customers";
@@ -48,6 +52,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
   private static final String ANOTHER_CUSTOMERS_CARD = "pm_belonging_elsewhere";
 
   @LocalServerPort private int port;
+
+  @Autowired private JdbcClient jdbc;
 
   private RestClient http;
   private final HttpClient wire =
@@ -86,7 +92,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
             SETUP_INTENTS,
             Map.of("customer", THE_CUSTOMER, "payment_method", THE_CARD, "usage", "off_session"));
     String setup = idIn(bodyOf(created));
-    HttpResponse<byte[]> confirmed = post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of());
+    HttpResponse<byte[]> confirmed =
+        post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of("return_url", A_RETURN_URL));
     HttpResponse<byte[]> listed = get(CUSTOMERS + "/" + THE_CUSTOMER + "/payment_methods");
     HttpResponse<byte[]> charged =
         post(
@@ -157,7 +164,7 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
         .contains("Set a card up for a later charge and confirm it now")
         .contains("Set a card up for a later charge and leave the setup waiting");
     assertThat(whatItSays)
-        .contains("serves no publishable-key surface")
+        .contains("beside the publishable key of the account to read and confirm an intent")
         .contains("the payment method to set up")
         .doesNotContain(StripeClientSecret.INFIX);
   }
@@ -173,7 +180,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
                 post(
                     SETUP_INTENTS,
                     Map.of("customer", THE_CUSTOMER, "payment_method", ANOTHER_CUSTOMERS_CARD))));
-    HttpResponse<byte[]> refused = post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of());
+    HttpResponse<byte[]> refused =
+        post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of("return_url", A_RETURN_URL));
     HttpResponse<byte[]> stillTheirs = get(PAYMENT_METHODS + "/" + ANOTHER_CUSTOMERS_CARD);
 
     assertThat(refused.statusCode()).isEqualTo(400);
@@ -194,7 +202,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
                 post(
                     SETUP_INTENTS,
                     Map.of("customer", ANOTHER_CUSTOMER, "payment_method", THE_CARD))));
-    HttpResponse<byte[]> refused = post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of());
+    HttpResponse<byte[]> refused =
+        post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of("return_url", A_RETURN_URL));
 
     assertThat(refused.statusCode()).isEqualTo(400);
     assertThat(bodyOf(refused)).contains("permanent and irreversible");
@@ -210,12 +219,16 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
     String setup = idIn(bodyOf(post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER))));
     HttpResponse<byte[]> noSuchCard =
         post(
-            SETUP_INTENTS + "/" + setup + "/confirm", Map.of("payment_method", "pm_nobody_seeded"));
+            SETUP_INTENTS + "/" + setup + "/confirm",
+            Map.of("payment_method", "pm_nobody_seeded", "return_url", A_RETURN_URL));
 
     assertThat(noSuchSetup.statusCode()).isEqualTo(404);
     assertThat(bodyOf(noSuchSetup)).contains("\"param\":\"intent\"");
-    assertThat(noSuchCard.statusCode()).isEqualTo(404);
-    assertThat(bodyOf(noSuchCard)).contains("\"param\":\"payment_method\"");
+    assertThat(noSuchCard.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(noSuchCard))
+        .contains("\"code\":\"resource_missing\"")
+        .contains("\"param\":\"payment_method\"")
+        .contains("No such PaymentMethod: 'pm_nobody_seeded'");
   }
 
   @Test
@@ -228,7 +241,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
         idIn(
             bodyOf(
                 post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER, "payment_method", THE_CARD))));
-    HttpResponse<byte[]> declined = post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of());
+    HttpResponse<byte[]> declined =
+        post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of("return_url", A_RETURN_URL));
 
     assertThat(declined.statusCode()).isEqualTo(402);
     assertThat(bodyOf(declined))
@@ -239,12 +253,13 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
   }
 
   @Test
-  void payment_method_types_is_refused_on_create_and_answered_on_the_object_it_never_set() {
+  void payment_method_types_is_refused_at_the_account_default_and_answered_as_the_computed_list() {
     HttpResponse<byte[]> refused =
         post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER, "payment_method_types[]", "card"));
     HttpResponse<byte[]> created = post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER));
 
     assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"code\":\"payment_method_types_no_longer_supported\"");
     assertThat(bodyOf(created)).contains("\"payment_method_types\":[\"card\",\"paypal\"]");
   }
 
@@ -276,6 +291,85 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
     assertThat(bodyOf(replay)).isEqualTo(bodyOf(first));
     assertThat(idsIn(bodyOf(get(CUSTOMERS + "/" + THE_CUSTOMER + "/payment_methods"))))
         .containsExactlyInAnyOrder(THE_CARD, A_CARD_THEY_ALREADY_HAD);
+  }
+
+  @Test
+  void a_setup_confirm_that_succeeds_stores_the_selection_it_sent_with_the_success() {
+    aCustomerThisAccountHolds();
+    seedFromTheScreen("to-save", THE_CARD, null);
+    String setup = aDynamicSetupOf(THE_CARD);
+
+    HttpResponse<byte[]> confirmed =
+        post(
+            SETUP_INTENTS + "/" + setup + "/confirm",
+            Map.of("allowed_payment_method_types[]", "card"));
+
+    assertThat(confirmed.statusCode()).isEqualTo(200);
+    assertThat(theStoredSetup(setup)).isEqualTo("SUCCEEDED|null|{card}|null|{card}");
+  }
+
+  @Test
+  void a_setup_confirm_a_scenario_declines_stores_the_selection_it_sent_with_the_decline() {
+    aCustomerThisAccountHolds();
+    seedFromTheScreen("to-save", THE_CARD, null);
+    aRuleDeclining(StripeDecline.EXPIRED_CARD);
+    String setup = aDynamicSetupOf(THE_CARD);
+
+    HttpResponse<byte[]> declined =
+        post(
+            SETUP_INTENTS + "/" + setup + "/confirm",
+            Map.of("allowed_payment_method_types[]", "card"));
+
+    assertThat(declined.statusCode()).isEqualTo(402);
+    assertThat(theStoredSetup(setup)).isEqualTo("REQUIRES_PAYMENT_METHOD|null|{card}|null|{card}");
+  }
+
+  @Test
+  void a_setup_confirm_refused_after_its_selection_was_computed_leaves_the_stored_row_untouched() {
+    aCustomerThisAccountHolds();
+    seedFromTheScreen("to-save", THE_CARD, null);
+    String setup = aDynamicSetupOf(THE_CARD);
+    String before = theWholeStoredRowOf(setup);
+
+    HttpResponse<byte[]> refused =
+        post(
+            SETUP_INTENTS + "/" + setup + "/confirm",
+            Map.of("allowed_payment_method_types[]", "card", "payment_method", "pm_nobody_seeded"));
+
+    assertThat(refused.statusCode()).isEqualTo(400);
+    assertThat(bodyOf(refused)).contains("\"param\":\"payment_method\"");
+    assertThat(theWholeStoredRowOf(setup)).isEqualTo(before);
+    assertThat(theStoredSetup(setup))
+        .isEqualTo("REQUIRES_CONFIRMATION|true|null|null|{card,paypal}");
+  }
+
+  private String aDynamicSetupOf(String paymentMethod) {
+    HttpResponse<byte[]> created =
+        post(SETUP_INTENTS, Map.of("customer", THE_CUSTOMER, "payment_method", paymentMethod));
+    assertThat(created.statusCode()).isEqualTo(200);
+    return idIn(bodyOf(created));
+  }
+
+  private String theStoredSetup(String setupIntentId) {
+    return jdbc.sql(
+            "select concat_ws('|', status,"
+                + " coalesce(automatic_payment_methods_enabled::text, 'null'),"
+                + " coalesce(allowed_payment_method_types::text, 'null'),"
+                + " coalesce(excluded_payment_method_types::text, 'null'),"
+                + " payment_method_types::text)"
+                + " from stripe_setup_intent where test_run_id = ? and setup_intent_id = ?")
+        .params(RUN.value(), setupIntentId)
+        .query(String.class)
+        .single();
+  }
+
+  private String theWholeStoredRowOf(String setupIntentId) {
+    return jdbc.sql(
+            "select row_to_json(setup)::text from stripe_setup_intent setup"
+                + " where test_run_id = ? and setup_intent_id = ?")
+        .params(RUN.value(), setupIntentId)
+        .query(String.class)
+        .single();
   }
 
   private void aRuleDeclining(StripeDecline decline) {
@@ -310,7 +404,8 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
                 post(
                     SETUP_INTENTS,
                     Map.of("customer", "cus_nobody_created", "payment_method", THE_CARD))));
-    HttpResponse<byte[]> refused = post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of());
+    HttpResponse<byte[]> refused =
+        post(SETUP_INTENTS + "/" + setup + "/confirm", Map.of("return_url", A_RETURN_URL));
 
     assertThat(refused.statusCode()).isEqualTo(404);
     assertThat(bodyOf(refused))
@@ -478,7 +573,7 @@ class StripeSetupIntentIntegrationTest extends PostgresBackedTest {
             .header("Authorization", "Bearer " + SECRET_KEY)
             .header("Idempotency-Key", idempotencyKey)
             .timeout(Duration.ofSeconds(20))
-            .POST(HttpRequest.BodyPublishers.ofString(""))
+            .POST(HttpRequest.BodyPublishers.ofString("return_url=" + A_RETURN_URL))
             .build());
   }
 

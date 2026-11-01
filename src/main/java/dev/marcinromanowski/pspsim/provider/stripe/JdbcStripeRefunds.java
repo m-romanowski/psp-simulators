@@ -147,6 +147,19 @@ final class JdbcStripeRefunds implements StripeRefunds {
   }
 
   @Override
+  public List<StripeRefund> ofTheCharge(TestRunId testRunId, String accountId, String chargeId) {
+    return jdbc.sql(
+            """
+            select * from stripe_refund
+            where test_run_id = ? and account_id = ? and charge_id = ?
+            order by arrival desc
+            """)
+        .params(testRunId.value(), accountId, chargeId)
+        .query(JdbcStripeRefunds::toRefund)
+        .list();
+  }
+
+  @Override
   public Optional<ProviderObjectCursor> placeOf(TestRunId testRunId, String refundId) {
     return jdbc.sql("select arrival from stripe_refund where test_run_id = ? and refund_id = ?")
         .params(testRunId.value(), refundId)

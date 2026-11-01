@@ -18,6 +18,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectState;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,11 +45,11 @@ class StripeRefundTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -323,7 +324,7 @@ class StripeRefundTest {
 
     assertThat(bodyOf(awaiting))
         .contains("\"status\":\"requires_action\"")
-        .contains("\"next_action\":null");
+        .doesNotContain("\"next_action\"");
     assertThat(theIntent().normalizedStatusAt(NOW)).isEqualTo(NormalizedStatus.SUCCEEDED);
     assertThat(stateOf(awaiting.providerObjectId()).normalizedStatus())
         .isEqualTo(NormalizedStatus.PROCESSING);
@@ -419,6 +420,7 @@ class StripeRefundTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"param\":\"payment_intent\"");
+    assertThat(bodyOf(refused)).contains("No such payment_intent: 'pi_sim_0000000000000001'");
   }
 
   private void decliningARefundOf(String amount) {
@@ -481,6 +483,7 @@ class StripeRefundTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOW),
             ids),
@@ -494,8 +497,8 @@ class StripeRefundTest {
             ids,
             scenarioEngine,
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private StripeApi aPaymentCapturedInFullOf(String amount) {
@@ -546,6 +549,7 @@ class StripeRefundTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -575,9 +579,12 @@ class StripeRefundTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static String theIdAtDraw(int draw) {

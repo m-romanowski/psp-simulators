@@ -12,6 +12,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.ProviderOutcome;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,11 +43,11 @@ class StripeCustomerTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -262,6 +263,7 @@ class StripeCustomerTest {
 
     assertThat(refused.httpStatus()).isEqualTo(404);
     assertThat(bodyOf(refused)).contains("\"code\":\"resource_missing\"");
+    assertThat(bodyOf(refused)).contains("No such customer: 'cus_sim_0000000000000001'");
   }
 
   @Test
@@ -374,6 +376,7 @@ class StripeCustomerTest {
   private StripeApi api(Instant now) {
     ScenarioEngine noScenarios = new ScenarioEngine(new InMemoryScenarioRules());
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -403,8 +406,11 @@ class StripeCustomerTest {
         new CreateRefund(intents, refunds, charges, ids, noScenarios),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 }

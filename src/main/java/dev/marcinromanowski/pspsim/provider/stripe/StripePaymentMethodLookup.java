@@ -1,8 +1,8 @@
 package dev.marcinromanowski.pspsim.provider.stripe;
 
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import java.util.List;
 import java.util.Optional;
-import org.jspecify.annotations.Nullable;
 
 final class StripePaymentMethodLookup {
 
@@ -17,7 +17,31 @@ final class StripePaymentMethodLookup {
           + " not been saved to a Customer, and a method in that state has never been attached"
           + " rather than having been detached.";
 
+  static final List<String> THE_STEMS_OF_THE_PUBLISHED_TEST_METHODS =
+      List.of("pm_card_", "pm_usBankAccount_", "pm_sepaDebit_");
+
+  static final String A_METHOD_OF_ANOTHER_CUSTOMER_PAYS_FOR_NO_INTENT =
+      "Payment methods attached to other Customers cannot be used with this PaymentIntent. This"
+          + " PaymentMethod is attached to a Customer other than the one this PaymentIntent names,"
+          + " and provider stripe publishes that a PaymentMethod attached to a Customer must match"
+          + " the customer set on the PaymentIntent.";
+
+  static final String A_METHOD_OF_A_CUSTOMER_PAYS_FOR_NO_INTENT_WITHOUT_ONE =
+      "Payment methods attached to other Customers cannot be used with this PaymentIntent. This"
+          + " PaymentMethod is attached to a Customer and this PaymentIntent names none, and"
+          + " provider stripe publishes that a PaymentMethod attached to a Customer must match the"
+          + " customer set on the PaymentIntent.";
+
   private StripePaymentMethodLookup() {}
+
+  static boolean aPublishedTestMethod(String paymentMethodId) {
+    for (String stem : THE_STEMS_OF_THE_PUBLISHED_TEST_METHODS) {
+      if (paymentMethodId.startsWith(stem)) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   static Optional<StripePaymentMethod> of(
       StripePaymentMethods methods,
@@ -27,21 +51,5 @@ final class StripePaymentMethodLookup {
     return methods
         .find(testRunId, paymentMethodId)
         .filter(method -> method.accountId().equals(account.accountId()));
-  }
-
-  static @Nullable StripeError theRefusalADetachedMethodEarns(
-      StripePaymentMethods methods,
-      TestRunId testRunId,
-      StripeAccount account,
-      @Nullable String paymentMethodId) {
-    if (paymentMethodId == null) {
-      return null;
-    }
-    return of(methods, testRunId, account, paymentMethodId)
-        .filter(StripePaymentMethod::detached)
-        .map(
-            detached ->
-                StripeErrors.paymentMethodRefused(A_DETACHED_METHOD_IS_REFUSED_RATHER_THAN_IGNORED))
-        .orElse(null);
   }
 }

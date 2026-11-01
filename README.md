@@ -33,7 +33,7 @@ answers its readiness probe. Then open:
 | the tester UI          | [http://localhost:8080/ui](http://localhost:8080/ui)                                 |
 | every route, generated | [http://localhost:8080/openapi/index.html](http://localhost:8080/openapi/index.html) |
 
-The first run takes a few minutes, because it downloads the build image and resolves the Gradle dependencies;
+The first run takes a few minutes, because it downloads the build image and resolves the Gradle dependencies,
 starting again once built takes seconds. Both containers are published on `127.0.0.1` only, because the simulator
 holds provider credentials and unredacted fixtures.
 
@@ -57,7 +57,7 @@ A first payment is [`doc/quickstart.md`](doc/quickstart.md). To work on the simu
 |------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
 | Grow / Meshulam  | the hosted payment process and its payer page, the stored-card charge, settlement, refund, the callback handshake and resend, and three reconciliation lookups            | [`doc/grow.md`](doc/grow.md)           |
 | Azericard        | the gateway form post: authorization, pre-authorization, sales completion, both reversals, the status inquiry and card storage, signed both ways                          | [`doc/azericard.md`](doc/azericard.md) |
-| Stripe           | PaymentIntents, Charges, Refunds, Customers, PaymentMethods, SetupIntents and ephemeral keys, with Stripe's idempotency and signed webhooks                               | [`doc/stripe.md`](doc/stripe.md)       |
+| Stripe           | [Supported variants](doc/stripe.md#supported-variants), [generic flow](doc/stripe.md#generic-flow)                                                                             | [`doc/stripe.md`](doc/stripe.md)       |
 | Autra            | the OAuth token, the acquiring session, the pre-authorization with capture and void, Pix checkout, and the hosted card session with the direct sale                       | [`doc/autra.md`](doc/autra.md)         |
 | Worldline Direct | hosted tokenization, the pre-authorization hold with capture and cancel, the charge of a stored token, and HMAC signing                                                   | [`doc/worldline.md`](doc/worldline.md) |
 | Tranzila         | the card transaction API (debit, J2/J5 verification, force, reversal, credit, cancel, 3-D Secure), Handshake V2, the DirectNG payment page, Hosted Fields and two lookups | [`doc/tranzila.md`](doc/tranzila.md)   |
@@ -69,8 +69,8 @@ Each provider file records what the vendor publishes, what it does not, and wher
 
 - **Outcomes are chosen.** A scenario rule matches on account, order, instrument, amount, currency, operation or a
   request header such as `X-Simulator-Scenario`, and answers with a success, a decline in the provider's vocabulary, a
-  transport fault before or after the operation, a processing state that settles later, or a lost response. No card
-  number decides anything.
+  transport fault before or after the operation, a processing state that settles later, or a lost response.
+  Stripe: [test-card outcomes](doc/stripe.md#test-data).
 - **Every run is isolated.** State, fixtures, rules, clock and audit belong to a `testRunId`. A provider request is
   assigned to one by header, by route alias, by account credential, or by an object it names.
 - **Time is moved, not waited on.** A run pins its clock and advances it. Every deadline is computed from that clock
@@ -112,9 +112,9 @@ Only the database, for running the application from an IDE or with Gradle:
 docker compose up -d postgres
 ```
 
-Naming the service leaves the simulator's own container out; a bare `docker compose up` starts both. Postgres listens
+Naming the service leaves the simulator's own container out, a bare `docker compose up` starts both. Postgres listens
 on `127.0.0.1:5432`. Database, user and password are all `pspsim`. Its data is on a volume that outlives
-`docker compose down`; `docker compose down -v` removes it with its data.
+`docker compose down`, `docker compose down -v` removes it with its data.
 
 ## Run the application
 
@@ -154,11 +154,15 @@ Boot's relaxed binding: environment, `-D`, `--simulator...` or an external `appl
 | `server.address`, `server.port`                   | `SIMULATOR_BIND_ADDRESS`, `SIMULATOR_PORT`                           | `127.0.0.1`, `8080`                                           | where the service listens                                                                                                    |
 | `spring.thymeleaf.cache`                          | `SIMULATOR_TEMPLATE_CACHE`                                           | `true`                                                        | template caching                                                                                                             |
 
-Retry-plan rules, checked at startup: one delay per attempt, so the plan's length is the attempt cap, at most 20; the
-first delay must be `PT0S`, an immediate first attempt; delays must not go backwards, but may repeat, so an all-zero
+Retry-plan rules, checked at startup: one delay per attempt, so the plan's length is the attempt cap, at most 20, the
+first delay must be `PT0S`, an immediate first attempt, delays must not go backwards, but may repeat, so an all-zero
 plan is valid. Delays run on the run's clock, not the wall clock.
 
 Callbacks never follow redirects.
+
+A query string may carry `[` and `]` unescaped on every route (`server.tomcat.relaxed-query-chars`), because a provider
+client sends bracketed parameter names that way (`doc/stripe.md`, "Authentication and Transport") and the servlet
+container refuses them by default.
 
 ## Pointing it at a database it does not own
 
@@ -174,7 +178,7 @@ java -jar build/libs/psp-simulators-*.jar
 ```
 
 `./gradlew bootJar` writes that jar, under its version. Flyway migrates on startup into whatever schema the user
-owns, so the user must be able to create tables; a database it cannot reach fails startup instead of serving errors
+owns, so the user must be able to create tables, a database it cannot reach fails startup instead of serving errors
 later. Set
 `SIMULATOR_PUBLIC_BASE_URL` to the address a payer and a paired application will reach, since that is what the
 simulator puts in the links it hands out.
@@ -190,7 +194,7 @@ docker run --rm -p 127.0.0.1:8080:8080 \
 ```
 
 `docker build -t psp-simulators .` builds that image from the repository root. It binds `0.0.0.0` inside its
-container, so publish it as `-p 127.0.0.1:8080:8080`; a bare `-p 8080:8080` offers the provider credentials and the
+container, so publish it as `-p 127.0.0.1:8080:8080`, a bare `-p 8080:8080` offers the provider credentials and the
 unredacted fixtures on every host interface.
 
 ## An end-to-end suite that points at it
@@ -280,7 +284,7 @@ repo already carries a tag for.
 
 The API views under [`src/main/resources/static/openapi`](src/main/resources/static/openapi) carry the version they
 were generated from, so a bump leaves them stale and `verifyOpenApi` says so. The workflow regenerates them into the
-release commit before it pushes; by hand it is `./gradlew writeOpenApi`, then `git commit --amend` and `git tag -f`
+release commit before it pushes, by hand it is `./gradlew writeOpenApi`, then `git commit --amend` and `git tag -f`
 onto the commit that carries them.
 
 ## Run the quality gate
@@ -289,30 +293,30 @@ onto the commit that carries them.
 ./gradlew check
 ```
 
-| Task                                         | What it enforces                                                                                   |
-|----------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `spotlessCheck`                              | google-java-format and ktfmt over every build here; whitespace and newlines in md, yaml, sql, toml |
-| `compileJava`, `compileTestJava`             | Error Prone with NullAway, `-Xlint:all -Werror`                                                    |
-| `checkstyleMain`, `checkstyleTest`           | the Google Checks rules no other task covers                                                       |
-| `test`                                       | unit, ArchUnit and Testcontainers integration tests                                                |
-| `jacocoTestCoverageVerification`             | 80% line and 70% branch coverage overall, 70% line coverage per class                              |
-| `pitest`, `verifyMutationScope`              | 90% mutation score on the domain packages, measured over the right classes, with no unexecuted code |
-| `verifyExclusionBudget`                      | the classes excluded from mutation stay no more complex than when their bound was measured         |
-| `verifyNoComments`                           | no comment in any Java, Kotlin, Gradle Kotlin, SQL or template source in this tree                 |
-| `verifyCaughtExceptionNames`                 | a caught exception is bound to a name that says what went wrong, in every build in this tree       |
-| `verifyNoMergeConflicts`                     | no conflict marker in any tracked file                                                             |
-| `verifyMigrationNumbers`                     | no two migrations claim one version, compared as Flyway compares one, not as a name spells it      |
-| `verifyOpenApi`                              | the committed OpenAPI documents match what the build generates                                     |
-| `verifyClickableCapabilities`                | every control route is reachable from a screen                                                     |
-| `verifyNoBrowserValidation`                  | no form control of this UI validates what a tester typed before the provider sees it               |
-| `verifyEveryFormSendsWhatItCarries`          | no form a browser submits as a query names a value only in the address it submits to               |
-| `verifyNoPayerUrlOnAScreen`                  | no screen source or template hardcodes the address of a payer page any provider declares           |
-| `verifyEveryPayerPageDeclaresWhatItMayLoad`  | every payer page built in Java declares a policy loading nothing but its own style                 |
-| `verifyNoPayerUrlAmongRelatedObjects`        | no provider module builds the state of an object out of the address of a payer page it serves      |
-| `verifyEveryProviderWithholdsWhatItAnswers`  | every provider declares what its answers are withheld under, applies it and withholds its page URL |
-| `verifyTaskDescriptions`                     | every task description says what it does in a listing entry's words                                |
-| `verifySonarSuppressions`                    | a rule switched off in the scanner, or a check switched off at a site or for a source set, carries its reason |
-| `:build-logic:test`                          | the logic the gates decide on: the PIT invocation, the mutation report, the ratchets, the scanners |
+| Task                                        | What it enforces                                                                                              |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| `spotlessCheck`                             | google-java-format and ktfmt over every build here, whitespace and newlines in md, yaml, sql, toml            |
+| `compileJava`, `compileTestJava`            | Error Prone with NullAway, `-Xlint:all -Werror`                                                               |
+| `checkstyleMain`, `checkstyleTest`          | the Google Checks rules no other task covers                                                                  |
+| `test`                                      | unit, ArchUnit and Testcontainers integration tests                                                           |
+| `jacocoTestCoverageVerification`            | 80% line and 70% branch coverage overall, 70% line coverage per class                                         |
+| `pitest`, `verifyMutationScope`             | 90% mutation score on the domain packages, measured over the right classes, with no unexecuted code           |
+| `verifyExclusionBudget`                     | the classes excluded from mutation stay no more complex than when their bound was measured                    |
+| `verifyNoComments`                          | no comment in any Java, Kotlin, Gradle Kotlin, SQL or template source in this tree                            |
+| `verifyCaughtExceptionNames`                | a caught exception is bound to a name that says what went wrong, in every build in this tree                  |
+| `verifyNoMergeConflicts`                    | no conflict marker in any tracked file                                                                        |
+| `verifyMigrationNumbers`                    | no two migrations claim one version, compared as Flyway compares one, not as a name spells it                 |
+| `verifyOpenApi`                             | the committed OpenAPI documents match what the build generates                                                |
+| `verifyClickableCapabilities`               | every control route is reachable from a screen                                                                |
+| `verifyNoBrowserValidation`                 | no form control of this UI validates what a tester typed before the provider sees it                          |
+| `verifyEveryFormSendsWhatItCarries`         | no form a browser submits as a query names a value only in the address it submits to                          |
+| `verifyNoPayerUrlOnAScreen`                 | no screen source or template hardcodes the address of a payer page any provider declares                      |
+| `verifyEveryPayerPageDeclaresWhatItMayLoad` | every payer page built in Java declares a policy loading nothing but its own style                            |
+| `verifyNoPayerUrlAmongRelatedObjects`       | no provider module builds the state of an object out of the address of a payer page it serves                 |
+| `verifyEveryProviderWithholdsWhatItAnswers` | every provider declares what its answers are withheld under, applies it and withholds its page URL            |
+| `verifyTaskDescriptions`                    | every task description says what it does in a listing entry's words                                           |
+| `verifySonarSuppressions`                   | a rule switched off in the scanner, or a check switched off at a site or for a source set, carries its reason |
+| `:build-logic:test`                         | the logic the gates decide on: the PIT invocation, the mutation report, the ratchets, the scanners            |
 
 `./gradlew spotlessApply` fixes formatting. Reports land in `build/reports/`.
 

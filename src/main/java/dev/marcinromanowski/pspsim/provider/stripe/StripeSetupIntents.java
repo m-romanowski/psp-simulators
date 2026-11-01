@@ -22,9 +22,18 @@ interface StripeSetupIntents {
       TestRunId testRunId, @Nullable ProviderObjectCursor after, int limit);
 
   Setup succeeded(
-      StripeSetupIntent intent, String paymentMethodId, @Nullable String customerId, Instant at);
+      StripeSetupIntent intent,
+      String paymentMethodId,
+      @Nullable String customerId,
+      @Nullable StripePaymentMethod minted,
+      Instant at);
 
-  Setup failed(StripeSetupIntent intent, StripeDecline decline, String paymentMethodId, Instant at);
+  Setup failed(
+      StripeSetupIntent intent,
+      StripeDecline decline,
+      String paymentMethodId,
+      @Nullable StripePaymentMethod minted,
+      Instant at);
 
   int clear(TestRunId testRunId);
 

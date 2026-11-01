@@ -412,6 +412,7 @@ class ReproductionScreenIntegrationTest extends PostgresBackedTest {
     form.put("capture_method", "manual");
     form.put("payment_method", THE_CARD_THIS_FIXTURE_NAMES);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     HttpResponse<byte[]> created =
         send(
             HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v1/payment_intents"))

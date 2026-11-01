@@ -120,6 +120,11 @@ class StripeApiController {
     return answered(() -> api.deleteCustomer(StripeWireRequest.callOf(request), customerId));
   }
 
+  @PostMapping(PAYMENT_METHODS)
+  Object createPaymentMethod(HttpServletRequest request) {
+    return answered(() -> api.createPaymentMethod(StripeWireRequest.callOf(request)));
+  }
+
   @GetMapping(PAYMENT_METHODS)
   Object listPaymentMethods(HttpServletRequest request) {
     return answered(() -> api.listPaymentMethods(StripeWireRequest.callOf(request)));
@@ -146,6 +151,12 @@ class StripeApiController {
   @PostMapping(SETUP_INTENTS)
   Object createSetupIntent(HttpServletRequest request) {
     return answered(() -> api.createSetupIntent(StripeWireRequest.callOf(request)));
+  }
+
+  @GetMapping(SETUP_INTENTS + "/{setupIntentId}")
+  Object retrieveSetupIntent(HttpServletRequest request, @PathVariable String setupIntentId) {
+    return answered(
+        () -> api.retrieveSetupIntent(StripeWireRequest.callOf(request), setupIntentId));
   }
 
   @PostMapping(SETUP_INTENTS + "/{setupIntentId}/confirm")

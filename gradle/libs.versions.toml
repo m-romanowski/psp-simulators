@@ -18,6 +18,7 @@ jacoco = "0.8.15"
 htmx = "4.0.0"
 swaggerUi = "5.32.15"
 junitForBuildLogic = "6.0.3"
+stripe = "33.4.2"
 
 [libraries]
 errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
@@ -28,6 +29,7 @@ pitest = { module = "org.pitest:pitest", version.ref = "pitest" }
 pitest-junit5 = { module = "org.pitest:pitest-junit5-plugin", version.ref = "pitestJunit5" }
 htmx = { module = "org.webjars.npm:htmx.org", version.ref = "htmx" }
 swagger-ui = { module = "org.webjars:swagger-ui", version.ref = "swaggerUi" }
+stripe-java = { module = "com.stripe:stripe-java", version.ref = "stripe" }
 
 [plugins]
 springBoot = { id = "org.springframework.boot", version.ref = "springBoot" }

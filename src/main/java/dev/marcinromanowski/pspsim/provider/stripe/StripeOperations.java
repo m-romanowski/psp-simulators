@@ -36,6 +36,8 @@ final class StripeOperations {
 
   static final String DELETE_CUSTOMER = "DELETE /v1/customers/{id}";
 
+  static final String CREATE_PAYMENT_METHOD = "POST /v1/payment_methods";
+
   static final String LIST_PAYMENT_METHODS = "GET /v1/payment_methods";
 
   static final String LIST_CUSTOMER_PAYMENT_METHODS = "GET /v1/customers/{id}/payment_methods";
@@ -47,6 +49,8 @@ final class StripeOperations {
   static final String CREATE_SETUP_INTENT = "POST /v1/setup_intents";
 
   static final String CONFIRM_SETUP_INTENT = "POST /v1/setup_intents/{id}/confirm";
+
+  static final String RETRIEVE_SETUP_INTENT = "GET /v1/setup_intents/{id}";
 
   static final String CREATE_EPHEMERAL_KEY = "POST /v1/ephemeral_keys";
 

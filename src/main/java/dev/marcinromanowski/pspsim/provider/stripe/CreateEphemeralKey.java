@@ -28,15 +28,21 @@ final class CreateEphemeralKey {
 
   StripeOperationResult handle(
       StripeForm form, TestRunId testRunId, StripeAccount account, Instant now) {
+    StripeError unstoreable = StripeStoredParameters.refusalOf(form, StripeFields.CUSTOMER);
+    if (unstoreable != null) {
+      return StripeOperationResult.refusedBeforeExecuting(
+          StripeRefusals.theRequestWasRefused(), unstoreable);
+    }
     String customerId = form.first(StripeFields.CUSTOMER);
     if (customerId == null) {
       return StripeOperationResult.refusedBeforeExecuting(
-          StripeRefusals.theRequestWasRefused(), StripeErrors.noResourceToMintAKeyFor());
+          StripeRefusals.theRequestWasRefused(),
+          StripeErrors.missingRequiredParam(StripeFields.CUSTOMER));
     }
     if (StripeCustomerLookup.of(customers, testRunId, account, customerId).isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CUSTOMER),
-          StripeErrors.resourceMissing(StripeFields.CUSTOMER));
+          StripeErrors.noSuchCustomer(customerId));
     }
     for (int attempt = 0; attempt < ID_ATTEMPTS; attempt++) {
       String ephemeralKeyId = ID_PREFIX + ids.hex(ID_LENGTH);

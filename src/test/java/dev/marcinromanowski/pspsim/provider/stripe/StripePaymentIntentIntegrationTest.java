@@ -392,13 +392,16 @@ class StripePaymentIntentIntegrationTest extends PostgresBackedTest {
     HttpResponse<byte[]> confirmed =
         post(
             PAYMENT_INTENTS + "/" + intentId + "/confirm",
-            Map.of("payment_method", "pm_card_visa"),
+            Map.of(
+                "payment_method",
+                "pm_card_visa",
+                "return_url",
+                "https://shop.example/checkout/return"),
             null);
 
     assertThat(confirmed.statusCode()).isEqualTo(200);
-    assertThat(bodyOf(confirmed))
-        .contains("\"status\":\"requires_capture\"")
-        .contains("\"payment_method\":\"pm_card_visa\"");
+    assertThat(bodyOf(confirmed)).contains("\"status\":\"requires_capture\"");
+    assertThat(valueIn(bodyOf(confirmed), "payment_method")).matches("pm_sim_[0-9a-f]{20}");
   }
 
   @Test
@@ -580,6 +583,7 @@ class StripePaymentIntentIntegrationTest extends PostgresBackedTest {
     form.put("capture_method", "manual");
     form.put("payment_method", "pm_card_visa");
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 

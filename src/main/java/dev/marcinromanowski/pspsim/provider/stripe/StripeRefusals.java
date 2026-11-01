@@ -20,6 +20,11 @@ final class StripeRefusals {
           + " object, because an ephemeral key decides which resource a request may reach before"
           + " the request reaches one";
 
+  static final String THE_PUBLISHABLE_KEY_IS_REFUSED =
+      "provider stripe refuses this request on the publishable key it presents rather than on any"
+          + " object: a publishable key reads and confirms an intent beside its client_secret, and"
+          + " every other route takes the account's secret key";
+
   static final String THE_IDEMPOTENCY_KEY_IS_ALREADY_CLAIMED =
       "provider stripe holds an earlier request under the idempotency key this one repeats and"
           + " answers the repeat from the key alone, so its published answer names no object even"
@@ -29,6 +34,16 @@ final class StripeRefusals {
       "this test run holds the payment method this request names and provider stripe publishes it"
           + " as detached and unusable, and the endpoint refuses before it mints the PaymentIntent"
           + " that would have carried the refusal";
+
+  static final String THE_METHOD_IS_OF_A_TYPE_NOT_OFFERED_AND_NO_INTENT_EXISTS_YET =
+      "this test run holds the payment method this request names, its type is not one of the"
+          + " payment_method_types this request selects, and the endpoint refuses before it mints"
+          + " the PaymentIntent that would have carried the refusal";
+
+  static final String THE_METHOD_IS_NOT_THIS_ACCOUNTS_AND_NO_INTENT_EXISTS_YET =
+      "the payment method this request names is one this account does not hold, or one a"
+          + " customer other than the request's own holds, and the endpoint refuses before it mints"
+          + " the PaymentIntent that would have carried the refusal";
 
   static final String AN_EARLIER_ANSWER_IS_REPLAYED =
       "provider stripe replays under this idempotency key the answer it stored for the first"
@@ -47,6 +62,10 @@ final class StripeRefusals {
 
   static RefusalSubject theShortLivedKeyIsRefused() {
     return RefusalSubject.noObjectWasNamed(THE_SHORT_LIVED_KEY_IS_REFUSED);
+  }
+
+  static RefusalSubject thePublishableKeyIsRefused() {
+    return RefusalSubject.noObjectWasNamed(THE_PUBLISHABLE_KEY_IS_REFUSED);
   }
 
   static RefusalSubject theAnswerItStoredFor(@Nullable String providerObjectId) {

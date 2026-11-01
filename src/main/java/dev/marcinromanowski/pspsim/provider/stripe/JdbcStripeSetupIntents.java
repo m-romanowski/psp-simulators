@@ -21,35 +21,39 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   private final JdbcClient jdbc;
   private final TransactionTemplate transactions;
+  private final JdbcStripePaymentMethods methods;
 
   JdbcStripeSetupIntents(JdbcClient jdbc, TransactionTemplate transactions) {
     this.jdbc = jdbc;
+    this.methods = new JdbcStripePaymentMethods(jdbc);
     this.transactions = transactions;
   }
 
   @Override
   public boolean insertIfAbsent(StripeSetupIntent intent) {
-    return jdbc.sql(
-                """
-            insert into stripe_setup_intent
-                (test_run_id, setup_intent_id, account_id, customer_id, payment_method_id,
-                 intended_usage, status, client_secret, last_setup_error, origin, created_at,
-                 updated_at)
-            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            on conflict (test_run_id, setup_intent_id) do nothing
-            """)
-            .param(intent.testRunId().value())
-            .param(intent.setupIntentId())
-            .param(intent.accountId())
-            .param(intent.customerId())
-            .param(intent.paymentMethodId())
-            .param(intent.usage().name())
-            .param(intent.status().name())
-            .param(intent.clientSecret())
-            .param(scenarioCodeOf(intent.lastSetupError()))
-            .param(intent.origin().name())
-            .param(intent.createdAt().atOffset(ZoneOffset.UTC))
-            .param(intent.updatedAt().atOffset(ZoneOffset.UTC))
+    return StripeSelectionColumns.bound(
+                jdbc.sql(
+                        "insert into stripe_setup_intent (test_run_id, setup_intent_id,"
+                            + " account_id, customer_id, payment_method_id, intended_usage,"
+                            + " status, client_secret, last_setup_error, origin, created_at,"
+                            + " updated_at, "
+                            + StripeSelectionColumns.NAMES
+                            + ") values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+                            + StripeSelectionColumns.PLACEHOLDERS
+                            + ") on conflict (test_run_id, setup_intent_id) do nothing")
+                    .param(intent.testRunId().value())
+                    .param(intent.setupIntentId())
+                    .param(intent.accountId())
+                    .param(intent.customerId())
+                    .param(intent.paymentMethodId())
+                    .param(intent.usage().name())
+                    .param(intent.status().name())
+                    .param(intent.clientSecret())
+                    .param(scenarioCodeOf(intent.lastSetupError()))
+                    .param(intent.origin().name())
+                    .param(intent.createdAt().atOffset(ZoneOffset.UTC))
+                    .param(intent.updatedAt().atOffset(ZoneOffset.UTC)),
+                intent.selection())
             .update()
         == 1;
   }
@@ -102,10 +106,14 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   @Override
   public Setup succeeded(
-      StripeSetupIntent intent, String paymentMethodId, @Nullable String customerId, Instant at) {
+      StripeSetupIntent intent,
+      String paymentMethodId,
+      @Nullable String customerId,
+      @Nullable StripePaymentMethod minted,
+      Instant at) {
     return Objects.requireNonNull(
         transactions.execute(
-            status -> inOneTransaction(status, intent, paymentMethodId, customerId, at)),
+            status -> inOneTransaction(status, intent, paymentMethodId, customerId, minted, at)),
         "the unit of work answered nothing where its callback answers a Setup on every path");
   }
 
@@ -114,8 +122,11 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       StripeSetupIntent intent,
       String paymentMethodId,
       @Nullable String customerId,
+      @Nullable StripePaymentMethod minted,
       Instant at) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
     if (customerId != null && attach(intent, paymentMethodId, customerId, at) != 1) {
+      status.setRollbackOnly();
       return Setup.THE_METHOD_IS_NO_LONGER_ATTACHABLE;
     }
     int moved = moveTo(intent, StripeSetupStatus.SUCCEEDED, paymentMethodId, null, at);
@@ -145,15 +156,34 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
 
   @Override
   public Setup failed(
-      StripeSetupIntent intent, StripeDecline decline, String paymentMethodId, Instant at) {
-    int moved =
-        moveTo(
-            intent,
-            StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
-            paymentMethodId,
-            decline.scenarioCode(),
-            at);
-    return moved == 1 ? Setup.APPLIED : whyNothingMoved(intent);
+      StripeSetupIntent intent,
+      StripeDecline decline,
+      String paymentMethodId,
+      @Nullable StripePaymentMethod minted,
+      Instant at) {
+    return Objects.requireNonNull(
+        transactions.execute(
+            status ->
+                moveTo(
+                            intent,
+                            StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
+                            paymentMethodId,
+                            decline.scenarioCode(),
+                            at)
+                        == 1
+                    ? appliedWith(minted)
+                    : rolledBack(status, intent)),
+        "the unit of work answered nothing where its callback answers a Setup on every path");
+  }
+
+  private Setup appliedWith(@Nullable StripePaymentMethod minted) {
+    StripePaymentMethodMinting.storedIn(methods, minted);
+    return Setup.APPLIED;
+  }
+
+  private Setup rolledBack(TransactionStatus status, StripeSetupIntent intent) {
+    status.setRollbackOnly();
+    return whyNothingMoved(intent);
   }
 
   private int moveTo(
@@ -162,16 +192,17 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
       String paymentMethodId,
       @Nullable String lastSetupError,
       Instant at) {
-    return jdbc.sql(
-            """
-            update stripe_setup_intent
-            set status = ?, payment_method_id = ?, last_setup_error = ?, updated_at = ?
-            where test_run_id = ? and setup_intent_id = ? and status = ?
-            """)
-        .param(reached.name())
-        .param(paymentMethodId)
-        .param(lastSetupError)
-        .param(at.atOffset(ZoneOffset.UTC))
+    return StripeSelectionColumns.bound(
+            jdbc.sql(
+                    "update stripe_setup_intent set status = ?, payment_method_id = ?,"
+                        + " last_setup_error = ?, updated_at = ?, "
+                        + StripeSelectionColumns.ASSIGNMENTS
+                        + " where test_run_id = ? and setup_intent_id = ? and status = ?")
+                .param(reached.name())
+                .param(paymentMethodId)
+                .param(lastSetupError)
+                .param(at.atOffset(ZoneOffset.UTC)),
+            intent.selection())
         .param(intent.testRunId().value())
         .param(intent.setupIntentId())
         .param(intent.status().name())
@@ -213,6 +244,7 @@ final class JdbcStripeSetupIntents implements StripeSetupIntents {
         rs.getString("customer_id"),
         rs.getString("payment_method_id"),
         StripeSetupUsage.valueOf(rs.getString("intended_usage")),
+        StripeSelectionColumns.read(rs),
         StripeSetupStatus.valueOf(rs.getString("status")),
         rs.getString("client_secret"),
         declineOf(rs.getString("last_setup_error")),

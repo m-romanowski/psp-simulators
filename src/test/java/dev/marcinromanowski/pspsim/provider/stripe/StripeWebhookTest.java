@@ -9,6 +9,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.clock.SimulatorClock;
 import dev.marcinromanowski.pspsim.kernel.credentials.Redaction;
 import dev.marcinromanowski.pspsim.kernel.credentials.WebhookTarget;
+import dev.marcinromanowski.pspsim.kernel.fixture.FixtureCard;
 import dev.marcinromanowski.pspsim.kernel.fixture.InMemoryPaymentMethodFixtures;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.NewScenarioRule;
@@ -23,6 +24,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.UnknownProviderObjectException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookNotSchedulableException;
 import dev.marcinromanowski.pspsim.kernel.spi.WebhookScheduleRequest;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import dev.marcinromanowski.pspsim.kernel.webhook.AttemptWithheldException;
 import dev.marcinromanowski.pspsim.kernel.webhook.DeliveryState;
 import dev.marcinromanowski.pspsim.kernel.webhook.InMemoryWebhookDeliveries;
@@ -47,6 +49,8 @@ import javax.crypto.spec.SecretKeySpec;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class StripeWebhookTest {
 
@@ -64,15 +68,19 @@ class StripeWebhookTest {
 
   private static final Duration SETTLES_AFTER = Duration.ofSeconds(5);
 
+  private static final String THE_NEWEST_RELEASE = "2026-10-28.endive";
+  private static final String A_DAHLIA_RELEASE = "2026-04-22.dahlia";
+  private static final String A_BASIL_RELEASE = "2025-08-27.basil";
+
   private final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -100,7 +108,7 @@ class StripeWebhookTest {
         .contains("\"type\":\"payment_intent.amount_capturable_updated\"")
         .contains("\"object\":\"event\"")
         .contains("\"id\":\"" + scheduled.eventId() + "\"")
-        .contains("\"api_version\":\"" + StripeEvent.API_VERSION + "\"")
+        .contains(renderedAt(THE_NEWEST_RELEASE))
         .contains("\"livemode\":false")
         .contains("\"pending_webhooks\":0")
         .contains("\"object\":\"payment_intent\"")
@@ -109,6 +117,92 @@ class StripeWebhookTest {
     assertThat(signatureOf(delivered).timestamp()).isEqualTo(NOW.getEpochSecond());
     assertThat(signatureOf(delivered).v1())
         .isEqualTo(hmac(SIGNING_SECRET, NOW.getEpochSecond() + "." + delivered.body()));
+  }
+
+  @Test
+  void an_event_scheduled_through_the_control_api_is_rendered_at_the_accounts_default_version() {
+    anAccountAnsweredAt(A_BASIL_RELEASE);
+    aHeldPaymentIntent();
+
+    send(null);
+
+    assertThat(onlyCallback().body())
+        .contains(renderedAt(A_BASIL_RELEASE))
+        .doesNotContain(renderedAt(THE_NEWEST_RELEASE));
+  }
+
+  @Test
+  void the_event_a_pending_payment_is_owed_is_rendered_at_the_accounts_default_version() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    inFlight(null);
+    WebhookDispatcher dispatcher = dispatcher();
+    anAsynchronousChargeThrough(dispatcher);
+
+    clock.moveTo(NOW.plus(SETTLES_AFTER));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    assertThat(onlyCallback().body()).contains(renderedAt(A_DAHLIA_RELEASE));
+  }
+
+  @Test
+  void
+      an_event_keeps_the_version_it_was_created_at_when_the_account_default_moves_before_a_retry() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    aHeldPaymentIntent();
+    merchant.thenAnswering(new Answer.Respond(500, "the endpoint is restarting"));
+    WebhookDispatcher dispatcher = dispatcher();
+    send(dispatcher, null);
+
+    accounts.merge(
+        E2E_RUN,
+        List.of(
+            StripeDoubles.account(
+                E2E_RUN,
+                ACCOUNT,
+                SECRET_KEY,
+                "P3D",
+                Map.of(StripeApiVersion.SETTING, A_BASIL_RELEASE))));
+    clock.moveTo(NOW.plusSeconds(1));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    List<ReceivedCallback> attempts = merchant.received();
+    assertThat(attempts).hasSize(2);
+    assertThat(attempts.get(1).body())
+        .isEqualTo(attempts.get(0).body())
+        .contains(renderedAt(A_DAHLIA_RELEASE));
+  }
+
+  @Test
+  void
+      an_owed_event_keeps_the_version_it_was_scheduled_at_when_the_default_moves_before_it_lands() {
+    anAccountAnsweredAt(A_DAHLIA_RELEASE);
+    inFlight(null);
+    WebhookDispatcher dispatcher = dispatcher();
+    anAsynchronousChargeThrough(dispatcher);
+
+    accounts.merge(
+        E2E_RUN,
+        List.of(
+            StripeDoubles.account(
+                E2E_RUN,
+                ACCOUNT,
+                SECRET_KEY,
+                "P3D",
+                Map.of(StripeApiVersion.SETTING, A_BASIL_RELEASE))));
+    clock.moveTo(NOW.plus(SETTLES_AFTER));
+    dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN);
+
+    assertThat(onlyCallback().body())
+        .contains(renderedAt(A_DAHLIA_RELEASE))
+        .doesNotContain(renderedAt(A_BASIL_RELEASE));
+  }
+
+  private void anAccountAnsweredAt(String apiVersion) {
+    anAccount(Map.of(StripeApiVersion.SETTING, apiVersion));
+  }
+
+  private static String renderedAt(String apiVersion) {
+    return "\"api_version\":\"" + apiVersion + "\"";
   }
 
   @Test
@@ -266,6 +360,84 @@ class StripeWebhookTest {
         .contains("\"status\":\"canceled\"");
   }
 
+  @ParameterizedTest
+  @CsvSource({"false,true", "false,false", "true,true", "true,false"})
+  void a_delivered_decline_renders_only_the_method_of_the_account_it_reports(
+      boolean scheduledOutcome, boolean sameAccount) {
+    anAccountSigningWith(SIGNING_SECRET);
+    paymentMethods.insertIfAbsent(
+        new StripePaymentMethod(
+            E2E_RUN,
+            "pm_card_uncatalogued",
+            sameAccount ? "merchant-1" : "merchant-elsewhere",
+            null,
+            StripePaymentMethodType.CARD,
+            StripeCard.ofAFixture(new FixtureCard("visa", "1881", 12, 2030, "debit")),
+            StripeBillingDetails.of(Map.of("name", "4000000000009995")),
+            Map.of("order", "4242424242424242"),
+            "unspecified",
+            null,
+            null,
+            ObjectOrigin.CONTROL_API,
+            NOW,
+            NOW));
+    WebhookDispatcher dispatcher = dispatcher();
+    if (scheduledOutcome) {
+      inFlight(StripeDecline.INSUFFICIENT_FUNDS);
+      anAsynchronousChargeThrough(dispatcher);
+      clock.moveTo(NOW.plusSeconds(5));
+      assertThat(dispatcher.deliverDue(StripeApi.STRIPE, E2E_RUN)).isEqualTo(1);
+    } else {
+      scenarioRules.add(
+          new NewScenarioRule(
+              StripeApi.STRIPE,
+              E2E_RUN,
+              0,
+              ScenarioMatch.anyRequest().naming(StripeOperations.CREATE),
+              new ScenarioAction.TerminalFailure("insufficient_funds"),
+              null));
+      aHeldPaymentIntent();
+      send(dispatcher, null);
+    }
+    Map<String, List<String>> fields = StripeJsonReader.read(onlyCallback().body()).flatten();
+    assertThat(fields.get("type")).containsExactly("payment_intent.payment_failed");
+    assertThat(fields.get("data.object.status")).containsExactly("requires_payment_method");
+    assertThat(fields.get("data.object.last_payment_error.code")).containsExactly("card_declined");
+    assertThat(fields.get("data.object.last_payment_error.decline_code"))
+        .containsExactly("insufficient_funds");
+    assertThat(fields.get("data.object.last_payment_error.message"))
+        .containsExactly("Your card has insufficient funds.");
+    assertThat(fields.get("data.object.payment_method")).isEmpty();
+    assertThat(fields.get("data.object.last_payment_error.payment_method.id"))
+        .containsExactly("pm_card_uncatalogued");
+    assertThat(fields.get("data.object.last_payment_error.payment_method.object"))
+        .containsExactly("payment_method");
+    if (sameAccount) {
+      assertThat(fields.get("data.object.last_payment_error.payment_method.billing_details.name"))
+          .containsExactly("[redacted]");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.metadata.order"))
+          .containsExactly("[redacted]");
+      assertThat(onlyCallback().body()).doesNotContain("4000000000009995", "4242424242424242");
+
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.brand"))
+          .containsExactly("visa");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.last4"))
+          .containsExactly("1881");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.exp_month"))
+          .containsExactly("12");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.exp_year"))
+          .containsExactly("2030");
+      assertThat(fields.get("data.object.last_payment_error.payment_method.card.funding"))
+          .containsExactly("debit");
+    } else {
+      assertThat(fields)
+          .doesNotContainKeys(
+              "data.object.last_payment_error.payment_method.card.last4",
+              "data.object.last_payment_error.payment_method.customer",
+              "data.object.last_payment_error.payment_method.billing_details.name");
+    }
+  }
+
   @Test
   void reports_a_declined_confirmation_as_payment_failed() {
     anAccountSigningWith(SIGNING_SECRET);
@@ -311,6 +483,7 @@ class StripeWebhookTest {
   private void anIntentAwaitingAPaymentMethod() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAHold());
     fields.remove(StripeFields.CONFIRM);
+    fields.remove(StripeFields.RETURN_URL);
     fields.remove(StripeFields.PAYMENT_METHOD);
     api().createPaymentIntent(call("/v1/payment_intents", fields));
   }
@@ -432,9 +605,9 @@ class StripeWebhookTest {
             ids,
             new ScenarioEngine(scenarioRules),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, new ScenarioEngine(scenarioRules)));
+            setupIntents, paymentMethods, customers, ids, new ScenarioEngine(scenarioRules)));
   }
 
   @Test
@@ -756,6 +929,7 @@ class StripeWebhookTest {
   private void anUnconfirmedPaymentIntent() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAHold());
     fields.remove(StripeFields.CONFIRM);
+    fields.remove(StripeFields.RETURN_URL);
     api().createPaymentIntent(call("/v1/payment_intents", fields));
   }
 
@@ -783,6 +957,7 @@ class StripeWebhookTest {
         customers,
         paymentMethods,
         setupIntents,
+        accounts,
         accounts,
         dispatcher,
         clock,
@@ -942,6 +1117,7 @@ class StripeWebhookTest {
   private void anUnconfirmedCharge() {
     Map<String, List<String>> fields = new LinkedHashMap<>(fieldsOfAnAsynchronousCharge());
     fields.remove("confirm");
+    fields.remove("return_url");
     new CreatePaymentIntent(
             intents,
             paymentMethods,
@@ -950,7 +1126,7 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             StripeDoubles.NO_SCHEDULED_OUTCOMES)
         .handle(
-            StripeForm.of(fields),
+            StripeCoreRequest.asSent(StripeForm.of(fields)),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -967,7 +1143,9 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             webhooks(dispatcher))
         .handle(
-            StripeForm.of(Map.of()),
+            StripeCoreRequest.asSent(
+                StripeForm.of(
+                    Map.of("return_url", List.of("https://shop.example/checkout/return")))),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -984,7 +1162,7 @@ class StripeWebhookTest {
             new ScenarioEngine(scenarioRules),
             webhooks(dispatcher))
         .handle(
-            StripeForm.of(fieldsOfAnAsynchronousCharge()),
+            StripeCoreRequest.asSent(StripeForm.of(fieldsOfAnAsynchronousCharge())),
             Map.of(),
             E2E_RUN,
             accounts.find(E2E_RUN, ACCOUNT).orElseThrow(),
@@ -1012,8 +1190,9 @@ class StripeWebhookTest {
     Map<String, List<String>> fields = new LinkedHashMap<>();
     fields.put("amount", List.of("1099"));
     fields.put("currency", List.of("pln"));
-    fields.put("payment_method", List.of("pm_card_visa"));
+    fields.put("payment_method", List.of("pm_card_uncatalogued"));
     fields.put("confirm", List.of("true"));
+    fields.put("return_url", List.of("https://shop.example/checkout/return"));
     return fields;
   }
 
@@ -1023,6 +1202,7 @@ class StripeWebhookTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -1052,9 +1232,12 @@ class StripeWebhookTest {
         new CreateRefund(intents, refunds, charges, ids, new ScenarioEngine(scenarioRules)),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static StripeApiCall call(String path, Map<String, List<String>> fields) {
@@ -1067,9 +1250,10 @@ class StripeWebhookTest {
     fields.put("amount", List.of("1099"));
     fields.put("currency", List.of("pln"));
     fields.put("capture_method", List.of("manual"));
-    fields.put("payment_method", List.of("pm_card_visa"));
+    fields.put("payment_method", List.of("pm_card_uncatalogued"));
     fields.put("customer", List.of("cus_sim_1"));
     fields.put("confirm", List.of("true"));
+    fields.put("return_url", List.of("https://shop.example/checkout/return"));
     return fields;
   }
 

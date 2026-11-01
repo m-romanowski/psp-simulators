@@ -1,5 +1,7 @@
 package dev.marcinromanowski.pspsim.documentation;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import dev.marcinromanowski.pspsim.documentation.TrailWithholdingDeclarations.ADeliveringModule;
 import dev.marcinromanowski.pspsim.documentation.TrailWithholdingDeclarations.AModule;
 import dev.marcinromanowski.pspsim.documentation.TrailWithholdingDeclarations.TheBuild;
@@ -7,9 +9,17 @@ import dev.marcinromanowski.pspsim.documentation.TrailWithholdingDeclarations.Th
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 
 public final class TrailWithholdingConvention {
+
+  public static void assertEverySurfaceWithholds(Map<String, String> surfaces, String... values) {
+    assertThat(surfaces)
+        .as("the recorded, displayed and delivered surfaces the guard walks")
+        .isNotEmpty();
+    surfaces.forEach((surface, body) -> assertThat(body).as(surface).doesNotContain(values));
+  }
 
   public static final String THE_RULE =
       "Every provider module of this build declares, in one class of its own package, the"
@@ -247,10 +257,39 @@ public final class TrailWithholdingConvention {
                   + " every test run"),
           new AnAddressInTheClear(
               "stripe",
+              "link",
+              "a payment method type stripe publishes, the Link wallet, which this build names only"
+                  + " among the values an invalid allowed_payment_method_types or"
+                  + " excluded_payment_method_types is refused against; it is never a field name"
+                  + " and carries no address"),
+          new AnAddressInTheClear(
+              "stripe",
+              "location",
+              "the field the tax details of a stripe customer name the customer's identified tax"
+                  + " location in, which this build answers null when a caller includes tax; it"
+                  + " never carries an address"),
+          new AnAddressInTheClear(
+              "stripe",
+              "receipt_url",
+              "a property of stripe's Charge that this build judges an expand path against and"
+                  + " never answers: no charge of this build carries a receipt"),
+          new AnAddressInTheClear(
+              "stripe",
+              "return_url",
+              "a parameter the merchant sends to confirm an intent, naming the merchant's own page;"
+                  + " this build reads only whether one was sent and answers it back in no field"),
+          new AnAddressInTheClear(
+              "stripe",
+              "unrecognized_location",
+              "the published automatic_tax value this build answers inside the included tax"
+                  + " details of a customer; it is a value, never a field name, and carries no"
+                  + " address"),
+          new AnAddressInTheClear(
+              "stripe",
               "url",
-              "the field a stripe list object names its own route in, /v1/payment_methods: the"
-                  + " address of the call the client just made, which the same trail row already"
-                  + " keeps in its path"),
+              "the field a stripe list object names its own route in, such as /v1/payment_methods"
+                  + " or /v1/charges/{id}/refunds: a route of stripe's own API, which names no"
+                  + " merchant and no secret"),
           new AnAddressInTheClear(
               "tranzila",
               "TRANZILA_API_BASE_URL",

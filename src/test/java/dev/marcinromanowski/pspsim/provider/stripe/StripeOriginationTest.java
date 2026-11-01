@@ -42,11 +42,11 @@ class StripeOriginationTest {
   private final ScenarioEngine scenarioEngine = new ScenarioEngine(scenarioRules);
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -77,6 +77,7 @@ class StripeOriginationTest {
               paymentMethods,
               setupIntents,
               accounts,
+              accounts,
               StripeDoubles.noDeliveries(accounts),
               StripeDoubles.clockAt(NOW),
               ids),
@@ -90,8 +91,8 @@ class StripeOriginationTest {
               ids,
               scenarioEngine,
               StripeDoubles.NO_SCHEDULED_OUTCOMES),
-          new CreateSetupIntent(setupIntents, ids),
-          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+          new CreateSetupIntent(setupIntents, paymentMethods, ids),
+          new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
 
   @Test
   void stripe_offers_a_hold_a_charge_and_two_ways_of_setting_a_card_up_for_a_later_charge() {
@@ -102,7 +103,10 @@ class StripeOriginationTest {
             StripeOrigination.A_CARD_SET_UP,
             StripeOrigination.A_CARD_SET_UP_AND_CONFIRMED);
     assertThat(provider.originationFields().fieldsItFillsInItself())
-        .containsOnlyKeys(StripeFields.CAPTURE_METHOD, StripeFields.CLIENT_SECRET);
+        .containsOnlyKeys(
+            StripeFields.CAPTURE_METHOD,
+            StripeFields.AUTOMATIC_PAYMENT_METHODS,
+            StripeFields.CLIENT_SECRET);
   }
 
   @Test
@@ -112,7 +116,8 @@ class StripeOriginationTest {
             StripeFields.CLIENT_SECRET,
             why ->
                 assertThat(why)
-                    .contains("serves no publishable-key surface")
+                    .contains(
+                        "beside the publishable key of the account to read and confirm an intent")
                     .contains("never puts a client_secret on a screen"));
     assertThat(provider.originationFields().waysToStartAPayment())
         .hasSize(4)
@@ -149,7 +154,12 @@ class StripeOriginationTest {
         .isEqualTo("cus_saving");
     assertThat(setupIntents.all())
         .singleElement()
-        .satisfies(setup -> assertThat(setup.status()).isEqualTo(StripeSetupStatus.SUCCEEDED));
+        .satisfies(
+            setup -> {
+              assertThat(setup.status()).isEqualTo(StripeSetupStatus.SUCCEEDED);
+              assertThat(setup.selection().automatic()).isTrue();
+              assertThat(setup.selection().allowRedirects()).isEqualTo(StripeRedirects.NEVER);
+            });
   }
 
   @Test
@@ -211,8 +221,10 @@ class StripeOriginationTest {
     assertThat(setupIntents.all())
         .singleElement()
         .satisfies(
-            setup ->
-                assertThat(setup.status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD));
+            setup -> {
+              assertThat(setup.status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD);
+              assertThat(setup.selection().allowRedirects()).isNull();
+            });
   }
 
   @Test
@@ -263,6 +275,13 @@ class StripeOriginationTest {
     ProviderObjectState intent = theStateOf(outcome);
     assertThat(intent.normalizedStatus()).isEqualTo(NormalizedStatus.READY_FOR_CAPTURE);
     assertThat(intent.origin()).isEqualTo(ObjectOrigin.UI);
+    assertThat(intents.all())
+        .singleElement()
+        .satisfies(
+            stored -> {
+              assertThat(stored.selection().automatic()).isTrue();
+              assertThat(stored.selection().allowRedirects()).isEqualTo(StripeRedirects.NEVER);
+            });
   }
 
   @Test
@@ -284,6 +303,9 @@ class StripeOriginationTest {
     assertThat(intent.nativeStatus())
         .isEqualTo(StripeIntentStatus.REQUIRES_CONFIRMATION.wireValue());
     assertThat(intent.normalizedStatus()).isEqualTo(NormalizedStatus.NOT_INITIALIZED);
+    assertThat(intents.all())
+        .singleElement()
+        .satisfies(stored -> assertThat(stored.selection().allowRedirects()).isNull());
   }
 
   @Test

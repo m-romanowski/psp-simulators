@@ -118,6 +118,20 @@ record StripeOperationResult(
         false);
   }
 
+  StripeOperationResult answeringWith(StripeJson expanded) {
+    return new StripeOperationResult(
+        outcome,
+        providerObjectId,
+        refusal,
+        scenarioId,
+        fault,
+        insteadOfTheOperation,
+        httpStatus,
+        expanded,
+        theEndpointBeganExecuting,
+        stateChanged);
+  }
+
   StripeOperationResult declinedBy(String scenarioId) {
     return new StripeOperationResult(
         outcome,

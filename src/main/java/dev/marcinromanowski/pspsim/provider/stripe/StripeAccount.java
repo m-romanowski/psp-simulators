@@ -19,7 +19,9 @@ record StripeAccount(
     String secretKey,
     StripeCaptureWindow captureWindow,
     StripeWebhookSigning webhookSigning,
-    StripeRefundOutcome refundOutcome) {
+    StripeRefundOutcome refundOutcome,
+    StripeApiVersion apiVersion,
+    @Nullable String publishableKey) {
 
   static final String SECRET_KEY_PROPERTY = "secretKey";
 
@@ -28,6 +30,13 @@ record StripeAccount(
   static final int LONGEST_SECRET_KEY_THE_STORE_HOLDS = 255;
 
   static final String A_SECRET_KEY_STRIPE_WOULD_TAKE = TEST_MODE_PREFIX + "51Simulator";
+
+  static final String PUBLISHABLE_KEY_PROPERTY = "publishableKey";
+
+  static final String PUBLISHABLE_TEST_MODE_PREFIX = "pk_test_";
+
+  static final String A_PUBLISHABLE_KEY_STRIPE_WOULD_TAKE =
+      PUBLISHABLE_TEST_MODE_PREFIX + "51Simulator";
 
   static final ProviderAccountFields ACCOUNT_FIELDS =
       new ProviderAccountFields(
@@ -44,6 +53,20 @@ record StripeAccount(
                   true,
                   List.of(),
                   A_SECRET_KEY_STRIPE_WOULD_TAKE),
+              new ConfigurableField(
+                  PUBLISHABLE_KEY_PROPERTY,
+                  "test-mode publishable key",
+                  "The "
+                      + PUBLISHABLE_TEST_MODE_PREFIX
+                      + " key a browser or a mobile application of this account sends. It reads"
+                      + " and confirms an intent only beside that intent's client_secret, and every"
+                      + " other route refuses it. It is not a secret, so it is shown wherever the"
+                      + " account is. No two accounts of one test run may name the same one, and"
+                      + " leaving it empty gives the account none.",
+                  false,
+                  false,
+                  List.of(),
+                  A_PUBLISHABLE_KEY_STRIPE_WOULD_TAKE),
               ConfigurableField.aDuration(
                   StripeCaptureWindow.SETTING,
                   "how long an intent is capturable",
@@ -64,6 +87,18 @@ record StripeAccount(
                   false,
                   false,
                   StripeRefundStatus.acceptedValues()),
+              new ConfigurableField(
+                  StripeApiVersion.SETTING,
+                  "default API version",
+                  "The Stripe API version a request of this account is answered at when it sends"
+                      + " no Stripe-Version header, and the version its webhook events are rendered"
+                      + " at. Leaving it empty gives the account the newest version this simulator"
+                      + " answers, "
+                      + StripeApiVersions.newest().wireValue()
+                      + ", and the account keeps that one.",
+                  false,
+                  false,
+                  StripeApiVersions.acceptedValues()),
               new ConfigurableField(
                   StripeWebhookSigning.SECRET_SETTING,
                   "webhook signing secret",
@@ -120,6 +155,20 @@ record StripeAccount(
           + " characters, which is the simulator's bound on the column every request of the"
           + " account is matched against and not a length the vendor publishes";
 
+  static final String PUBLISHABLE_KEY_IS_A_TEST_MODE_KEY =
+      PUBLISHABLE_KEY_PROPERTY
+          + " must begin with "
+          + PUBLISHABLE_TEST_MODE_PREFIX
+          + ", the prefix Stripe publishes for a test-mode publishable key; this simulator answers"
+          + " no live-mode traffic";
+
+  static final String PUBLISHABLE_KEY_IS_KEPT_WITH_EVERY_ACCOUNT =
+      PUBLISHABLE_KEY_PROPERTY
+          + " must be at most "
+          + LONGEST_SECRET_KEY_THE_STORE_HOLDS
+          + " characters, which is the simulator's bound on the column a request of the account is"
+          + " matched against and not a length the vendor publishes";
+
   static StripeAccount of(String propertyPrefix, TestRunId testRunId, ConfiguredAccount account) {
     Map<String, String> configuration = account.configuration();
     return new StripeAccount(
@@ -128,14 +177,19 @@ record StripeAccount(
         theSecretKey(propertyPrefix, configuration.get(SECRET_KEY_PROPERTY)),
         StripeCaptureWindow.of(propertyPrefix, configuration.get(StripeCaptureWindow.SETTING)),
         StripeWebhookSigning.of(propertyPrefix, configuration),
-        StripeRefundOutcome.of(propertyPrefix, configuration.get(StripeRefundOutcome.SETTING)));
+        StripeRefundOutcome.of(propertyPrefix, configuration.get(StripeRefundOutcome.SETTING)),
+        StripeApiVersion.ofTheAccount(propertyPrefix, configuration.get(StripeApiVersion.SETTING)),
+        thePublishableKey(propertyPrefix, configuration.get(PUBLISHABLE_KEY_PROPERTY)));
   }
 
   DisclosedAccount disclosure() {
     Map<String, List<String>> disclosed = new LinkedHashMap<>();
     disclosed.put(SECRET_KEY_PROPERTY, List.of(secretKey));
+    disclosed.put(
+        PUBLISHABLE_KEY_PROPERTY, publishableKey == null ? List.of() : List.of(publishableKey));
     disclosed.put(StripeCaptureWindow.SETTING, List.of(captureWindow.storedForm()));
     disclosed.put(StripeRefundOutcome.SETTING, List.of(refundOutcome.storedForm()));
+    disclosed.put(StripeApiVersion.SETTING, List.of(apiVersion.storedForm()));
     String signingSecret = webhookSigning.secret();
     if (signingSecret == null) {
       disclosed.put(StripeWebhookSigning.SECRET_SETTING, List.of());
@@ -162,6 +216,22 @@ record StripeAccount(
     if (configured.codePointCount(0, configured.length()) > LONGEST_SECRET_KEY_THE_STORE_HOLDS) {
       throw new ProviderConfigurationRejectedException(
           propertyPrefix + SECRET_KEY_IS_KEPT_WITH_EVERY_ACCOUNT);
+    }
+    return configured;
+  }
+
+  private static @Nullable String thePublishableKey(
+      String propertyPrefix, @Nullable String configured) {
+    if (configured == null || configured.isBlank()) {
+      return null;
+    }
+    if (!configured.startsWith(PUBLISHABLE_TEST_MODE_PREFIX)) {
+      throw new ProviderConfigurationRejectedException(
+          propertyPrefix + PUBLISHABLE_KEY_IS_A_TEST_MODE_KEY);
+    }
+    if (configured.codePointCount(0, configured.length()) > LONGEST_SECRET_KEY_THE_STORE_HOLDS) {
+      throw new ProviderConfigurationRejectedException(
+          propertyPrefix + PUBLISHABLE_KEY_IS_KEPT_WITH_EVERY_ACCOUNT);
     }
     return configured;
   }

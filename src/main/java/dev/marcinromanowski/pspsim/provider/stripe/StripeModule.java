@@ -13,12 +13,16 @@ import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRuns;
 import dev.marcinromanowski.pspsim.kernel.transaction.ClaimConstraints;
+import dev.marcinromanowski.pspsim.kernel.transaction.UnitOfWork;
 import dev.marcinromanowski.pspsim.kernel.webhook.AcknowledgementPolicy;
 import dev.marcinromanowski.pspsim.kernel.webhook.AttemptRendering;
 import dev.marcinromanowski.pspsim.kernel.webhook.WebhookDispatcher;
+import jakarta.servlet.Filter;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -29,6 +33,15 @@ public class StripeModule {
   @Bean
   StripeAccounts stripeAccounts(JdbcClient jdbc) {
     return new JdbcStripeAccounts(jdbc);
+  }
+
+  @Bean
+  FilterRegistrationBean<Filter> stripeBrowserAccess() {
+    FilterRegistrationBean<Filter> registration =
+        new FilterRegistrationBean<>(new StripeBrowserAccess(StripeWireFaults.ROUTES));
+    registration.addUrlPatterns("/*");
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 150);
+    return registration;
   }
 
   @Bean
@@ -69,8 +82,9 @@ public class StripeModule {
   }
 
   @Bean
-  CreateSetupIntent stripeCreateSetupIntent(StripeSetupIntents setupIntents, IdGenerator ids) {
-    return new CreateSetupIntent(setupIntents, ids);
+  CreateSetupIntent stripeCreateSetupIntent(
+      StripeSetupIntents setupIntents, StripePaymentMethods paymentMethods, IdGenerator ids) {
+    return new CreateSetupIntent(setupIntents, paymentMethods, ids);
   }
 
   @Bean
@@ -78,8 +92,9 @@ public class StripeModule {
       StripeSetupIntents setupIntents,
       StripePaymentMethods paymentMethods,
       StripeCustomers customers,
+      IdGenerator ids,
       ScenarioEngine scenarios) {
-    return new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarios);
+    return new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarios);
   }
 
   @Bean
@@ -131,11 +146,13 @@ public class StripeModule {
 
   @Bean
   StripeApi stripeApi(
+      UnitOfWork units,
       StripeAccounts accounts,
       StripeIdempotencyKeys keys,
       StripeEphemeralKeys ephemeralKeys,
       StripePaymentIntents intents,
       StripeCharges charges,
+      StripeRefunds refunds,
       StripeCustomers customers,
       StripePaymentMethods paymentMethods,
       TestRuns testRuns,
@@ -152,6 +169,7 @@ public class StripeModule {
       ConfirmSetupIntent confirmSetupIntent,
       @Value("${simulator.default-test-run-id}") String defaultTestRunId) {
     return new StripeApi(
+        units,
         accounts,
         keys,
         ephemeralKeys,
@@ -169,6 +187,9 @@ public class StripeModule {
         createRefund,
         customers,
         paymentMethods,
+        intents,
+        charges,
+        refunds,
         createSetupIntent,
         confirmSetupIntent);
   }
@@ -191,6 +212,7 @@ public class StripeModule {
       StripePaymentMethods paymentMethods,
       StripeSetupIntents setupIntents,
       ProviderAccounts accounts,
+      StripeAccounts stripeAccounts,
       WebhookDispatcher dispatcher,
       SimulatorClock clock,
       IdGenerator ids) {
@@ -201,6 +223,7 @@ public class StripeModule {
         paymentMethods,
         setupIntents,
         accounts,
+        stripeAccounts,
         dispatcher,
         clock,
         ids);

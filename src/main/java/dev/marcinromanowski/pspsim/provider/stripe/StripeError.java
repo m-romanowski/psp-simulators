@@ -22,17 +22,43 @@ record StripeError(
     put(error, "code", code);
     put(error, "decline_code", declineCode);
     put(error, "doc_url", theEntryItsCodeHas());
-    put(error, "message", message);
-    put(error, "param", param);
+    put(error, "message", message == null ? null : StripeFields.withholdingCardNumbersIn(message));
+    put(error, "param", param == null ? null : StripeFields.withholdingCardNumbersIn(param));
     StripeJson intent = paymentIntent;
     if (intent != null) {
       error.put("payment_intent", intent);
+      copyTheFailedMethod(error, intent, "last_payment_error");
+      if (type == StripeErrorType.CARD_ERROR && intent instanceof StripeJson.JsonObject object) {
+        StripeJson charge = object.members().get("latest_charge");
+        if (charge != null && !(charge instanceof StripeJson.JsonNull)) {
+          error.put("charge", charge);
+        }
+      }
     }
     StripeJson setup = setupIntent;
     if (setup != null) {
       error.put("setup_intent", setup);
+      copyTheFailedMethod(error, setup, "last_setup_error");
     }
     return StripeJson.object("error", new StripeJson.JsonObject(error));
+  }
+
+  private void copyTheFailedMethod(Map<String, StripeJson> error, StripeJson intent, String field) {
+    if (type != StripeErrorType.CARD_ERROR || !(intent instanceof StripeJson.JsonObject object)) {
+      return;
+    }
+    if (object.members().get(field) instanceof StripeJson.JsonObject last) {
+      StripeJson method = last.members().get("payment_method");
+      if (method != null) {
+        error.put("payment_method", method);
+        return;
+      }
+    }
+    if (object.members().get("payment_method") instanceof StripeJson.JsonText id) {
+      error.put(
+          "payment_method",
+          StripeJson.object("id", id, "object", StripeJson.text("payment_method")));
+    }
   }
 
   StripeError about(StripeJson intent) {

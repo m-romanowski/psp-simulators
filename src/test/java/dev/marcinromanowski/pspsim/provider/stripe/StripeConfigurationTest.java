@@ -30,6 +30,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class StripeConfigurationTest {
 
@@ -40,11 +42,11 @@ class StripeConfigurationTest {
   private static final String SIGNING_SECRET = "whsec_theEndpointSecret";
 
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -322,11 +324,13 @@ class StripeConfigurationTest {
     assertThat(plan.configurationKeysItReads())
         .containsExactlyInAnyOrder(
             StripeAccount.SECRET_KEY_PROPERTY,
+            StripeAccount.PUBLISHABLE_KEY_PROPERTY,
             StripeCaptureWindow.SETTING,
             StripeWebhookSigning.SECRET_SETTING,
             StripeWebhookSigning.EMISSION_SETTING,
             StripeWebhookSigning.AGE_SETTING,
-            StripeRefundOutcome.SETTING);
+            StripeRefundOutcome.SETTING,
+            StripeApiVersion.SETTING);
     assertThat(plan.longestStoryKeysItCouldSpell()).isEmpty();
   }
 
@@ -659,6 +663,167 @@ class StripeConfigurationTest {
   }
 
   @Test
+  void an_account_names_no_publishable_key_unless_it_configures_one() {
+    configure(configuration("P3D"));
+
+    assertThat(accounts.all())
+        .singleElement()
+        .satisfies(account -> assertThat(account.publishableKey()).isNull());
+    assertThat(
+            provider()
+                .disclosureOf(E2E_RUN, "merchant-1")
+                .orElseThrow()
+                .disclosed()
+                .get(StripeAccount.PUBLISHABLE_KEY_PROPERTY))
+        .isEmpty();
+  }
+
+  @Test
+  void keeps_the_publishable_key_an_account_names_and_discloses_it_because_it_is_no_secret() {
+    Map<String, String> declared = configuration("P3D");
+    declared.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Simulator");
+    configure(declared);
+
+    assertThat(accounts.all())
+        .singleElement()
+        .satisfies(
+            account -> assertThat(account.publishableKey()).isEqualTo("pk_test_51Simulator"));
+    assertThat(
+            provider()
+                .disclosureOf(E2E_RUN, "merchant-1")
+                .orElseThrow()
+                .disclosed()
+                .get(StripeAccount.PUBLISHABLE_KEY_PROPERTY))
+        .containsExactly("pk_test_51Simulator");
+    assertThat(provider().accountFields().secretKeys())
+        .doesNotContain(StripeAccount.PUBLISHABLE_KEY_PROPERTY);
+    assertThat(provider().accountFields().field(StripeAccount.PUBLISHABLE_KEY_PROPERTY))
+        .get()
+        .satisfies(field -> assertThat(field.required()).isFalse());
+  }
+
+  @Test
+  void a_blank_publishable_key_names_none() {
+    Map<String, String> declared = configuration("P3D");
+    declared.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "  ");
+    configure(declared);
+
+    assertThat(accounts.all())
+        .singleElement()
+        .satisfies(account -> assertThat(account.publishableKey()).isNull());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"pk_live_51Simulator", "sk_test_51Simulator", "pk_test"})
+  void refuses_a_publishable_key_that_is_not_a_test_mode_publishable_key(String named) {
+    Map<String, String> declared = configuration("P3D");
+    declared.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, named);
+
+    assertThatThrownBy(() -> configure(declared))
+        .isInstanceOf(ProviderConfigurationRejectedException.class)
+        .hasMessage(
+            "accounts[0].configuration.publishableKey must begin with pk_test_, the prefix Stripe"
+                + " publishes for a test-mode publishable key; this simulator answers no live-mode"
+                + " traffic");
+  }
+
+  @Test
+  void keeps_a_publishable_key_of_exactly_the_width_the_store_holds_and_refuses_a_wider_one() {
+    Map<String, String> widest = configuration("P3D");
+    widest.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_" + "k".repeat(247));
+    Map<String, String> wider = configuration("P3D");
+    wider.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_" + "k".repeat(248));
+
+    configure(widest);
+
+    assertThat(accounts.all().get(0).publishableKey()).hasSize(255);
+    assertThatThrownBy(() -> configure(wider))
+        .isInstanceOf(ProviderConfigurationRejectedException.class)
+        .hasMessageContaining(StripeAccount.PUBLISHABLE_KEY_IS_KEPT_WITH_EVERY_ACCOUNT);
+  }
+
+  @Test
+  void refuses_two_accounts_of_one_test_run_that_claim_one_publishable_key() {
+    Map<String, String> first = configuration("P3D");
+    first.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Shared");
+    Map<String, String> second = new LinkedHashMap<>();
+    second.put(StripeAccount.SECRET_KEY_PROPERTY, "sk_test_51Another");
+    second.put(StripeCaptureWindow.SETTING, "P3D");
+    second.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Shared");
+    ProviderConfiguration twoAccountsOnOnePublishableKey =
+        new ProviderConfiguration(
+            E2E_RUN,
+            List.of(
+                new ConfiguredAccount("merchant-1", first),
+                new ConfiguredAccount("merchant-2", second)),
+            List.of(),
+            List.of(),
+            Map.of());
+
+    assertThatThrownBy(() -> provider().parse(twoAccountsOnOnePublishableKey))
+        .isInstanceOf(ProviderConfigurationRejectedException.class)
+        .hasMessage(
+            "accounts[1].configuration.publishableKey is already configured for another account in"
+                + " this test run");
+  }
+
+  @Test
+  void a_publishable_key_an_account_this_call_leaves_in_place_holds_is_refused_by_name() {
+    Map<String, String> first = configuration("P3D");
+    first.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Shared");
+    configure(first);
+    Map<String, String> second = new LinkedHashMap<>();
+    second.put(StripeAccount.SECRET_KEY_PROPERTY, "sk_test_51Another");
+    second.put(StripeCaptureWindow.SETTING, "P3D");
+    second.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Shared");
+
+    assertThatThrownBy(
+            () ->
+                provider()
+                    .parse(
+                        new ProviderConfiguration(
+                            E2E_RUN,
+                            List.of(new ConfiguredAccount("merchant-2", second)),
+                            List.of(),
+                            List.of(),
+                            Map.of())))
+        .isInstanceOf(ProviderConfigurationRejectedException.class)
+        .hasMessage(
+            "accounts[0].configuration.publishableKey is already configured for another account in"
+                + " this test run");
+  }
+
+  @Test
+  void an_account_rewritten_by_the_same_call_may_keep_its_publishable_key() {
+    Map<String, String> first = configuration("P3D");
+    first.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Kept");
+    configure(first);
+
+    configure(first);
+
+    assertThat(accounts.all())
+        .singleElement()
+        .satisfies(account -> assertThat(account.publishableKey()).isEqualTo("pk_test_51Kept"));
+  }
+
+  @Test
+  void the_same_publishable_key_may_serve_an_account_of_another_test_run() {
+    Map<String, String> first = configuration("P3D");
+    first.put(StripeAccount.PUBLISHABLE_KEY_PROPERTY, "pk_test_51Shared");
+    configure(first);
+
+    store(
+        new ProviderConfiguration(
+            TestRunId.of("another-run"),
+            List.of(new ConfiguredAccount("merchant-1", first)),
+            List.of(),
+            List.of(),
+            Map.of()));
+
+    assertThat(accounts.all()).hasSize(2);
+  }
+
+  @Test
   void a_stripe_account_of_another_test_run_is_not_disclosed_under_this_one() {
     configure(configuration("P3D"));
 
@@ -696,6 +861,7 @@ class StripeConfigurationTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             deliveries,
             StripeDoubles.clockAt(Instant.EPOCH),
             new StripeDoubles.CountingIds()),
@@ -710,8 +876,13 @@ class StripeConfigurationTest {
             new StripeDoubles.CountingIds(),
             scenarioEngine(),
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, new StripeDoubles.CountingIds()),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine()));
+        new CreateSetupIntent(setupIntents, paymentMethods, new StripeDoubles.CountingIds()),
+        new ConfirmSetupIntent(
+            setupIntents,
+            paymentMethods,
+            customers,
+            new StripeDoubles.CountingIds(),
+            scenarioEngine()));
   }
 
   private static ScenarioEngine scenarioEngine() {

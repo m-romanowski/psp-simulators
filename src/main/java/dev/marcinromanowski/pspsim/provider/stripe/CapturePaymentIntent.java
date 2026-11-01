@@ -43,7 +43,7 @@ final class CapturePaymentIntent {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeLookup.INTENT_PARAMETER),
-          StripeErrors.resourceMissing(StripeLookup.INTENT_PARAMETER));
+          StripeErrors.noSuchPaymentIntent(intentId));
     }
     StripePaymentIntent intent = addressed.get();
     if (intent.theAuthorizationHasExpired(now)) {
@@ -74,8 +74,10 @@ final class CapturePaymentIntent {
           RefusalSubject.theObject(intent.intentId()),
           StripeErrors.nonFinalCaptureCeilingReached().about(StripeIntentView.of(intent, now)));
     }
-    return StripeOperationResult.decidedBy(
+    return StripeCardOutcomes.decidedBy(
         scenarios.decide(requestOf(form, headers, testRunId, account, intent)),
+        null,
+        StripeOperations.CAPTURE,
         () -> capture(intent, requested, closing, now),
         decline -> decline(intent, decline, now));
   }

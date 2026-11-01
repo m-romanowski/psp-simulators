@@ -51,11 +51,11 @@ class StripeSetupIntentObjectTest {
   private final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -164,6 +164,7 @@ class StripeSetupIntentObjectTest {
             null,
             null,
             StripeSetupUsage.ON_SESSION,
+            StripeDoubles.DYNAMIC_SELECTION,
             StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
             A_SETUP + "_secret_never_on_a_screen",
             null,
@@ -311,6 +312,7 @@ class StripeSetupIntentObjectTest {
         A_CUSTOMER,
         A_CARD,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         StripeSetupStatus.SUCCEEDED,
         AN_EARLIER_SETUP + "_secret_never_on_a_screen",
         null,
@@ -327,6 +329,7 @@ class StripeSetupIntentObjectTest {
         A_CUSTOMER,
         A_CARD,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         status,
         A_SETUP + "_secret_never_on_a_screen",
         decline,
@@ -378,6 +381,7 @@ class StripeSetupIntentObjectTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOW),
             ids),
@@ -386,7 +390,7 @@ class StripeSetupIntentObjectTest {
         new CreateRefund(intents, refunds, charges, ids, engine),
         new CreatePaymentIntent(
             intents, paymentMethods, charges, ids, engine, StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, engine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, engine));
   }
 }

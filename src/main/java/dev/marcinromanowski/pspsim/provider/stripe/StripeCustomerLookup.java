@@ -33,7 +33,7 @@ final class StripeCustomerLookup {
       case OBJECT_GONE ->
           StripeOperationResult.refused(
               RefusalSubject.noObjectAnsweredTo(StripeFields.CUSTOMER),
-              StripeErrors.resourceMissing(StripeFields.CUSTOMER));
+              StripeErrors.noSuchCustomer(customer.customerId()));
     };
   }
 }

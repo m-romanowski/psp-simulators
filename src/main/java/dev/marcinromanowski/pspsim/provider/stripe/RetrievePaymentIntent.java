@@ -25,6 +25,6 @@ final class RetrievePaymentIntent {
             () ->
                 StripeOperationResult.refusedBeforeExecuting(
                     RefusalSubject.noObjectAnsweredTo(StripeLookup.INTENT_PARAMETER),
-                    StripeErrors.resourceMissing(StripeLookup.INTENT_PARAMETER)));
+                    StripeErrors.noSuchPaymentIntent(intentId)));
   }
 }

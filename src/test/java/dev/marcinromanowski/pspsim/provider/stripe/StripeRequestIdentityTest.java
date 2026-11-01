@@ -8,6 +8,7 @@ import dev.marcinromanowski.pspsim.kernel.audit.AuditRecord;
 import dev.marcinromanowski.pspsim.kernel.scenario.InMemoryScenarioRules;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import dev.marcinromanowski.pspsim.ui.Disclosure;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -37,11 +38,11 @@ class StripeRequestIdentityTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -159,7 +160,6 @@ class StripeRequestIdentityTest {
     form.put("statement_descriptor_suffix", "BOOKS");
     form.put("metadata[order_id]", "order-99");
     form.put("metadata[cart_id]", "cart-7");
-    form.put("transfer_group", "group-1");
     return form;
   }
 
@@ -175,6 +175,7 @@ class StripeRequestIdentityTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -204,9 +205,12 @@ class StripeRequestIdentityTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
         new ConfirmSetupIntent(
-            setupIntents, paymentMethods, customers, StripeDoubles.noScenarios()));
+            setupIntents, paymentMethods, customers, ids, StripeDoubles.noScenarios()));
   }
 
   private static Map<String, String> hold(String amount) {
@@ -216,6 +220,7 @@ class StripeRequestIdentityTest {
     form.put("capture_method", "manual");
     form.put("payment_method", CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     return form;
   }
 

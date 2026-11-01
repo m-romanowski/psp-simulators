@@ -14,6 +14,7 @@ import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioAction;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioEngine;
 import dev.marcinromanowski.pspsim.kernel.scenario.ScenarioMatch;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,6 +37,8 @@ class StripeSetupIntentTest {
   private static final String THREE_DAYS = "P3D";
 
   private static final String SETUP_INTENTS = "/v1/setup_intents";
+
+  private static final String A_RETURN_URL = "https://shop.example/checkout/return";
   private static final String CUSTOMERS = "/v1/customers";
 
   private static final String THE_CUSTOMER = "cus_the_one_saving_a_card";
@@ -49,11 +52,11 @@ class StripeSetupIntentTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -143,7 +146,7 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void payment_method_types_is_answered_on_the_object_and_refused_as_a_creation_parameter() {
+  void payment_method_types_is_answered_on_the_object_and_refused_at_the_account_default() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
     StripeApiResponse created = aSetupIntentFor(THE_CUSTOMER, null);
@@ -152,22 +155,30 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(created)).contains("\"payment_method_types\":[\"card\",\"paypal\"]");
     assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused))
-        .contains("\"code\":\"parameter_unknown\"")
-        .contains("\"param\":\"payment_method_types\"")
-        .contains("automatic_payment_methods");
+        .contains("\"code\":\"payment_method_types_no_longer_supported\"")
+        .contains("\"param\":\"payment_method_types\"");
     assertThat(setupIntents.all()).hasSize(1);
   }
 
   @Test
-  void payment_method_types_is_refused_in_the_bracketed_form_stripes_own_encoding_produces() {
+  void payment_method_types_is_refused_at_the_account_default_in_every_shape_the_grammar_decodes() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
-    StripeApiResponse refused = create(Map.of("payment_method_types[]", "card"));
-    StripeApiResponse indexed = create(Map.of("payment_method_types[0]", "card"));
+    for (Map<String, String> sent :
+        List.of(
+            Map.of(StripeFields.PAYMENT_METHOD_TYPES, ""),
+            Map.of("payment_method_types[]", "card"),
+            Map.of("payment_method_types[card]", "true"),
+            Map.of("payment_method_types[0][type]", "card"),
+            Map.of("payment_method_types[0]", "card", "payment_method_types[1]", "paypal"))) {
+      StripeApiResponse refused = create(sent);
 
-    assertThat(refused.httpStatus()).isEqualTo(400);
-    assertThat(bodyOf(refused)).contains("\"param\":\"payment_method_types\"");
-    assertThat(indexed.httpStatus()).isEqualTo(400);
+      assertThat(refused.httpStatus()).as(sent.toString()).isEqualTo(400);
+      assertThat(bodyOf(refused))
+          .as(sent.toString())
+          .contains("\"code\":\"payment_method_types_no_longer_supported\"")
+          .contains("\"param\":\"payment_method_types\"");
+    }
     assertThat(setupIntents.all()).isEmpty();
   }
 
@@ -182,20 +193,26 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void the_four_selection_parameters_provider_stripe_publishes_are_taken_without_refusal() {
+  void the_dynamic_selection_parameters_are_taken_together_and_narrow_what_the_setup_offers() {
     anAccountHoldingAnUnattachedCardOfNobody();
 
     StripeApiResponse created =
         create(
             Map.of(
-                StripeFields.CUSTOMER, THE_CUSTOMER,
-                StripeFields.AUTOMATIC_PAYMENT_METHODS, "true",
-                StripeFields.ALLOWED_PAYMENT_METHOD_TYPES, "card",
-                StripeFields.EXCLUDED_PAYMENT_METHOD_TYPES, "paypal",
-                StripeFields.PAYMENT_METHOD_CONFIGURATION, "pmc_simulated"));
+                StripeFields.CUSTOMER,
+                THE_CUSTOMER,
+                "automatic_payment_methods[enabled]",
+                "true",
+                "excluded_payment_method_types[]",
+                "paypal",
+                StripeFields.PAYMENT_METHOD_CONFIGURATION,
+                "pmc_simulated"));
 
     assertThat(created.httpStatus()).isEqualTo(200);
-    assertThat(bodyOf(created)).contains("\"object\":\"setup_intent\"");
+    assertThat(bodyOf(created))
+        .contains("\"object\":\"setup_intent\"")
+        .contains("\"excluded_payment_method_types\":[\"paypal\"]")
+        .contains("\"payment_method_types\":[\"card\"]");
   }
 
   @Test
@@ -220,10 +237,13 @@ class StripeSetupIntentTest {
     StripeApiResponse refused =
         confirm(setup, Map.of(StripeFields.PAYMENT_METHOD, NO_METHOD_OF_THIS_RUN));
 
-    assertThat(refused.httpStatus()).isEqualTo(404);
+    assertThat(refused.httpStatus()).isEqualTo(400);
     assertThat(bodyOf(refused))
         .contains("\"code\":\"resource_missing\"")
-        .contains("\"param\":\"payment_method\"");
+        .contains("\"param\":\"payment_method\"")
+        .contains(
+            "\"message\":\"No such PaymentMethod: '" + NO_METHOD_OF_THIS_RUN + "'; It's possible")
+        .contains("\"setup_intent\":{\"id\":\"" + setup + "\"");
     assertThat(theStoredSetup(setup).status()).isEqualTo(StripeSetupStatus.REQUIRES_PAYMENT_METHOD);
   }
 
@@ -405,6 +425,7 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(refused))
         .contains("\"code\":\"resource_missing\"")
         .contains("\"param\":\"intent\"");
+    assertThat(bodyOf(refused)).contains("No such setupintent: 'seti_sim_0000000000000001'");
   }
 
   @Test
@@ -426,7 +447,7 @@ class StripeSetupIntentTest {
   }
 
   @Test
-  void a_declined_setup_shows_the_state_it_returned_to_and_carries_no_client_secret_at_all() {
+  void a_declined_setup_shows_the_recorded_intent_fields_and_the_state_it_returned_to() {
     anAccountHoldingAnUnattachedCardOfNobody();
     declining(StripeDecline.GENERIC_DECLINE);
     String setup = theSetupIdIn(aSetupIntentFor(THE_CUSTOMER, THE_CARD));
@@ -436,7 +457,8 @@ class StripeSetupIntentTest {
     assertThat(bodyOf(declined))
         .contains("\"setup_intent\":")
         .contains("\"status\":\"requires_payment_method\"")
-        .doesNotContain(StripeFields.CLIENT_SECRET);
+        .contains("\"client_secret\":")
+        .contains("\"usage\":\"off_session\"");
   }
 
   @Test
@@ -556,6 +578,7 @@ class StripeSetupIntentTest {
         null,
         null,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         StripeSetupStatus.REQUIRES_PAYMENT_METHOD,
         setupIntentId + StripeClientSecret.INFIX + "x",
         null,
@@ -573,6 +596,7 @@ class StripeSetupIntentTest {
         THE_CUSTOMER,
         paymentMethod,
         StripeSetupUsage.OFF_SESSION,
+        StripeDoubles.DYNAMIC_SELECTION,
         status,
         "seti_sim_under_test_secret_x",
         decline,
@@ -615,13 +639,15 @@ class StripeSetupIntentTest {
   }
 
   private StripeApiResponse confirm(String setupIntentId, Map<String, String> form) {
+    Map<String, String> returning = new LinkedHashMap<>(form);
+    returning.put(StripeFields.RETURN_URL, A_RETURN_URL);
     return api(LATER)
         .confirmSetupIntent(
             new StripeApiCall(
                 "POST",
                 SETUP_INTENTS + "/" + setupIntentId + "/confirm",
                 bearer(SECRET_KEY),
-                fieldsOf(new LinkedHashMap<>(form))),
+                fieldsOf(returning)),
             setupIntentId);
   }
 
@@ -699,6 +725,7 @@ class StripeSetupIntentTest {
 
   private StripeApi api(Instant now) {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -728,7 +755,10 @@ class StripeSetupIntentTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 }

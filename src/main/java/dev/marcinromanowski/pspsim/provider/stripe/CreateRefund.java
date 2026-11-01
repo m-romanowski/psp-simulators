@@ -82,7 +82,7 @@ final class CreateRefund {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.CHARGE),
-          StripeErrors.resourceMissing(StripeFields.CHARGE));
+          StripeErrors.noSuchCharge(form.required(StripeFields.CHARGE)));
     }
     StripeCharge charge = addressed.get();
     if (!charge.paid()) {
@@ -114,7 +114,7 @@ final class CreateRefund {
     if (addressed.isEmpty()) {
       return StripeOperationResult.refusedBeforeExecuting(
           RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_INTENT),
-          StripeErrors.resourceMissing(StripeFields.PAYMENT_INTENT));
+          StripeErrors.noSuchPaymentIntentForRefund(intentId));
     }
     return refundOf(addressed.get(), form, headers, testRunId, account, now, askedBy);
   }
@@ -146,7 +146,7 @@ final class CreateRefund {
       return StripeErrors.twoRefundTargets();
     }
     if (!namesACharge && !namesAPayment) {
-      return StripeErrors.noRefundTarget();
+      return StripeErrors.missingRequiredParam(StripeFields.PAYMENT_INTENT);
     }
     String declaredReason = form.first(StripeFields.REASON);
     if (declaredReason != null && StripeRefundReason.sentByACaller(declaredReason).isEmpty()) {
@@ -241,7 +241,7 @@ final class CreateRefund {
         case OBJECT_GONE -> {
           return StripeOperationResult.refused(
               RefusalSubject.noObjectAnsweredTo(StripeFields.PAYMENT_INTENT),
-              StripeErrors.resourceMissing(StripeFields.PAYMENT_INTENT));
+              StripeErrors.noSuchPaymentIntentForRefund(intent.intentId()));
         }
       }
     }

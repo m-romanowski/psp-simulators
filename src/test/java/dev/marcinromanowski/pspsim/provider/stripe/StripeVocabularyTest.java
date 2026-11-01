@@ -179,7 +179,7 @@ class StripeVocabularyTest {
   void spells_the_decline_codes_a_scenario_may_name_as_the_shape_the_core_refuses_against() {
     assertThat(StripeDecline.theCodesAScenarioMayName())
         .isEqualTo(
-            "generic_decline|insufficient_funds|expired_card|incorrect_cvc|processing_error"
+            "generic_decline|insufficient_funds|lost_card|stolen_card|card_velocity_exceeded|expired_card|incorrect_cvc|processing_error"
                 + "|authentication_required");
     assertThat(StripeOperations.VOCABULARY.failureCodes().shape())
         .isEqualTo(StripeDecline.theCodesAScenarioMayName());
@@ -188,8 +188,9 @@ class StripeVocabularyTest {
   @Test
   void carries_the_message_the_vendor_publishes_for_the_decline_a_scenario_named() {
     assertThat(StripeDecline.INSUFFICIENT_FUNDS.publishedMessage())
-        .isEqualTo("The card has insufficient funds to complete the purchase.");
-    assertThat(StripeDecline.INCORRECT_CVC.publishedMessage()).isNull();
+        .isEqualTo("Your card has insufficient funds.");
+    assertThat(StripeDecline.INCORRECT_CVC.publishedMessage())
+        .isEqualTo("Your card's security code is incorrect.");
   }
 
   @Test

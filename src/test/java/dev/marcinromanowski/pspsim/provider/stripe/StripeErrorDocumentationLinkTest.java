@@ -53,7 +53,20 @@ class StripeErrorDocumentationLinkTest {
                 Map.entry(
                     "parameter_missing", "https://docs.stripe.com/error-codes#parameter-missing"),
                 Map.entry(
-                    "parameter_unknown", "https://docs.stripe.com/error-codes#parameter-unknown"),
+                    "parameters_exclusive",
+                    "https://docs.stripe.com/error-codes#parameters-exclusive"),
+                Map.entry(
+                    "payment_method_types_no_longer_supported",
+                    "https://docs.stripe.com/error-codes#payment-method-types-no-longer-supported"),
+                Map.entry(
+                    "payment_intent_invalid_parameter",
+                    "https://docs.stripe.com/error-codes#payment-intent-invalid-parameter"),
+                Map.entry(
+                    "payment_intent_incompatible_payment_method",
+                    "https://docs.stripe.com/error-codes#payment-intent-incompatible-payment-method"),
+                Map.entry(
+                    "setup_intent_invalid_parameter",
+                    "https://docs.stripe.com/error-codes#setup-intent-invalid-parameter"),
                 Map.entry(
                     "payment_intent_unexpected_state",
                     "https://docs.stripe.com/error-codes#payment-intent-unexpected-state"),
@@ -73,7 +86,23 @@ class StripeErrorDocumentationLinkTest {
                     "amount_too_large", "https://docs.stripe.com/error-codes#amount-too-large"),
                 Map.entry(
                     "idempotency_key_in_use",
-                    "https://docs.stripe.com/error-codes#idempotency-key-in-use")));
+                    "https://docs.stripe.com/error-codes#idempotency-key-in-use"),
+                Map.entry(
+                    "secret_key_required",
+                    "https://docs.stripe.com/error-codes#secret-key-required"),
+                Map.entry(
+                    "incorrect_number", "https://docs.stripe.com/error-codes#incorrect-number"),
+                Map.entry("invalid_number", "https://docs.stripe.com/error-codes#invalid-number"),
+                Map.entry(
+                    "invalid_expiry_month",
+                    "https://docs.stripe.com/error-codes#invalid-expiry-month"),
+                Map.entry(
+                    "invalid_expiry_year",
+                    "https://docs.stripe.com/error-codes#invalid-expiry-year"),
+                Map.entry("invalid_cvc", "https://docs.stripe.com/error-codes#invalid-cvc"),
+                Map.entry(
+                    "parameter_invalid_integer",
+                    "https://docs.stripe.com/error-codes#parameter-invalid-integer")));
   }
 
   private static List<StripeError> everyRefusalThisBuildCanAnswerWith() {
@@ -86,7 +115,7 @@ class StripeErrorDocumentationLinkTest {
       }
       refusals.add(refusalFrom(factory));
     }
-    assertThat(refusals).hasSize(26);
+    assertThat(refusals).hasSize(64);
     return refusals;
   }
 

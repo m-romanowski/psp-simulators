@@ -37,6 +37,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.PresetRequest;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderAccountFields;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfiguration;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderConfigurationRejectedException;
+import dev.marcinromanowski.pspsim.kernel.spi.ProviderFixtureRejectedException;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderKeyMechanisms;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectCursor;
 import dev.marcinromanowski.pspsim.kernel.spi.ProviderObjectIdentity;
@@ -84,6 +85,9 @@ final class StripeProvider implements SimulatorProvider {
           + " already answers. Nothing here is left pending for a second surface to finish.";
 
   private static final boolean A_REFUND_HAS_NO_LEDGER_OF_ITS_OWN = false;
+
+  static final String A_KEY_OF_ANOTHER_ACCOUNT =
+      " is already configured for another account in this test run";
 
   private final StripeAccounts accounts;
   private final StripePaymentIntents intents;
@@ -166,6 +170,7 @@ final class StripeProvider implements SimulatorProvider {
     List<ConfiguredAccount> declared = configuration.accounts();
     List<StripeAccount> parsed = new ArrayList<>();
     Set<String> secretKeys = new LinkedHashSet<>();
+    Set<String> publishableKeys = new LinkedHashSet<>();
     Set<String> rewritten = new LinkedHashSet<>();
     for (ConfiguredAccount named : declared) {
       rewritten.add(named.accountId());
@@ -175,11 +180,18 @@ final class StripeProvider implements SimulatorProvider {
       StripeAccount account = StripeAccount.of(property, testRunId, declared.get(index));
       if (!secretKeys.add(account.secretKey())) {
         throw new ProviderConfigurationRejectedException(
-            property
-                + StripeAccount.SECRET_KEY_PROPERTY
-                + " is already configured for another account in this test run");
+            property + StripeAccount.SECRET_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
       }
       rejectASecretKeyAnAccountThisCallLeavesInPlaceHolds(property, account, rewritten);
+      String publishableKey = account.publishableKey();
+      if (publishableKey != null) {
+        if (!publishableKeys.add(publishableKey)) {
+          throw new ProviderConfigurationRejectedException(
+              property + StripeAccount.PUBLISHABLE_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
+        }
+        rejectAPublishableKeyAnAccountThisCallLeavesInPlaceHolds(
+            property, account.testRunId(), publishableKey, rewritten);
+      }
       parsed.add(account);
     }
     List<StripeAccount> itWillKeep = List.copyOf(parsed);
@@ -195,9 +207,19 @@ final class StripeProvider implements SimulatorProvider {
         .ifPresent(
             held -> {
               throw new ProviderConfigurationRejectedException(
-                  property
-                      + StripeAccount.SECRET_KEY_PROPERTY
-                      + " is already configured for another account in this test run");
+                  property + StripeAccount.SECRET_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
+            });
+  }
+
+  private void rejectAPublishableKeyAnAccountThisCallLeavesInPlaceHolds(
+      String property, TestRunId testRunId, String publishableKey, Set<String> rewritten) {
+    accounts
+        .ofTheRunHoldingThePublishableKey(testRunId, publishableKey)
+        .filter(held -> !rewritten.contains(held.accountId()))
+        .ifPresent(
+            held -> {
+              throw new ProviderConfigurationRejectedException(
+                  property + StripeAccount.PUBLISHABLE_KEY_PROPERTY + A_KEY_OF_ANOTHER_ACCOUNT);
             });
   }
 
@@ -239,6 +261,11 @@ final class StripeProvider implements SimulatorProvider {
             fixture, accounts.find(fixture.testRunId(), fixture.merchantId()).orElse(null));
     String customerId = StripeFixtureCards.customerIdOf(fixture);
     String paymentMethodId = StripeFixtureCards.paymentMethodIdOf(fixture);
+    if (aMethodNoFixtureDeclaredHolds(fixture.testRunId(), paymentMethodId)) {
+      throw new ProviderFixtureRejectedException(
+          StripeFixtureCards.PAYMENT_METHOD_PROPERTY,
+          StripeFixtureCards.A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS);
+    }
     return new PaymentMethodFixturePlan(
         seeded -> {
           if (customerId != null) {
@@ -253,19 +280,38 @@ final class StripeProvider implements SimulatorProvider {
                     seeded.createdAt(),
                     seeded.createdAt()));
           }
-          paymentMethods.insertIfAbsent(
-              new StripePaymentMethod(
-                  seeded.testRunId(),
-                  paymentMethodId,
-                  account.accountId(),
-                  customerId,
-                  type,
-                  seeded.card(),
-                  null,
-                  fixture.askedBy(),
-                  seeded.createdAt(),
-                  seeded.createdAt()));
+          boolean stored =
+              paymentMethods.insertIfAbsent(
+                  new StripePaymentMethod(
+                      seeded.testRunId(),
+                      paymentMethodId,
+                      account.accountId(),
+                      customerId,
+                      type,
+                      seeded.card(),
+                      null,
+                      fixture.askedBy(),
+                      seeded.createdAt(),
+                      seeded.createdAt()));
+          if (!stored) {
+            throw new ProviderFixtureRejectedException(
+                StripeFixtureCards.PAYMENT_METHOD_PROPERTY,
+                StripeFixtureCards.A_PAYMENT_METHOD_ID_NAMES_NO_METHOD_THE_RUN_HOLDS);
+          }
         });
+  }
+
+  private boolean aMethodNoFixtureDeclaredHolds(TestRunId testRunId, String paymentMethodId) {
+    if (paymentMethods.find(testRunId, paymentMethodId).isEmpty()) {
+      return false;
+    }
+    for (PaymentMethodFixture declared : fixtures.of(StripeApi.STRIPE, testRunId)) {
+      if (paymentMethodId.equals(
+          declared.providerIds().get(ProviderPaymentMethodFields.PAYMENT_METHOD_ID))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
@@ -461,7 +507,7 @@ final class StripeProvider implements SimulatorProvider {
     }
     StripeOperationResult result =
         createPaymentIntent.handle(
-            StripeOrigination.formOf(request),
+            StripeCoreRequest.asSent(StripeOrigination.formOf(request)),
             Map.of(),
             request.testRunId(),
             account.get(),
@@ -474,7 +520,7 @@ final class StripeProvider implements SimulatorProvider {
       OriginationRequest request, StripeAccount account, Instant now) {
     StripeOperationResult created =
         createSetupIntent.handle(
-            StripeOrigination.formOf(request),
+            StripeCoreRequest.asSent(StripeOrigination.formOf(request)),
             request.testRunId(),
             account,
             now,
@@ -486,7 +532,8 @@ final class StripeProvider implements SimulatorProvider {
     }
     StripeOperationResult confirmed =
         confirmSetupIntent.handle(
-            StripeOrigination.theConfirmationOf(request.required(StripeFields.PAYMENT_METHOD)),
+            StripeCoreRequest.asSent(
+                StripeOrigination.theConfirmationOf(request.required(StripeFields.PAYMENT_METHOD))),
             Map.of(),
             request.testRunId(),
             account,

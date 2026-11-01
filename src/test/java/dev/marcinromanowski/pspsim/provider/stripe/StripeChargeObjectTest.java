@@ -19,6 +19,7 @@ import dev.marcinromanowski.pspsim.kernel.spi.ResetOutcome;
 import dev.marcinromanowski.pspsim.kernel.spi.ResetScope;
 import dev.marcinromanowski.pspsim.kernel.spi.SimulatorProvider;
 import dev.marcinromanowski.pspsim.kernel.testrun.TestRunId;
+import dev.marcinromanowski.pspsim.kernel.transaction.RecordedUnitsOfWork;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -37,7 +38,7 @@ class StripeChargeObjectTest {
   private static final String SECRET_KEY = "sk_test_51Simulator";
   private static final String ANOTHER_RUNS_SECRET_KEY = "sk_test_51AnotherRun";
   private static final String THREE_DAYS = "P3D";
-  private static final String A_CARD = "pm_the_card";
+  private static final String A_CARD = "pm_card_uncatalogued";
   private static final String FIRST_INTENT = "pi_sim_0000000000000001";
 
   private final InMemoryScenarioRules scenarioRules = new InMemoryScenarioRules();
@@ -45,11 +46,11 @@ class StripeChargeObjectTest {
   private final StripeDoubles.Accounts accounts = new StripeDoubles.Accounts();
   private final StripeDoubles.Runs testRuns = new StripeDoubles.Runs(DEFAULT_RUN);
   private final StripeDoubles.Audit audit = new StripeDoubles.Audit();
-  private final StripeDoubles.Intents intents = new StripeDoubles.Intents();
+  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
+  private final StripeDoubles.Intents intents = new StripeDoubles.Intents(paymentMethods);
   private final StripeDoubles.Charges charges = new StripeDoubles.Charges(intents);
   private final StripeDoubles.Refunds refunds = new StripeDoubles.Refunds(intents);
   private final StripeDoubles.Customers customers = new StripeDoubles.Customers();
-  private final StripeDoubles.PaymentMethods paymentMethods = new StripeDoubles.PaymentMethods();
   private final StripeDoubles.SetupIntents setupIntents =
       new StripeDoubles.SetupIntents(paymentMethods);
   private final StripeDoubles.Keys keys = new StripeDoubles.Keys();
@@ -155,6 +156,7 @@ class StripeChargeObjectTest {
     form.put("capture_method", "manual");
     form.put("payment_method", A_CARD);
     form.put("confirm", "true");
+    form.put("return_url", "https://shop.example/checkout/return");
     api()
         .createPaymentIntent(
             new StripeApiCall(
@@ -192,6 +194,7 @@ class StripeChargeObjectTest {
 
   private StripeApi api() {
     return new StripeApi(
+        new RecordedUnitsOfWork(),
         accounts,
         keys,
         ephemeralKeys,
@@ -221,8 +224,11 @@ class StripeChargeObjectTest {
         new CreateRefund(intents, refunds, charges, ids, scenarioEngine),
         customers,
         paymentMethods,
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        intents,
+        charges,
+        refunds,
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 
   private SimulatorProvider provider() {
@@ -249,6 +255,7 @@ class StripeChargeObjectTest {
             paymentMethods,
             setupIntents,
             accounts,
+            accounts,
             StripeDoubles.noDeliveries(accounts),
             StripeDoubles.clockAt(NOW),
             ids),
@@ -262,7 +269,7 @@ class StripeChargeObjectTest {
             ids,
             scenarioEngine,
             StripeDoubles.NO_SCHEDULED_OUTCOMES),
-        new CreateSetupIntent(setupIntents, ids),
-        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, scenarioEngine));
+        new CreateSetupIntent(setupIntents, paymentMethods, ids),
+        new ConfirmSetupIntent(setupIntents, paymentMethods, customers, ids, scenarioEngine));
   }
 }
