@@ -484,12 +484,12 @@ resource):
 | `2026-09-30.endive` | [969d8c308ea65b6dbdef4b6b4a71904027a010b8](https://raw.githubusercontent.com/stripe/openapi/969d8c308ea65b6dbdef4b6b4a71904027a010b8/latest/openapi.spec3.json) |
 | `2026-10-28.endive` | [51610f5f061c9723730582a7638b8cc0e646640d](https://raw.githubusercontent.com/stripe/openapi/51610f5f061c9723730582a7638b8cc0e646640d/latest/openapi.spec3.json) |
 
-Refresh from the worktree (decision: spec data only, no generated client or model): download the immutable source URL
-above into `/Users/Marcin/Projects/psp-simulators/.tmp/stripe-fidelity/work-s9/`, then run:
+Refresh a snapshot (decision: spec data only, no generated client or model): download the version's immutable source
+URL above to a local file, then run:
 
 ```sh
 ./gradlew stripeSpecSnapshot \
-  -PstripeSpecInput=/Users/Marcin/Projects/psp-simulators/.tmp/stripe-fidelity/work-s9/spec.json \
+  -PstripeSpecInput=PATH_TO_THE_DOWNLOADED_SPEC \
   -PstripeSpecOutput=src/test/resources/stripe-openapi/VERSION.json \
   -PstripeSpecVersion=VERSION \
   -PstripeSpecCommit=FULL_COMMIT_SHA \
